@@ -113,8 +113,9 @@ Confidence is a float 0.0–1.0 reflecting how sure you are of the decision.`,
       confidence: Math.max(0, Math.min(1, parsed.confidence)),
       model: MODEL,
     }
-  } catch {
+  } catch (err) {
     // On any error, return uncertain — never silently exclude
+    console.error('[stage1Filter] Error — falling back to uncertain:', err instanceof Error ? err.message : String(err))
     return {
       decision: 'uncertain',
       rationale: 'AI filter could not be applied — manual review required.',

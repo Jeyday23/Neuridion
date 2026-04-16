@@ -89,10 +89,13 @@ export async function POST(request: Request) {
   try {
     // Step 1: Scrape BfArM
     const from = new Date(period_from)
-    const to   = new Date(period_to)
+    const to   = new Date(period_to + 'T23:59:59.999Z') // end of day, not midnight
+    console.log('[search] Date range:', from.toISOString(), '→', to.toISOString())
     const items = await scrapeBfArM({ fromDate: from, toDate: to })
-    console.log('Date range:', from, to)
-    console.log('BfArM items scraped:', items.length)
+    console.log('[search] BfArM items scraped:', items.length)
+    if (items.length > 0) {
+      console.log('[search] Sample item:', JSON.stringify(items[0], null, 2))
+    }
 
     // Step 2: Insert raw FSN results
     let insertedRows: {
@@ -115,15 +118,21 @@ export async function POST(request: Request) {
         source:        item.source_db,
       }))
 
+      console.log('[search] Inserting', rows.length, 'rows into fsn_results')
       const { data: inserted, error: insertError } = await supabase
         .from('fsn_results')
         .insert(rows)
         .select('id, title, manufacturer, raw_content, fsn_date')
 
+      console.log('[search] Insert error:', insertError)
+      console.log('[search] Inserted rows returned:', inserted?.length ?? 0)
       if (insertError) throw insertError
       insertedRows = inserted ?? []
+    } else {
+      console.log('[search] Skipping insert — 0 items scraped')
     }
 
+    console.log('[search] Running AI filter on', insertedRows.length, 'rows')
     // Step 3: Run AI filter on every result
     const decisions = await Promise.all(
       insertedRows.map((row) =>
