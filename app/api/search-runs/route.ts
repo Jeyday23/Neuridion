@@ -204,11 +204,18 @@ export async function POST(request: Request) {
       { status: 201 }
     )
   } catch (err) {
+    const errMsg =
+      err instanceof Error
+        ? err.message
+        : (err && typeof err === 'object' && 'message' in err)
+          ? String((err as Record<string, unknown>).message)
+          : String(err)
+
     await supabase
       .from('search_runs')
-      .update({ status: 'failed', error: String(err) })
+      .update({ status: 'failed', error: errMsg })
       .eq('id', run.id)
 
-    return Response.json({ error: String(err), run_id: run.id }, { status: 500 })
+    return Response.json({ error: errMsg, run_id: run.id }, { status: 500 })
   }
 }

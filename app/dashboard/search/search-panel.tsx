@@ -194,7 +194,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       }
 
       if (!res.ok) {
-        setState({ phase: 'error', message: data.error ?? 'Search failed.' })
+        const msg = data.error
+        setState({ phase: 'error', message: typeof msg === 'string' ? msg : msg ? JSON.stringify(msg) : 'Search failed.' })
         return
       }
 
