@@ -110,7 +110,7 @@ export async function POST(request: Request) {
 
     if (items.length > 0) {
       const rows = items.map((item) => ({
-        search_run_id: run.id,
+        run_id:        run.id,
         external_id:   item.external_id,
         title:         item.title,
         manufacturer:  item.manufacturer ?? '',
