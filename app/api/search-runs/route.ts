@@ -91,6 +91,8 @@ export async function POST(request: Request) {
     const from = new Date(period_from)
     const to   = new Date(period_to)
     const items = await scrapeBfArM({ fromDate: from, toDate: to })
+    console.log('Date range:', from, to)
+    console.log('BfArM items scraped:', items.length)
 
     // Step 2: Insert raw FSN results
     let insertedRows: {
