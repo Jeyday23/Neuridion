@@ -1,7 +1,7 @@
 import { parseStringPromise } from 'xml2js'
 
 const FEED_URL =
-  'https://www.bfarm.de/SiteGlobals/Functions/RSS/DE/RSSNewsfeed_Kundeninfos_MP.xml'
+  'https://www.bfarm.de/SiteGlobals/Functions/RSSFeed/DE/Kundeninfos/RSSNewsfeed_Kundeninfos_MP.xml'
 
 export interface ScrapedFsn {
   external_id:  string
