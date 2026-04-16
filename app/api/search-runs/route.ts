@@ -73,11 +73,11 @@ export async function POST(request: Request) {
     .from('search_runs')
     .insert({
       profile_id,
-      user_id:     user.id,
-      status:      'running',
-      period_from,
-      period_to,
-      started_at:  new Date().toISOString(),
+      user_id:              user.id,
+      status:               'running',
+      search_period_from:   period_from,
+      search_period_to:     period_to,
+      started_at:           new Date().toISOString(),
     })
     .select()
     .single()
