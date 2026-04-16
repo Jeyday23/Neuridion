@@ -1,10 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 
 const MODEL = 'claude-sonnet-4-6'
-
-const client = new Anthropic()
 
 // ---------------------------------------------------------------------------
 // Schemas
@@ -54,6 +51,7 @@ export async function stage1Filter(
   profile: ProfileContext,
 ): Promise<FilterDecision> {
   try {
+    const client = new Anthropic()
     const profileLines = [
       `Device: ${profile.device_name}`,
       `Manufacturer: ${profile.manufacturer}`,
@@ -67,12 +65,10 @@ export async function stage1Filter(
     // Truncate raw content to stay well within context limits
     const content = fsn.raw_content.slice(0, 2000)
 
-    const response = await client.messages.parse({
+    const response = await client.messages.create({
       model: MODEL,
       max_tokens: 512,
       system: `You are a medical device post-market surveillance (PMS) specialist assessing whether a Field Safety Notice (FSN) or recall notice is relevant to a specific product profile.
-
-Respond only with the JSON schema requested.
 
 Decision criteria:
 - "relevant"  — The FSN clearly concerns the same device type, manufacturer, technology, or a substantially similar device that could affect PMS obligations.
@@ -80,21 +76,36 @@ Decision criteria:
 - "excluded"  — The FSN clearly concerns an unrelated product or manufacturer with no plausible PMS relevance.
 
 Confidence is a float 0.0–1.0 reflecting how sure you are of the decision.`,
+      tools: [
+        {
+          name: 'record_decision',
+          description: 'Record the relevance decision for this FSN notice.',
+          input_schema: {
+            type: 'object' as const,
+            properties: {
+              decision:   { type: 'string', enum: ['relevant', 'uncertain', 'excluded'] },
+              rationale:  { type: 'string' },
+              confidence: { type: 'number', minimum: 0, maximum: 1 },
+            },
+            required: ['decision', 'rationale', 'confidence'],
+          },
+        },
+      ],
+      tool_choice: { type: 'tool', name: 'record_decision' },
       messages: [
         {
           role: 'user',
           content: `Product Profile:\n${profileLines}\n\nFSN Notice:\nTitle: ${fsn.title}\nManufacturer: ${fsn.manufacturer || 'Unknown'}\nDate: ${fsn.fsn_date || 'Unknown'}\nContent: ${content}`,
         },
       ],
-      output_config: {
-        format: zodOutputFormat(FilterDecisionSchema),
-      },
     })
 
-    const parsed = response.parsed_output
-    if (!parsed) {
-      throw new Error('Structured output parse returned null')
+    const toolUse = response.content.find((b) => b.type === 'tool_use')
+    if (!toolUse || toolUse.type !== 'tool_use') {
+      throw new Error('Model did not return a tool use block')
     }
+
+    const parsed = FilterDecisionSchema.parse(toolUse.input)
 
     return {
       decision: parsed.decision,
