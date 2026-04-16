@@ -1,11 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeBfArM } from '@/lib/scrapers/bfarm'
 import { stage1Filter } from '@/lib/claude/filter-pipeline'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { sendSearchRunNotification } from '@/lib/email'
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
+  const supabase = await createClient()   // anon client — auth checks only
+  const db = createAdminClient()          // service role — bypasses RLS for data ops
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
   }
 
   // Create the search run
-  const { data: run, error: runError } = await supabase
+  const { data: run, error: runError } = await db
     .from('search_runs')
     .insert({
       profile_id,
@@ -119,7 +121,7 @@ export async function POST(request: Request) {
       }))
 
       console.log('[search] Inserting', rows.length, 'rows into fsn_results')
-      const { data: inserted, error: insertError } = await supabase
+      const { data: inserted, error: insertError } = await db
         .from('fsn_results')
         .insert(rows)
         .select('id, title, manufacturer, raw_content, fsn_date')
@@ -159,7 +161,7 @@ export async function POST(request: Request) {
         model:         d.model,
       }))
 
-      const { error: decisionsError } = await supabase
+      const { error: decisionsError } = await db
         .from('filter_decisions')
         .insert(decisionRows)
 
@@ -176,7 +178,7 @@ export async function POST(request: Request) {
     )
 
     // Step 6: Mark run completed with counts
-    await supabase
+    await db
       .from('search_runs')
       .update({
         status:          'completed',
@@ -220,7 +222,7 @@ export async function POST(request: Request) {
           ? String((err as Record<string, unknown>).message)
           : String(err)
 
-    await supabase
+    await db
       .from('search_runs')
       .update({ status: 'failed', error: errMsg })
       .eq('id', run.id)
