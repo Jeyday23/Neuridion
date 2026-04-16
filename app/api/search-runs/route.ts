@@ -117,7 +117,7 @@ export async function POST(request: Request) {
         fsn_date:      item.fsn_date || null,
         source_url:    item.source_url,
         raw_content:   item.raw_content,
-        source:        item.source_db,
+        source_db:     item.source_db,
       }))
 
       console.log('[search] Inserting', rows.length, 'rows into fsn_results')
