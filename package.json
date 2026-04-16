@@ -9,15 +9,29 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
+    "@stripe/stripe-js": "^9.2.0",
+    "@supabase/ssr": "^0.10.2",
+    "@supabase/supabase-js": "^2.103.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "exceljs": "^4.4.0",
     "next": "16.2.3",
+    "puppeteer": "^24.40.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "resend": "^6.11.0",
+    "stripe": "^22.0.1",
+    "tailwind-merge": "^3.5.0",
+    "xml2js": "^0.6.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/xml2js": "^0.4.14",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
     "tailwindcss": "^4",
