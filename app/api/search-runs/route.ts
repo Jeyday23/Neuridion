@@ -159,6 +159,7 @@ export async function POST(request: Request) {
         rationale:     d.rationale,
         confidence:    d.confidence,
         model_used:    d.model,
+        stage:         'stage1',
       }))
 
       const { error: decisionsError } = await db
