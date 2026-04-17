@@ -30,7 +30,7 @@ export async function GET(
   const { data: results, error: resultsError } = await supabase
     .from('fsn_results')
     .select('*')
-    .eq('search_run_id', id)
+    .eq('run_id', id)
     .order('fsn_date', { ascending: false })
 
   if (resultsError) {

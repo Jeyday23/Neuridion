@@ -363,7 +363,7 @@ export async function POST(request: Request) {
   const { data: rawResults, error: resultsError } = await supabase
     .from('fsn_results')
     .select('*')
-    .eq('search_run_id', run_id)
+    .eq('run_id', run_id)
     .order('fsn_date', { ascending: false })
 
   if (resultsError) {
