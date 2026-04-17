@@ -23,7 +23,10 @@ export async function signup(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.signUp({
+
+  await supabase.auth.signOut()
+
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -36,6 +39,11 @@ export async function signup(
 
   if (error) {
     return { error: error.message }
+  }
+
+  // session is null when Supabase requires email confirmation
+  if (!data.session) {
+    redirect('/signup/confirm')
   }
 
   redirect('/dashboard/search')
