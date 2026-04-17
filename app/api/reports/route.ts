@@ -1,6 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
 import ExcelJS from 'exceljs'
-import puppeteer from 'puppeteer'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -409,42 +408,25 @@ export async function POST(request: Request) {
     period_to:    run.period_to,
   })
 
-  // ── Generate PDF ────────────────────────────────────────────────────────────
+  // ── Generate HTML report (open in browser and print to PDF natively) ─────────
   const html = buildReportHtml(profile, { period_from: run.period_from, period_to: run.period_to }, rows)
-
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  })
-  let pdfBuf: Buffer
-  try {
-    const page = await browser.newPage()
-    await page.setContent(html, { waitUntil: 'networkidle0' })
-    const pdfData = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '0', right: '0', bottom: '0', left: '0' },
-    })
-    pdfBuf = Buffer.from(pdfData)
-  } finally {
-    await browser.close()
-  }
+  const htmlBuf = Buffer.from(html, 'utf-8')
 
   // ── Upload to Supabase Storage ──────────────────────────────────────────────
   const ts = Date.now()
-  const pdfPath   = `${user.id}/${run_id}/${ts}_report.pdf`
+  const htmlPath  = `${user.id}/${run_id}/${ts}_report.html`
   const excelPath = `${user.id}/${run_id}/${ts}_report.xlsx`
 
-  const [pdfUpload, excelUpload] = await Promise.all([
-    supabase.storage.from('reports').upload(pdfPath, pdfBuf, { contentType: 'application/pdf', upsert: true }),
+  const [htmlUpload, excelUpload] = await Promise.all([
+    supabase.storage.from('reports').upload(htmlPath, htmlBuf, { contentType: 'text/html', upsert: true }),
     supabase.storage.from('reports').upload(excelPath, excelBuf, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       upsert: true,
     }),
   ])
 
-  if (pdfUpload.error) {
-    return Response.json({ error: `PDF upload failed: ${pdfUpload.error.message}` }, { status: 500 })
+  if (htmlUpload.error) {
+    return Response.json({ error: `Report upload failed: ${htmlUpload.error.message}` }, { status: 500 })
   }
   if (excelUpload.error) {
     return Response.json({ error: `Excel upload failed: ${excelUpload.error.message}` }, { status: 500 })
@@ -453,7 +435,7 @@ export async function POST(request: Request) {
   // ── Insert report record ────────────────────────────────────────────────────
   const { data: report, error: reportInsertError } = await supabase
     .from('reports')
-    .insert({ run_id, user_id: user.id, pdf_storage_path: pdfPath, excel_storage_path: excelPath })
+    .insert({ run_id, user_id: user.id, pdf_storage_path: htmlPath, excel_storage_path: excelPath })
     .select()
     .single()
 
@@ -462,14 +444,14 @@ export async function POST(request: Request) {
   }
 
   // ── Create signed URLs (1 hour) ─────────────────────────────────────────────
-  const [pdfSigned, excelSigned] = await Promise.all([
-    supabase.storage.from('reports').createSignedUrl(pdfPath, 3600),
+  const [htmlSigned, excelSigned] = await Promise.all([
+    supabase.storage.from('reports').createSignedUrl(htmlPath, 3600),
     supabase.storage.from('reports').createSignedUrl(excelPath, 3600),
   ])
 
   return Response.json({
     report_id:  report.id,
-    pdf_url:    pdfSigned.data?.signedUrl ?? null,
+    pdf_url:    htmlSigned.data?.signedUrl ?? null,
     excel_url:  excelSigned.data?.signedUrl ?? null,
   }, { status: 201 })
 }

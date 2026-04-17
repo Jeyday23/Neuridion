@@ -107,6 +107,8 @@ Confidence is a float 0.0–1.0 reflecting how sure you are of the decision.`,
 
     const parsed = FilterDecisionSchema.parse(toolUse.input)
 
+    await new Promise(resolve => setTimeout(resolve, 500))
+
     return {
       decision: parsed.decision,
       rationale: parsed.rationale,
