@@ -69,7 +69,8 @@ async function getSearchRuns(): Promise<RunRow[]> {
   }
 
   return runs.map((r) => {
-    const profile = r.profiles as { name: string } | null
+    const profileRaw = r.profiles as { name: string }[] | { name: string } | null
+    const profile = Array.isArray(profileRaw) ? profileRaw[0] ?? null : profileRaw
     return {
       id:                  r.id as string,
       status:              r.status as string,
