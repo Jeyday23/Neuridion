@@ -309,8 +309,8 @@ function buildReportHtml(
 </html>`
 }
 
-function escHtml(str: string): string {
-  return str
+function escHtml(str: string | null | undefined): string {
+  return (str ?? '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
