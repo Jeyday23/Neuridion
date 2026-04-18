@@ -9,7 +9,7 @@ interface FsnRow {
   manufacturer: string
   fsn_date: string | null
   source_url: string
-  source: string
+  source_db: string
   raw_content: string
   filter_decision: {
     decision: 'relevant' | 'uncertain' | 'excluded'
@@ -44,7 +44,7 @@ async function buildExcel(
   wb.created = new Date()
 
   // Group by source database — currently only BfArM; extend when more sources added
-  const sources = [...new Set(rows.map((r) => r.source))]
+  const sources = [...new Set(rows.map((r) => r.source_db))]
   if (sources.length === 0) sources.push('bfarm')
 
   for (const src of sources) {
@@ -71,8 +71,8 @@ async function buildExcel(
 
     // Data rows — relevant/uncertain first, excluded last
     const sorted = [
-      ...rows.filter((r) => r.source === src && r.filter_decision?.decision !== 'excluded'),
-      ...rows.filter((r) => r.source === src && r.filter_decision?.decision === 'excluded'),
+      ...rows.filter((r) => r.source_db === src && r.filter_decision?.decision !== 'excluded'),
+      ...rows.filter((r) => r.source_db === src && r.filter_decision?.decision === 'excluded'),
     ]
 
     for (const row of sorted) {
@@ -152,7 +152,7 @@ function buildReportHtml(
         <td><a href="${r.source_url}" style="color:#1a1a2e;text-decoration:none;">${escHtml(r.title)}</a></td>
         <td>${escHtml(r.manufacturer || '—')}</td>
         <td style="white-space:nowrap;">${fmtDate(r.fsn_date)}</td>
-        <td>${escHtml(r.source.toUpperCase())}</td>
+        <td>${escHtml(r.source_db.toUpperCase())}</td>
         <td><span style="color:${d.decision === 'relevant' ? '#166534' : '#92400e'};">${DECISION_LABEL[d.decision]}</span></td>
         <td style="font-size:8pt;color:#555;">${escHtml(d.rationale)}</td>
       </tr>`
@@ -395,7 +395,7 @@ export async function POST(request: Request) {
     manufacturer:    r.manufacturer,
     fsn_date:        r.fsn_date,
     source_url:      r.source_url,
-    source:          r.source,
+    source_db:       r.source_db,
     raw_content:     r.raw_content,
     filter_decision: (decisionsMap[r.id] as FsnRow['filter_decision']) ?? null,
   }))
