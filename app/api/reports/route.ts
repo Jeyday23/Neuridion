@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import ExcelJS from 'exceljs'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -413,13 +414,14 @@ export async function POST(request: Request) {
   const htmlBuf = Buffer.from(html, 'utf-8')
 
   // ── Upload to Supabase Storage ──────────────────────────────────────────────
+  const adminStorage = createAdminClient()
   const ts = Date.now()
   const htmlPath  = `${user.id}/${run_id}/${ts}_report.html`
   const excelPath = `${user.id}/${run_id}/${ts}_report.xlsx`
 
   const [htmlUpload, excelUpload] = await Promise.all([
-    supabase.storage.from('reports').upload(htmlPath, htmlBuf, { contentType: 'text/html', upsert: true }),
-    supabase.storage.from('reports').upload(excelPath, excelBuf, {
+    adminStorage.storage.from('reports').upload(htmlPath, htmlBuf, { contentType: 'text/html', upsert: true }),
+    adminStorage.storage.from('reports').upload(excelPath, excelBuf, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       upsert: true,
     }),
@@ -443,10 +445,10 @@ export async function POST(request: Request) {
     return Response.json({ error: reportInsertError.message }, { status: 500 })
   }
 
-  // ── Create signed URLs (1 hour) ─────────────────────────────────────────────
+  // ── Create signed URLs (7 days) ─────────────────────────────────────────────
   const [htmlSigned, excelSigned] = await Promise.all([
-    supabase.storage.from('reports').createSignedUrl(htmlPath, 3600),
-    supabase.storage.from('reports').createSignedUrl(excelPath, 3600),
+    adminStorage.storage.from('reports').createSignedUrl(htmlPath, 60 * 60 * 24 * 7),
+    adminStorage.storage.from('reports').createSignedUrl(excelPath, 60 * 60 * 24 * 7),
   ])
 
   return Response.json({
