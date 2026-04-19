@@ -1,14 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { ArchiveTable } from './archive-table'
 
 export const metadata = { title: 'Archive — Kodex' }
 
 export default async function ArchivePage() {
+  // Auth: use server client (cookie-based session) to get the user identity
   const supabase = await createClient()
-
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null // middleware handles redirect
 
-  const { data: runs } = await supabase
+  // Data: use admin client to bypass RLS — reads are scoped to the user's id below
+  const adminClient = createAdminClient()
+
+  console.log('[archive] querying for user_id:', user.id)
+
+  const { data: runs, error } = await adminClient
     .from('search_runs')
     .select(`
       id, status, started_at, completed_at, created_at,
@@ -19,9 +26,15 @@ export default async function ArchivePage() {
       report_html_path, report_pdf_path, report_excel_path, report_generated_at,
       product_profiles ( device_name, manufacturer )
     `)
-    .eq('user_id', user!.id)
+    .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .limit(100)
+
+  console.log('[archive] query result:', {
+    error: error?.message,
+    rowCount: runs?.length,
+    firstRow: runs?.[0],
+  })
 
   return (
     <div className="p-8">
@@ -29,6 +42,18 @@ export default async function ArchivePage() {
         <h1 className="text-xl font-semibold text-zinc-900">Archive</h1>
         <p className="mt-1 text-sm text-zinc-500">Audit trail of all search runs and generated reports.</p>
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <strong>Query error:</strong> {error.message}
+          {error.message.includes('column') && (
+            <p className="mt-1 text-xs text-red-500">
+              Migration 009_add_report_paths.sql may not have been applied yet.
+              Run it in the Supabase SQL Editor and reload.
+            </p>
+          )}
+        </div>
+      )}
 
       <ArchiveTable runs={runs ?? []} />
     </div>
