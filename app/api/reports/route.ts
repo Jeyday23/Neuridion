@@ -434,17 +434,6 @@ export async function POST(request: Request) {
     return Response.json({ error: `Excel upload failed: ${excelUpload.error.message}` }, { status: 500 })
   }
 
-  // ── Insert report record ────────────────────────────────────────────────────
-  const { data: report, error: reportInsertError } = await supabase
-    .from('reports')
-    .insert({ run_id, user_id: user.id, pdf_storage_path: htmlPath, excel_storage_path: excelPath })
-    .select()
-    .single()
-
-  if (reportInsertError) {
-    return Response.json({ error: reportInsertError.message }, { status: 500 })
-  }
-
   // ── Create signed URLs (7 days) ─────────────────────────────────────────────
   const [htmlSigned, excelSigned] = await Promise.all([
     adminStorage.storage.from('reports').createSignedUrl(htmlPath, 60 * 60 * 24 * 7),
@@ -452,8 +441,7 @@ export async function POST(request: Request) {
   ])
 
   return Response.json({
-    report_id:  report.id,
-    pdf_url:    htmlSigned.data?.signedUrl ?? null,
-    excel_url:  excelSigned.data?.signedUrl ?? null,
+    pdf_url:   htmlSigned.data?.signedUrl ?? null,
+    excel_url: excelSigned.data?.signedUrl ?? null,
   }, { status: 201 })
 }
