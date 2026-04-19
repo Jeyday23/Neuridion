@@ -232,10 +232,10 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                     <td className="px-4 py-3">
                       <div className="flex flex-col gap-1">
                         <a
-                          href="/dashboard/search"
+                          href={`/dashboard/archive/${run.id}`}
                           className="text-xs text-zinc-500 hover:underline whitespace-nowrap"
                         >
-                          View Search
+                          View Results
                         </a>
                         {hasPdf && (
                           <DownloadButton runId={run.id} format="pdf" label="↓ PDF" />
