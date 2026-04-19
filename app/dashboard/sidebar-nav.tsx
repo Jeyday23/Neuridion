@@ -2,14 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { clsx } from 'clsx'
+import { Search, UserCircle, Archive, CreditCard, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const links = [
-  { label: 'Search',   href: '/dashboard/search'   },
-  { label: 'Profiles', href: '/dashboard/profiles'  },
-  { label: 'Archive',  href: '/dashboard/archive'   },
-  { label: 'Billing',  href: '/dashboard/billing'   },
+  { label: 'Search',   href: '/dashboard/search',   icon: Search      },
+  { label: 'Profiles', href: '/dashboard/profiles',  icon: UserCircle  },
+  { label: 'Archive',  href: '/dashboard/archive',   icon: Archive     },
+  { label: 'Billing',  href: '/dashboard/billing',   icon: CreditCard  },
 ]
 
 export function SidebarNav() {
@@ -23,36 +23,35 @@ export function SidebarNav() {
   }
 
   return (
-    <nav className="flex flex-1 flex-col justify-between gap-0.5">
-      <div className="flex flex-col gap-0.5">
-        {links.map(({ label, href }) => {
+    <nav className="flex flex-1 flex-col justify-between p-4">
+      <ul className="space-y-1">
+        {links.map(({ label, href, icon: Icon }) => {
           const active = pathname.startsWith(href)
           return (
-            <Link
-              key={href}
-              href={href}
-              className={clsx(
-                'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                active
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
-              )}
-            >
-              {label}
-            </Link>
+            <li key={href}>
+              <Link
+                href={href}
+                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  active
+                    ? 'bg-blue-50 text-blue-700 font-medium'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                <span>{label}</span>
+              </Link>
+            </li>
           )
         })}
-      </div>
+      </ul>
 
-      <div className="flex justify-end pr-3 mb-2">
+      <div className="border-t border-slate-200 pt-4">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-1 rounded-md py-2 px-2 text-sm font-medium text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 transition-colors"
+          className="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors w-full"
         >
-          <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
-          </svg>
-          Log out
+          <LogOut className="w-5 h-5" />
+          <span>Log out</span>
         </button>
       </div>
     </nav>
