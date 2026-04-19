@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ run_id: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -11,7 +11,7 @@ export async function GET(
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { run_id } = await params
+  const { id } = await params
   const { searchParams } = new URL(request.url)
   const format = searchParams.get('format') ?? 'pdf'
 
@@ -25,7 +25,7 @@ export async function GET(
       period_from, period_to,
       product_profiles ( device_name )
     `)
-    .eq('id', run_id)
+    .eq('id', id)
     .eq('user_id', user.id)
     .single()
 
