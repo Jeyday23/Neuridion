@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ExcelJS from 'exceljs'
+import { generatePdfFromHtml, canGeneratePdf, incrementPdfUsage } from '@/lib/pdfshift'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -440,8 +441,47 @@ export async function POST(request: Request) {
     adminStorage.storage.from('reports').createSignedUrl(excelPath, 60 * 60 * 24 * 7),
   ])
 
+  // ── Generate real PDF via PDFShift (quota-guarded) ───────────────────────────
+  let pdfUrl: string | null = null
+  let pdfStatus: 'generated' | 'quota_exceeded' | 'failed' = 'failed'
+
+  const quotaCheck = await canGeneratePdf(adminStorage, user.id)
+
+  if (quotaCheck.allowed) {
+    try {
+      console.log(`[PDF] Generating via PDFShift for user ${user.id}`)
+      const pdfBuffer = await generatePdfFromHtml(html)
+
+      const pdfPath = `${user.id}/${run_id}/${ts}_report.pdf`
+      const { error: pdfUploadErr } = await adminStorage.storage
+        .from('reports')
+        .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true })
+
+      if (!pdfUploadErr) {
+        const { data: pdfSigned } = await adminStorage.storage
+          .from('reports')
+          .createSignedUrl(pdfPath, 60 * 60 * 24 * 7)
+
+        pdfUrl = pdfSigned?.signedUrl ?? null
+        pdfStatus = 'generated'
+        await incrementPdfUsage(adminStorage, user.id)
+        console.log(`[PDF] Success for user ${user.id}`)
+      } else {
+        console.error('[PDF] Upload failed:', pdfUploadErr.message)
+      }
+    } catch (err) {
+      console.error('[PDF] Generation failed:', err)
+      pdfStatus = 'failed'
+    }
+  } else {
+    pdfStatus = 'quota_exceeded'
+    console.warn(`[PDF] Quota exceeded for user ${user.id}: ${quotaCheck.reason}`)
+  }
+
   return Response.json({
-    pdf_url:   htmlSigned.data?.signedUrl ?? null,
-    excel_url: excelSigned.data?.signedUrl ?? null,
+    html_url:   htmlSigned.data?.signedUrl ?? null,
+    excel_url:  excelSigned.data?.signedUrl ?? null,
+    pdf_url:    pdfUrl,
+    pdf_status: pdfStatus,
   }, { status: 201 })
 }
