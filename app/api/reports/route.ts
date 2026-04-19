@@ -444,6 +444,7 @@ export async function POST(request: Request) {
   // ── Generate real PDF via PDFShift (quota-guarded) ───────────────────────────
   let pdfUrl: string | null = null
   let pdfStatus: 'generated' | 'quota_exceeded' | 'failed' = 'failed'
+  let pdfPath: string | null = null
 
   const quotaCheck = await canGeneratePdf(adminStorage, user.id)
 
@@ -452,7 +453,7 @@ export async function POST(request: Request) {
       console.log(`[PDF] Generating via PDFShift for user ${user.id}`)
       const pdfBuffer = await generatePdfFromHtml(html)
 
-      const pdfPath = `${user.id}/${run_id}/${ts}_report.pdf`
+      pdfPath = `${user.id}/${run_id}/${ts}_report.pdf`
       const { error: pdfUploadErr } = await adminStorage.storage
         .from('reports')
         .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true })
@@ -477,6 +478,17 @@ export async function POST(request: Request) {
     pdfStatus = 'quota_exceeded'
     console.warn(`[PDF] Quota exceeded for user ${user.id}: ${quotaCheck.reason}`)
   }
+
+  // Persist storage paths so the archive page can regenerate signed URLs on demand
+  await adminStorage
+    .from('search_runs')
+    .update({
+      report_html_path:     htmlPath,
+      report_pdf_path:      pdfPath,
+      report_excel_path:    excelPath,
+      report_generated_at:  new Date().toISOString(),
+    })
+    .eq('id', run_id)
 
   return Response.json({
     html_url:   htmlSigned.data?.signedUrl ?? null,
