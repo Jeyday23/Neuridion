@@ -4,7 +4,7 @@
 
 -- Mark all stuck 'running' runs as 'completed'
 UPDATE public.search_runs
-SET status       = 'completed',
+SET status       = 'complete',
     completed_at = COALESCE(completed_at, started_at, created_at)
 WHERE status = 'running';
 

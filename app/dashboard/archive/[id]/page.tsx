@@ -129,10 +129,10 @@ export default async function RunDetailPage({
         <div>
           <p className="text-xs text-zinc-400 uppercase tracking-wide mb-0.5">Status</p>
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
-            run.status === 'completed' ? 'bg-green-50 text-green-700 border-green-200' :
-            run.status === 'running'   ? 'bg-blue-50 text-blue-700 border-blue-200' :
-            run.status === 'failed'    ? 'bg-red-50 text-red-700 border-red-200' :
-                                        'bg-zinc-100 text-zinc-600 border-zinc-200'
+            run.status === 'complete'   ? 'bg-green-50 text-green-700 border-green-200' :
+            (run.status === 'running' || run.status === 'filtering') ? 'bg-blue-50 text-blue-700 border-blue-200' :
+            run.status === 'error'     ? 'bg-red-50 text-red-700 border-red-200' :
+                                         'bg-zinc-100 text-zinc-600 border-zinc-200'
           }`}>
             {run.status}
           </span>
@@ -169,7 +169,7 @@ export default async function RunDetailPage({
         </div>
       </div>
 
-      {run.status === 'failed' && run.error_message && (
+      {run.status === 'error' && run.error_message && (
         <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           <strong>Error:</strong> {run.error_message}
         </div>
@@ -180,7 +180,7 @@ export default async function RunDetailPage({
         <RunResults results={results} />
       ) : (
         <p className="text-sm text-zinc-400 py-8 text-center">
-          {run.status === 'completed' ? 'No FSN results were found for this search.' : 'Results will appear here once the search completes.'}
+          {run.status === 'complete' ? 'No FSN results were found for this search.' : 'Results will appear here once the search completes.'}
         </p>
       )}
     </div>

@@ -30,10 +30,11 @@ interface RunRow {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  completed: 'bg-green-50 text-green-700 border-green-200',
+  complete:  'bg-green-50 text-green-700 border-green-200',
   running:   'bg-blue-50 text-blue-700 border-blue-200',
-  failed:    'bg-red-50 text-red-700 border-red-200',
-  pending:   'bg-zinc-100 text-zinc-600 border-zinc-200',
+  filtering: 'bg-blue-50 text-blue-700 border-blue-200',
+  queued:    'bg-zinc-100 text-zinc-600 border-zinc-200',
+  error:     'bg-red-50 text-red-700 border-red-200',
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -198,7 +199,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                       >
                         {run.status}
                       </span>
-                      {run.status === 'failed' && run.error_message && (
+                      {run.status === 'error' && run.error_message && (
                         <p className="mt-1 text-xs text-red-500 max-w-[180px] truncate" title={run.error_message}>
                           {run.error_message}
                         </p>
@@ -207,7 +208,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
 
                     {/* Results */}
                     <td className="px-4 py-3 text-xs text-zinc-600">
-                      {run.status === 'completed' && tot != null ? (
+                      {run.status === 'complete' && tot != null ? (
                         <span>
                           {tot}{' '}
                           <span className="text-zinc-400">
@@ -246,7 +247,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                         {hasExcel && (
                           <DownloadButton runId={run.id} format="excel" label="↓ Excel" />
                         )}
-                        {!hasReport && run.status === 'completed' && (
+                        {!hasReport && run.status === 'complete' && (
                           <GenerateReportButton runId={run.id} />
                         )}
                       </div>

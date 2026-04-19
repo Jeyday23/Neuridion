@@ -184,7 +184,7 @@ export async function POST(request: Request) {
     await db
       .from('search_runs')
       .update({
-        status:          'completed',
+        status:          'complete',
         completed_at:    new Date().toISOString(),
         total_results:   items.length,
         relevant_count:  counts.relevant,
@@ -229,7 +229,7 @@ export async function POST(request: Request) {
 
     await db
       .from('search_runs')
-      .update({ status: 'failed', error_message: errMsg })
+      .update({ status: 'error', error_message: errMsg })
       .eq('id', run.id)
 
     return Response.json({ error: errMsg, run_id: run.id }, { status: 500 })
