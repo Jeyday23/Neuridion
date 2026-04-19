@@ -79,6 +79,8 @@ export async function POST(request: Request) {
       status:               'running',
       search_period_from:   period_from,
       search_period_to:     period_to,
+      period_from,
+      period_to,
       started_at:           new Date().toISOString(),
     })
     .select()
@@ -184,9 +186,11 @@ export async function POST(request: Request) {
       .update({
         status:          'completed',
         completed_at:    new Date().toISOString(),
+        total_results:   items.length,
         relevant_count:  counts.relevant,
         uncertain_count: counts.uncertain,
         excluded_count:  counts.excluded,
+        dbs_searched:    [...new Set(items.map((i) => i.source_db))],
       })
       .eq('id', run.id)
 
@@ -225,7 +229,7 @@ export async function POST(request: Request) {
 
     await db
       .from('search_runs')
-      .update({ status: 'failed', error: errMsg })
+      .update({ status: 'failed', error_message: errMsg })
       .eq('id', run.id)
 
     return Response.json({ error: errMsg, run_id: run.id }, { status: 500 })
