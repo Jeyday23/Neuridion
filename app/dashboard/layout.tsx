@@ -1,5 +1,6 @@
 import { SidebarNav } from './sidebar-nav'
 import { LanguageSelector } from './language-selector'
+import { SessionGuard } from './session-guard'
 
 export default function DashboardLayout({
   children,
@@ -23,7 +24,7 @@ export default function DashboardLayout({
           <LanguageSelector />
         </div>
         <div className="flex-1 overflow-y-auto">
-          {children}
+          <SessionGuard>{children}</SessionGuard>
         </div>
       </main>
     </div>
