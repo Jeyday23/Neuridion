@@ -1,4 +1,4 @@
-export type PlanId = 'free' | 'starter' | 'pro' | 'enterprise'
+export type PlanId = 'free' | 'trial' | 'starter' | 'pro' | 'enterprise'
 
 export interface PlanLimits {
   maxSearchRuns: number   // -1 = unlimited
@@ -10,6 +10,12 @@ export interface PlanLimits {
 export const PLANS: Record<PlanId, PlanLimits> = {
   free: {
     label: 'Free',
+    priceMonthly: '€0',
+    maxSearchRuns: 1,
+    maxProfiles: 1,
+  },
+  trial: {
+    label: 'Trial',
     priceMonthly: '€0',
     maxSearchRuns: 1,
     maxProfiles: 1,
