@@ -6,6 +6,7 @@ const NAV_LINKS = [
   { label: 'Overview',     href: '/admin' },
   { label: 'Users',        href: '/admin/users' },
   { label: 'Search Runs',  href: '/admin/search-runs' },
+  { label: 'QR Codes',     href: '/admin/qr-codes' },
 ]
 
 export default async function AdminLayout({
