@@ -95,6 +95,14 @@ export async function POST(request: Request) {
     // Step 1: Scrape BfArM
     const from = new Date(period_from)
     const to   = new Date(period_to + 'T23:59:59.999Z') // end of day, not midnight
+    console.log('[api] Received dates:', {
+      fromRaw:   period_from,
+      toRaw:     period_to,
+      fromParsed: from.toISOString(),
+      toParsed:   to.toISOString(),
+      serverNow:  new Date().toISOString(),
+      serverTZ:   Intl.DateTimeFormat().resolvedOptions().timeZone,
+    })
     console.log('[search] Date range:', from.toISOString(), '→', to.toISOString())
     const items = await scrapeBfArM({ fromDate: from, toDate: to })
     console.log('[search] BfArM items scraped:', items.length)

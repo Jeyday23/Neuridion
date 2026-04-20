@@ -105,6 +105,12 @@ function parsePage(html: string): ParsedItem[] {
 export async function scrapeBfArM(options: ScraperOptions = {}): Promise<ScrapedFsn[]> {
   const { fromDate, toDate } = options
 
+  console.log('[bfarm-scraper] Input dates:', {
+    fromDate: fromDate?.toISOString() ?? null,
+    toDate:   toDate?.toISOString()   ?? null,
+    serverTZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  })
+
   try {
     const raw: ScrapedFsn[] = []
 
@@ -149,6 +155,27 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
 
     // Belt-and-suspenders: drop items outside the requested date range.
     // Also drops items with no date — we can't verify their relevance.
+    const dropped = raw.filter(item => {
+      if (!item.fsn_date) return true
+      const d = new Date(item.fsn_date)
+      if (fromDate && d < fromDate) return true
+      if (toDate   && d > toDate)   return true
+      return false
+    })
+    if (dropped.length > 0) {
+      console.log('[bfarm-scraper] Items dropped by date filter:',
+        dropped.slice(0, 5).map(i => ({
+          title:    i.title.slice(0, 60),
+          fsn_date: i.fsn_date,
+          reason:   !i.fsn_date ? 'no_date'
+            : fromDate && new Date(i.fsn_date) < fromDate ? 'before_fromDate'
+            : 'after_toDate',
+          fsn_date_utc:  i.fsn_date ? new Date(i.fsn_date).toISOString() : null,
+          fromDate_utc:  fromDate?.toISOString() ?? null,
+          toDate_utc:    toDate?.toISOString()   ?? null,
+        }))
+      )
+    }
     const inRange = raw.filter(item => {
       if (!item.fsn_date) return false
       const d = new Date(item.fsn_date)

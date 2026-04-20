@@ -212,6 +212,15 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     setState({ phase: 'running' })
     setReportState({ phase: 'idle' })
 
+    console.log('[client] Date range selected:', {
+      from: fromDate,
+      to: toDate,
+      fromISO: new Date(fromDate).toISOString(),
+      toISO: new Date(toDate).toISOString(),
+      userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      userNow: new Date().toISOString(),
+    })
+
     try {
       const res = await fetch('/api/search-runs', {
         method: 'POST',
