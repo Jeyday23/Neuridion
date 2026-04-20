@@ -471,7 +471,14 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           {/* Summary counts */}
           <div className="flex items-center gap-4 mb-4">
             {state.results.length === 0 ? (
-              <p className="text-sm text-slate-500">No notices found for this period.</p>
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-4 max-w-lg">
+                <p className="text-sm font-medium text-zinc-700 mb-1">
+                  No FSNs published in BfArM during this period ({fromDate} to {toDate}).
+                </p>
+                <p className="text-xs text-zinc-500">
+                  BfArM does not publish daily. Try a wider date range — the last 14 days typically has 10–30 FSNs.
+                </p>
+              </div>
             ) : (
               <>
                 <p className="text-sm font-medium text-slate-700">

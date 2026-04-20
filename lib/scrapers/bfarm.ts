@@ -35,9 +35,9 @@ const GERMAN_MONTHS: Record<string, number> = {
 }
 
 function formatBfarmDate(d: Date): string {
-  const dd = String(d.getDate()).padStart(2, '0')
-  const mm = String(d.getMonth() + 1).padStart(2, '0')
-  return `${dd}.${mm}.${d.getFullYear()}`
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  return `${dd}.${mm}.${d.getUTCFullYear()}`
 }
 
 // BfArM results are sorted newest-first; include date params on every page so
@@ -57,7 +57,10 @@ function parseGermanDate(block: string): Date | null {
   if (!m) return null
   const month = GERMAN_MONTHS[m[2]]
   if (month === undefined) return null
-  return new Date(parseInt(m[3], 10), month, parseInt(m[1], 10))
+  // Use Date.UTC to avoid timezone-dependent local-time constructor.
+  // new Date(y, m, d) would shift the date by the server's UTC offset, causing
+  // off-by-one comparisons against fromDate/toDate which are always UTC midnight.
+  return new Date(Date.UTC(parseInt(m[3], 10), month, parseInt(m[1], 10)))
 }
 
 function stripTags(html: string): string {
@@ -128,13 +131,8 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
 
       if (pageItems.length === 0) break
 
-      let stop = false
       for (const item of pageItems) {
-        // Pagination early-exit: items are newest-first, so once we pass
-        // fromDate there's nothing left in range on subsequent pages.
-        if (item.date && fromDate && item.date < fromDate) { stop = true; break }
-
-        if (raw.length >= MAX_ITEMS) { stop = true; break }
+        if (raw.length >= MAX_ITEMS) break
 
         raw.push({
           external_id:  item.externalId,
@@ -148,10 +146,10 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
         })
       }
 
-      if (stop || pageItems.length < RESULTS_PER_PAGE) break
+      if (raw.length >= MAX_ITEMS || pageItems.length < RESULTS_PER_PAGE) break
     }
 
-    console.log(`[BfArM] Raw items before post-processing: ${raw.length}`)
+    console.log(`[bfarm-scraper] After pagination: ${raw.length} items`)
 
     // Belt-and-suspenders: drop items outside the requested date range.
     // Also drops items with no date — we can't verify their relevance.
@@ -195,19 +193,26 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
     })
     console.log(`[BfArM] Dedup: ${inRange.length} → ${deduped.length}`)
 
+    // If no results in range, return empty — do NOT fall back to RSS.
+    // RSS ignores the date filter and would pollute results with out-of-range
+    // items. Zero results is a valid state: BfArM does not publish daily.
     if (deduped.length === 0) {
-      console.log('[BfArM] HTML scraper returned 0 in-range results, falling back to RSS')
-      return scrapeRss(options)
+      console.log('[bfarm-scraper] No HTML results for this date range')
+      return []
     }
 
     return deduped
   } catch (err) {
-    console.error('[BfArM] HTML scraper error, falling back to RSS:', err)
-    return scrapeRss(options)
+    console.error('[BfArM] HTML scraper error:', err)
+    // Re-throw so the search run is marked as error rather than silently
+    // returning stale RSS data that ignores the user's date filter.
+    throw err
   }
 }
 
-async function scrapeRss(options: ScraperOptions = {}): Promise<ScrapedFsn[]> {
+// Kept for potential future use (e.g. "latest FSNs" widget that doesn't
+// need a date range filter). Not called from the main search pipeline.
+export async function scrapeRssFeed(options: ScraperOptions = {}): Promise<ScrapedFsn[]> {
   const response = await fetch(RSS_URL)
   if (!response.ok) {
     throw new Error(`BfArM RSS fetch failed: ${response.status} ${response.statusText}`)
@@ -220,10 +225,10 @@ async function scrapeRss(options: ScraperOptions = {}): Promise<ScrapedFsn[]> {
 
   for (const raw of items) {
     const item = raw as Record<string, unknown[]>
-    const title      = String(item.title?.[0] ?? '')
-    const link       = String(item.link?.[0] ?? '')
+    const title       = String(item.title?.[0] ?? '')
+    const link        = String(item.link?.[0] ?? '')
     const description = String(item.description?.[0] ?? '')
-    const pubDateStr = String(item.pubDate?.[0] ?? '')
+    const pubDateStr  = String(item.pubDate?.[0] ?? '')
 
     const guidRaw = item.guid?.[0]
     const external_id =
