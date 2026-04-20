@@ -15,18 +15,19 @@ interface FsnRow {
   source_db: string
   raw_content: string
   filter_decision: {
-    decision: 'relevant' | 'uncertain' | 'excluded'
+    decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
     rationale: string
-    confidence: number
+    confidence: number | null
   } | null
 }
 
 // ─── Decision label helpers (no AI language) ─────────────────────────────────
 
 const DECISION_LABEL: Record<string, string> = {
-  relevant:  'Potentially Relevant',
-  uncertain: 'Requires Further Review',
-  excluded:  'Not Relevant',
+  relevant:      'Potentially Relevant',
+  uncertain:     'Requires Further Review',
+  excluded:      'Not Relevant',
+  filter_failed: 'AI Filter Unavailable',
 }
 
 function fmtDate(iso: string | null): string {
@@ -72,10 +73,13 @@ async function buildExcel(
     headerRow.alignment = { vertical: 'middle' }
     headerRow.height = 18
 
-    // Data rows — relevant/uncertain first, excluded last
+    // Data rows — relevant/uncertain first, filter_failed next, excluded last
     const sorted = [
-      ...rows.filter((r) => r.source_db === src && r.filter_decision?.decision !== 'excluded'),
+      ...rows.filter((r) => r.source_db === src && r.filter_decision?.decision === 'relevant'),
+      ...rows.filter((r) => r.source_db === src && r.filter_decision?.decision === 'uncertain'),
+      ...rows.filter((r) => r.source_db === src && r.filter_decision?.decision === 'filter_failed'),
       ...rows.filter((r) => r.source_db === src && r.filter_decision?.decision === 'excluded'),
+      ...rows.filter((r) => r.source_db === src && !r.filter_decision),
     ]
 
     for (const row of sorted) {
@@ -87,14 +91,15 @@ async function buildExcel(
         source_url:   row.source_url,
         assessment:   d ? DECISION_LABEL[d.decision] : '—',
         notes:        d?.rationale ?? '',
-        confidence:   d ? `${Math.round(d.confidence * 100)}%` : '—',
+        confidence:   (d && d.confidence != null) ? `${Math.round(d.confidence * 100)}%` : '—',
       })
 
       // Row colour by assessment
       const bg = !d ? undefined
-        : d.decision === 'relevant'  ? 'FFF0FFF0'  // very light green
-        : d.decision === 'uncertain' ? 'FFFFF8E1'  // very light amber
-        : 'FFF5F5F5'                                // light grey
+        : d.decision === 'relevant'      ? 'FFF0FFF0'  // very light green
+        : d.decision === 'uncertain'     ? 'FFFFF8E1'  // very light amber
+        : d.decision === 'filter_failed' ? 'FFFFF0F0'  // very light red
+        : 'FFF5F5F5'                                    // light grey
 
       if (bg) {
         dataRow.eachCell((cell) => {
@@ -128,6 +133,10 @@ async function buildExcel(
     addMeta('Potentially relevant', String(rows.filter((r) => r.filter_decision?.decision === 'relevant').length))
     addMeta('Requires further review', String(rows.filter((r) => r.filter_decision?.decision === 'uncertain').length))
     addMeta('Not relevant', String(rows.filter((r) => r.filter_decision?.decision === 'excluded').length))
+    const failedCount = rows.filter((r) => r.filter_decision?.decision === 'filter_failed').length
+    if (failedCount > 0) {
+      addMeta('AI filter unavailable (manual review required)', String(failedCount))
+    }
   }
 
   const buf = await wb.xlsx.writeBuffer()
@@ -143,28 +152,35 @@ function buildReportHtml(
 ): string {
   const today = fmtDate(new Date().toISOString())
 
-  const relevant  = rows.filter((r) => r.filter_decision?.decision === 'relevant')
-  const uncertain = rows.filter((r) => r.filter_decision?.decision === 'uncertain')
-  const excluded  = rows.filter((r) => r.filter_decision?.decision === 'excluded')
-  const actionable = [...relevant, ...uncertain]
+  const relevant      = rows.filter((r) => r.filter_decision?.decision === 'relevant')
+  const uncertain     = rows.filter((r) => r.filter_decision?.decision === 'uncertain')
+  const excluded      = rows.filter((r) => r.filter_decision?.decision === 'excluded')
+  const filterFailed  = rows.filter((r) => r.filter_decision?.decision === 'filter_failed')
+  const actionable    = [...relevant, ...uncertain, ...filterFailed]
 
   const tableRows = actionable.map((r) => {
     const d = r.filter_decision!
+    const labelColor = d.decision === 'relevant' ? '#166534'
+      : d.decision === 'uncertain' ? '#92400e'
+      : '#991b1b'  // filter_failed → red
     return `
       <tr>
         <td><a href="${r.source_url}" style="color:#1a1a2e;text-decoration:none;">${escHtml(r.title)}</a></td>
         <td>${escHtml(r.manufacturer || '—')}</td>
         <td style="white-space:nowrap;">${fmtDate(r.fsn_date)}</td>
         <td>${escHtml(r.source_db.toUpperCase())}</td>
-        <td><span style="color:${d.decision === 'relevant' ? '#166534' : '#92400e'};">${DECISION_LABEL[d.decision]}</span></td>
-        <td style="font-size:8pt;color:#555;">${escHtml(d.rationale)}</td>
+        <td><span style="color:${labelColor};">${DECISION_LABEL[d.decision]}</span></td>
+        <td style="font-size:8pt;color:#555;">${escHtml(d.rationale)}${d.decision === 'filter_failed' ? ' <strong style="color:#991b1b;">⚠ Manual review required.</strong>' : ''}</td>
       </tr>`
   }).join('')
 
   const conclusionRelevant = relevant.length + uncertain.length
-  const conclusion = conclusionRelevant === 0
+  const failedNote = filterFailed.length > 0
+    ? ` Note: The AI filter could not be applied to ${filterFailed.length} item${filterFailed.length !== 1 ? 's' : ''} due to API unavailability — these require manual review.`
+    : ''
+  const conclusion = conclusionRelevant === 0 && filterFailed.length === 0
     ? `This review identified no Field Safety Notices that are potentially relevant to the device under review within the specified period. No further action is required at this time.`
-    : `This review identified ${conclusionRelevant} Field Safety Notice${conclusionRelevant !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review). ${excluded.length > 0 ? `${excluded.length} notice${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan.`
+    : `This review identified ${conclusionRelevant + filterFailed.length} Field Safety Notice${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} notice${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan.${failedNote}`
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -266,10 +282,14 @@ function buildReportHtml(
       <div class="stat-num" style="color:#9ca3af;">${excluded.length}</div>
       <div class="stat-label">Not Relevant</div>
     </div>
+    ${filterFailed.length > 0 ? `<div class="stat-box" style="border-color:#dc2626;">
+      <div class="stat-num" style="color:#dc2626;">${filterFailed.length}</div>
+      <div class="stat-label">AI Filter Unavailable</div>
+    </div>` : ''}
   </div>
 
   <!-- Results table -->
-  <h2>4. Relevant &amp; Pending Review Notices</h2>
+  <h2>4. Notices Requiring Attention</h2>
   ${actionable.length === 0
     ? '<p class="empty-note">No notices were identified as potentially relevant or requiring further review within the specified period.</p>'
     : `<table class="results-table">

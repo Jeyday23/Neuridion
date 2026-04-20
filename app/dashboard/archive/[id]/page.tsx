@@ -28,7 +28,7 @@ export default async function RunDetailPage({
     .select(`
       id, status, created_at, started_at, completed_at,
       search_period_from, search_period_to, period_from, period_to,
-      total_results, relevant_count, uncertain_count, excluded_count,
+      total_results, relevant_count, uncertain_count, excluded_count, filter_failed_count,
       dbs_searched, error_message,
       report_html_path, report_pdf_path, report_excel_path, report_generated_at,
       product_profiles ( device_name, manufacturer )
@@ -62,9 +62,9 @@ export default async function RunDetailPage({
 
     for (const d of decisions ?? []) {
       decisionsMap[d.fsn_result_id] = {
-        decision:   d.decision as 'relevant' | 'uncertain' | 'excluded',
+        decision:   d.decision as 'relevant' | 'uncertain' | 'excluded' | 'filter_failed',
         rationale:  d.rationale,
-        confidence: Number(d.confidence),
+        confidence: d.confidence != null ? Number(d.confidence) : null,
       }
     }
   }
@@ -88,10 +88,11 @@ export default async function RunDetailPage({
     ? (run.dbs_searched as string[]).join(', ')
     : (run.dbs_searched as string | null) ?? '—'
 
-  const rel  = run.relevant_count  ?? 0
-  const unc  = run.uncertain_count ?? 0
-  const exc  = run.excluded_count  ?? 0
-  const tot  = run.total_results   ?? results.length
+  const rel  = run.relevant_count      ?? 0
+  const unc  = run.uncertain_count     ?? 0
+  const exc  = run.excluded_count      ?? 0
+  const fail = (run as { filter_failed_count?: number }).filter_failed_count ?? 0
+  const tot  = run.total_results       ?? results.length
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -166,6 +167,12 @@ export default async function RunDetailPage({
             <p className="text-2xl font-semibold text-zinc-400">{exc}</p>
             <p className="text-xs text-zinc-400 mt-0.5">Excluded</p>
           </div>
+          {fail > 0 && (
+            <div className="text-center">
+              <p className="text-2xl font-semibold text-red-600">{fail}</p>
+              <p className="text-xs text-zinc-400 mt-0.5">Filter Unavailable</p>
+            </div>
+          )}
         </div>
       </div>
 

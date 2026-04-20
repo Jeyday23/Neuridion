@@ -178,20 +178,21 @@ export async function POST(request: Request) {
         acc[d.decision] = (acc[d.decision] ?? 0) + 1
         return acc
       },
-      { relevant: 0, uncertain: 0, excluded: 0 } as Record<string, number>
+      { relevant: 0, uncertain: 0, excluded: 0, filter_failed: 0 } as Record<string, number>
     )
 
     // Step 6: Mark run completed with counts
     await db
       .from('search_runs')
       .update({
-        status:          'complete',
-        completed_at:    new Date().toISOString(),
-        total_results:   items.length,
-        relevant_count:  counts.relevant,
-        uncertain_count: counts.uncertain,
-        excluded_count:  counts.excluded,
-        dbs_searched:    [...new Set(items.map((i) => i.source_db))],
+        status:               'complete',
+        completed_at:         new Date().toISOString(),
+        total_results:        items.length,
+        relevant_count:       counts.relevant,
+        uncertain_count:      counts.uncertain,
+        excluded_count:       counts.excluded,
+        filter_failed_count:  counts.filter_failed,
+        dbs_searched:         [...new Set(items.map((i) => i.source_db))],
       })
       .eq('id', run.id)
 
@@ -220,11 +221,12 @@ export async function POST(request: Request) {
 
     return Response.json(
       {
-        run_id:          run.id,
-        result_count:    items.length,
-        relevant_count:  counts.relevant,
-        uncertain_count: counts.uncertain,
-        excluded_count:  counts.excluded,
+        run_id:               run.id,
+        result_count:         items.length,
+        relevant_count:       counts.relevant,
+        uncertain_count:      counts.uncertain,
+        excluded_count:       counts.excluded,
+        filter_failed_count:  counts.filter_failed,
       },
       { status: 201 }
     )
