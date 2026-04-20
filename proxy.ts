@@ -1,10 +1,18 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
-const PUBLIC_PATHS = ['/', '/login', '/signup', '/signup/confirm', '/admin/login']
+const PUBLIC_PATHS = [
+  '/', '/login', '/signup', '/signup/confirm', '/admin/login',
+  '/privacy', '/terms', '/imprint', '/dpa',
+]
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // API routes manage their own auth — never redirect them
+  if (pathname.startsWith('/api/')) {
+    return NextResponse.next({ request })
+  }
 
   // Build response that carries refreshed cookies forward
   let supabaseResponse = NextResponse.next({ request })
@@ -31,6 +39,20 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const isPublic = PUBLIC_PATHS.includes(pathname)
+
+  // Authenticated user on dashboard routes — check for pending hard deletion
+  if (user && pathname.startsWith('/dashboard')) {
+    const { data: userData } = await supabase
+      .from('users')
+      .select('deleted_at')
+      .eq('id', user.id)
+      .single()
+
+    if (userData?.deleted_at && new Date(userData.deleted_at) <= new Date()) {
+      await supabase.auth.signOut()
+      return NextResponse.redirect(new URL('/login?deleted=1', request.url))
+    }
+  }
 
   // Authenticated user visiting login/signup → send to dashboard
   if (user && (pathname === '/login' || pathname === '/signup')) {

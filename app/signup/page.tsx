@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { SignupForm } from './signup-form'
+import { Footer } from '@/app/components/Footer'
 
 export const metadata = {
   title: 'Sign up — Kodex',
@@ -29,6 +30,7 @@ export default function SignupPage() {
           </Link>
         </p>
       </div>
+      <Footer className="mt-8 border-0" />
     </div>
   )
 }

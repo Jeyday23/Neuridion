@@ -274,9 +274,10 @@ export default async function HomePage() {
             <div>
               <h4 className="font-semibold mb-4 text-slate-900">Legal</h4>
               <ul className="space-y-2 text-slate-600">
-                <li><a href="#" className="hover:text-blue-600">Privacy</a></li>
-                <li><a href="#" className="hover:text-blue-600">Terms</a></li>
-                <li><a href="#" className="hover:text-blue-600">DPA</a></li>
+                <li><Link href="/privacy" className="hover:text-blue-600">Privacy</Link></li>
+                <li><Link href="/terms"   className="hover:text-blue-600">Terms</Link></li>
+                <li><Link href="/imprint" className="hover:text-blue-600">Imprint</Link></li>
+                <li><Link href="/dpa"     className="hover:text-blue-600">DPA</Link></li>
               </ul>
             </div>
             <div>

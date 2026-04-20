@@ -1,6 +1,7 @@
 import { SidebarNav } from './sidebar-nav'
 import { LanguageSelector } from './language-selector'
 import { SessionGuard } from './session-guard'
+import { Footer } from '@/app/components/Footer'
 
 export default function DashboardLayout({
   children,
@@ -23,8 +24,9 @@ export default function DashboardLayout({
         <div className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-end shrink-0">
           <LanguageSelector />
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto flex flex-col">
           <SessionGuard>{children}</SessionGuard>
+          <Footer />
         </div>
       </main>
     </div>

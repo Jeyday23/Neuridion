@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Search, UserCircle, Archive, CreditCard, LogOut } from 'lucide-react'
+import { Search, UserCircle, Archive, CreditCard, Settings, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const links = [
@@ -10,6 +10,7 @@ const links = [
   { label: 'Profiles', href: '/dashboard/profiles',  icon: UserCircle  },
   { label: 'Archive',  href: '/dashboard/archive',   icon: Archive     },
   { label: 'Billing',  href: '/dashboard/billing',   icon: CreditCard  },
+  { label: 'Settings', href: '/dashboard/settings',  icon: Settings    },
 ]
 
 export function SidebarNav() {
