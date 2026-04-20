@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAuditEvent } from '@/lib/audit'
 
 export async function GET(
   request: Request,
@@ -74,6 +75,8 @@ export async function GET(
   }
 
   const filename = `FSN-Report-${deviceSlug}-${period}.${ext}`
+
+  await logAuditEvent(user.id, 'report_downloaded', { run_id: id, format }, request)
 
   return Response.json({ url: signed.signedUrl, filename })
 }

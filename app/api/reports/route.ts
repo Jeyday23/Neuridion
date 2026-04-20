@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import ExcelJS from 'exceljs'
 import { generatePdfFromHtml, canGeneratePdf, incrementPdfUsage } from '@/lib/pdfshift'
+import { logAuditEvent } from '@/lib/audit'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -489,6 +490,8 @@ export async function POST(request: Request) {
       report_generated_at:  new Date().toISOString(),
     })
     .eq('id', run_id)
+
+  await logAuditEvent(user.id, 'report_generated', { run_id, pdf_status: pdfStatus }, request)
 
   return Response.json({
     html_url:   htmlSigned.data?.signedUrl ?? null,

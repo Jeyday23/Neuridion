@@ -4,6 +4,7 @@ import { scrapeBfArM } from '@/lib/scrapers/bfarm'
 import { stage1Filter } from '@/lib/claude/filter-pipeline'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { sendSearchRunNotification } from '@/lib/email'
+import { logAuditEvent } from '@/lib/audit'
 
 export async function POST(request: Request) {
   const supabase = await createClient()   // anon client — auth checks only
@@ -194,7 +195,15 @@ export async function POST(request: Request) {
       })
       .eq('id', run.id)
 
-    // Step 7: Email notification for paid plans (fire-and-forget)
+    // Step 7: Audit log
+    await logAuditEvent(user.id, 'search_run', {
+      run_id:          run.id,
+      profile_id,
+      result_count:    items.length,
+      relevant_count:  counts.relevant,
+    }, request)
+
+    // Step 8: Email notification for paid plans (fire-and-forget)
     const toEmail = userData?.email ?? user.email
     if (toEmail && userPlan !== 'free' && process.env.RESEND_API_KEY) {
       sendSearchRunNotification(toEmail, {
