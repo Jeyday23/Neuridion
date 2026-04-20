@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
-import { Plus, Upload } from 'lucide-react'
+import { Plus, Upload, X, CheckCircle, Loader2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -14,10 +15,10 @@ interface Profile {
 }
 
 interface FilterDecision {
-  decision: 'relevant' | 'uncertain' | 'excluded'
+  decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
   rationale: string
-  confidence: number
-  model: string
+  confidence: number | null
+  model: string | null
 }
 
 interface FsnResult {
@@ -42,6 +43,13 @@ type ReportState =
   | { phase: 'ready'; pdfUrl: string | null; htmlUrl: string | null; excelUrl: string | null; pdfStatus: 'generated' | 'quota_exceeded' | 'failed' }
   | { phase: 'error'; message: string }
 
+interface UploadedFile {
+  key: string
+  name: string
+  path: string
+  status: 'uploading' | 'done' | 'error'
+}
+
 // ─── Database list ────────────────────────────────────────────────────────────
 
 const databases = [
@@ -64,15 +72,21 @@ const databases = [
 // ─── Decision badge ───────────────────────────────────────────────────────────
 
 function DecisionBadge({ decision }: { decision: FilterDecision['decision'] }) {
-  const styles = {
-    relevant:  'bg-green-50 text-green-700 border-green-200',
-    uncertain: 'bg-amber-50 text-amber-700 border-amber-200',
-    excluded:  'bg-zinc-100 text-zinc-500 border-zinc-200',
+  const styles: Record<string, string> = {
+    relevant:      'bg-green-50 text-green-700 border-green-200',
+    uncertain:     'bg-amber-50 text-amber-700 border-amber-200',
+    excluded:      'bg-zinc-100 text-zinc-500 border-zinc-200',
+    filter_failed: 'bg-red-50 text-red-700 border-red-200',
   }
-  const labels = { relevant: 'Relevant', uncertain: 'Uncertain', excluded: 'Excluded' }
+  const labels: Record<string, string> = {
+    relevant:      'Relevant',
+    uncertain:     'Uncertain',
+    excluded:      'Excluded',
+    filter_failed: 'Filter Unavailable',
+  }
   return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${styles[decision]}`}>
-      {labels[decision]}
+    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${styles[decision] ?? ''}`}>
+      {labels[decision] ?? decision}
     </span>
   )
 }
@@ -106,10 +120,12 @@ function FsnRow({ result }: { result: FsnResult }) {
               <span>{new Date(result.fsn_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
             )}
             <span className="uppercase tracking-wide text-zinc-400">{result.source}</span>
-            {d && <span className="text-zinc-400">{Math.round(d.confidence * 100)}% confidence</span>}
+            {d && d.confidence != null && (
+              <span className="text-zinc-400">{Math.round(d.confidence * 100)}% confidence</span>
+            )}
           </div>
 
-          {d && d.decision !== 'excluded' && (
+          {d && d.decision !== 'excluded' && d.decision !== 'filter_failed' && (
             <p className={clsx('mt-1.5 text-xs leading-relaxed', d.decision === 'uncertain' ? 'text-amber-700' : 'text-zinc-500')}>
               {d.rationale}
             </p>
@@ -122,6 +138,10 @@ function FsnRow({ result }: { result: FsnResult }) {
               </svg>
               Manual review required
             </p>
+          )}
+
+          {d?.decision === 'filter_failed' && (
+            <p className="mt-1 text-xs font-medium text-red-700">AI filter was not applied — manual review required</p>
           )}
 
           {d?.decision === 'excluded' && (
@@ -138,24 +158,96 @@ function FsnRow({ result }: { result: FsnResult }) {
   )
 }
 
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+function Toast({ msg, type }: { msg: string; type: 'success' | 'error' }) {
+  return (
+    <div className={clsx(
+      'fixed bottom-6 right-6 z-50 rounded-lg px-4 py-3 text-sm font-medium shadow-lg pointer-events-none',
+      type === 'success' ? 'bg-green-700 text-white' : 'bg-red-700 text-white'
+    )}>
+      {msg}
+    </div>
+  )
+}
+
+// ─── Search term row (textarea + optional remove button) ──────────────────────
+
+function TermRow({
+  value,
+  onChange,
+  onRemove,
+  placeholder,
+  showRemove,
+}: {
+  value: string
+  onChange: (v: string) => void
+  onRemove?: () => void
+  placeholder: string
+  showRemove: boolean
+}) {
+  return (
+    <div className="relative">
+      <textarea
+        rows={4}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-4 py-3 border border-slate-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+        placeholder={placeholder}
+      />
+      {showRemove && onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="absolute top-2 right-2 text-zinc-400 hover:text-red-500 transition-colors"
+          aria-label="Remove"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const today   = format(new Date(), 'yyyy-MM-dd')
   const yearAgo = format(subMonths(new Date(), 12), 'yyyy-MM-dd')
 
-  const [profileId, setProfileId]     = useState(profiles[0]?.id ?? '')
-  const [fromDate, setFromDate]       = useState(yearAgo)
-  const [toDate, setToDate]           = useState(today)
-  const [state, setState]             = useState<RunState>({ phase: 'idle' })
-  const [reportState, setReportState] = useState<ReportState>({ phase: 'idle' })
+  const [profileId, setProfileId]         = useState(profiles[0]?.id ?? '')
+  const [fromDate, setFromDate]           = useState(yearAgo)
+  const [toDate, setToDate]               = useState(today)
+  const [state, setState]                 = useState<RunState>({ phase: 'idle' })
+  const [reportState, setReportState]     = useState<ReportState>({ phase: 'idle' })
 
-  // Database checkbox state — only bfarm is actually wired up
+  // FIX 1 — array state for search term combinations
+  const [genericTerms, setGenericTerms]           = useState<string[]>([''])
+  const [manufacturerTerms, setManufacturerTerms] = useState<string[]>([''])
+
+  // FIX 2 — draft saving
+  const [draftId, setDraftId]     = useState<string | null>(null)
+  const [draftSaving, setDraftSaving] = useState(false)
+
+  // FIX 4 — file upload
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [isDragging, setIsDragging]       = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Toast
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
+
+  // Database checkbox state
   const [selectedDbs, setSelectedDbs] = useState<Set<string>>(new Set(['bfarm']))
   const [hoveredDb, setHoveredDb]     = useState<string | null>(null)
 
   const activeDbs = databases.filter((d) => d.active)
   const allActiveSelected = activeDbs.every((d) => selectedDbs.has(d.id))
+
+  function showToast(msg: string, type: 'success' | 'error' = 'success') {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3000)
+  }
 
   function toggleDb(id: string) {
     const db = databases.find((d) => d.id === id)
@@ -175,6 +267,97 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     const d = new Date(s)
     return isNaN(d.getTime()) ? s : d.toLocaleDateString('de-DE')
   }
+
+  // ─── FIX 2 — save draft ──────────────────────────────────────────────────
+
+  async function saveDraft(successMsg = 'Draft saved') {
+    setDraftSaving(true)
+    try {
+      const body = {
+        id:                draftId ?? undefined,
+        profile_id:        profileId || null,
+        from:              fromDate,
+        to:                toDate,
+        dbs:               [...selectedDbs],
+        genericTerms:      genericTerms.filter((t) => t.trim()),
+        manufacturerTerms: manufacturerTerms.filter((t) => t.trim()),
+        uploadedPaths:     uploadedFiles.filter((f) => f.status === 'done').map((f) => f.path),
+      }
+      const res  = await fetch('/api/search-drafts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json() as { id?: string; error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Save failed')
+      if (data.id) setDraftId(data.id)
+      showToast(successMsg)
+    } catch (err) {
+      showToast(String(err), 'error')
+    } finally {
+      setDraftSaving(false)
+    }
+  }
+
+  // ─── FIX 3 — create profile & save (no auto-run) ─────────────────────────
+
+  async function saveProfileAndDraft() {
+    await saveDraft('Draft saved. Click Run Search when ready.')
+  }
+
+  // ─── FIX 4 — file upload ──────────────────────────────────────────────────
+
+  async function handleFiles(files: FileList | File[]) {
+    const arr = Array.from(files)
+    for (const file of arr) {
+      if (file.size > 10 * 1024 * 1024) {
+        showToast(`${file.name} exceeds 10 MB limit`, 'error')
+        continue
+      }
+      const key  = `${Date.now()}_${Math.random().toString(36).slice(2)}`
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `uploads/${key}_${safe}`
+
+      setUploadedFiles((prev) => [...prev, { key, name: file.name, path, status: 'uploading' }])
+
+      try {
+        const supabase = createClient()
+        const { error } = await supabase.storage
+          .from('search-attachments')
+          .upload(path, file)
+
+        setUploadedFiles((prev) =>
+          prev.map((f) =>
+            f.key === key ? { ...f, status: error ? 'error' : 'done' } : f
+          )
+        )
+        if (error) showToast(`Upload failed: ${file.name}`, 'error')
+      } catch (err) {
+        setUploadedFiles((prev) =>
+          prev.map((f) => (f.key === key ? { ...f, status: 'error' } : f))
+        )
+        showToast(`Upload failed: ${file.name}`, 'error')
+        console.error('[upload]', err)
+      }
+    }
+  }
+
+  function onDragOver(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  function onDragLeave() {
+    setIsDragging(false)
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(false)
+    if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files)
+  }
+
+  // ─── Report generation ────────────────────────────────────────────────────
 
   async function generateReport(runId: string) {
     setReportState({ phase: 'generating' })
@@ -196,10 +379,10 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         return
       }
       setReportState({
-        phase: 'ready',
-        pdfUrl: data.pdf_url ?? null,
-        htmlUrl: data.html_url ?? null,
-        excelUrl: data.excel_url ?? null,
+        phase:     'ready',
+        pdfUrl:    data.pdf_url    ?? null,
+        htmlUrl:   data.html_url   ?? null,
+        excelUrl:  data.excel_url  ?? null,
         pdfStatus: data.pdf_status ?? 'failed',
       })
     } catch (err) {
@@ -207,18 +390,20 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     }
   }
 
+  // ─── Run search ───────────────────────────────────────────────────────────
+
   async function runSearch() {
     if (!profileId) return
     setState({ phase: 'running' })
     setReportState({ phase: 'idle' })
 
     console.log('[client] Date range selected:', {
-      from: fromDate,
-      to: toDate,
-      fromISO: new Date(fromDate).toISOString(),
-      toISO: new Date(toDate).toISOString(),
+      from:         fromDate,
+      to:           toDate,
+      fromISO:      new Date(fromDate).toISOString(),
+      toISO:        new Date(toDate).toISOString(),
       userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      userNow: new Date().toISOString(),
+      userNow:      new Date().toISOString(),
     })
 
     try {
@@ -241,17 +426,17 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       }
 
       const detailRes = await fetch(`/api/search-runs/${data.run_id}`)
-      const detail = await detailRes.json() as { results?: FsnResult[]; error?: string }
+      const detail    = await detailRes.json() as { results?: FsnResult[]; error?: string }
       if (!detailRes.ok) {
         setState({ phase: 'error', message: detail.error ?? 'Failed to load results.' })
         return
       }
 
       setState({
-        phase: 'done',
-        runId: data.run_id!,
+        phase:   'done',
+        runId:   data.run_id!,
         results: detail.results ?? [],
-        counts: {
+        counts:  {
           relevant:  data.relevant_count  ?? 0,
           uncertain: data.uncertain_count ?? 0,
           excluded:  data.excluded_count  ?? 0,
@@ -389,72 +574,155 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           </div>
         </section>
 
-        {/* Generic search terms */}
+        {/* Generic search terms — FIX 1 */}
         <section className="bg-white rounded-xl border border-slate-200 p-8">
           <h2 className="text-xl font-bold text-slate-900 mb-2">Search Terms — Generic Search</h2>
           <p className="text-sm text-slate-500 italic mb-6">
             Use AND, OR, NOT to combine terms, e.g. &apos;Infusion pump&apos; OR (Infusion AND pump AND volumetric)
           </p>
-          <textarea
-            rows={4}
-            className="w-full px-4 py-3 border border-slate-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder='"infusion pump" OR (infusion AND pump AND volumetric)'
-          />
-          <button className="mt-4 flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm">
+          <div className="space-y-3">
+            {genericTerms.map((term, idx) => (
+              <TermRow
+                key={idx}
+                value={term}
+                onChange={(v) => setGenericTerms((prev) => prev.map((t, i) => (i === idx ? v : t)))}
+                onRemove={() => setGenericTerms((prev) => prev.filter((_, i) => i !== idx))}
+                showRemove={idx > 0}
+                placeholder='"infusion pump" OR (infusion AND pump AND volumetric)'
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setGenericTerms((prev) => [...prev, ''])}
+            className="mt-4 flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm"
+          >
             <Plus className="w-4 h-4" />
             Add another search combination
           </button>
         </section>
 
-        {/* Manufacturer & product names */}
+        {/* Manufacturer & product names — FIX 1 */}
         <section className="bg-white rounded-xl border border-slate-200 p-8">
           <h2 className="text-xl font-bold text-slate-900 mb-2">Search Terms — Manufacturer &amp; Product Names</h2>
           <p className="text-sm text-slate-500 italic mb-6">
             Direct search by manufacturer name or specific product name
           </p>
-          <textarea
-            rows={4}
-            className="w-full px-4 py-3 border border-slate-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder='"B. Braun" OR "BBraun" OR "Infusomat Space"'
-          />
-          <button className="mt-4 flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm">
+          <div className="space-y-3">
+            {manufacturerTerms.map((term, idx) => (
+              <TermRow
+                key={idx}
+                value={term}
+                onChange={(v) => setManufacturerTerms((prev) => prev.map((t, i) => (i === idx ? v : t)))}
+                onRemove={() => setManufacturerTerms((prev) => prev.filter((_, i) => i !== idx))}
+                showRemove={idx > 0}
+                placeholder='"B. Braun" OR "BBraun" OR "Infusomat Space"'
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setManufacturerTerms((prev) => [...prev, ''])}
+            className="mt-4 flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm"
+          >
             <Plus className="w-4 h-4" />
             Add another search combination
           </button>
         </section>
 
-        {/* File upload */}
+        {/* File upload — FIX 4 */}
         <section className="bg-white rounded-xl border border-slate-200 p-8">
           <h2 className="text-xl font-bold text-slate-900 mb-6">Search Strategy Documents</h2>
-          <div className="border-2 border-dashed border-slate-300 rounded-lg p-12 text-center hover:border-blue-400 hover:bg-blue-50 transition-colors cursor-pointer">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg"
+            className="hidden"
+            onChange={(e) => e.target.files && handleFiles(e.target.files)}
+          />
+          <div
+            className={clsx(
+              'border-2 border-dashed rounded-lg p-12 text-center transition-colors cursor-pointer',
+              isDragging
+                ? 'border-blue-400 bg-blue-50'
+                : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50'
+            )}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
             <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
             <p className="text-slate-700 font-medium mb-1">Drop files here or browse</p>
-            <p className="text-sm text-slate-500">PDF, DOCX, XLSX and more</p>
+            <p className="text-sm text-slate-500">PDF, DOCX, XLSX, PNG, JPG · Max 10 MB per file</p>
           </div>
+
+          {uploadedFiles.length > 0 && (
+            <ul className="mt-4 space-y-2">
+              {uploadedFiles.map((f) => (
+                <li key={f.key} className="flex items-center gap-3 text-sm">
+                  {f.status === 'uploading' && <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />}
+                  {f.status === 'done'      && <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />}
+                  {f.status === 'error'     && <X className="w-4 h-4 text-red-500 shrink-0" />}
+                  <span className={clsx('flex-1 truncate text-slate-700', f.status === 'error' && 'text-red-600')}>
+                    {f.name}
+                  </span>
+                  {f.status !== 'uploading' && (
+                    <button
+                      type="button"
+                      onClick={() => setUploadedFiles((prev) => prev.filter((u) => u.key !== f.key))}
+                      className="text-zinc-400 hover:text-red-500 transition-colors"
+                      aria-label="Remove file"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
-        {/* Action bar — run search + save draft */}
-        <div className="flex items-center justify-between pt-6 border-t border-slate-200">
-          <button className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium">
+        {/* Action bar — FIX 2 + FIX 3 + primary Run Search */}
+        <div className="flex items-center justify-between pt-6 border-t border-slate-200 flex-wrap gap-3">
+          {/* Left: Save Draft */}
+          <button
+            type="button"
+            onClick={() => saveDraft()}
+            disabled={draftSaving}
+            className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {draftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
             Save Draft
           </button>
-          <button
-            onClick={runSearch}
-            disabled={noProfiles || state.phase === 'running'}
-            className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-          >
-            {state.phase === 'running' ? (
-              <>
-                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                Searching…
-              </>
-            ) : (
-              <>Create Profile &amp; Generate Search Protocol <span>→</span></>
-            )}
-          </button>
+
+          {/* Right: secondary + primary */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={saveProfileAndDraft}
+              disabled={draftSaving || noProfiles}
+              className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              Create Profile &amp; Save
+            </button>
+            <button
+              type="button"
+              onClick={runSearch}
+              disabled={noProfiles || state.phase === 'running'}
+              className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {state.phase === 'running' ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Searching…
+                </>
+              ) : (
+                <>Run Search <span>→</span></>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -524,16 +792,12 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             )}
             {reportState.phase === 'generating' && (
               <span className="flex items-center gap-2 text-sm text-zinc-500">
-                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
+                <Loader2 className="h-4 w-4 animate-spin" />
                 Generating PDF &amp; Excel…
               </span>
             )}
             {reportState.phase === 'ready' && (
               <>
-                {/* PDF button — real PDF if generated, fallback to HTML otherwise */}
                 {reportState.pdfStatus === 'generated' && reportState.pdfUrl ? (
                   <a href={reportState.pdfUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
@@ -561,7 +825,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                   </div>
                 )}
 
-                {/* Excel download — always available */}
                 {reportState.excelUrl && (
                   <a href={reportState.excelUrl} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
@@ -591,6 +854,9 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           )}
         </div>
       )}
+
+      {/* Toast */}
+      {toast && <Toast msg={toast.msg} type={toast.type} />}
     </div>
   )
 }
