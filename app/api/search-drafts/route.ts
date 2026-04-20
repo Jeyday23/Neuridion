@@ -1,0 +1,112 @@
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+export async function POST(request: Request) {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let body: Record<string, unknown>
+  try {
+    body = await request.json()
+  } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const {
+    id,
+    name,
+    profile_id,
+    from: periodFrom,
+    to: periodTo,
+    dbs,
+    genericTerms,
+    manufacturerTerms,
+    uploadedPaths,
+  } = body as {
+    id?: string
+    name?: string
+    profile_id?: string | null
+    from?: string
+    to?: string
+    dbs?: string[]
+    genericTerms?: string[]
+    manufacturerTerms?: string[]
+    uploadedPaths?: string[]
+  }
+
+  const db = createAdminClient()
+  const now = new Date().toISOString()
+
+  if (id) {
+    const { data: existing } = await db
+      .from('search_drafts')
+      .select('id')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single()
+
+    if (!existing) {
+      return Response.json({ error: 'Draft not found' }, { status: 404 })
+    }
+
+    const { data, error } = await db
+      .from('search_drafts')
+      .update({
+        name:                  name ?? null,
+        profile_id:            profile_id ?? null,
+        search_period_from:    periodFrom ?? null,
+        search_period_to:      periodTo ?? null,
+        dbs_selected:          dbs ?? [],
+        generic_terms:         genericTerms ?? [],
+        manufacturer_terms:    manufacturerTerms ?? [],
+        uploaded_file_paths:   uploadedPaths ?? [],
+        updated_at:            now,
+      })
+      .eq('id', id)
+      .select('id, updated_at')
+      .single()
+
+    if (error) return Response.json({ error: error.message }, { status: 500 })
+    return Response.json({ id: data.id, saved_at: data.updated_at })
+  }
+
+  const { data, error } = await db
+    .from('search_drafts')
+    .insert({
+      user_id:               user.id,
+      name:                  name ?? null,
+      profile_id:            profile_id ?? null,
+      search_period_from:    periodFrom ?? null,
+      search_period_to:      periodTo ?? null,
+      dbs_selected:          dbs ?? [],
+      generic_terms:         genericTerms ?? [],
+      manufacturer_terms:    manufacturerTerms ?? [],
+      uploaded_file_paths:   uploadedPaths ?? [],
+    })
+    .select('id, created_at')
+    .single()
+
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json({ id: data.id, saved_at: data.created_at }, { status: 201 })
+}
+
+export async function GET() {
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const db = createAdminClient()
+  const { data, error } = await db
+    .from('search_drafts')
+    .select('id, name, profile_id, search_period_from, search_period_to, updated_at')
+    .eq('user_id', user.id)
+    .order('updated_at', { ascending: false })
+
+  if (error) return Response.json({ error: error.message }, { status: 500 })
+  return Response.json(data ?? [])
+}
