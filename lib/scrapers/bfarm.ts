@@ -34,13 +34,20 @@ const GERMAN_MONTHS: Record<string, number> = {
   September: 8, Oktober: 9, November: 10, Dezember: 11,
 }
 
-// Note: BfArM's date params (input_Datum_VON / input_Datum_BIS) are ignored
-// server-side — results always sort newest-first. We filter dates client-side
-// and stop as soon as an item falls before fromDate.
-function buildUrl(page: number): string {
+function formatBfarmDate(d: Date): string {
+  const dd = String(d.getDate()).padStart(2, '0')
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  return `${dd}.${mm}.${d.getFullYear()}`
+}
+
+// BfArM results are sorted newest-first; include date params on every page so
+// the server can at least hint at the range (even if server-side filtering is
+// unreliable, it reduces pages returned).  We always filter client-side too.
+function buildUrl(page: number, fromDate?: Date, toDate?: Date): string {
   let url = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
+  if (fromDate) url += `&input_Datum_VON=${formatBfarmDate(fromDate)}`
+  if (toDate)   url += `&input_Datum_BIS=${formatBfarmDate(toDate)}`
   // %3D is the URL-encoded "=" required by BfArM's pagination parameter.
-  // Using string concatenation (not URLSearchParams) to avoid double-encoding.
   if (page > 1) url += `&gtp=469344_list%3D${page}`
   return url
 }
@@ -99,27 +106,31 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
   const { fromDate, toDate } = options
 
   try {
-    const results: ScrapedFsn[] = []
+    const raw: ScrapedFsn[] = []
 
     for (let page = 1; page <= MAX_PAGES; page++) {
-      const url = buildUrl(page)
+      const url = buildUrl(page, fromDate, toDate)
+      console.log(`[BfArM] Fetching page ${page}: ${url}`)
+
       const res = await fetch(url, { headers: { 'User-Agent': UA } })
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching page ${page}`)
       const html = await res.text()
 
       const pageItems = parsePage(html)
-      console.log(`[BfArM] Page ${page}: found ${pageItems.length} items`)
+      console.log(`[BfArM] Page ${page}: found ${pageItems.length} raw items`)
+      console.log(`[BfArM] Page ${page} item dates:`, pageItems.map(i => i.date?.toISOString().split('T')[0] ?? 'null'))
 
       if (pageItems.length === 0) break
 
       let stop = false
       for (const item of pageItems) {
-        if (item.date && toDate   && item.date > toDate)   continue  // not yet in range
-        if (item.date && fromDate && item.date < fromDate) { stop = true; break }  // passed range
+        // Pagination early-exit: items are newest-first, so once we pass
+        // fromDate there's nothing left in range on subsequent pages.
+        if (item.date && fromDate && item.date < fromDate) { stop = true; break }
 
-        if (results.length >= MAX_ITEMS) { stop = true; break }
+        if (raw.length >= MAX_ITEMS) { stop = true; break }
 
-        results.push({
+        raw.push({
           external_id:  item.externalId,
           title:        item.title,
           manufacturer: item.manufacturer,
@@ -134,14 +145,35 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
       if (stop || pageItems.length < RESULTS_PER_PAGE) break
     }
 
-    console.log(`[BfArM] Total items fetched: ${results.length}`)
+    console.log(`[BfArM] Raw items before post-processing: ${raw.length}`)
 
-    if (results.length === 0) {
-      console.log('[BfArM] HTML scraper returned 0 results, falling back to RSS')
+    // Belt-and-suspenders: drop items outside the requested date range.
+    // Also drops items with no date — we can't verify their relevance.
+    const inRange = raw.filter(item => {
+      if (!item.fsn_date) return false
+      const d = new Date(item.fsn_date)
+      if (fromDate && d < fromDate) return false
+      if (toDate   && d > toDate)   return false
+      return true
+    })
+    console.log(`[BfArM] In-range filter: ${raw.length} → ${inRange.length}`)
+
+    // De-duplicate by external_id (pagination can return the same FSN twice
+    // if result order shifts between page fetches).
+    const seen = new Set<string>()
+    const deduped = inRange.filter(item => {
+      if (seen.has(item.external_id)) return false
+      seen.add(item.external_id)
+      return true
+    })
+    console.log(`[BfArM] Dedup: ${inRange.length} → ${deduped.length}`)
+
+    if (deduped.length === 0) {
+      console.log('[BfArM] HTML scraper returned 0 in-range results, falling back to RSS')
       return scrapeRss(options)
     }
 
-    return results
+    return deduped
   } catch (err) {
     console.error('[BfArM] HTML scraper error, falling back to RSS:', err)
     return scrapeRss(options)
