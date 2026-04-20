@@ -7,6 +7,12 @@ export const metadata = { title: 'Billing — Kodex' }
 const UPGRADE_PLANS: PlanId[] = ['starter', 'pro', 'enterprise']
 
 const PLAN_FEATURES: Record<PlanId, string[]> = {
+  trial: [
+    '1 free search run',
+    '1 product profile',
+    'BfArM database',
+    'PDF & Excel reports',
+  ],
   free: [
     '1 search run',
     '1 product profile',

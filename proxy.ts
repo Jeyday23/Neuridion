@@ -38,7 +38,7 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const isPublic = PUBLIC_PATHS.includes(pathname)
+  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/claim/')
 
   // Authenticated user on dashboard routes — check for pending hard deletion
   if (user && pathname.startsWith('/dashboard')) {
