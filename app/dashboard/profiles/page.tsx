@@ -3,11 +3,21 @@ import { createClient } from '@/lib/supabase/server'
 
 export const metadata = { title: 'Profiles — Kodex' }
 
+function timeAgo(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'today'
+  if (diffDays === 1) return 'yesterday'
+  if (diffDays < 30) return `${diffDays} days ago`
+  const diffMonths = Math.floor(diffDays / 30)
+  return diffMonths === 1 ? '1 month ago' : `${diffMonths} months ago`
+}
+
 export default async function ProfilesPage() {
   const supabase = await createClient()
   const { data: profiles, error } = await supabase
     .from('product_profiles')
-    .select('id, device_name, manufacturer, emdn_code, device_class, created_at')
+    .select('id, device_name, manufacturer, emdn_code, device_class, created_at, last_modified_at, last_modified_by')
     .order('created_at', { ascending: false })
 
   return (
@@ -58,25 +68,47 @@ export default async function ProfilesPage() {
                 <th className="px-4 py-3 text-left font-medium text-zinc-600">EMDN code</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-600">Class</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-600">Created</th>
+                <th className="px-4 py-3 text-right font-medium text-zinc-600">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {profiles.map((p, i) => (
-                <tr
-                  key={p.id}
-                  className={i < profiles.length - 1 ? 'border-b border-zinc-100' : ''}
-                >
-                  <td className="px-4 py-3 font-medium text-zinc-900">{p.device_name}</td>
-                  <td className="px-4 py-3 text-zinc-600">{p.manufacturer}</td>
-                  <td className="px-4 py-3 text-zinc-600">{p.emdn_code ?? '—'}</td>
-                  <td className="px-4 py-3 text-zinc-600">{p.device_class ?? '—'}</td>
-                  <td className="px-4 py-3 text-zinc-400">
-                    {new Date(p.created_at).toLocaleDateString('en-GB', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                    })}
-                  </td>
-                </tr>
-              ))}
+              {profiles.map((p, i) => {
+                const wasEdited = (p as { last_modified_by?: string | null }).last_modified_by != null
+                return (
+                  <tr
+                    key={p.id}
+                    className={`${i < profiles.length - 1 ? 'border-b border-zinc-100' : ''} hover:bg-zinc-50 transition-colors`}
+                  >
+                    <td className="px-4 py-3">
+                      <Link href={`/dashboard/profiles/${p.id}/edit`}
+                        className="font-medium text-zinc-900 hover:text-blue-600 transition-colors">
+                        {p.device_name}
+                      </Link>
+                      {wasEdited && (
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          Last edited {timeAgo((p as { last_modified_at?: string }).last_modified_at ?? p.created_at)}
+                        </p>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-zinc-600">{p.manufacturer}</td>
+                    <td className="px-4 py-3 text-zinc-600">{p.emdn_code ?? '—'}</td>
+                    <td className="px-4 py-3 text-zinc-600">{p.device_class ?? '—'}</td>
+                    <td className="px-4 py-3 text-zinc-400">
+                      {new Date(p.created_at).toLocaleDateString('en-GB', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                      })}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        href={`/dashboard/profiles/${p.id}/edit`}
+                        className="text-xs font-medium text-zinc-500 hover:text-blue-600 transition-colors border border-zinc-200 rounded px-2.5 py-1 hover:border-blue-300"
+                      >
+                        Edit
+                      </Link>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
