@@ -77,7 +77,7 @@ export default async function ClaimPage({
 
       <ul className="mt-6 space-y-1.5 text-xs text-zinc-500">
         <li>✓ BfArM database covered</li>
-        <li>✓ AI-filtered results — only relevant FSNs</li>
+        <li>✓ AI-filtered results — transparent evaluation of search results</li>
         <li>✓ Downloadable PDF + Excel report</li>
         <li>✓ No credit card required</li>
       </ul>
