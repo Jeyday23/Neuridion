@@ -446,7 +446,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
   async function runSearch() {
     if (!profileId) return
-    setState({ phase: 'running' })
+    setState({ phase: 'running', startedAt: Date.now() })
     setReportState({ phase: 'idle' })
     setExpandedIds(new Set())
     setFilterTab('all')
@@ -486,6 +486,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           uncertain: data.uncertain_count ?? 0,
           excluded:  data.excluded_count  ?? 0,
         },
+        startedAt: state.phase === 'running' ? state.startedAt : Date.now(),
       })
     } catch (err) {
       setState({ phase: 'error', message: String(err) })

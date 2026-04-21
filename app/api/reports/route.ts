@@ -216,8 +216,10 @@ function buildReportHtml(
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 10.5pt; color: #1a1a1a; background: #fff; padding: 0; }
   .page { padding: 2.2cm 2cm 2.5cm 2cm; max-width: 210mm; }

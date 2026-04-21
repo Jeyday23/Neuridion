@@ -4,18 +4,20 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { Search, UserCircle, Archive, CreditCard, Settings, LogOut, Shield } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-
-const links = [
-  { label: 'Search',   href: '/dashboard/search',   icon: Search      },
-  { label: 'Profiles', href: '/dashboard/profiles',  icon: UserCircle  },
-  { label: 'Archive',  href: '/dashboard/archive',   icon: Archive     },
-  { label: 'Billing',  href: '/dashboard/billing',   icon: CreditCard  },
-  { label: 'Settings', href: '/dashboard/settings',  icon: Settings    },
-]
+import { useLanguage } from './language-context'
 
 export function SidebarNav({ userRole }: { userRole: string | null }) {
   const pathname = usePathname()
   const router = useRouter()
+  const { t } = useLanguage()
+
+  const links = [
+    { label: t.nav.search,   href: '/dashboard/search',   icon: Search      },
+    { label: t.nav.profiles, href: '/dashboard/profiles',  icon: UserCircle  },
+    { label: t.nav.archive,  href: '/dashboard/archive',   icon: Archive     },
+    { label: t.nav.billing,  href: '/dashboard/billing',   icon: CreditCard  },
+    { label: t.nav.settings, href: '/dashboard/settings',  icon: Settings    },
+  ]
 
   async function handleLogout() {
     const supabase = createClient()
@@ -64,7 +66,7 @@ export function SidebarNav({ userRole }: { userRole: string | null }) {
           className="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors w-full"
         >
           <LogOut className="w-5 h-5" />
-          <span>Log out</span>
+          <span>{t.nav.logout}</span>
         </button>
       </div>
     </nav>

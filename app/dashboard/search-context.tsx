@@ -21,8 +21,8 @@ export interface FsnResult {
 
 export type SearchRunState =
   | { phase: 'idle' }
-  | { phase: 'running' }
-  | { phase: 'done'; runId: string; results: FsnResult[]; counts: { relevant: number; uncertain: number; excluded: number } }
+  | { phase: 'running'; startedAt: number }
+  | { phase: 'done'; runId: string; results: FsnResult[]; counts: { relevant: number; uncertain: number; excluded: number }; startedAt: number }
   | { phase: 'error'; message: string }
 
 interface SearchContextValue {
