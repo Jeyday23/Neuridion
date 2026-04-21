@@ -2,12 +2,28 @@ import { SidebarNav } from './sidebar-nav'
 import { LanguageSelector } from './language-selector'
 import { SessionGuard } from './session-guard'
 import { Footer } from '@/app/components/Footer'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  let userRole: string | null = null
+  if (user) {
+    const admin = createAdminClient()
+    const { data } = await admin
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    userRole = data?.role ?? null
+  }
+
   return (
     <div className="flex h-screen bg-slate-50">
       {/* Sidebar */}
@@ -15,7 +31,7 @@ export default function DashboardLayout({
         <div className="p-6 border-b border-slate-200">
           <h1 className="text-2xl font-bold text-slate-900">Kodex Medical</h1>
         </div>
-        <SidebarNav />
+        <SidebarNav userRole={userRole} />
       </aside>
 
       {/* Main content */}

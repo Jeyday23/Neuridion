@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Search, UserCircle, Archive, CreditCard, Settings, LogOut } from 'lucide-react'
+import { Search, UserCircle, Archive, CreditCard, Settings, LogOut, Shield } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 const links = [
@@ -13,7 +13,7 @@ const links = [
   { label: 'Settings', href: '/dashboard/settings',  icon: Settings    },
 ]
 
-export function SidebarNav() {
+export function SidebarNav({ userRole }: { userRole: string | null }) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -46,7 +46,19 @@ export function SidebarNav() {
         })}
       </ul>
 
-      <div className="border-t border-slate-200 pt-4">
+      <div className="border-t border-slate-200 pt-4 space-y-1">
+        {userRole === 'admin' && (
+          <>
+            <Link
+              href="/admin"
+              className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              <Shield className="w-5 h-5" />
+              <span>Admin</span>
+            </Link>
+            <div className="border-t border-slate-200 my-1" />
+          </>
+        )}
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors w-full"

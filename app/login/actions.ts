@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { checkLoginRateLimit, recordLoginAttempt } from '@/lib/rate-limit'
 import { logAuditEvent } from '@/lib/audit'
 
@@ -38,5 +39,13 @@ export async function login(
 
   await logAuditEvent(data.user?.id ?? null, 'login', { email })
 
-  redirect('/dashboard/search')
+  const adminClient = createAdminClient()
+  const { data: userRow } = await adminClient
+    .from('users')
+    .select('role')
+    .eq('id', data.user.id)
+    .single()
+
+  const redirectPath = userRow?.role === 'admin' ? '/admin' : '/dashboard/search'
+  redirect(redirectPath)
 }
