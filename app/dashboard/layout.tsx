@@ -2,6 +2,7 @@ import { SidebarNav } from './sidebar-nav'
 import { LanguageSelector } from './language-selector'
 import { SessionGuard } from './session-guard'
 import { Footer } from '@/app/components/Footer'
+import { DashboardClientShell } from './dashboard-client-shell'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -41,8 +42,10 @@ export default async function DashboardLayout({
           <LanguageSelector />
         </div>
         <div className="flex-1 overflow-y-auto flex flex-col">
-          <SessionGuard>{children}</SessionGuard>
-          <Footer />
+          <DashboardClientShell>
+            <SessionGuard>{children}</SessionGuard>
+            <Footer />
+          </DashboardClientShell>
         </div>
       </main>
     </div>

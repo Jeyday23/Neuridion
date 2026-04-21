@@ -30,6 +30,15 @@ const DECISION_LABEL: Record<string, string> = {
   filter_failed: 'AI Filter Unavailable',
 }
 
+const SOURCE_LABELS: Record<string, string> = {
+  bfarm: 'BfArM',
+  maude: 'FDA MAUDE',
+  mhra:  'MHRA',
+}
+function fmtSourceDb(src: string): string {
+  return SOURCE_LABELS[src?.toLowerCase()] ?? src?.toUpperCase() ?? 'BfArM'
+}
+
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('en-GB', {
@@ -96,10 +105,10 @@ async function buildExcel(
 
       // Row colour by assessment
       const bg = !d ? undefined
-        : d.decision === 'relevant'      ? 'FFF0FFF0'  // very light green
-        : d.decision === 'uncertain'     ? 'FFFFF8E1'  // very light amber
-        : d.decision === 'filter_failed' ? 'FFFFF0F0'  // very light red
-        : 'FFF5F5F5'                                    // light grey
+        : d.decision === 'relevant'      ? 'FF92D050'  // green
+        : d.decision === 'uncertain'     ? 'FFFFCC00'  // yellow
+        : d.decision === 'filter_failed' ? 'FFFF9999'  // light red
+        : 'FFD3D3D3'                                    // grey
 
       if (bg) {
         dataRow.eachCell((cell) => {
@@ -181,7 +190,7 @@ function buildReportHtml(
         <td><a href="${r.source_url}" style="color:#1a1a2e;text-decoration:none;">${escHtml(r.title)}</a></td>
         <td>${escHtml(r.manufacturer || '—')}</td>
         <td style="white-space:nowrap;">${fmtDate(r.fsn_date)}</td>
-        <td>${escHtml(r.source_db.toUpperCase())}</td>
+        <td>${escHtml(fmtSourceDb(r.source_db))}</td>
         <td style="font-size:8pt;color:#555;">${escHtml(rationale)}${d.decision === 'filter_failed' ? ' <strong style="color:#991b1b;">&#9888; Manual review required.</strong>' : ''}</td>
       </tr>`
     }).join('')
@@ -208,8 +217,9 @@ function buildReportHtml(
 <head>
 <meta charset="utf-8"/>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Times New Roman', Times, serif; font-size: 10.5pt; color: #1a1a1a; background: #fff; padding: 0; }
+  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 10.5pt; color: #1a1a1a; background: #fff; padding: 0; }
   .page { padding: 2.2cm 2cm 2.5cm 2cm; max-width: 210mm; }
   .doc-header { border-bottom: 2.5px solid #1a1a2e; padding-bottom: 10px; margin-bottom: 18px; }
   .org-line { font-size: 8pt; color: #666; letter-spacing: 0.3px; text-transform: uppercase; margin-bottom: 4px; }

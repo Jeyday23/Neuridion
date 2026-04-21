@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { useSearchContext } from '../search-context'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
 import { Plus, Upload, X, CheckCircle, Loader2, ChevronDown } from 'lucide-react'
@@ -51,6 +52,18 @@ interface UploadedFile {
 }
 
 type FilterTab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
+
+// ─── Source label formatter ───────────────────────────────────────────────────
+
+function formatSourceLabel(src: string | null | undefined): string {
+  if (!src) return 'BfArM'
+  const map: Record<string, string> = {
+    bfarm: 'BfArM',
+    maude: 'FDA MAUDE',
+    mhra:  'MHRA',
+  }
+  return map[src.toLowerCase()] ?? src.toUpperCase()
+}
 
 // ─── Database list ────────────────────────────────────────────────────────────
 
@@ -139,8 +152,8 @@ function FsnRow({
             >
               {result.title}
             </a>
-            <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-500 uppercase">
-              {result.source ?? 'BfArM'}
+            <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-500">
+              {formatSourceLabel(result.source)}
             </span>
           </div>
 
@@ -275,7 +288,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const [profileId, setProfileId]     = useState(profiles[0]?.id ?? '')
   const [fromDate, setFromDate]       = useState(yearAgo)
   const [toDate, setToDate]           = useState(today)
-  const [state, setState]             = useState<RunState>({ phase: 'idle' })
+  const { searchState: state, setSearchState: setState } = useSearchContext()
   const [reportState, setReportState] = useState<ReportState>({ phase: 'idle' })
 
   // FIX 1 — array state for search term combinations
