@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 import { checkIsAdmin } from '@/lib/admin-guard'
 
 const NAV_LINKS = [
@@ -26,30 +27,40 @@ export default async function AdminLayout({
         <div className="mb-6 px-3">
           <span className="text-xs font-semibold uppercase tracking-widest text-red-500">Admin</span>
         </div>
-        <nav className="flex flex-1 flex-col justify-between gap-0.5">
-          <div className="flex flex-col gap-0.5">
-            {NAV_LINKS.map(({ label, href }) => (
-              <Link
-                key={href}
-                href={href}
-                className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
-              >
-                {label}
-              </Link>
-            ))}
-          </div>
-          <div className="px-3">
+
+        {/* Prominent Back-to-App button */}
+        <Link
+          href="/dashboard/search"
+          className="mx-3 mb-4 flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 hover:border-zinc-300 transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to dashboard
+        </Link>
+
+        <nav className="flex flex-1 flex-col gap-0.5">
+          {NAV_LINKS.map(({ label, href }) => (
             <Link
-              href="/dashboard/search"
-              className="flex items-center gap-2 text-xs text-zinc-400 hover:text-zinc-700 transition-colors"
+              key={href}
+              href={href}
+              className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
             >
-              ← Back to app
+              {label}
             </Link>
-          </div>
+          ))}
         </nav>
       </aside>
 
       <main className="flex flex-1 flex-col overflow-auto">
+        {/* Top bar with secondary back link for emphasis */}
+        <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-8 py-3">
+          <span className="text-sm font-medium text-zinc-500">Admin Console</span>
+          <Link
+            href="/dashboard/search"
+            className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
+          >
+            Exit admin →
+          </Link>
+        </div>
         {children}
       </main>
     </div>

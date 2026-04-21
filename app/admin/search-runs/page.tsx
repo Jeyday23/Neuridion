@@ -5,7 +5,7 @@ type RunRow = {
   status: string
   search_period_from: string | null
   search_period_to: string | null
-  started_at: string
+  started_at: string | null
   user_email: string
   profile_name: string
   total_results: number
@@ -15,7 +15,8 @@ type RunRow = {
 async function getSearchRuns(): Promise<RunRow[]> {
   const admin = createAdminClient()
 
-  // Fetch runs with nested user and profile data
+  // search_runs.profile_id → product_profiles.id (not "profiles" — that table doesn't exist)
+  // relevant_count/total_results are stored on search_runs directly, no need to re-count
   const { data: runs, error } = await admin
     .from('search_runs')
     .select(`
@@ -23,80 +24,76 @@ async function getSearchRuns(): Promise<RunRow[]> {
       status,
       search_period_from,
       search_period_to,
+      period_from,
+      period_to,
       started_at,
+      created_at,
       user_id,
-      profiles ( name )
+      total_results,
+      relevant_count,
+      product_profiles ( device_name )
     `)
-    .order('started_at', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(200)
 
   if (error) throw new Error(error.message)
   if (!runs || runs.length === 0) return []
 
-  // Fetch user emails
+  // Fetch user emails in one round-trip
   const userIds = [...new Set(runs.map((r) => r.user_id as string))]
   const { data: users } = await admin
     .from('users')
     .select('id, email')
     .in('id', userIds)
 
-  const emailMap = new Map((users ?? []).map((u: { id: string; email: string }) => [u.id, u.email]))
-
-  // Fetch FSN result counts per run
-  const runIds = runs.map((r) => r.id as string)
-  const { data: fsnCounts } = await admin
-    .from('fsn_results')
-    .select('run_id')
-    .in('run_id', runIds)
-
-  const totalMap = new Map<string, number>()
-  for (const row of fsnCounts ?? []) {
-    const rid = row.run_id as string
-    totalMap.set(rid, (totalMap.get(rid) ?? 0) + 1)
-  }
-
-  // Fetch relevant filter_decisions per run
-  const { data: decisions } = await admin
-    .from('filter_decisions')
-    .select('search_run_id, decision')
-    .in('search_run_id', runIds)
-    .eq('decision', 'relevant')
-
-  const relevantMap = new Map<string, number>()
-  for (const row of decisions ?? []) {
-    const rid = row.search_run_id as string
-    relevantMap.set(rid, (relevantMap.get(rid) ?? 0) + 1)
-  }
+  const emailMap = new Map(
+    (users ?? []).map((u: { id: string; email: string }) => [u.id, u.email])
+  )
 
   return runs.map((r) => {
-    const profileRaw = r.profiles as { name: string }[] | { name: string } | null
+    const profileRaw = r.product_profiles as { device_name: string }[] | { device_name: string } | null
     const profile = Array.isArray(profileRaw) ? profileRaw[0] ?? null : profileRaw
     return {
-      id:                  r.id as string,
-      status:              r.status as string,
-      search_period_from:  r.search_period_from as string | null,
-      search_period_to:    r.search_period_to as string | null,
-      started_at:          r.started_at as string,
-      user_email:          emailMap.get(r.user_id as string) ?? '—',
-      profile_name:        profile?.name ?? '—',
-      total_results:       totalMap.get(r.id as string) ?? 0,
-      relevant_count:      relevantMap.get(r.id as string) ?? 0,
+      id:                 r.id as string,
+      status:             r.status as string,
+      search_period_from: (r.search_period_from ?? r.period_from) as string | null,
+      search_period_to:   (r.search_period_to   ?? r.period_to)   as string | null,
+      started_at:         (r.started_at ?? r.created_at) as string | null,
+      user_email:         emailMap.get(r.user_id as string) ?? '—',
+      profile_name:       profile?.device_name ?? '—',
+      total_results:      (r.total_results  as number | null) ?? 0,
+      relevant_count:     (r.relevant_count as number | null) ?? 0,
     }
   })
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  completed: 'bg-green-100 text-green-700',
+  complete:  'bg-green-100 text-green-700',
   running:   'bg-blue-100 text-blue-700',
-  failed:    'bg-red-100 text-red-700',
+  filtering: 'bg-blue-100 text-blue-700',
+  queued:    'bg-zinc-100 text-zinc-600',
+  error:     'bg-red-100 text-red-700',
 }
 
 export default async function AdminSearchRunsPage() {
-  const runs = await getSearchRuns()
+  let runs: RunRow[] = []
+  let loadError: string | null = null
+  try {
+    runs = await getSearchRuns()
+  } catch (err) {
+    loadError = err instanceof Error ? err.message : String(err)
+  }
 
   return (
     <div className="p-8">
       <h1 className="text-xl font-bold text-zinc-900 mb-6">Search Runs</h1>
+
+      {loadError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <strong>Query error:</strong> {loadError}
+        </div>
+      )}
+
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
         <table className="w-full text-sm">
           <thead>
@@ -130,13 +127,13 @@ export default async function AdminSearchRunsPage() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-zinc-500 whitespace-nowrap">
-                  {new Date(r.started_at).toLocaleDateString('en-GB')}
+                  {r.started_at ? new Date(r.started_at).toLocaleDateString('en-GB') : '—'}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-        {runs.length === 0 && (
+        {runs.length === 0 && !loadError && (
           <p className="px-4 py-8 text-center text-sm text-zinc-400">No search runs found.</p>
         )}
       </div>

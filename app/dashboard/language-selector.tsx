@@ -1,51 +1,86 @@
 'use client'
 
-import { Globe } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Globe, Check, ChevronDown } from 'lucide-react'
 import { useLanguage } from './language-context'
+import type { Locale } from '@/lib/i18n'
 
-const LOCALES = [
+const LOCALES: { id: Locale; label: string; flag: string }[] = [
   { id: 'en', label: 'English', flag: '🇬🇧' },
   { id: 'de', label: 'Deutsch', flag: '🇩🇪' },
-] as const
+]
 
 export function LanguageSelector() {
   const { locale, setLocale } = useLanguage()
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
   const current = LOCALES.find((l) => l.id === locale) ?? LOCALES[0]
 
+  // Close on click-outside
+  useEffect(() => {
+    if (!open) return
+    function onClick(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [open])
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+
+  function choose(l: Locale) {
+    setLocale(l)
+    setOpen(false)
+  }
+
   return (
-    <div className="relative group">
+    <div ref={rootRef} className="relative">
       <button
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-500 hover:bg-slate-100 transition-colors text-sm"
-        aria-label="Select language"
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors text-sm"
+        aria-haspopup="listbox"
+        aria-expanded={open}
       >
         <Globe className="w-4 h-4" />
-        <span className="text-base">{current.flag}</span>
+        <span className="text-base leading-none">{current.flag}</span>
         <span className="font-medium">{current.label}</span>
-        <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown */}
-      <div className="absolute right-0 top-full mt-1 w-36 rounded-lg border border-slate-200 bg-white shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-        {LOCALES.map((l) => (
-          <button
-            key={l.id}
-            onClick={() => setLocale(l.id)}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-slate-50 transition-colors first:rounded-t-lg last:rounded-b-lg ${
-              locale === l.id ? 'font-semibold text-blue-600' : 'text-slate-700'
-            }`}
-          >
-            <span className="text-base">{l.flag}</span>
-            {l.label}
-            {locale === l.id && (
-              <svg className="w-3.5 h-3.5 ml-auto text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </button>
-        ))}
-      </div>
+      {open && (
+        <div
+          role="listbox"
+          className="absolute right-0 top-full mt-1 w-40 rounded-lg border border-slate-200 bg-white shadow-lg z-50 overflow-hidden"
+        >
+          {LOCALES.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              role="option"
+              aria-selected={locale === l.id}
+              onClick={() => choose(l.id)}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
+                locale === l.id ? 'font-semibold text-blue-600 bg-blue-50/40' : 'text-slate-700'
+              }`}
+            >
+              <span className="text-base leading-none">{l.flag}</span>
+              <span className="flex-1 text-left">{l.label}</span>
+              {locale === l.id && <Check className="w-4 h-4 text-blue-600" />}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
