@@ -2,7 +2,11 @@ import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import QRCode from 'qrcode'
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://kodex-4-medical.onrender.com'
+const BASE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  process.env.NEXT_PUBLIC_APP_URL ??
+  'https://kodex-4-medical.onrender.com'
+).replace(/\/$/, '')
 
 export async function GET(
   _request: Request,

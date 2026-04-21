@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 const PDFSHIFT_API_URL = 'https://api.pdfshift.io/v3/convert/pdf'
 const MONTHLY_LIMIT = 45  // global cap — stay under 50-conversion free tier
-const PER_USER_LIMIT = 10 // prevents a single user from burning all credits
+const PER_USER_LIMIT = 15 // prevents a single user from burning all credits
 
 export async function generatePdfFromHtml(html: string): Promise<Buffer> {
   const apiKey = process.env.PDFSHIFT_API_KEY
