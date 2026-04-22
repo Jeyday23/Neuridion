@@ -34,25 +34,63 @@ export default async function HomePage() {
       </nav>
 
       {/* Hero */}
-      <section className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white flex items-center">
-        <div className="max-w-7xl mx-auto px-6 py-20 text-center">
-          <h1 className="text-6xl font-bold mb-6 leading-tight">
-            PMS search in 6 minutes,<br />not 6 hours
-          </h1>
-          <p className="text-xl text-slate-300 mb-12 max-w-3xl mx-auto leading-relaxed">
-            Kodex Medical automatically searches BfArM, FDA MAUDE and 18 other global recall
-            databases — then filters results for your specific device using AI. EU MDR Article 83 compliant.
+      <section className="relative min-h-screen bg-[#030712] text-white flex items-center overflow-hidden">
+        {/* Subtle grid overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.03]"
+          style={{
+            backgroundImage:
+              'linear-gradient(rgba(6,182,212,1) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,1) 1px, transparent 1px)',
+            backgroundSize: '60px 60px',
+          }}
+        />
+        {/* Radial glow behind wordmark */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="w-[800px] h-[400px] bg-cyan-500/10 blur-[120px] rounded-full" />
+        </div>
+
+        <div className="relative max-w-7xl mx-auto px-6 py-32 text-center w-full">
+          {/* Giant wordmark */}
+          <div className="relative inline-block mb-8">
+            <div className="absolute inset-0 bg-cyan-500/20 blur-3xl animate-pulse rounded-full" />
+            <h1
+              className="relative font-black tracking-tight leading-none"
+              style={{ fontSize: 'clamp(3.5rem, 10vw, 9rem)' }}
+            >
+              <span
+                style={{
+                  background: 'linear-gradient(135deg, #ffffff 0%, #67e8f9 50%, #60a5fa 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}
+              >
+                KODEX MEDICAL
+              </span>
+            </h1>
+          </div>
+
+          {/* Subtitle */}
+          <p className="text-xl md:text-2xl text-slate-300 mb-4 max-w-3xl mx-auto leading-relaxed">
+            AI-Powered Post-Market Surveillance for Medical Devices
           </p>
-          <div className="flex items-center justify-center gap-4">
+
+          {/* Beta note */}
+          <p className="text-sm md:text-base text-cyan-400 mb-12 font-mono tracking-wide">
+            Currently in beta &nbsp;·&nbsp; Public launch June 2026
+          </p>
+
+          {/* CTAs */}
+          <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link
               href="/signup"
-              className="px-8 py-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+              className="px-8 py-4 bg-cyan-500 hover:bg-cyan-400 text-black font-bold rounded-lg transition-colors"
             >
               Start free trial
             </Link>
             <Link
               href="/login"
-              className="px-8 py-4 border-2 border-white text-white rounded-lg hover:bg-white hover:text-slate-900 transition-colors font-semibold"
+              className="px-8 py-4 border border-slate-600 hover:border-cyan-500/60 text-white rounded-lg hover:bg-white/5 transition-colors font-semibold"
             >
               Log in
             </Link>
