@@ -1,4 +1,4 @@
-// ── Sonnet (claude-sonnet-4-5) ────────────────────────────────────────────────
+// ── Sonnet (claude-sonnet-4-6) ────────────────────────────────────────────────
 // Org limit: 50 RPM. Use 40 RPM (20% safety buffer) → 1500ms between requests.
 const SONNET_MIN_MS = 1500
 
