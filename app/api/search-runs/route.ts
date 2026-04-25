@@ -1,10 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { scrapeBfArM } from '@/lib/scrapers/bfarm'
+import { scrapeBfArM, type ScrapedFsn } from '@/lib/scrapers/bfarm'
 import { stage1Filter } from '@/lib/claude/filter-pipeline'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { sendSearchRunNotification } from '@/lib/email'
 import { logAuditEvent } from '@/lib/audit'
+import { chunkDateRange, daysBetween } from '@/lib/utils/date-chunks'
+
+// 30 minutes — Render ignores this but documents intent for long 2-year searches
+export const maxDuration = 1800
 
 export async function POST(request: Request) {
   const supabase = await createClient()   // anon client — auth checks only
@@ -92,20 +96,57 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Step 1: Scrape BfArM
-    const from = new Date(period_from)
-    const to   = new Date(period_to + 'T23:59:59.999Z') // end of day, not midnight
+    // Step 1: Scrape BfArM (chunked for long date ranges)
+    const totalDays = daysBetween(period_from, period_to)
     console.log('[api] Received dates:', {
       fromRaw:   period_from,
       toRaw:     period_to,
-      fromParsed: from.toISOString(),
-      toParsed:   to.toISOString(),
-      serverNow:  new Date().toISOString(),
-      serverTZ:   Intl.DateTimeFormat().resolvedOptions().timeZone,
+      totalDays,
+      serverNow: new Date().toISOString(),
+      serverTZ:  Intl.DateTimeFormat().resolvedOptions().timeZone,
     })
-    console.log('[search] Date range:', from.toISOString(), '→', to.toISOString())
-    const items = await scrapeBfArM({ fromDate: from, toDate: to })
-    console.log('[search] BfArM items scraped:', items.length)
+
+    let allScraped: ScrapedFsn[] = []
+
+    if (totalDays <= 90) {
+      // Short search — single scrape
+      const from = new Date(period_from + 'T00:00:00.000Z')
+      const to   = new Date(period_to   + 'T23:59:59.999Z')
+      console.log('[search] Single-chunk scrape:', from.toISOString(), '→', to.toISOString())
+      allScraped = await scrapeBfArM({ fromDate: from, toDate: to })
+      console.log('[search] Single-chunk result:', allScraped.length, 'items')
+    } else {
+      // Long search — chunk into 60-day pieces (accuracy > speed)
+      const chunks = chunkDateRange(period_from, period_to, 60)
+      console.log(`[search] Long search (${totalDays} days): ${chunks.length} chunks of 60 days`)
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]
+        console.log(`[search] Chunk ${i + 1}/${chunks.length}: ${chunk.from} → ${chunk.to}`)
+        try {
+          const chunkItems = await scrapeBfArM({
+            fromDate: new Date(chunk.from + 'T00:00:00.000Z'),
+            toDate:   new Date(chunk.to   + 'T23:59:59.999Z'),
+          })
+          console.log(`[search] Chunk ${i + 1}: ${chunkItems.length} items`)
+          allScraped.push(...chunkItems)
+        } catch (chunkErr) {
+          // Partial data > no data — continue with remaining chunks
+          console.error(`[search] Chunk ${i + 1} failed, continuing:`, chunkErr)
+        }
+        // Polite pause between chunks
+        if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 1000))
+      }
+    }
+
+    // Dedup across chunks by external_id
+    const seen = new Set<string>()
+    const items = allScraped.filter(item => {
+      if (seen.has(item.external_id)) return false
+      seen.add(item.external_id)
+      return true
+    })
+    console.log(`[search] After dedup: ${allScraped.length} → ${items.length} items`)
     if (items.length > 0) {
       console.log('[search] Sample item:', JSON.stringify(items[0], null, 2))
     }
@@ -146,20 +187,20 @@ export async function POST(request: Request) {
     }
 
     console.log('[search] Running AI filter on', insertedRows.length, 'rows')
-    // Step 3: Run AI filter on every result
-    const decisions = await Promise.all(
-      insertedRows.map((row) =>
-        stage1Filter(
-          {
-            title:        row.title,
-            manufacturer: row.manufacturer,
-            raw_content:  row.raw_content,
-            fsn_date:     row.fsn_date,
-          },
-          profile
-        ).then((d) => ({ ...d, fsn_result_id: row.id }))
+    // Step 3: Run AI filter sequentially with GC pauses every 25 items
+    const decisions: (Awaited<ReturnType<typeof stage1Filter>> & { fsn_result_id: string })[] = []
+    for (let i = 0; i < insertedRows.length; i++) {
+      const row = insertedRows[i]
+      const d = await stage1Filter(
+        { title: row.title, manufacturer: row.manufacturer, raw_content: row.raw_content, fsn_date: row.fsn_date },
+        profile,
       )
-    )
+      decisions.push({ ...d, fsn_result_id: row.id })
+      if ((i + 1) % 25 === 0) {
+        console.log(`[filter] Progress: ${i + 1}/${insertedRows.length} (${Math.round((i + 1) / insertedRows.length * 100)}%)`)
+        await new Promise(r => setTimeout(r, 200))
+      }
+    }
 
     // Step 4: Insert filter decisions
     if (decisions.length > 0) {

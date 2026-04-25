@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useSearchContext } from '../search-context'
 import { useLanguage } from '../language-context'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
 import { Plus, Upload, X, CheckCircle, Loader2, ChevronDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { FeedbackPopup } from '@/app/components/FeedbackPopup'
+import { daysBetween } from '@/lib/utils/date-chunks'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -238,6 +240,18 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const [selectedDbs, setSelectedDbs] = useState<Set<string>>(new Set(['bfarm']))
   const [hoveredDb, setHoveredDb]     = useState<string | null>(null)
 
+  const [showFeedback, setShowFeedback] = useState(false)
+
+  const totalDays = useMemo(
+    () => (fromDate && toDate ? daysBetween(fromDate, toDate) : 0),
+    [fromDate, toDate],
+  )
+
+  const isMediumSearch  = totalDays > 90  && totalDays <= 365
+  const isLongSearch    = totalDays > 365 && totalDays <= 730
+  const isVeryLongSearch = totalDays > 730 && totalDays <= 1095
+  const isTooLong       = totalDays > 1095
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   // Scroll target for "View results" navigation
   const resultsRef = useRef<HTMLDivElement>(null)
@@ -245,10 +259,21 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   // Auto-scroll to results when they arrive (initial run or navigate-back)
   useEffect(() => {
     if (state.phase === 'done') {
-      // Small delay so the DOM is painted first
       setTimeout(() => {
         resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }, 100)
+    }
+  }, [state.phase])
+
+  // Feedback popup: show after first successful search
+  useEffect(() => {
+    if (state.phase !== 'done') return
+    if (state.results.length === 0) return
+    const hasSearchedBefore = localStorage.getItem('kodex-has-searched')
+    const dismissedUntil    = parseInt(localStorage.getItem('kodex-feedback-dismissed-until') ?? '0')
+    if (!hasSearchedBefore && Date.now() > dismissedUntil) {
+      setTimeout(() => setShowFeedback(true), 5000)
+      localStorage.setItem('kodex-has-searched', 'true')
     }
   }, [state.phase])
 
@@ -551,6 +576,43 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           )}
         </section>
 
+        {/* Date range warnings */}
+        {isTooLong && (
+          <div className="rounded-lg border border-red-500 bg-red-100 p-4">
+            <p className="text-sm text-red-900 font-semibold">
+              Search range too large (~{totalDays} days). Maximum supported is 3 years.
+              Please reduce your date range.
+            </p>
+          </div>
+        )}
+        {isVeryLongSearch && (
+          <div className="rounded-lg border border-red-300 bg-red-50 p-4">
+            <p className="text-sm text-red-900">
+              <strong>Maximum range search:</strong> ~{totalDays} days
+              (~{Math.round(totalDays / 365)} years). Estimated time: 20–40 minutes.
+              Results are guaranteed accurate but will take time. Consider using the Archive
+              to combine multiple shorter searches.
+            </p>
+          </div>
+        )}
+        {isLongSearch && (
+          <div className="rounded-lg border border-orange-300 bg-orange-50 p-4">
+            <p className="text-sm text-orange-900">
+              <strong>Very long search:</strong> ~{totalDays} days. Estimated time:
+              10–20 minutes. The system will scrape in 60-day chunks for accuracy.
+              Do not close this tab.
+            </p>
+          </div>
+        )}
+        {isMediumSearch && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+            <p className="text-sm text-amber-900">
+              <strong>Long search:</strong> ~{totalDays} days. Estimated time: 3–8 minutes.
+              Results will be accurate.
+            </p>
+          </div>
+        )}
+
         {/* Action bar */}
         <div className="flex items-center justify-between pt-6 border-t border-slate-200 flex-wrap gap-3">
           <button type="button" onClick={() => saveDraft()} disabled={draftSaving}
@@ -563,7 +625,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
               className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed">
               {t.search.createProfile}
             </button>
-            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running'}
+            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || isTooLong}
               className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
               {state.phase === 'running'
                 ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.searching}</>
@@ -742,6 +804,9 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       )}
 
       {toast && <Toast msg={toast.msg} type={toast.type} />}
+      {showFeedback && (
+        <FeedbackPopup triggeredBy="first_search" onClose={() => setShowFeedback(false)} />
+      )}
     </div>
   )
 }
