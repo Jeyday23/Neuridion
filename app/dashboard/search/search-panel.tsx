@@ -247,10 +247,11 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     [fromDate, toDate],
   )
 
-  const isMediumSearch  = totalDays > 90  && totalDays <= 365
-  const isLongSearch    = totalDays > 365 && totalDays <= 730
-  const isVeryLongSearch = totalDays > 730 && totalDays <= 1095
-  const isTooLong       = totalDays > 1095
+  const MAX_DAYS = 365 * 3 + 1  // 3 years = 1096 days
+
+  const isMediumSearch = totalDays > 90  && totalDays <= 365
+  const isLongSearch   = totalDays > 365 && totalDays <= MAX_DAYS
+  const isOverLimit    = totalDays > MAX_DAYS
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   // Scroll target for "View results" navigation
@@ -577,29 +578,19 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         </section>
 
         {/* Date range warnings */}
-        {isTooLong && (
+        {isOverLimit && (
           <div className="rounded-lg border border-red-500 bg-red-100 p-4">
             <p className="text-sm text-red-900 font-semibold">
-              Search range too large (~{totalDays} days). Maximum supported is 3 years.
-              Please reduce your date range.
-            </p>
-          </div>
-        )}
-        {isVeryLongSearch && (
-          <div className="rounded-lg border border-red-300 bg-red-50 p-4">
-            <p className="text-sm text-red-900">
-              <strong>Maximum range search:</strong> ~{totalDays} days
-              (~{Math.round(totalDays / 365)} years). Estimated time: 20–40 minutes.
-              Results are guaranteed accurate but will take time. Consider using the Archive
-              to combine multiple shorter searches.
+              Maximum range: 3 years. BfArM provides direct year-archive access for the
+              current year, last year, and year before last. For deeper history, contact us.
             </p>
           </div>
         )}
         {isLongSearch && (
           <div className="rounded-lg border border-orange-300 bg-orange-50 p-4">
             <p className="text-sm text-orange-900">
-              <strong>Very long search:</strong> ~{totalDays} days. Estimated time:
-              10–20 minutes. The system will scrape in 60-day chunks for accuracy.
+              <strong>Multi-year search:</strong> ~{totalDays} days
+              (~{Math.round(totalDays / 365)} years). Estimated time: 15–40 minutes.
               Do not close this tab.
             </p>
           </div>
@@ -607,8 +598,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         {isMediumSearch && (
           <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
             <p className="text-sm text-amber-900">
-              <strong>Long search:</strong> ~{totalDays} days. Estimated time: 3–8 minutes.
-              Results will be accurate.
+              <strong>Long search:</strong> ~{totalDays} days. Estimated time: 5–15 minutes.
+              Audit-grade accuracy via BfArM year archive.
             </p>
           </div>
         )}
@@ -625,7 +616,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
               className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed">
               {t.search.createProfile}
             </button>
-            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || isTooLong}
+            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || isOverLimit}
               className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
               {state.phase === 'running'
                 ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.searching}</>

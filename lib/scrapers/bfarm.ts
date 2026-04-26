@@ -1,4 +1,5 @@
 import { parseStringPromise } from 'xml2js'
+import { daysBetween } from '@/lib/utils/date-chunks'
 
 const BFARM_ORIGIN = 'https://www.bfarm.de'
 const SEARCH_BASE  = `${BFARM_ORIGIN}/SiteGlobals/Forms/Suche/Expertensuche_Formular.html`
@@ -6,6 +7,7 @@ const RSS_URL      = `${BFARM_ORIGIN}/SiteGlobals/Functions/RSSFeed/DE/Medizinpr
 const RESULTS_PER_PAGE = 30
 const MAX_PAGES  = 50
 const MAX_ITEMS  = 200
+const MAX_PAGES_YEAR = 50  // 50 pages × 30 items = 1,500 max per year shortcut
 const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0)'
 
 export interface ScrapedFsn {
@@ -208,6 +210,103 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
     // returning stale RSS data that ignores the user's date filter.
     throw err
   }
+}
+
+// ─── Year-shortcut mode (for searches > 90 days) ─────────────────────────────
+
+async function scrapeYearShortcut(shortcut: string): Promise<ParsedItem[]> {
+  const items: ParsedItem[] = []
+  let pageNum = 1
+
+  while (pageNum <= MAX_PAGES_YEAR) {
+    const base = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&dateOfIssue_dt=${shortcut}&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
+    const url  = pageNum === 1 ? base : `${base}&gtp=469344_list%3D${pageNum}`
+
+    console.log(`[bfarm] ${shortcut} page ${pageNum}: fetching`)
+    const res = await fetch(url, { headers: { 'User-Agent': UA } })
+    if (!res.ok) {
+      console.warn(`[bfarm] ${shortcut} page ${pageNum}: HTTP ${res.status}, stopping`)
+      break
+    }
+    const html      = await res.text()
+    const pageItems = parsePage(html)
+    console.log(`[bfarm] ${shortcut} page ${pageNum}: ${pageItems.length} items`)
+
+    if (pageItems.length === 0) break
+    items.push(...pageItems)
+    if (pageItems.length < RESULTS_PER_PAGE) break
+
+    pageNum++
+    await new Promise(r => setTimeout(r, 500))
+  }
+
+  return items
+}
+
+async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: string }): Promise<ScrapedFsn[]> {
+  const fromYear   = new Date(params.fromDate + 'T00:00:00.000Z').getUTCFullYear()
+  const toYear     = new Date(params.toDate   + 'T00:00:00.000Z').getUTCFullYear()
+  const currentYear = new Date().getUTCFullYear()
+
+  const yearsToScrape: string[] = []
+  for (let year = fromYear; year <= toYear; year++) {
+    if      (year === currentYear)     yearsToScrape.push('current_year')
+    else if (year === currentYear - 1) yearsToScrape.push('lastyear')
+    else if (year === currentYear - 2) yearsToScrape.push('penultimateyear')
+    else console.warn(`[bfarm] Year ${year} beyond BfArM shortcut support (max 2 years back), skipping`)
+  }
+
+  console.log(`[bfarm] Long search — scraping year shortcuts: ${yearsToScrape.join(', ')}`)
+
+  const allParsed: ParsedItem[] = []
+  for (const shortcut of yearsToScrape) {
+    const yearItems = await scrapeYearShortcut(shortcut)
+    console.log(`[bfarm] ${shortcut}: ${yearItems.length} raw items`)
+    allParsed.push(...yearItems)
+  }
+
+  const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
+  const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
+
+  const raw: ScrapedFsn[] = allParsed.map(item => ({
+    external_id:  item.externalId,
+    title:        item.title,
+    manufacturer: item.manufacturer,
+    product_name: null,
+    fsn_date:     item.date ? item.date.toISOString().split('T')[0] : null,
+    source_url:   `${BFARM_ORIGIN}${item.href}`,
+    raw_content:  item.title,
+    source_db:    'bfarm',
+  }))
+
+  const inRange = raw.filter(item => {
+    if (!item.fsn_date) return false
+    const d = new Date(item.fsn_date)
+    return d >= fromDate && d <= toDate
+  })
+  console.log(`[bfarm] Year shortcuts: ${raw.length} total → ${inRange.length} in date range`)
+
+  const seen = new Set<string>()
+  const deduped = inRange.filter(item => {
+    if (seen.has(item.external_id)) return false
+    seen.add(item.external_id)
+    return true
+  })
+  console.log(`[bfarm] Dedup: ${inRange.length} → ${deduped.length}`)
+
+  return deduped
+}
+
+// Public entry point — dispatches to date-range mode (≤90 days) or year-shortcut
+// mode (>90 days). Both paths return deduped, date-filtered results.
+export async function scrapeBfarm(params: { fromDate: string; toDate: string }): Promise<ScrapedFsn[]> {
+  const total = daysBetween(params.fromDate, params.toDate)
+  if (total <= 90) {
+    const from = new Date(params.fromDate + 'T00:00:00.000Z')
+    const to   = new Date(params.toDate   + 'T23:59:59.999Z')
+    return scrapeBfArM({ fromDate: from, toDate: to })
+  }
+  return scrapeBfarmYearShortcuts(params)
 }
 
 // Kept for potential future use (e.g. "latest FSNs" widget that doesn't
