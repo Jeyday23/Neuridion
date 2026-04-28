@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { scrapeBfarm, type ScrapedFsn } from '@/lib/scrapers/bfarm'
+import { scrapeBfarm, type ScrapedFsn, type ScraperResult } from '@/lib/scrapers/bfarm'
 import { scrapeMhra }       from '@/lib/scrapers/mhra'
 import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
 import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
@@ -10,7 +10,7 @@ import { sendSearchRunNotification } from '@/lib/email'
 import { logAuditEvent } from '@/lib/audit'
 
 // Registry — keys match the `id` values in the UI database list
-const SCRAPERS: Record<string, (p: { fromDate: string; toDate: string }) => Promise<ScrapedFsn[]>> = {
+const SCRAPERS: Record<string, (p: { fromDate: string; toDate: string }) => Promise<ScraperResult>> = {
   bfarm:      scrapeBfarm,
   mhra:       scrapeMhra,
   fda:        scrapeFdaMaude,
@@ -120,19 +120,22 @@ export async function POST(request: Request) {
     )
 
     const items: ScrapedFsn[] = []
+    const allWarnings: string[] = []
+
     for (let i = 0; i < scrapeResults.length; i++) {
-      const r      = scrapeResults[i]
-      const srcId  = activeSources[i]
+      const r     = scrapeResults[i]
+      const srcId = activeSources[i]
       if (r.status === 'fulfilled') {
-        console.log(`[search] ${srcId}: ${r.value.length} items`)
-        items.push(...r.value)
+        console.log(`[search] ${srcId}: ${r.value.items.length} items${r.value.warnings.length ? `, ${r.value.warnings.length} warning(s)` : ''}`)
+        items.push(...r.value.items)
+        allWarnings.push(...r.value.warnings)
       } else {
         // Surface the error clearly — no silent retry loop
         console.error(`[search] ${srcId} FAILED:`, r.reason)
       }
     }
 
-    console.log(`[search] Combined: ${items.length} total items across ${activeSources.length} source(s)`)
+    console.log(`[search] Combined: ${items.length} total items across ${activeSources.length} source(s)${allWarnings.length ? ` — ${allWarnings.length} degraded warning(s)` : ''}`)
     if (items.length > 0) {
       console.log('[search] Sample item:', JSON.stringify(items[0], null, 2))
     }
@@ -216,11 +219,16 @@ export async function POST(request: Request) {
       { relevant: 0, uncertain: 0, excluded: 0, filter_failed: 0 } as Record<string, number>
     )
 
-    // Step 6: Mark run completed with counts
+    // Step 6: Mark run completed (or degraded if any source returned warnings)
+    const runStatus = allWarnings.length > 0 ? 'degraded' : 'complete'
+    if (runStatus === 'degraded') {
+      console.warn(`[search] Run ${run.id} marked degraded: ${allWarnings.join(' | ')}`)
+    }
     await db
       .from('search_runs')
       .update({
-        status:               'complete',
+        status:               runStatus,
+        error_message:        allWarnings.length > 0 ? allWarnings.join('\n') : null,
         completed_at:         new Date().toISOString(),
         total_results:        items.length,
         relevant_count:       counts.relevant,
@@ -257,6 +265,8 @@ export async function POST(request: Request) {
     return Response.json(
       {
         run_id:               run.id,
+        run_status:           runStatus,
+        warnings:             allWarnings,
         result_count:         items.length,
         relevant_count:       counts.relevant,
         uncertain_count:      counts.uncertain,

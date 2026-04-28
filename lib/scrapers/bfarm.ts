@@ -24,6 +24,13 @@ export interface ScrapedFsn {
 /** @deprecated use ScrapedFsn */
 export type FsnItem = ScrapedFsn
 
+// Returned by every public scraper function.
+// Non-empty warnings → the caller should mark the run as 'degraded'.
+export interface ScraperResult {
+  items:    ScrapedFsn[]
+  warnings: string[]
+}
+
 interface ScraperOptions {
   fromDate?: Date
   toDate?: Date
@@ -299,14 +306,14 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
 
 // Public entry point — dispatches to date-range mode (≤90 days) or year-shortcut
 // mode (>90 days). Both paths return deduped, date-filtered results.
-export async function scrapeBfarm(params: { fromDate: string; toDate: string }): Promise<ScrapedFsn[]> {
+export async function scrapeBfarm(params: { fromDate: string; toDate: string }): Promise<ScraperResult> {
   const total = daysBetween(params.fromDate, params.toDate)
   if (total <= 90) {
     const from = new Date(params.fromDate + 'T00:00:00.000Z')
     const to   = new Date(params.toDate   + 'T23:59:59.999Z')
-    return scrapeBfArM({ fromDate: from, toDate: to })
+    return { items: await scrapeBfArM({ fromDate: from, toDate: to }), warnings: [] }
   }
-  return scrapeBfarmYearShortcuts(params)
+  return { items: await scrapeBfarmYearShortcuts(params), warnings: [] }
 }
 
 // Kept for potential future use (e.g. "latest FSNs" widget that doesn't

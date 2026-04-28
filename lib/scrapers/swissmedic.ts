@@ -1,4 +1,4 @@
-import type { ScrapedFsn } from './bfarm'
+import type { ScrapedFsn, ScraperResult } from './bfarm'
 
 // Canonical English FSCA listing page — verify this URL against the live site
 // before deploying. Swissmedic's AEM CMS may restructure paths without notice.
@@ -10,11 +10,12 @@ const DETAIL_CONCURRENCY = 2
 const MAX_PAGES     = 30   // safety cap
 const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0; +https://kodex.medical)'
 
-export async function scrapeSwissmedic(params: { fromDate: string; toDate: string }): Promise<ScrapedFsn[]> {
+export async function scrapeSwissmedic(params: { fromDate: string; toDate: string }): Promise<ScraperResult> {
   const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
   const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
 
   const listings: ScrapedFsn[] = []
+  const warnings: string[]     = []
   let pageNum = 0
   let hitBoundary = false
 
@@ -33,9 +34,13 @@ export async function scrapeSwissmedic(params: { fromDate: string; toDate: strin
 
     if (rows.length === 0) {
       if (pageNum === 0) {
-        // Log a snippet to help debug HTML structure mismatches
         const snippet = html.slice(0, 800).replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ')
         console.warn(`[swissmedic] No rows parsed from page 0. HTML snippet: ${snippet}`)
+        const msg =
+          `Swissmedic: zero rows parsed from listing page — HTML structure may have changed. ` +
+          `Results for Swissmedic are incomplete. Verify the listing URL and table structure: ${LISTING_BASE}${LISTING_PATH}`
+        console.warn(`[swissmedic] ${msg}`)
+        warnings.push(msg)
       }
       console.log(`[swissmedic] Empty page ${pageNum}, stopping`)
       break
@@ -80,8 +85,8 @@ export async function scrapeSwissmedic(params: { fromDate: string; toDate: strin
 
   const enriched = await enrichWithDetails(listings)
   const deduped  = dedup(enriched)
-  console.log(`[swissmedic] Final: ${deduped.length} deduplicated items`)
-  return deduped
+  console.log(`[swissmedic] Final: ${deduped.length} deduplicated items${warnings.length ? ` (${warnings.length} warning(s))` : ''}`)
+  return { items: deduped, warnings }
 }
 
 // ─── Listing page parser ──────────────────────────────────────────────────────

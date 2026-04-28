@@ -1,4 +1,4 @@
-import type { ScrapedFsn } from './bfarm'
+import type { ScrapedFsn, ScraperResult } from './bfarm'
 
 // openFDA device/event endpoint — no auth required, API key raises daily quota
 // Docs: https://open.fda.gov/apis/device/event/
@@ -8,7 +8,7 @@ const MAX_SKIP        = 25000           // API hard limit: skip + limit ≤ 2600
 const PAGE_DELAY_MS   = 400            // ~150 req/min — well under 240 RPM limit
 const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0; +https://kodex.medical)'
 
-export async function scrapeFdaMaude(params: { fromDate: string; toDate: string }): Promise<ScrapedFsn[]> {
+export async function scrapeFdaMaude(params: { fromDate: string; toDate: string }): Promise<ScraperResult> {
   const apiKey = process.env.OPENFDA_API_KEY
 
   // openFDA uses YYYYMMDD (no hyphens) in Lucene range queries
@@ -18,6 +18,7 @@ export async function scrapeFdaMaude(params: { fromDate: string; toDate: string 
   console.log(`[fda] Scraping date_received:[${from}+TO+${to}]${apiKey ? ' (authenticated)' : ' (anonymous — 1k/day cap)'}`)
 
   const items: ScrapedFsn[] = []
+  const warnings: string[]  = []
   let skip = 0
 
   while (true) {
@@ -63,11 +64,14 @@ export async function scrapeFdaMaude(params: { fromDate: string; toDate: string 
     if (pageResults.length < RESULTS_PER_PAGE) break  // last page
 
     if (skip > MAX_SKIP) {
-      console.warn(
-        `[fda] Hit API pagination cap (skip=${skip} > ${MAX_SKIP}). ` +
-        `${total - items.length} records in range are not accessible via the live API. ` +
-        `Use the openFDA bulk download at https://open.fda.gov/apis/device/event/download/ for full coverage.`
-      )
+      const gap = total - items.length
+      const msg =
+        `FDA MAUDE: pagination cap reached (${items.length.toLocaleString()} of ` +
+        `${total.toLocaleString()} records retrieved for ${params.fromDate}–${params.toDate}). ` +
+        `${gap.toLocaleString()} records not retrieved. ` +
+        `Use the openFDA bulk download for full coverage: https://open.fda.gov/apis/device/event/download/`
+      console.warn(`[fda] ${msg}`)
+      warnings.push(msg)
       break
     }
 
@@ -75,8 +79,8 @@ export async function scrapeFdaMaude(params: { fromDate: string; toDate: string 
   }
 
   const deduped = dedup(items)
-  console.log(`[fda] Done: ${deduped.length} deduplicated records`)
-  return deduped
+  console.log(`[fda] Done: ${deduped.length} deduplicated records${warnings.length ? ` (${warnings.length} warning(s))` : ''}`)
+  return { items: deduped, warnings }
 }
 
 // ─── Field mapping ────────────────────────────────────────────────────────────
