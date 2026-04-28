@@ -1,115 +1,161 @@
 import type { ScrapedFsn } from './bfarm'
 
-// GOV.UK Content API — stable, no auth required
-// Docs: https://content-api.publishing.service.gov.uk/
-const CONTENT_API = 'https://www.gov.uk/api/content/drug-device-alerts'
-const SEARCH_API  = 'https://www.gov.uk/api/search.json'
-const PAGE_SIZE   = 100
+const SEARCH_API      = 'https://www.gov.uk/api/search.json'
+const CONTENT_API_BASE = 'https://www.gov.uk/api/content'
+const PAGE_SIZE        = 100
+const DETAIL_CONCURRENCY = 3
+const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0; +https://kodex.medical)'
 
-export async function scrapeMhra(
-  fromDate: Date,
-  toDate: Date
-): Promise<ScrapedFsn[]> {
-  const results: ScrapedFsn[] = []
+export async function scrapeMhra(params: { fromDate: string; toDate: string }): Promise<ScrapedFsn[]> {
+  const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
+  const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
+
+  const listings: ScrapedFsn[] = []
   let start = 0
 
   while (true) {
-    // GOV.UK Search API — filter to medical device alerts only
     const url = new URL(SEARCH_API)
-    url.searchParams.set('filter_format', 'medical_safety_alert')
+    url.searchParams.set('filter_format',     'medical_safety_alert')
     url.searchParams.set('filter_alert_type', 'Field safety notice')
-    url.searchParams.set('count', String(PAGE_SIZE))
-    url.searchParams.set('start', String(start))
-    url.searchParams.set('order', '-public_timestamp')
-    url.searchParams.set('fields[]', 'title')
-    url.searchParams.set('fields[]', 'description')
-    url.searchParams.set('fields[]', 'link')
-    url.searchParams.set('fields[]', 'public_timestamp')
-    url.searchParams.set('fields[]', 'organisations')
+    url.searchParams.set('count',             String(PAGE_SIZE))
+    url.searchParams.set('start',             String(start))
+    url.searchParams.set('order',             '-public_timestamp')
+    url.searchParams.set('fields[]',          'title')
+    url.searchParams.set('fields[]',          'description')
+    url.searchParams.set('fields[]',          'link')
+    url.searchParams.set('fields[]',          'public_timestamp')
 
-    const page = await fetchPage(url.toString())
-    if (!page?.results?.length) break
+    console.log(`[mhra] Search start=${start}: ${url}`)
+    const page = await fetchJson(url.toString()) as GovUkSearchResponse | null
 
+    if (!page?.results?.length) {
+      console.log(`[mhra] Empty page at start=${start}, stopping`)
+      break
+    }
+
+    let hitBoundary = false
     for (const item of page.results) {
-      const pubDate = item.public_timestamp
-        ? new Date(item.public_timestamp)
-        : null
+      const pubDate = item.public_timestamp ? new Date(item.public_timestamp) : null
 
-      // Filter by date range
-      if (pubDate) {
-        if (pubDate < fromDate) {
-          // Results are ordered newest first — stop when we go past fromDate
-          return dedup(results)
-        }
-        if (pubDate > toDate) continue
+      if (pubDate && pubDate < fromDate) {
+        console.log(`[mhra] Hit fromDate boundary at ${pubDate.toISOString().slice(0, 10)}, stopping`)
+        hitBoundary = true
+        break
       }
+      if (pubDate && pubDate > toDate) continue
 
-      const link = item.link
-        ? `https://www.gov.uk${item.link}`
-        : ''
-
-      results.push({
-        external_id:  item.link ?? String(start),
+      const linkPath = item.link ?? ''
+      listings.push({
+        external_id:  linkPath || String(start),
         title:        cleanTitle(item.title ?? ''),
         manufacturer: extractManufacturer(item.title ?? '', item.description ?? ''),
         product_name: extractProductName(item.title ?? ''),
-        fsn_date:     pubDate
-          ? pubDate.toISOString().split('T')[0]
-          : null,
-        source_url:   link,
+        fsn_date:     pubDate ? pubDate.toISOString().slice(0, 10) : null,
+        source_url:   linkPath ? `https://www.gov.uk${linkPath}` : '',
         raw_content:  [item.title, item.description].filter(Boolean).join('\n\n'),
         source_db:    'mhra',
       })
     }
 
-    start += PAGE_SIZE
+    if (hitBoundary) break
 
-    // Stop if we've fetched all available results
+    start += PAGE_SIZE
     const total = page.total ?? 0
+    console.log(`[mhra] Collected ${listings.length} / ${total} total`)
     if (start >= total || start >= 2000) break
 
-    await sleep(150)
+    await jitter(150, 350)
   }
 
-  return dedup(results)
+  console.log(`[mhra] Listing complete: ${listings.length} items — enriching via Content API`)
+
+  const enriched = await enrichWithDetails(listings)
+  const deduped  = dedup(enriched)
+  console.log(`[mhra] Final: ${deduped.length} deduplicated items`)
+  return deduped
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+// ─── Detail enrichment ────────────────────────────────────────────────────────
 
-async function fetchPage(url: string): Promise<any> {
+async function enrichWithDetails(items: ScrapedFsn[]): Promise<ScrapedFsn[]> {
+  const result: ScrapedFsn[] = []
+
+  for (let i = 0; i < items.length; i += DETAIL_CONCURRENCY) {
+    const batch   = items.slice(i, i + DETAIL_CONCURRENCY)
+    const enriched = await Promise.all(batch.map(enrichItem))
+    result.push(...enriched)
+
+    if (i + DETAIL_CONCURRENCY < items.length) {
+      await jitter(300, 650)
+    }
+  }
+
+  return result
+}
+
+async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn> {
+  const linkPath = item.source_url.replace('https://www.gov.uk', '')
+  if (!linkPath.startsWith('/')) return item
+
+  try {
+    const detail = await fetchJson(`${CONTENT_API_BASE}${linkPath}`) as GovUkContentItem | null
+    if (!detail) return item
+
+    const body      = detail.details?.body     ?? ''
+    const refNumber = detail.details?.ref_number ?? ''
+    const issuedDate = detail.details?.issued_date ?? ''
+
+    const rawParts = [
+      item.title,
+      refNumber  ? `Reference: ${refNumber}` : '',
+      body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+    ].filter(Boolean)
+
+    return {
+      ...item,
+      fsn_date:    (issuedDate || item.fsn_date) ?? null,
+      raw_content: rawParts.join('\n\n'),
+    }
+  } catch (err) {
+    console.warn(`[mhra] Detail fetch failed for ${linkPath}: ${String(err)}`)
+    return item
+  }
+}
+
+// ─── HTTP helpers ─────────────────────────────────────────────────────────────
+
+async function fetchJson(url: string): Promise<unknown | null> {
   try {
     const res = await fetch(url, {
-      headers: { Accept: 'application/json' },
-      next: { revalidate: 3600 },
+      headers: { 'User-Agent': UA, Accept: 'application/json' },
     })
     if (!res.ok) {
-      console.error(`MHRA API error: ${res.status} ${url}`)
+      console.error(`[mhra] HTTP ${res.status} ${url}`)
       return null
     }
     return res.json()
   } catch (err) {
-    console.error('MHRA fetch failed:', err)
+    console.error(`[mhra] Fetch failed: ${url}:`, err)
     return null
   }
 }
 
+const jitter = (minMs: number, maxMs: number) =>
+  new Promise(r => setTimeout(r, minMs + Math.random() * (maxMs - minMs)))
+
+// ─── Parsing helpers ──────────────────────────────────────────────────────────
+
 function cleanTitle(raw: string): string {
-  return raw
-    .replace(/^Field Safety Notice:\s*/i, '')
-    .replace(/^FSN:\s*/i, '')
-    .trim()
+  return raw.replace(/^Field Safety (Notice|Alert)[:\s]*/i, '').replace(/^FSN:\s*/i, '').trim()
 }
 
 function extractManufacturer(title: string, description: string): string | null {
-  // Try "Manufacturer: X" pattern in description first
   const mfrMatch = description.match(/manufacturer[:\s]+([^\n,\.]{3,60})/i)
   if (mfrMatch) return mfrMatch[1].trim()
 
-  // Try "by ManufacturerName" in title
   const byMatch = title.match(/\bby\s+([A-Z][^\n,]{2,50})/i)
   if (byMatch) return byMatch[1].trim()
 
-  // Try "— ManufacturerName" pattern
   const dashIdx = title.indexOf(' — ')
   if (dashIdx > 0) {
     const candidate = title.substring(0, dashIdx).trim()
@@ -121,15 +167,10 @@ function extractManufacturer(title: string, description: string): string | null 
 
 function extractProductName(title: string): string | null {
   const cleaned = cleanTitle(title)
-
-  // After " — " is usually the product
   const dashIdx = cleaned.indexOf(' — ')
   if (dashIdx > 0) return cleaned.substring(dashIdx + 3).trim() || null
-
-  // After ": " is sometimes the product
   const colonIdx = cleaned.indexOf(': ')
   if (colonIdx > 0) return cleaned.substring(colonIdx + 2).trim() || null
-
   return cleaned || null
 }
 
@@ -142,4 +183,25 @@ function dedup(items: ScrapedFsn[]): ScrapedFsn[] {
   })
 }
 
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface GovUkSearchResponse {
+  results?: GovUkSearchItem[]
+  total?:   number
+}
+
+interface GovUkSearchItem {
+  title?:            string
+  description?:      string
+  link?:             string
+  public_timestamp?: string
+}
+
+interface GovUkContentItem {
+  details?: {
+    body?:         string
+    ref_number?:   string
+    issued_date?:  string
+    alert_type?:   string
+  }
+}

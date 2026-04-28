@@ -1,10 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { scrapeBfarm } from '@/lib/scrapers/bfarm'
+import { scrapeBfarm, type ScrapedFsn } from '@/lib/scrapers/bfarm'
+import { scrapeMhra }       from '@/lib/scrapers/mhra'
+import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
+import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
 import { stage1Filter } from '@/lib/claude/filter-pipeline'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { sendSearchRunNotification } from '@/lib/email'
 import { logAuditEvent } from '@/lib/audit'
+
+// Registry — keys match the `id` values in the UI database list
+const SCRAPERS: Record<string, (p: { fromDate: string; toDate: string }) => Promise<ScrapedFsn[]>> = {
+  bfarm:      scrapeBfarm,
+  mhra:       scrapeMhra,
+  fda:        scrapeFdaMaude,
+  swissmedic: scrapeSwissmedic,
+}
 
 // 30 minutes — Render ignores this but documents intent for long 2-year searches
 export const maxDuration = 1800
@@ -25,10 +36,11 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { profile_id, period_from, period_to } = body as {
-    profile_id?: string
-    period_from?: string
-    period_to?: string
+  const { profile_id, period_from, period_to, selected_dbs } = body as {
+    profile_id?:   string
+    period_from?:  string
+    period_to?:    string
+    selected_dbs?: string[]
   }
 
   if (!profile_id || !period_from || !period_to) {
@@ -95,16 +107,32 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Step 1: Scrape BfArM — year-shortcut mode for >90 days, date-range mode otherwise
-    console.log('[api] Received dates:', {
-      fromRaw:   period_from,
-      toRaw:     period_to,
-      serverNow: new Date().toISOString(),
-      serverTZ:  Intl.DateTimeFormat().resolvedOptions().timeZone,
-    })
+    // Step 1: Scrape all selected sources in parallel
+    // allSettled: one source failing does not abort the others.
+    // All source results are collected before a single combined DB insert — no concurrent writes.
+    const activeSources = (selected_dbs ?? ['bfarm']).filter(id => SCRAPERS[id])
+    if (activeSources.length === 0) activeSources.push('bfarm')
 
-    const items = await scrapeBfarm({ fromDate: period_from, toDate: period_to })
-    console.log(`[search] Scraped ${items.length} items`)
+    console.log(`[search] Sources: [${activeSources.join(', ')}] | ${period_from} → ${period_to}`)
+
+    const scrapeResults = await Promise.allSettled(
+      activeSources.map(id => SCRAPERS[id]({ fromDate: period_from!, toDate: period_to! }))
+    )
+
+    const items: ScrapedFsn[] = []
+    for (let i = 0; i < scrapeResults.length; i++) {
+      const r      = scrapeResults[i]
+      const srcId  = activeSources[i]
+      if (r.status === 'fulfilled') {
+        console.log(`[search] ${srcId}: ${r.value.length} items`)
+        items.push(...r.value)
+      } else {
+        // Surface the error clearly — no silent retry loop
+        console.error(`[search] ${srcId} FAILED:`, r.reason)
+      }
+    }
+
+    console.log(`[search] Combined: ${items.length} total items across ${activeSources.length} source(s)`)
     if (items.length > 0) {
       console.log('[search] Sample item:', JSON.stringify(items[0], null, 2))
     }

@@ -66,10 +66,10 @@ function formatSourceLabel(src: string | null | undefined): string {
 
 const databases = [
   { id: 'bfarm',        name: 'BfArM Database',               region: 'Germany',      active: true  },
-  { id: 'fda',          name: 'FDA MAUDE',                    region: 'USA',          active: false },
-  { id: 'swissmedic',   name: 'Swissmedic',                   region: 'Switzerland',  active: false },
+  { id: 'fda',          name: 'FDA MAUDE',                    region: 'USA',          active: true  },
+  { id: 'swissmedic',   name: 'Swissmedic',                   region: 'Switzerland',  active: true  },
   { id: 'eudamed',      name: 'EUDAMED',                      region: 'EU',           active: false },
-  { id: 'mhra',         name: 'MHRA - Medical Device Alerts', region: 'UK',           active: false },
+  { id: 'mhra',         name: 'MHRA - Medical Device Alerts', region: 'UK',           active: true  },
   { id: 'tga',          name: 'TGA Database',                 region: 'Australia',    active: false },
   { id: 'health-canada',name: 'Health Canada',                region: 'Canada',       active: false },
   { id: 'pmda',         name: 'PMDA',                         region: 'Japan',        active: false },
@@ -389,7 +389,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     setExpandedIds(new Set())
     setFilterTab('all')
     try {
-      const res  = await fetch('/api/search-runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profile_id: profileId, period_from: fromDate, period_to: toDate }) })
+      const res  = await fetch('/api/search-runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profile_id: profileId, period_from: fromDate, period_to: toDate, selected_dbs: [...selectedDbs] }) })
       const data = await res.json() as { run_id?: string; relevant_count?: number; uncertain_count?: number; excluded_count?: number; error?: string }
       if (!res.ok) {
         const msg = data.error
