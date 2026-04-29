@@ -95,9 +95,6 @@ export async function POST(
     batch: trialCode.batch_name,
   }, request)
 
-  // 8. Log temporary password (replace with email when Resend is wired up)
-  console.log(`[trial-claim] New trial user ${email} — temp password: ${tempPassword}`)
-
   return Response.json({
     ok:       true,
     email,
