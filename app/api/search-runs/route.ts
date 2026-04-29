@@ -8,6 +8,9 @@ import { stage1Filter } from '@/lib/claude/filter-pipeline'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { sendSearchRunNotification } from '@/lib/email'
 import { logAuditEvent } from '@/lib/audit'
+import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
+import { upsertCanonical, getCanonicalItems, computeContentHash } from '@/lib/sync/canonical'
+import { z } from 'zod'
 
 // Registry — keys match the `id` values in the UI database list
 const SCRAPERS: Record<string, (p: { fromDate: string; toDate: string }) => Promise<ScraperResult>> = {
@@ -16,6 +19,37 @@ const SCRAPERS: Record<string, (p: { fromDate: string; toDate: string }) => Prom
   fda:        scrapeFdaMaude,
   swissmedic: scrapeSwissmedic,
 }
+
+const KNOWN_SOURCES = Object.keys(SCRAPERS)
+const MAX_SPAN_YEARS = 5
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
+
+const SearchRunBodySchema = z.object({
+  profile_id:    z.string().uuid(),
+  period_from:   z.string().regex(ISO_DATE, 'period_from must be YYYY-MM-DD'),
+  period_to:     z.string().regex(ISO_DATE, 'period_to must be YYYY-MM-DD'),
+  selected_dbs:  z.array(z.enum(KNOWN_SOURCES as [string, ...string[]])).min(1).max(KNOWN_SOURCES.length).optional(),
+  force_refresh: z.boolean().optional(),
+}).superRefine((val, ctx) => {
+  const from = new Date(val.period_from)
+  const to   = new Date(val.period_to)
+  if (isNaN(from.getTime())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'period_from is not a valid date', path: ['period_from'] })
+    return
+  }
+  if (isNaN(to.getTime())) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'period_to is not a valid date', path: ['period_to'] })
+    return
+  }
+  if (from > to) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'period_from must be on or before period_to', path: ['period_from'] })
+  }
+  const maxSpanMs = MAX_SPAN_YEARS * 365.25 * 24 * 60 * 60 * 1000
+  if (to.getTime() - from.getTime() > maxSpanMs) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: `Date range may not exceed ${MAX_SPAN_YEARS} years`, path: ['period_to'] })
+  }
+})
 
 // 30 minutes — Render ignores this but documents intent for long 2-year searches
 export const maxDuration = 1800
@@ -29,26 +63,20 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: Record<string, unknown>
+  let rawBody: unknown
   try {
-    body = await request.json()
+    rawBody = await request.json()
   } catch {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { profile_id, period_from, period_to, selected_dbs } = body as {
-    profile_id?:   string
-    period_from?:  string
-    period_to?:    string
-    selected_dbs?: string[]
+  const bodyResult = SearchRunBodySchema.safeParse(rawBody)
+  if (!bodyResult.success) {
+    const message = bodyResult.error.issues.map(i => i.message).join('; ')
+    return Response.json({ error: message }, { status: 400 })
   }
 
-  if (!profile_id || !period_from || !period_to) {
-    return Response.json(
-      { error: 'profile_id, period_from, and period_to are required' },
-      { status: 422 }
-    )
-  }
+  const { profile_id, period_from, period_to, selected_dbs, force_refresh } = bodyResult.data
 
   // Enforce plan search-run limit
   const { data: userData } = await supabase
@@ -107,28 +135,125 @@ export async function POST(request: Request) {
   }
 
   try {
-    // Step 1: Scrape all selected sources in parallel
+    // Step 1: Coverage-aware source processing — serve cached ranges, fetch only gaps.
     // allSettled: one source failing does not abort the others.
     // All source results are collected before a single combined DB insert — no concurrent writes.
     const activeSources = (selected_dbs ?? ['bfarm']).filter(id => SCRAPERS[id])
     if (activeSources.length === 0) activeSources.push('bfarm')
 
-    console.log(`[search] Sources: [${activeSources.join(', ')}] | ${period_from} → ${period_to}`)
+    const forceRefresh = force_refresh === true
 
-    const scrapeResults = await Promise.allSettled(
-      activeSources.map(id => SCRAPERS[id]({ fromDate: period_from!, toDate: period_to! }))
+    console.log(`[search] Sources: [${activeSources.join(', ')}] | ${period_from} → ${period_to}${forceRefresh ? ' (force_refresh)' : ''}`)
+
+    interface SourceResult {
+      items:           ScrapedFsn[]
+      warnings:        string[]
+      // per-item content_changed flag for cache bypass
+      contentChanged:  Set<string>
+    }
+
+    async function processSource(sourceId: string): Promise<SourceResult> {
+      const items:          ScrapedFsn[]  = []
+      const warnings:       string[]       = []
+      const contentChanged: Set<string>    = new Set()
+
+      // 7-day overlap window: always re-fetch the last 7 days to catch corrections
+      const overlapFrom = overlapWindowStart(period_to!)
+
+      if (forceRefresh) {
+        // Skip coverage check — do full fetch
+        const result = await SCRAPERS[sourceId]({ fromDate: period_from!, toDate: period_to! })
+        items.push(...result.items)
+        warnings.push(...result.warnings)
+      } else {
+        // Check which sub-ranges are already covered
+        const covered   = await getCoveredRanges(sourceId)
+        // Always include overlap window as uncovered (may have corrections)
+        const effectiveTo = period_to!
+        // Gap check: pass ALL covered rows (including ones that span into the overlap
+        // window). computeUncoveredRanges clips by the provided toDate, so a coverage
+        // row like [Feb01→Feb28] correctly covers the [Feb01→Feb20] sub-range even
+        // though it extends past the overlap boundary.
+        const gapCheckTo      = overlapFrom > period_from! ? prevDay(overlapFrom) : period_from!
+        const uncoveredRanges = computeUncoveredRanges(covered, period_from!, gapCheckTo)
+
+        // Fetch uncovered ranges from source
+        for (const range of uncoveredRanges) {
+          console.log(`[search] ${sourceId}: fetching uncovered ${range.from} → ${range.to}`)
+          const result = await SCRAPERS[sourceId]({ fromDate: range.from, toDate: range.to })
+          items.push(...result.items)
+          warnings.push(...result.warnings)
+        }
+
+        // Always fetch overlap window from source
+        if (overlapFrom <= effectiveTo) {
+          console.log(`[search] ${sourceId}: fetching overlap window ${overlapFrom} → ${effectiveTo}`)
+          const result = await SCRAPERS[sourceId]({ fromDate: overlapFrom, toDate: effectiveTo })
+          items.push(...result.items)
+          warnings.push(...result.warnings)
+        }
+
+        // Fetch covered ranges from canonical DB (no source request needed)
+        const coveredRangesInWindow = covered.filter(c => c.to >= period_from! && c.from <= (overlapFrom > period_from! ? prevDay(overlapFrom) : period_from!))
+        for (const range of coveredRangesInWindow) {
+          const canonicalFrom = range.from < period_from! ? period_from! : range.from
+          const canonicalTo   = range.to   > period_to!   ? period_to!   : range.to
+          const cached = await getCanonicalItems(sourceId, canonicalFrom, canonicalTo)
+          console.log(`[search] ${sourceId}: served ${cached.length} items from canonical (${canonicalFrom} → ${canonicalTo})`)
+          items.push(...cached)
+        }
+      }
+
+      // Deduplicate across all sources (live fetch + canonical)
+      const seen = new Set<string>()
+      const deduped = items.filter(item => {
+        if (seen.has(item.external_id)) return false
+        seen.add(item.external_id)
+        return true
+      })
+
+      // Upsert into canonical and detect content changes
+      if (deduped.length > 0) {
+        try {
+          const canonicalResults = await upsertCanonical(deduped)
+          for (let i = 0; i < canonicalResults.length; i++) {
+            if (canonicalResults[i].content_changed) {
+              contentChanged.add(deduped[i].external_id)
+            }
+          }
+          // Merge coverage for the fetched date range
+          await mergeCoverage(sourceId, { from: period_from!, to: period_to! })
+        } catch (err) {
+          // Canonical upsert failure is non-fatal — run continues with fresh data
+          console.error(`[search] ${sourceId}: canonical upsert failed:`, err)
+        }
+      }
+
+      return { items: deduped, warnings, contentChanged }
+    }
+
+    function prevDay(date: string): string {
+      const d = new Date(date + 'T00:00:00.000Z')
+      d.setUTCDate(d.getUTCDate() - 1)
+      return d.toISOString().slice(0, 10)
+    }
+
+    const sourceResults = await Promise.allSettled(
+      activeSources.map(id => processSource(id))
     )
 
     const items: ScrapedFsn[] = []
     const allWarnings: string[] = []
+    const allContentChanged = new Set<string>()
 
-    for (let i = 0; i < scrapeResults.length; i++) {
-      const r     = scrapeResults[i]
+    for (let i = 0; i < sourceResults.length; i++) {
+      const r     = sourceResults[i]
       const srcId = activeSources[i]
       if (r.status === 'fulfilled') {
         console.log(`[search] ${srcId}: ${r.value.items.length} items${r.value.warnings.length ? `, ${r.value.warnings.length} warning(s)` : ''}`)
         items.push(...r.value.items)
         allWarnings.push(...r.value.warnings)
+        r.value.contentChanged.forEach(id => allContentChanged.add(id))
       } else {
         // Surface the error clearly — no silent retry loop
         console.error(`[search] ${srcId} FAILED:`, r.reason)
@@ -143,6 +268,7 @@ export async function POST(request: Request) {
     // Step 2: Insert raw FSN results
     let insertedRows: {
       id: string
+      external_id: string
       title: string
       manufacturer: string
       raw_content: string
@@ -159,13 +285,14 @@ export async function POST(request: Request) {
         source_url:    item.source_url,
         raw_content:   item.raw_content,
         source_db:     item.source_db,
+        content_hash:  computeContentHash(item),
       }))
 
       console.log('[search] Inserting', rows.length, 'rows into fsn_results')
       const { data: inserted, error: insertError } = await db
         .from('fsn_results')
         .insert(rows)
-        .select('id, title, manufacturer, raw_content, fsn_date')
+        .select('id, external_id, title, manufacturer, raw_content, fsn_date')
 
       console.log('[search] Insert error:', insertError)
       console.log('[search] Inserted rows returned:', inserted?.length ?? 0)
@@ -180,9 +307,11 @@ export async function POST(request: Request) {
     const decisions: (Awaited<ReturnType<typeof stage1Filter>> & { fsn_result_id: string })[] = []
     for (let i = 0; i < insertedRows.length; i++) {
       const row = insertedRows[i]
+      const skipCache = allContentChanged.has(row.external_id ?? '')
       const d = await stage1Filter(
         { title: row.title, manufacturer: row.manufacturer, raw_content: row.raw_content, fsn_date: row.fsn_date },
         profile,
+        { skipCache },
       )
       decisions.push({ ...d, fsn_result_id: row.id })
       if ((i + 1) % 25 === 0) {
