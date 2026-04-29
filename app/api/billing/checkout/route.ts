@@ -1,5 +1,22 @@
 import { createClient } from '@/lib/supabase/server'
 import { stripe } from '@/lib/stripe'
+import { z } from 'zod'
+
+// Derived at startup from env — same source of truth as planFromPriceId() in lib/plans.ts.
+// Filter out undefined so an unconfigured plan doesn't create an empty-string entry.
+function buildPriceAllowlist(): Set<string> {
+  return new Set(
+    [
+      process.env.STRIPE_PRICE_STARTER,
+      process.env.STRIPE_PRICE_PRO,
+      process.env.STRIPE_PRICE_ENTERPRISE,
+    ].filter((id): id is string => typeof id === 'string' && id.length > 0)
+  )
+}
+
+const BodySchema = z.object({
+  price_id: z.string().min(1),
+})
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -9,16 +26,24 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: { price_id?: string }
+  let rawBody: unknown
   try {
-    body = await request.json()
+    rawBody = await request.json()
   } catch {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { price_id } = body
-  if (!price_id) {
-    return Response.json({ error: 'price_id is required' }, { status: 422 })
+  const parsed = BodySchema.safeParse(rawBody)
+  if (!parsed.success) {
+    return Response.json({ error: 'price_id is required' }, { status: 400 })
+  }
+
+  const { price_id } = parsed.data
+
+  const allowlist = buildPriceAllowlist()
+  if (!allowlist.has(price_id)) {
+    console.warn(`[billing/checkout] rejected unknown price_id from user ${user.id}`)
+    return Response.json({ error: 'Invalid price selection' }, { status: 400 })
   }
 
   // Fetch existing customer ID if any
