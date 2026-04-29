@@ -150,12 +150,15 @@ export async function POST(request: Request) {
       warnings:        string[]
       // per-item content_changed flag for cache bypass
       contentChanged:  Set<string>
+      // external_id → canonical_id for fsn_results backlink
+      canonicalIds:    Map<string, string>
     }
 
     async function processSource(sourceId: string): Promise<SourceResult> {
-      const items:          ScrapedFsn[]  = []
-      const warnings:       string[]       = []
-      const contentChanged: Set<string>    = new Set()
+      const items:          ScrapedFsn[]         = []
+      const warnings:       string[]             = []
+      const contentChanged: Set<string>          = new Set()
+      const canonicalIds:   Map<string, string>  = new Map()
 
       // 7-day overlap window: always re-fetch the last 7 days to catch corrections
       const overlapFrom = overlapWindowStart(period_to!)
@@ -217,7 +220,9 @@ export async function POST(request: Request) {
         try {
           const canonicalResults = await upsertCanonical(deduped)
           for (let i = 0; i < canonicalResults.length; i++) {
-            if (canonicalResults[i].content_changed) {
+            const r = canonicalResults[i]
+            canonicalIds.set(deduped[i].external_id, r.canonical_id)
+            if (r.content_changed) {
               contentChanged.add(deduped[i].external_id)
             }
           }
@@ -229,7 +234,7 @@ export async function POST(request: Request) {
         }
       }
 
-      return { items: deduped, warnings, contentChanged }
+      return { items: deduped, warnings, contentChanged, canonicalIds }
     }
 
     function prevDay(date: string): string {
@@ -245,6 +250,7 @@ export async function POST(request: Request) {
     const items: ScrapedFsn[] = []
     const allWarnings: string[] = []
     const allContentChanged = new Set<string>()
+    const allCanonicalIds   = new Map<string, string>()
 
     for (let i = 0; i < sourceResults.length; i++) {
       const r     = sourceResults[i]
@@ -254,6 +260,7 @@ export async function POST(request: Request) {
         items.push(...r.value.items)
         allWarnings.push(...r.value.warnings)
         r.value.contentChanged.forEach(id => allContentChanged.add(id))
+        r.value.canonicalIds.forEach((cid, eid) => allCanonicalIds.set(eid, cid))
       } else {
         // Surface the error clearly — no silent retry loop
         console.error(`[search] ${srcId} FAILED:`, r.reason)
@@ -286,6 +293,7 @@ export async function POST(request: Request) {
         raw_content:   item.raw_content,
         source_db:     item.source_db,
         content_hash:  computeContentHash(item),
+        canonical_id:  allCanonicalIds.get(item.external_id) ?? null,
       }))
 
       console.log('[search] Inserting', rows.length, 'rows into fsn_results')
