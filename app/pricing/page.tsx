@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 const plans = [
   {
@@ -16,33 +17,49 @@ const plans = [
     price: '$49/mo',
     description: 'For growing medical teams',
     features: ['Unlimited documents', 'AI compliance filter', 'Priority support', 'Audit logs'],
-    priceId: 'price_1TMRvyB2xv3JtUxiFVtEB91P', // 👈 replace with your Stripe price ID
+    priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO ?? 'price_1TMRvyB2xv3JtUxiFVtEB91P',
   },
 ];
 
 export default function PricingPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleUpgrade = async (priceId: string) => {
     setLoading(true);
-    const res = await fetch('/api/stripe/checkout', {
+    setError(null);
+
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      router.push('/login?next=/pricing');
+      return;
+    }
+
+    const res = await fetch('/api/billing/checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        priceId,
-        userId: 'test-user-123', // TODO: replace with real user ID
-        userEmail: 'test@example.com', // TODO: replace with real user email
-      }),
+      body: JSON.stringify({ price_id: priceId }),
     });
-    const { url } = await res.json();
-    if (url) router.push(url);
-    setLoading(false);
+
+    const json = await res.json();
+
+    if (!res.ok || !json.url) {
+      setError(json.error ?? 'Something went wrong. Please try again.');
+      setLoading(false);
+      return;
+    }
+
+    router.push(json.url);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 py-20 px-4">
       <h1 className="text-4xl font-bold text-center mb-12">Choose your plan</h1>
+      {error && (
+        <p className="text-center text-red-600 mb-6">{error}</p>
+      )}
       <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
         {plans.map((plan) => (
           <div key={plan.name} className="bg-white rounded-2xl shadow p-8 flex flex-col">
