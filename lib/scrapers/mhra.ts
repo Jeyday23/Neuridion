@@ -20,10 +20,10 @@ export async function scrapeMhra(params: { fromDate: string; toDate: string }): 
     url.searchParams.set('count',             String(PAGE_SIZE))
     url.searchParams.set('start',             String(start))
     url.searchParams.set('order',             '-public_timestamp')
-    url.searchParams.set('fields[]',          'title')
-    url.searchParams.set('fields[]',          'description')
-    url.searchParams.set('fields[]',          'link')
-    url.searchParams.set('fields[]',          'public_timestamp')
+    url.searchParams.append('fields[]',        'title')
+    url.searchParams.append('fields[]',        'description')
+    url.searchParams.append('fields[]',        'link')
+    url.searchParams.append('fields[]',        'public_timestamp')
 
     console.log(`[mhra] Search start=${start}: ${url}`)
     const page = await fetchJson(url.toString()) as GovUkSearchResponse | null
