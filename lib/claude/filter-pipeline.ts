@@ -275,12 +275,13 @@ Confidence is a float 0.0–1.0 reflecting how sure you are of the decision.`,
 export async function stage1Filter(
   fsn: FsnContext,
   profile: ProfileContext,
+  options?: { skipCache?: boolean },
 ): Promise<FilterDecision> {
   const fsnId      = getFsnExternalId(fsn)
   const fingerprint = getProfileFingerprint(profile)
 
   // ── 1. Cache lookup ──────────────────────────────────────────────────────
-  const cached = await getCachedDecision(fsnId, fingerprint)
+  const cached = options?.skipCache ? null : await getCachedDecision(fsnId, fingerprint)
   if (cached) {
     console.log(`[filter] cache hit: ${fsn.title.slice(0, 60)}`)
     return cached
