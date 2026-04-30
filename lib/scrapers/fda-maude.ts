@@ -1,56 +1,49 @@
-import type { ScrapedFsn, ScraperResult, ScraperParams } from './bfarm'
-import { buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
+import type { ScrapedFsn, ScraperResult } from './bfarm'
 
 // openFDA device/event endpoint — no auth required, API key raises daily quota
 // Docs: https://open.fda.gov/apis/device/event/
-const BASE_URL        = 'https://api.fda.gov/device/event.json'
+const BASE_URL         = 'https://api.fda.gov/device/event.json'
 const RESULTS_PER_PAGE = 1000           // API max per request
-const MAX_SKIP        = 25000           // API hard limit: skip + limit ≤ 26000
-const PAGE_DELAY_MS   = 400            // ~150 req/min — well under 240 RPM limit
-const BROAD_FILTER_THRESHOLD = 10_000  // warn if manufacturer filter still returns this many
+const MAX_SKIP         = 25000          // API hard limit: skip + limit ≤ 26000
+const MAX_ITEMS        = 500            // AI filter ceiling — never return more than this per call.
+                                        // FDA MAUDE covers ALL MDR reports (not just FSCAs), so a
+                                        // single multi-month range can exceed 900k records. Callers
+                                        // should pass searchTerms to narrow the Lucene query first;
+                                        // MAX_ITEMS is the final safety net.
+const PAGE_DELAY_MS    = 400            // ~150 req/min — well under 240 RPM limit
 const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0; +https://kodex.medical)'
 
-function buildMfrFilter(terms: string[]): string {
-  if (terms.length === 0) return ''
-  const fieldSets = [
-    'device.manufacturer_d_name',
-    'manufacturer_g1_name',
-    'device.brand_name',
-  ]
-  const perField = (field: string) =>
-    terms.map(t => `${field}:"${t}"`).join('+OR+')
-
-  return '+AND+(' + fieldSets.map(f => `(${perField(f)})`).join('+OR+') + ')'
-}
-
-export async function scrapeFdaMaude(params: ScraperParams): Promise<ScraperResult> {
+export async function scrapeFdaMaude(params: {
+  fromDate:     string
+  toDate:       string
+  searchTerms?: string[]   // optional tokens (device name / manufacturer words) to narrow
+                           // the openFDA Lucene query — dramatically reduces result volume
+                           // e.g. ['CardioSense', 'Acme'] for "CardioSense Pro by Acme Medical"
+}): Promise<ScraperResult> {
   const apiKey = process.env.OPENFDA_API_KEY
 
   // openFDA uses YYYYMMDD (no hyphens) in Lucene range queries
   const from = params.fromDate.replace(/-/g, '')
   const to   = params.toDate.replace(/-/g, '')
 
-  const mfrTerms = params.profile
-    ? buildManufacturerSearchTerms(params.profile.manufacturer, params.profile.device_name)
-    : []
+  // Build the search clause: always scope by date, optionally narrow by device/manufacturer tokens
+  const dateClause   = `date_received:[${from}+TO+${to}]`
+  const termClause   = buildTermClause(params.searchTerms)
+  const searchClause = termClause ? `${dateClause}+AND+${termClause}` : dateClause
 
-  const mfrFilter = buildMfrFilter(mfrTerms)
-
-  if (mfrTerms.length > 0) {
-    console.log(`[fda] Scraping with manufacturer filter: ${JSON.stringify(mfrTerms)} | date_received:[${from}+TO+${to}]${apiKey ? ' (authenticated)' : ' (anonymous — 1k/day cap)'}`)
-  } else {
-    console.log(`[fda] Scraping date_received:[${from}+TO+${to}]${apiKey ? ' (authenticated)' : ' (anonymous — 1k/day cap)'}`)
-  }
+  console.log(
+    `[fda] Scraping ${searchClause}` +
+    `${apiKey ? ' (authenticated)' : ' (anonymous — 1k/day cap)'}`
+  )
 
   const items: ScrapedFsn[] = []
   const warnings: string[]  = []
   let skip = 0
-  let warnedBroadFilter = false
 
   while (true) {
     // Build URL manually to preserve Lucene `+` syntax without double-encoding
     const qs = [
-      `search=date_received:[${from}+TO+${to}]${mfrFilter}`,
+      `search=${searchClause}`,
       `limit=${RESULTS_PER_PAGE}`,
       `skip=${skip}`,
       apiKey ? `api_key=${apiKey}` : '',
@@ -80,13 +73,24 @@ export async function scrapeFdaMaude(params: ScraperParams): Promise<ScraperResu
 
     console.log(`[fda] Page skip=${skip}: ${pageResults.length} records (${total} total in range)`)
 
-    if (!warnedBroadFilter && skip === 0 && mfrTerms.length > 0 && total > BROAD_FILTER_THRESHOLD) {
-      warnedBroadFilter = true
-      console.warn(`[fda] WARNING: filtered query still returns ${total.toLocaleString()} records — manufacturer terms may be too broad: ${JSON.stringify(mfrTerms)}`)
+    // Collect records up to MAX_ITEMS — stop mid-page if needed
+    for (const r of pageResults) {
+      if (items.length >= MAX_ITEMS) break
+      items.push(mapMaudeRecord(r))
     }
 
-    for (const r of pageResults) {
-      items.push(mapMaudeRecord(r))
+    // MAX_ITEMS cap reached — emit warning and stop
+    if (items.length >= MAX_ITEMS) {
+      const gap = total - items.length
+      const msg =
+        `FDA MAUDE: item cap reached (${MAX_ITEMS.toLocaleString()} of ` +
+        `${total.toLocaleString()} records retrieved for ${params.fromDate}–${params.toDate}). ` +
+        `${gap.toLocaleString()} records not fetched. ` +
+        `Pass searchTerms to narrow the query, or use the openFDA bulk download for full coverage: ` +
+        `https://open.fda.gov/apis/device/event/download/`
+      console.warn(`[fda] ${msg}`)
+      warnings.push(msg)
+      break
     }
 
     // Advance pagination
@@ -183,6 +187,31 @@ async function fetchPage(url: string): Promise<OpenFdaResponse | null> {
     return null
   }
 }
+
+// ─── Lucene term clause ───────────────────────────────────────────────────────
+
+// Builds an openFDA Lucene OR clause from the provided tokens, searching across
+// the three most discriminating device identity fields.
+// Tokens must be plain alphanumeric — special characters are stripped before use.
+// Returns an empty string when tokens is empty/undefined (no narrowing applied).
+//
+// Example input:  ['CardioSense', 'Acme']
+// Example output: (device.brand_name:CardioSense+OR+device.generic_name:CardioSense+OR+manufacturer_name:CardioSense+OR+device.brand_name:Acme+OR+device.generic_name:Acme+OR+manufacturer_name:Acme)
+function buildTermClause(terms?: string[]): string {
+  if (!terms || terms.length === 0) return ''
+  const clauses = terms
+    .map(t => t.replace(/[^a-zA-Z0-9]/g, ''))   // strip Lucene special chars
+    .filter(t => t.length >= 3)                   // skip tokens too short to discriminate
+    .flatMap(t => [
+      `device.brand_name:${t}`,
+      `device.generic_name:${t}`,
+      `manufacturer_name:${t}`,
+    ])
+  if (clauses.length === 0) return ''
+  return `(${clauses.join('+OR+')})`
+}
+
+// ─── Deduplication ────────────────────────────────────────────────────────────
 
 function dedup(items: ScrapedFsn[]): ScrapedFsn[] {
   const seen = new Set<string>()
