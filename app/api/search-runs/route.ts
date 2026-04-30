@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeBfarm, type ScrapedFsn, type ScraperResult, type ScraperParams } from '@/lib/scrapers/bfarm'
+import { buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
 import { scrapeMhra }       from '@/lib/scrapers/mhra'
 import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
 import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
@@ -160,11 +161,16 @@ export async function POST(request: Request) {
       const canonicalIds:   Map<string, string>  = new Map()
       const fetchedRanges:  { from: string; to: string }[] = []
 
+      const searchTerms = profile
+        ? buildManufacturerSearchTerms(profile.manufacturer ?? '', profile.device_name ?? '')
+        : []
+
       async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
         const result = await SCRAPERS[sourceId]({
-          fromDate: range.from,
-          toDate:   range.to,
-          profile:  profile ? {
+          fromDate:    range.from,
+          toDate:      range.to,
+          searchTerms: searchTerms.length > 0 ? searchTerms : undefined,
+          profile:     profile ? {
             manufacturer: profile.manufacturer ?? '',
             device_name:  profile.device_name  ?? '',
           } : undefined,

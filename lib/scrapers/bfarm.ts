@@ -25,8 +25,9 @@ export interface ScrapedFsn {
 export type FsnItem = ScrapedFsn
 
 export interface ScraperParams {
-  fromDate: string
-  toDate:   string
+  fromDate:     string
+  toDate:       string
+  searchTerms?: string[]   // pre-computed tokens from buildManufacturerSearchTerms
   profile?: {
     manufacturer: string
     device_name:  string
