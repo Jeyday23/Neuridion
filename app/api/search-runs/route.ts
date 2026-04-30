@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { scrapeBfarm, type ScrapedFsn, type ScraperResult } from '@/lib/scrapers/bfarm'
+import { scrapeBfarm, type ScrapedFsn, type ScraperResult, type ScraperParams } from '@/lib/scrapers/bfarm'
 import { scrapeMhra }       from '@/lib/scrapers/mhra'
 import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
 import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
@@ -21,7 +21,7 @@ interface SuccessfulSourceResult {
 }
 
 // Registry — keys match the `id` values in the UI database list
-const SCRAPERS: Record<string, (p: { fromDate: string; toDate: string }) => Promise<ScraperResult>> = {
+const SCRAPERS: Record<string, (p: ScraperParams) => Promise<ScraperResult>> = {
   bfarm:      scrapeBfarm,
   mhra:       scrapeMhra,
   fda:        scrapeFdaMaude,
@@ -161,7 +161,14 @@ export async function POST(request: Request) {
       const fetchedRanges:  { from: string; to: string }[] = []
 
       async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
-        const result = await SCRAPERS[sourceId]({ fromDate: range.from, toDate: range.to })
+        const result = await SCRAPERS[sourceId]({
+          fromDate: range.from,
+          toDate:   range.to,
+          profile:  profile ? {
+            manufacturer: profile.manufacturer ?? '',
+            device_name:  profile.device_name  ?? '',
+          } : undefined,
+        })
         items.push(...result.items)
         warnings.push(...result.warnings)
 

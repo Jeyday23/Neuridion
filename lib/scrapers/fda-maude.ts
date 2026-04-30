@@ -1,4 +1,5 @@
-import type { ScrapedFsn, ScraperResult } from './bfarm'
+import type { ScrapedFsn, ScraperResult, ScraperParams } from './bfarm'
+import { buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
 
 // openFDA device/event endpoint — no auth required, API key raises daily quota
 // Docs: https://open.fda.gov/apis/device/event/
@@ -6,25 +7,50 @@ const BASE_URL        = 'https://api.fda.gov/device/event.json'
 const RESULTS_PER_PAGE = 1000           // API max per request
 const MAX_SKIP        = 25000           // API hard limit: skip + limit ≤ 26000
 const PAGE_DELAY_MS   = 400            // ~150 req/min — well under 240 RPM limit
+const BROAD_FILTER_THRESHOLD = 10_000  // warn if manufacturer filter still returns this many
 const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0; +https://kodex.medical)'
 
-export async function scrapeFdaMaude(params: { fromDate: string; toDate: string }): Promise<ScraperResult> {
+function buildMfrFilter(terms: string[]): string {
+  if (terms.length === 0) return ''
+  const fieldSets = [
+    'device.manufacturer_d_name',
+    'manufacturer_g1_name',
+    'device.brand_name',
+  ]
+  const perField = (field: string) =>
+    terms.map(t => `${field}:"${t}"`).join('+OR+')
+
+  return '+AND+(' + fieldSets.map(f => `(${perField(f)})`).join('+OR+') + ')'
+}
+
+export async function scrapeFdaMaude(params: ScraperParams): Promise<ScraperResult> {
   const apiKey = process.env.OPENFDA_API_KEY
 
   // openFDA uses YYYYMMDD (no hyphens) in Lucene range queries
   const from = params.fromDate.replace(/-/g, '')
   const to   = params.toDate.replace(/-/g, '')
 
-  console.log(`[fda] Scraping date_received:[${from}+TO+${to}]${apiKey ? ' (authenticated)' : ' (anonymous — 1k/day cap)'}`)
+  const mfrTerms = params.profile
+    ? buildManufacturerSearchTerms(params.profile.manufacturer, params.profile.device_name)
+    : []
+
+  const mfrFilter = buildMfrFilter(mfrTerms)
+
+  if (mfrTerms.length > 0) {
+    console.log(`[fda] Scraping with manufacturer filter: ${JSON.stringify(mfrTerms)} | date_received:[${from}+TO+${to}]${apiKey ? ' (authenticated)' : ' (anonymous — 1k/day cap)'}`)
+  } else {
+    console.log(`[fda] Scraping date_received:[${from}+TO+${to}]${apiKey ? ' (authenticated)' : ' (anonymous — 1k/day cap)'}`)
+  }
 
   const items: ScrapedFsn[] = []
   const warnings: string[]  = []
   let skip = 0
+  let warnedBroadFilter = false
 
   while (true) {
     // Build URL manually to preserve Lucene `+` syntax without double-encoding
     const qs = [
-      `search=date_received:[${from}+TO+${to}]`,
+      `search=date_received:[${from}+TO+${to}]${mfrFilter}`,
       `limit=${RESULTS_PER_PAGE}`,
       `skip=${skip}`,
       apiKey ? `api_key=${apiKey}` : '',
@@ -53,6 +79,11 @@ export async function scrapeFdaMaude(params: { fromDate: string; toDate: string 
     if (pageResults.length === 0) break
 
     console.log(`[fda] Page skip=${skip}: ${pageResults.length} records (${total} total in range)`)
+
+    if (!warnedBroadFilter && skip === 0 && mfrTerms.length > 0 && total > BROAD_FILTER_THRESHOLD) {
+      warnedBroadFilter = true
+      console.warn(`[fda] WARNING: filtered query still returns ${total.toLocaleString()} records — manufacturer terms may be too broad: ${JSON.stringify(mfrTerms)}`)
+    }
 
     for (const r of pageResults) {
       items.push(mapMaudeRecord(r))

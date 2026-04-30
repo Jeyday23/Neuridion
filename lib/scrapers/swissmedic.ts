@@ -1,8 +1,10 @@
-import type { ScrapedFsn, ScraperResult } from './bfarm'
+import type { ScrapedFsn, ScraperResult, ScraperParams } from './bfarm'
+import { buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
 
-const API_BASE = 'https://fsca.swissmedic.ch/mep/api/publications'
+const API_BASE   = 'https://fsca.swissmedic.ch/mep/api/publications'
 const PUBLIC_BASE = 'https://fsca.swissmedic.ch/mep'
-const MAX_PAGES = 50
+const MAX_PAGES  = 50
+const MAX_ITEMS  = 500
 const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0; +https://kodex.medical)'
 
 type MaybeString = string | null | undefined
@@ -39,9 +41,19 @@ interface SwissmedicPage {
   last?: boolean
 }
 
-export async function scrapeSwissmedic(params: { fromDate: string; toDate: string }): Promise<ScraperResult> {
+export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperResult> {
   const warnings: string[] = []
   const items: ScrapedFsn[] = []
+
+  const mfrTerms = params.profile
+    ? buildManufacturerSearchTerms(params.profile.manufacturer, params.profile.device_name)
+    : []
+
+  if (mfrTerms.length > 0) {
+    console.log(`[swissmedic] Scraping with manufacturer filter: ${JSON.stringify(mfrTerms)}`)
+  }
+
+  let hitItemsCap = false
 
   for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber++) {
     const page = await fetchPublicationPage(params, pageNumber)
@@ -52,11 +64,17 @@ export async function scrapeSwissmedic(params: { fromDate: string; toDate: strin
     }
 
     const publications = page.content ?? []
-    console.log(`[swissmedic] API page ${pageNumber}: ${publications.length} publications`)
+    const passed = publications.filter(p => isRelevantToProfile(p, mfrTerms))
+    console.log(`[swissmedic] Page ${pageNumber}: ${publications.length} total, ${passed.length} passed manufacturer filter ${JSON.stringify(mfrTerms)}`)
 
-    for (const publication of publications) {
+    for (const publication of passed) {
       const item = toScrapedFsn(publication)
       if (item) items.push(item)
+    }
+
+    if (items.length >= MAX_ITEMS) {
+      hitItemsCap = true
+      break
     }
 
     if (page.last || pageNumber + 1 >= (page.totalPages ?? 1) || publications.length === 0) break
@@ -70,10 +88,29 @@ export async function scrapeSwissmedic(params: { fromDate: string; toDate: strin
     await jitter(250, 600)
   }
 
+  if (hitItemsCap) {
+    warnings.push(
+      `Swissmedic: result cap of ${MAX_ITEMS} items reached for ${params.fromDate} to ${params.toDate}. ` +
+      (mfrTerms.length > 0
+        ? `Manufacturer filter ${JSON.stringify(mfrTerms)} may be too broad. Try a more specific manufacturer name.`
+        : `Use a narrower date range for complete results.`),
+    )
+  }
+
   const deduped = dedup(items)
   console.log(`[swissmedic] Final: ${deduped.length} deduplicated items${warnings.length ? ` (${warnings.length} warning(s))` : ''}`)
 
   return { items: deduped, warnings }
+}
+
+function isRelevantToProfile(publication: SwissmedicPublication, terms: string[]): boolean {
+  if (terms.length === 0) return true
+  const haystack = [
+    publication.hersteller,
+    ...(publication.devices?.map(d => d.handelsname) ?? []),
+    ...(publication.devices?.map(d => d.beschreibungKlasse) ?? []),
+  ].filter(Boolean).join(' ').toLowerCase()
+  return terms.some(term => haystack.includes(term))
 }
 
 async function fetchPublicationPage(

@@ -1,4 +1,4 @@
-import type { ScrapedFsn, ScraperResult } from './bfarm'
+import type { ScrapedFsn, ScraperResult, ScraperParams } from './bfarm'
 
 const SEARCH_API      = 'https://www.gov.uk/api/search.json'
 const CONTENT_API_BASE = 'https://www.gov.uk/api/content'
@@ -6,7 +6,7 @@ const PAGE_SIZE        = 100
 const DETAIL_CONCURRENCY = 3
 const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0; +https://kodex.medical)'
 
-export async function scrapeMhra(params: { fromDate: string; toDate: string }): Promise<ScraperResult> {
+export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> {
   const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
   const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
 

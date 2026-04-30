@@ -1,0 +1,39 @@
+const LEGAL_SUFFIXES = new Set([
+  'gmbh', 'ag', 'ltd', 'inc', 'corp', 'corporation', 'co', 'sa', 'bv', 'nv',
+  'sas', 'kg', 'ohg', 'se', 'plc', 'llc', 'lp', 'ab', 'oy', 'as', 'spa',
+  'srl', 'sarl', 'bvba', 'aps',
+])
+
+export function extractManufacturerTerms(manufacturer: string): string[] {
+  if (!manufacturer.trim()) return []
+
+  const cleaned = manufacturer.replace(/[.,()&]/g, ' ')
+  const tokens  = cleaned.split(/\s+/).filter(Boolean)
+
+  const meaningful = tokens
+    .map(t => t.toLowerCase())
+    .filter(t => t.length >= 2 && !LEGAL_SUFFIXES.has(t))
+
+  return meaningful.slice(0, 2)
+}
+
+export function buildManufacturerSearchTerms(
+  manufacturer: string,
+  deviceName?: string,
+): string[] {
+  const mfrTerms = extractManufacturerTerms(manufacturer)
+
+  if (!deviceName?.trim()) return mfrTerms
+
+  const deviceTokens = deviceName
+    .replace(/[.,()&]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(t => t.toLowerCase())
+    .filter(t => t.length > 4 && !LEGAL_SUFFIXES.has(t))
+
+  const extra = deviceTokens.find(t => !mfrTerms.includes(t))
+
+  if (extra) return [...new Set([...mfrTerms, extra])]
+  return mfrTerms
+}
