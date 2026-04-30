@@ -39,8 +39,8 @@ export const translations = {
       downloadPdf:     'Download PDF',
       downloadHtml:    'Download HTML',
       downloadExcel:   'Download Excel',
-      noResults:       'No FSNs published in BfArM during this period',
-      noResultsHint:   'BfArM does not publish daily. Try a wider date range — the last 14 days typically has 10–30 FSNs.',
+      noResults:       'No FSNs found for the selected databases and period',
+      noResultsHint:   'Databases may not publish daily. Try a wider date range — the last 14 days across all active databases typically has 10–30 FSNs.',
       noCategory:      'No results in this category.',
     },
     tabs: {
@@ -110,8 +110,8 @@ export const translations = {
       downloadPdf:     'PDF herunterladen',
       downloadHtml:    'HTML herunterladen',
       downloadExcel:   'Excel herunterladen',
-      noResults:       'Im BfArM wurden in diesem Zeitraum keine Feldsicherheitshinweise veröffentlicht',
-      noResultsHint:   'BfArM veröffentlicht nicht täglich. Versuchen Sie einen längeren Zeitraum — die letzten 14 Tage haben typischerweise 10–30 FSNs.',
+      noResults:       'Keine Feldsicherheitshinweise für die ausgewählten Datenbanken und den Zeitraum gefunden',
+      noResultsHint:   'Datenbanken veröffentlichen nicht täglich. Versuchen Sie einen längeren Zeitraum — die letzten 14 Tage haben typischerweise 10–30 FSNs.',
       noCategory:      'Keine Ergebnisse in dieser Kategorie.',
     },
     tabs: {

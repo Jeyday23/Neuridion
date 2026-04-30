@@ -24,6 +24,12 @@
 .DS_Store
 *.pem
 
+# local agent/worktree artifacts
+.claude/worktrees/
+
+# supabase local CLI temp/state
+supabase/.temp/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

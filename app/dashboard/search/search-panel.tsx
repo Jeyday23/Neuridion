@@ -55,9 +55,11 @@ type FilterTab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
 function formatSourceLabel(src: string | null | undefined): string {
   if (!src) return 'BfArM'
   const map: Record<string, string> = {
-    bfarm: 'BfArM',
-    maude: 'FDA MAUDE',
-    mhra:  'MHRA',
+    bfarm:      'BfArM',
+    fda:        'FDA MAUDE',
+    maude:      'FDA MAUDE',
+    mhra:       'MHRA',
+    swissmedic: 'Swissmedic',
   }
   return map[src.toLowerCase()] ?? src.toUpperCase()
 }
@@ -237,7 +239,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isDragging, setIsDragging]   = useState(false)
   const [toast, setToast]             = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
-  const [selectedDbs, setSelectedDbs] = useState<Set<string>>(new Set(['bfarm']))
+  const [selectedDbs, setSelectedDbs] = useState<Set<string>>(new Set(databases.filter(d => d.active).map(d => d.id)))
   const [hoveredDb, setHoveredDb]     = useState<string | null>(null)
 
   const [showFeedback, setShowFeedback] = useState(false)

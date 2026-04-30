@@ -12,6 +12,14 @@ import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowS
 import { upsertCanonical, getCanonicalItems, computeContentHash } from '@/lib/sync/canonical'
 import { z } from 'zod'
 
+interface SuccessfulSourceResult {
+  sourceId:        string
+  items:           ScrapedFsn[]
+  warnings:        string[]
+  contentChanged:  Set<string>
+  canonicalIds:    Map<string, string>
+}
+
 // Registry — keys match the `id` values in the UI database list
 const SCRAPERS: Record<string, (p: { fromDate: string; toDate: string }) => Promise<ScraperResult>> = {
   bfarm:      scrapeBfarm,
@@ -145,29 +153,32 @@ export async function POST(request: Request) {
 
     console.log(`[search] Sources: [${activeSources.join(', ')}] | ${period_from} → ${period_to}${forceRefresh ? ' (force_refresh)' : ''}`)
 
-    interface SourceResult {
-      items:           ScrapedFsn[]
-      warnings:        string[]
-      // per-item content_changed flag for cache bypass
-      contentChanged:  Set<string>
-      // external_id → canonical_id for fsn_results backlink
-      canonicalIds:    Map<string, string>
-    }
-
-    async function processSource(sourceId: string): Promise<SourceResult> {
+    async function processSource(sourceId: string): Promise<SuccessfulSourceResult> {
       const items:          ScrapedFsn[]         = []
       const warnings:       string[]             = []
       const contentChanged: Set<string>          = new Set()
       const canonicalIds:   Map<string, string>  = new Map()
+      const fetchedRanges:  { from: string; to: string }[] = []
+
+      async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
+        const result = await SCRAPERS[sourceId]({ fromDate: range.from, toDate: range.to })
+        items.push(...result.items)
+        warnings.push(...result.warnings)
+
+        // Only mark ranges as covered when the scraper completed without
+        // degradation warnings. This prevents partial Swissmedic/API results
+        // from poisoning coverage for future cached searches.
+        if (result.warnings.length === 0) {
+          fetchedRanges.push(range)
+        }
+      }
 
       // 7-day overlap window: always re-fetch the last 7 days to catch corrections
       const overlapFrom = overlapWindowStart(period_to!)
 
       if (forceRefresh) {
         // Skip coverage check — do full fetch
-        const result = await SCRAPERS[sourceId]({ fromDate: period_from!, toDate: period_to! })
-        items.push(...result.items)
-        warnings.push(...result.warnings)
+        await fetchSourceRange({ from: period_from!, to: period_to! })
       } else {
         // Check which sub-ranges are already covered
         const covered   = await getCoveredRanges(sourceId)
@@ -183,17 +194,13 @@ export async function POST(request: Request) {
         // Fetch uncovered ranges from source
         for (const range of uncoveredRanges) {
           console.log(`[search] ${sourceId}: fetching uncovered ${range.from} → ${range.to}`)
-          const result = await SCRAPERS[sourceId]({ fromDate: range.from, toDate: range.to })
-          items.push(...result.items)
-          warnings.push(...result.warnings)
+          await fetchSourceRange(range)
         }
 
         // Always fetch overlap window from source
         if (overlapFrom <= effectiveTo) {
           console.log(`[search] ${sourceId}: fetching overlap window ${overlapFrom} → ${effectiveTo}`)
-          const result = await SCRAPERS[sourceId]({ fromDate: overlapFrom, toDate: effectiveTo })
-          items.push(...result.items)
-          warnings.push(...result.warnings)
+          await fetchSourceRange({ from: overlapFrom, to: effectiveTo })
         }
 
         // Fetch covered ranges from canonical DB (no source request needed)
@@ -215,7 +222,10 @@ export async function POST(request: Request) {
         return true
       })
 
-      // Upsert into canonical and detect content changes
+      // Upsert into canonical and detect content changes. Coverage is merged
+      // only after canonical persistence succeeds; otherwise later searches
+      // could treat an uncached range as cached and miss source items.
+      let canonicalPersisted = deduped.length === 0
       if (deduped.length > 0) {
         try {
           const canonicalResults = await upsertCanonical(deduped)
@@ -226,15 +236,20 @@ export async function POST(request: Request) {
               contentChanged.add(deduped[i].external_id)
             }
           }
-          // Merge coverage for the fetched date range
-          await mergeCoverage(sourceId, { from: period_from!, to: period_to! })
+          canonicalPersisted = true
         } catch (err) {
           // Canonical upsert failure is non-fatal — run continues with fresh data
           console.error(`[search] ${sourceId}: canonical upsert failed:`, err)
         }
       }
 
-      return { items: deduped, warnings, contentChanged, canonicalIds }
+      if (canonicalPersisted) {
+        for (const range of fetchedRanges) {
+          await mergeCoverage(sourceId, range)
+        }
+      }
+
+      return { sourceId, items: deduped, warnings, contentChanged, canonicalIds }
     }
 
     function prevDay(date: string): string {
@@ -251,11 +266,13 @@ export async function POST(request: Request) {
     const allWarnings: string[] = []
     const allContentChanged = new Set<string>()
     const allCanonicalIds   = new Map<string, string>()
+    const searchedSources   = new Set<string>()
 
     for (let i = 0; i < sourceResults.length; i++) {
       const r     = sourceResults[i]
       const srcId = activeSources[i]
       if (r.status === 'fulfilled') {
+        searchedSources.add(srcId)
         console.log(`[search] ${srcId}: ${r.value.items.length} items${r.value.warnings.length ? `, ${r.value.warnings.length} warning(s)` : ''}`)
         items.push(...r.value.items)
         allWarnings.push(...r.value.warnings)
@@ -372,7 +389,7 @@ export async function POST(request: Request) {
         uncertain_count:      counts.uncertain,
         excluded_count:       counts.excluded,
         filter_failed_count:  counts.filter_failed,
-        dbs_searched:         [...new Set(items.map((i) => i.source_db))],
+        dbs_searched:         [...searchedSources],
       })
       .eq('id', run.id)
 
