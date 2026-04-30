@@ -4,6 +4,13 @@ const LEGAL_SUFFIXES = new Set([
   'srl', 'sarl', 'bvba', 'aps',
 ])
 
+// Generic words that appear in device names but are too broad to use as search tokens
+const GENERIC_DEVICE_WORDS = new Set([
+  'swiss', 'medical', 'systems', 'device', 'devices', 'care', 'health',
+  'healthcare', 'plus', 'pro', 'type', 'class', 'series', 'model',
+  'protect', 'protect', 'surgical', 'sterile', 'disposable', 'reusable',
+])
+
 export function extractManufacturerTerms(manufacturer: string): string[] {
   if (!manufacturer.trim()) return []
 
@@ -30,7 +37,7 @@ export function buildManufacturerSearchTerms(
     .split(/\s+/)
     .filter(Boolean)
     .map(t => t.toLowerCase())
-    .filter(t => t.length > 4 && !LEGAL_SUFFIXES.has(t))
+    .filter(t => t.length > 4 && !LEGAL_SUFFIXES.has(t) && !GENERIC_DEVICE_WORDS.has(t))
 
   const extra = deviceTokens.find(t => !mfrTerms.includes(t))
 

@@ -66,4 +66,11 @@ describe('buildManufacturerSearchTerms', () => {
   it('empty device name returns manufacturer terms', () => {
     expect(buildManufacturerSearchTerms('Roche Diabetes Care GmbH', '')).toEqual(['roche', 'diabetes'])
   })
+  it('"wero Swiss protect surgical face mask type IIR" device name drops "swiss", "protect", "surgical"', () => {
+    expect(buildManufacturerSearchTerms('Wernli AG', 'wero Swiss protect surgical face mask type IIR')).toEqual(['wernli'])
+  })
+  it('specific device token like "accu-chek" is appended beyond mfr terms', () => {
+    // mfr terms = ['roche','diabetes']; 'accu-chek' is >4 chars, not generic → added
+    expect(buildManufacturerSearchTerms('Roche Diabetes Care GmbH', 'Accu-Chek Guide')).toEqual(['roche', 'diabetes', 'accu-chek'])
+  })
 })
