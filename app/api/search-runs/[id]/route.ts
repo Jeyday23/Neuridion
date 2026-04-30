@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function GET(
   _request: Request,
@@ -74,4 +75,53 @@ export async function GET(
   }))
 
   return Response.json({ run, results: enriched })
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+  const supabase = await createClient()
+  const db = createAdminClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { data: run, error: runError } = await db
+    .from('search_runs')
+    .select('id, user_id')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
+
+  if (runError || !run) {
+    return Response.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  // NULL out the legacy search_run_id FK (NO ACTION constraint) before deleting
+  const { error: unlinkError } = await db
+    .from('fsn_results')
+    .update({ search_run_id: null })
+    .eq('search_run_id', id)
+
+  if (unlinkError) {
+    return Response.json({ error: unlinkError.message }, { status: 500 })
+  }
+
+  const { data: deleted, error: deleteError } = await db
+    .from('search_runs')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select('id')
+    .single()
+
+  if (deleteError || !deleted) {
+    return Response.json({ error: deleteError?.message ?? 'Unable to delete search run' }, { status: 500 })
+  }
+
+  return Response.json({ deleted: true })
 }

@@ -104,3 +104,65 @@ export async function PATCH(
 
   return Response.json(updated)
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params
+
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const db = createAdminClient()
+
+  const { data: profile, error: fetchError } = await db
+    .from('product_profiles')
+    .select('id, user_id')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
+
+  if (fetchError || !profile) {
+    return Response.json({ error: 'Profile not found' }, { status: 404 })
+  }
+
+  // NULL out legacy search_run_id FK on fsn_results for all runs under this profile
+  const { data: runs, error: runsError } = await db
+    .from('search_runs')
+    .select('id')
+    .eq('profile_id', id)
+
+  if (runsError) {
+    return Response.json({ error: runsError.message }, { status: 500 })
+  }
+
+  if (runs && runs.length > 0) {
+    const runIds = runs.map((r: { id: string }) => r.id)
+    const { error: unlinkError } = await db
+      .from('fsn_results')
+      .update({ search_run_id: null })
+      .in('search_run_id', runIds)
+
+    if (unlinkError) {
+      return Response.json({ error: unlinkError.message }, { status: 500 })
+    }
+  }
+
+  const { data: deleted, error: deleteError } = await db
+    .from('product_profiles')
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .select('id')
+    .single()
+
+  if (deleteError || !deleted) {
+    return Response.json({ error: deleteError?.message ?? 'Unable to delete profile' }, { status: 500 })
+  }
+
+  return Response.json({ deleted: true })
+}

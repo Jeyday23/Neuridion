@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { DeleteProfileButton } from './profile-actions'
 
 export const metadata = { title: 'Profiles — Kodex' }
 
@@ -99,12 +100,15 @@ export default async function ProfilesPage() {
                       })}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Link
-                        href={`/dashboard/profiles/${p.id}/edit`}
-                        className="text-xs font-medium text-zinc-500 hover:text-blue-600 transition-colors border border-zinc-200 rounded px-2.5 py-1 hover:border-blue-300"
-                      >
-                        Edit
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        <Link
+                          href={`/dashboard/profiles/${p.id}/edit`}
+                          className="text-xs font-medium text-zinc-500 hover:text-blue-600 transition-colors border border-zinc-200 rounded px-2.5 py-1 hover:border-blue-300"
+                        >
+                          Edit
+                        </Link>
+                        <DeleteProfileButton profileId={p.id} profileName={p.device_name} />
+                      </div>
                     </td>
                   </tr>
                 )

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { DownloadButton, GenerateReportButton } from './archive-actions'
+import { DownloadButton, GenerateReportButton, CancelRunButton, DeleteRunButton } from './archive-actions'
 
 interface RunRow {
   id: string
@@ -30,11 +30,12 @@ interface RunRow {
 }
 
 const STATUS_STYLES: Record<string, string> = {
-  complete:  'bg-green-50 text-green-700 border-green-200',
-  running:   'bg-blue-50 text-blue-700 border-blue-200',
-  filtering: 'bg-blue-50 text-blue-700 border-blue-200',
-  queued:    'bg-zinc-100 text-zinc-600 border-zinc-200',
-  error:     'bg-red-50 text-red-700 border-red-200',
+  complete:   'bg-green-50 text-green-700 border-green-200',
+  running:    'bg-blue-50 text-blue-700 border-blue-200',
+  filtering:  'bg-blue-50 text-blue-700 border-blue-200',
+  queued:     'bg-zinc-100 text-zinc-600 border-zinc-200',
+  error:      'bg-red-50 text-red-700 border-red-200',
+  cancelled:  'bg-zinc-100 text-zinc-600 border-zinc-200',
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -66,14 +67,21 @@ function getDbsLabel(dbs: unknown): string {
 }
 
 export function ArchiveTable({ runs }: { runs: RunRow[] }) {
+  const [rows, setRows]                   = useState(runs)
   const [profileFilter, setProfileFilter] = useState('all')
   const [statusFilter, setStatusFilter]   = useState('all')
+  const [toast, setToast]                 = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type })
+    window.setTimeout(() => setToast(null), 3500)
+  }
 
   const profileNames = [...new Set(
-    runs.map((r) => getProfile(r)?.device_name).filter(Boolean) as string[]
+    rows.map((r) => getProfile(r)?.device_name).filter(Boolean) as string[]
   )]
 
-  const filtered = runs.filter((r) => {
+  const filtered = rows.filter((r) => {
     if (statusFilter !== 'all' && r.status !== statusFilter) return false
     if (profileFilter !== 'all') {
       const p = getProfile(r)
@@ -82,7 +90,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
     return true
   })
 
-  if (runs.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-8 py-16 text-center">
         <p className="text-sm font-medium text-zinc-900">No searches yet</p>
@@ -99,6 +107,18 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
     <div className="space-y-4">
       {/* Filters */}
       <div className="flex gap-3 flex-wrap">
+        {toast && (
+          <div
+            className={`w-full rounded-lg border px-3 py-2 text-sm ${
+              toast.type === 'success'
+                ? 'border-green-200 bg-green-50 text-green-700'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+            role="status"
+          >
+            {toast.message}
+          </div>
+        )}
         <select
           value={profileFilter}
           onChange={(e) => setProfileFilter(e.target.value)}
@@ -116,14 +136,15 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
           className="text-sm border border-zinc-200 rounded-lg px-3 py-1.5 bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">All statuses</option>
-          <option value="completed">Completed</option>
+          <option value="complete">Completed</option>
           <option value="running">Running</option>
-          <option value="failed">Failed</option>
+          <option value="error">Failed</option>
+          <option value="cancelled">Cancelled</option>
         </select>
 
-        {filtered.length !== runs.length && (
+        {filtered.length !== rows.length && (
           <span className="text-xs text-zinc-400 self-center">
-            {filtered.length} of {runs.length} runs
+            {filtered.length} of {rows.length} runs
           </span>
         )}
       </div>
@@ -250,6 +271,22 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                         {!hasReport && run.status === 'complete' && (
                           <GenerateReportButton runId={run.id} />
                         )}
+                        {['running', 'filtering', 'queued'].includes(run.status) && (
+                          <CancelRunButton
+                            runId={run.id}
+                            onCancelled={(runId) => setRows((current) => current.map((row) => (
+                              row.id === runId
+                                ? { ...row, status: 'cancelled', completed_at: new Date().toISOString() }
+                                : row
+                            )))}
+                            onToast={showToast}
+                          />
+                        )}
+                        <DeleteRunButton
+                          runId={run.id}
+                          onDeleted={(runId) => setRows((current) => current.filter((row) => row.id !== runId))}
+                          onToast={showToast}
+                        />
                       </div>
                     </td>
                   </tr>
