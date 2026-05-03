@@ -46,7 +46,7 @@ export async function upsertCanonical(items: ScrapedFsn[]): Promise<CanonicalRes
   const keys = items.map(i => `${i.source_db}:::${i.external_id}`)
   const { data: existing } = await db
     .from('fsn_canonical')
-    .select('id, source, source_record_id, content_hash, revision_count')
+    .select('id, source, source_record_id, content_hash, revision_count, first_seen_at')
     .in('source', [...new Set(items.map(i => i.source_db))])
     .in('source_record_id', items.map(i => i.external_id))
 
@@ -55,12 +55,14 @@ export async function upsertCanonical(items: ScrapedFsn[]): Promise<CanonicalRes
     id: string
     content_hash: string
     revision_count: number
+    first_seen_at: string
   }>()
   for (const row of existing ?? []) {
     existingMap.set(`${row.source}:::${row.source_record_id}`, {
       id:             row.id,
       content_hash:   row.content_hash,
       revision_count: row.revision_count,
+      first_seen_at:  row.first_seen_at,
     })
   }
 
@@ -80,10 +82,11 @@ export async function upsertCanonical(items: ScrapedFsn[]): Promise<CanonicalRes
       is_new:          isNew,
     })
 
-    // Always include revision_count explicitly — omitting it from the upsert row
-    // causes PostgREST to write EXCLUDED.revision_count=null on the UPDATE path,
-    // violating the NOT NULL constraint. first_seen_at is intentionally omitted
-    // for existing records so the UPDATE SET clause never overwrites it.
+    // Always include revision_count and first_seen_at explicitly.
+    // Omitting revision_count causes PostgREST to write EXCLUDED.revision_count=null
+    // on the UPDATE path, violating the NOT NULL constraint.
+    // first_seen_at must always be present: for new rows it is `now`, for existing
+    // rows it is the value already stored — omitting it on UPDATE would null it out.
     const revisionCount = isNew ? 1 : changed ? (prev!.revision_count + 1) : prev!.revision_count
 
     return {
@@ -98,7 +101,7 @@ export async function upsertCanonical(items: ScrapedFsn[]): Promise<CanonicalRes
       content_hash:     hash,
       last_seen_at:     now,
       revision_count:   revisionCount,
-      ...(isNew ? { first_seen_at: now } : {}),
+      first_seen_at:    prev?.first_seen_at ?? now,
     }
   })
 

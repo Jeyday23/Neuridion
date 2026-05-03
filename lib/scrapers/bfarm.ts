@@ -333,8 +333,22 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
     primary = { items: [], warnings: [`BfArM primary scraper threw: ${String(err)}`] }
   }
 
-  if (primary.items.length > 0 && primary.warnings.length === 0) return primary
-  return firecrawlFallback(params)
+  const result: ScraperResult = (primary.items.length > 0 && primary.warnings.length === 0)
+    ? primary
+    : await firecrawlFallback(params)
+
+  if (params.searchTerms && params.searchTerms.length > 0) {
+    const terms = params.searchTerms.map(t => t.toLowerCase())
+    const before = result.items.length
+    const filtered = result.items.filter(item => {
+      const hay = `${item.title} ${item.raw_content}`.toLowerCase()
+      return terms.some(t => hay.includes(t))
+    })
+    console.log(`[bfarm] searchTerms filter (${terms.join(', ')}): ${before} → ${filtered.length} items`)
+    return { ...result, items: filtered }
+  }
+
+  return result
 }
 
 // Kept for potential future use (e.g. "latest FSNs" widget that doesn't
