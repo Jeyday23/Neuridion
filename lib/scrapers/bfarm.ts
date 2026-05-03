@@ -1,7 +1,7 @@
 import { parseStringPromise } from 'xml2js'
 import { daysBetween } from '@/lib/utils/date-chunks'
 
-const BFARM_ORIGIN = 'https://www.bfarm.de'
+export const BFARM_ORIGIN = 'https://www.bfarm.de'
 const SEARCH_BASE  = `${BFARM_ORIGIN}/SiteGlobals/Forms/Suche/Expertensuche_Formular.html`
 const RSS_URL      = `${BFARM_ORIGIN}/SiteGlobals/Functions/RSSFeed/DE/Medizinprodukte/Kundeninfo/RSSNewsfeed.xml?nn=597716`
 const RESULTS_PER_PAGE = 30
@@ -86,7 +86,7 @@ function stripTags(html: string): string {
   return html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 }
 
-interface ParsedItem {
+export interface ParsedItem {
   href:         string
   title:        string
   date:         Date | null
@@ -94,7 +94,7 @@ interface ParsedItem {
   manufacturer: string | null
 }
 
-function parsePage(html: string): ParsedItem[] {
+export function parsePage(html: string): ParsedItem[] {
   const items: ParsedItem[] = []
   const blocks = html.split('<li class="l-teaser-list__item">')
 
@@ -316,14 +316,25 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
 
 // Public entry point — dispatches to date-range mode (≤90 days) or year-shortcut
 // mode (>90 days). Both paths return deduped, date-filtered results.
+// Falls back to Firecrawl when the primary scraper returns empty or warns.
 export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult> {
+  const { firecrawlFallback } = await import('./firecrawl')
+
   const total = daysBetween(params.fromDate, params.toDate)
-  if (total <= 90) {
-    const from = new Date(params.fromDate + 'T00:00:00.000Z')
-    const to   = new Date(params.toDate   + 'T23:59:59.999Z')
-    return { items: await scrapeBfArM({ fromDate: from, toDate: to }), warnings: [] }
+  const from  = new Date(params.fromDate + 'T00:00:00.000Z')
+  const to    = new Date(params.toDate   + 'T23:59:59.999Z')
+
+  let primary: ScraperResult
+  try {
+    primary = total <= 90
+      ? { items: await scrapeBfArM({ fromDate: from, toDate: to }), warnings: [] }
+      : { items: await scrapeBfarmYearShortcuts(params), warnings: [] }
+  } catch (err) {
+    primary = { items: [], warnings: [`BfArM primary scraper threw: ${String(err)}`] }
   }
-  return { items: await scrapeBfarmYearShortcuts(params), warnings: [] }
+
+  if (primary.items.length > 0 && primary.warnings.length === 0) return primary
+  return firecrawlFallback(params)
 }
 
 // Kept for potential future use (e.g. "latest FSNs" widget that doesn't
