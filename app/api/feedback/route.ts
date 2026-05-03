@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sendFeedbackNotification } from '@/lib/email'
 
 const FeedbackSchema = z.object({
   rating:           z.number().int().min(1).max(5),
@@ -35,6 +36,10 @@ export async function POST(request: Request) {
       console.error('Failed to save feedback:', error)
       return NextResponse.json({ error: 'Database error' }, { status: 500 })
     }
+
+    sendFeedbackNotification(validated).catch((err) =>
+      console.error('Failed to send feedback email:', err)
+    )
 
     return NextResponse.json({ success: true })
   } catch (err) {
