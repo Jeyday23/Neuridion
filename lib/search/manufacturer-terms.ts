@@ -6,9 +6,11 @@ const LEGAL_SUFFIXES = new Set([
 
 // Generic words that appear in device names but are too broad to use as search tokens
 const GENERIC_DEVICE_WORDS = new Set([
-  'swiss', 'medical', 'systems', 'device', 'devices', 'care', 'health',
+  'swiss', 'medical', 'systems', 'system', 'device', 'devices', 'care', 'health',
   'healthcare', 'plus', 'pro', 'type', 'class', 'series', 'model',
-  'protect', 'protect', 'surgical', 'sterile', 'disposable', 'reusable',
+  'protect', 'surgical', 'sterile', 'disposable', 'reusable',
+  'ultra', 'guide', 'advanced', 'digital', 'smart', 'connect',
+  'scanner', 'scanners', 'new', 'one', 'two', 'three',
 ])
 
 export function extractManufacturerTerms(manufacturer: string): string[] {

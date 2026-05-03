@@ -69,8 +69,14 @@ describe('buildManufacturerSearchTerms', () => {
   it('"wero Swiss protect surgical face mask type IIR" device name drops "swiss", "protect", "surgical"', () => {
     expect(buildManufacturerSearchTerms('Wernli AG', 'wero Swiss protect surgical face mask type IIR')).toEqual(['wernli'])
   })
-  it('specific device token like "accu-chek" is appended beyond mfr terms', () => {
-    // mfr terms = ['roche','diabetes']; 'accu-chek' is >4 chars, not generic → added
+  it('specific device token like "accu-chek" is appended; "guide" is blocked by GENERIC_DEVICE_WORDS', () => {
+    // mfr terms = ['roche','diabetes']; 'guide' is now generic → blocked; 'accu-chek' is still added
     expect(buildManufacturerSearchTerms('Roche Diabetes Care GmbH', 'Accu-Chek Guide')).toEqual(['roche', 'diabetes', 'accu-chek'])
+  })
+  it('"Micra AV" appends "micra"; "av" is ≤4 chars and filtered', () => {
+    expect(buildManufacturerSearchTerms('Medtronic', 'Micra AV')).toEqual(['medtronic', 'micra'])
+  })
+  it('"MAGNETOM MRI Scanners" — "scanners" blocked, "mri" ≤4 chars, "magnetom" is added', () => {
+    expect(buildManufacturerSearchTerms('Siemens Healthineers AG', 'MAGNETOM MRI Scanners')).toEqual(['siemens', 'healthineers', 'magnetom'])
   })
 })
