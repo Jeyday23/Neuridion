@@ -23,7 +23,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+      className="w-full rounded bg-[#0D9488] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#0F766E] disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {pending ? 'Creating account…' : 'Create account'}
     </button>
@@ -53,7 +53,7 @@ export function SignupForm() {
           type="text"
           autoComplete="name"
           required
-          className="w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           placeholder="Jane Smith"
         />
       </div>
@@ -68,7 +68,7 @@ export function SignupForm() {
           type="text"
           autoComplete="organization"
           required
-          className="w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           placeholder="Acme Medical GmbH"
         />
       </div>
@@ -84,7 +84,7 @@ export function SignupForm() {
           type="email"
           autoComplete="email"
           required
-          className="w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           placeholder="you@company.com"
         />
       </div>
@@ -102,7 +102,7 @@ export function SignupForm() {
           minLength={10}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           placeholder="••••••••••"
         />
         {password && (
@@ -132,7 +132,7 @@ export function SignupForm() {
       </div>
 
       {state?.error && (
-        <p className="rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-sm text-red-700">
+        <p className="rounded bg-[rgba(220,38,38,0.06)] border border-[rgba(220,38,38,0.2)] px-3.5 py-2.5 text-sm text-[#DC2626]">
           {state.error}
         </p>
       )}

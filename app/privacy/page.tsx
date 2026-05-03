@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-export const metadata = { title: 'Privacy Policy — Kodex Medical' }
+export const metadata = { title: 'Privacy Policy — Neuridion' }
 
 export default function PrivacyPage() {
   return (
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">1. Who we are</h2>
             <p>
-              Kodex Medical (&quot;we&quot;, &quot;us&quot;) is operated by{' '}
+              Neuridion (&quot;we&quot;, &quot;us&quot;) is operated by{' '}
               <strong>[COMPANY LEGAL NAME] — PLACEHOLDER</strong>, registered at{' '}
               <strong>[COMPANY ADDRESS] — PLACEHOLDER</strong>, Germany.
               We provide an automated PMS recall search platform for medical device manufacturers
@@ -46,7 +46,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">3. Why we process your data</h2>
             <ul className="list-disc pl-5 space-y-2">
-              <li>To provide and operate the Kodex Medical platform</li>
+              <li>To provide and operate the Neuridion platform</li>
               <li>To generate, store and deliver FSN search reports</li>
               <li>To manage your account, subscription and billing</li>
               <li>To send transactional notifications (search completion, account security)</li>
@@ -127,12 +127,12 @@ export default function PrivacyPage() {
             </ul>
             <p className="mt-2">
               To exercise your rights, use the{' '}
-              <Link href="/dashboard/settings" className="text-blue-600 hover:underline">
+              <Link href="/dashboard/settings" className="text-[#0D9488] hover:underline">
                 account settings
               </Link>{' '}
               page or contact us at{' '}
-              <a href="mailto:privacy@kodex-medical.com" className="text-blue-600 hover:underline">
-                privacy@kodex-medical.com
+              <a href="mailto:info@neuridion.eu" className="text-[#0D9488] hover:underline">
+                info@neuridion.eu
               </a>.
             </p>
           </section>
@@ -161,8 +161,8 @@ export default function PrivacyPage() {
             <p>
               Data controller: <strong>[COMPANY LEGAL NAME] — PLACEHOLDER</strong><br />
               Email:{' '}
-              <a href="mailto:privacy@kodex-medical.com" className="text-blue-600 hover:underline">
-                privacy@kodex-medical.com
+              <a href="mailto:info@neuridion.eu" className="text-[#0D9488] hover:underline">
+                info@neuridion.eu
               </a>
               <br />
               Address: <strong>[ADDRESS — PLACEHOLDER]</strong>
@@ -172,9 +172,9 @@ export default function PrivacyPage() {
         </div>
 
         <div className="mt-10 pt-8 border-t border-zinc-200 flex gap-4 text-sm">
-          <Link href="/"       className="text-blue-600 hover:underline">← Home</Link>
-          <Link href="/terms"  className="text-blue-600 hover:underline">Terms</Link>
-          <Link href="/imprint" className="text-blue-600 hover:underline">Imprint</Link>
+          <Link href="/"       className="text-[#0D9488] hover:underline">← Home</Link>
+          <Link href="/terms"  className="text-[#0D9488] hover:underline">Terms</Link>
+          <Link href="/imprint" className="text-[#0D9488] hover:underline">Imprint</Link>
         </div>
       </div>
     </div>

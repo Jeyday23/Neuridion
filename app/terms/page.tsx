@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-export const metadata = { title: 'Terms of Service — Kodex Medical' }
+export const metadata = { title: 'Terms of Service — Neuridion' }
 
 export default function TermsPage() {
   return (
@@ -22,13 +22,13 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">1. Service description</h2>
             <p>
-              Kodex Medical is an automated PMS (Post-Market Surveillance) recall search platform that
+              Neuridion is an automated PMS (Post-Market Surveillance) recall search platform that
               queries medical device field safety notice databases and filters results using AI. The
               service is intended for use by medical device manufacturers and Persons Responsible for
               Regulatory Compliance (PRRCs) operating under EU MDR and IVDR.
             </p>
             <p className="mt-2">
-              Kodex Medical provides tools to assist with compliance tasks. It does not replace
+              Neuridion provides tools to assist with compliance tasks. It does not replace
               professional regulatory judgement, and generated reports should be reviewed by a
               qualified PRRC before inclusion in regulatory documentation.
             </p>
@@ -59,7 +59,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">4. Intellectual property</h2>
             <p>
-              Kodex Medical and its underlying technology are owned by{' '}
+              Neuridion and its underlying technology are owned by{' '}
               <strong>[COMPANY LEGAL NAME] — PLACEHOLDER</strong>. You retain ownership of the device
               profile data and documents you upload. You grant us a limited licence to process that
               data solely for the purpose of providing the service.
@@ -69,7 +69,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">5. Limitation of liability</h2>
             <p>
-              To the maximum extent permitted by applicable law, Kodex Medical shall not be liable for
+              To the maximum extent permitted by applicable law, Neuridion shall not be liable for
               any indirect, incidental, special, consequential or punitive damages arising from use of
               the service, including but not limited to regulatory penalties resulting from reliance on
               generated reports.
@@ -103,7 +103,7 @@ export default function TermsPage() {
                 href="https://ec.europa.eu/consumers/odr"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
+                className="text-[#0D9488] hover:underline"
               >
                 ec.europa.eu/consumers/odr
               </a>
@@ -123,8 +123,8 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">9. Contact</h2>
             <p>
               Questions about these terms:{' '}
-              <a href="mailto:legal@kodex-medical.com" className="text-blue-600 hover:underline">
-                legal@kodex-medical.com
+              <a href="mailto:info@neuridion.eu" className="text-[#0D9488] hover:underline">
+                info@neuridion.eu
               </a>
             </p>
           </section>
@@ -132,9 +132,9 @@ export default function TermsPage() {
         </div>
 
         <div className="mt-10 pt-8 border-t border-zinc-200 flex gap-4 text-sm">
-          <Link href="/"        className="text-blue-600 hover:underline">← Home</Link>
-          <Link href="/privacy" className="text-blue-600 hover:underline">Privacy</Link>
-          <Link href="/imprint" className="text-blue-600 hover:underline">Imprint</Link>
+          <Link href="/"        className="text-[#0D9488] hover:underline">← Home</Link>
+          <Link href="/privacy" className="text-[#0D9488] hover:underline">Privacy</Link>
+          <Link href="/imprint" className="text-[#0D9488] hover:underline">Imprint</Link>
         </div>
       </div>
     </div>

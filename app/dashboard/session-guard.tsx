@@ -21,17 +21,17 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
       {children}
       {showWarning && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="rounded-xl border border-zinc-200 bg-white px-8 py-6 shadow-xl max-w-sm w-full mx-4">
-            <h2 className="text-lg font-semibold text-zinc-900 mb-2">
+          <div className="rounded-md border border-[#E2E8F0] bg-white px-8 py-6 shadow-lg max-w-sm w-full mx-4">
+            <h2 className="text-lg font-semibold text-[#0F1F3D] mb-2">
               Session expiring
             </h2>
-            <p className="text-sm text-zinc-600 mb-6">
+            <p className="text-sm text-[#374151] mb-6">
               You&apos;ll be logged out in 60 seconds due to inactivity. Click
               below to stay logged in.
             </p>
             <button
               onClick={stayLoggedIn}
-              className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+              className="w-full rounded bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#0F766E] transition-colors"
             >
               Stay logged in
             </button>

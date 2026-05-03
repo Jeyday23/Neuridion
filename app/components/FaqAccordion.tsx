@@ -5,16 +5,16 @@ import { ChevronDown } from 'lucide-react'
 
 const faqs = [
   {
-    question: 'What databases does Kodex Medical search?',
-    answer: 'Kodex Medical searches 20+ global medical device databases including FDA MAUDE (USA), BfArM (Germany), Swissmedic (Switzerland), EUDAMED (EU), MHRA (UK), and many more. We\'re continuously adding new databases.',
+    question: 'What databases does Neuridion search?',
+    answer: 'Neuridion searches 20+ global medical device databases including FDA MAUDE (USA), BfArM (Germany), Swissmedic (Switzerland), EUDAMED (EU), MHRA (UK), and many more. We\'re continuously adding new databases.',
   },
   {
     question: 'How accurate is the AI filtering?',
     answer: 'Our AI uses Claude to analyze Field Safety Notices and filter them based on your specific device profile. The system achieves 95%+ accuracy in identifying relevant recalls, significantly reducing manual review time.',
   },
   {
-    question: 'Is Kodex Medical MDR compliant?',
-    answer: 'Yes, Kodex Medical is built specifically for EU MDR Article 83 compliance. Our reports are formatted to meet regulatory requirements and include full audit trails for documentation purposes.',
+    question: 'Is Neuridion MDR compliant?',
+    answer: 'Yes, Neuridion is built specifically for EU MDR Article 83 compliance. Our reports are formatted to meet regulatory requirements and include full audit trails for documentation purposes.',
   },
   {
     question: 'Can I export reports for audits?',

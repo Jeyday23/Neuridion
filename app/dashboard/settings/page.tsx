@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { SettingsClient } from './settings-client'
 
-export const metadata = { title: 'Settings — Kodex Medical' }
+export const metadata = { title: 'Settings — Neuridion' }
 
 export default async function SettingsPage() {
   const supabase = await createClient()

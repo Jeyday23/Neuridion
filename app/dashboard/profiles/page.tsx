@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { DeleteProfileButton } from './profile-actions'
 
-export const metadata = { title: 'Profiles — Kodex' }
+export const metadata = { title: 'Profiles — Neuridion' }
 
 function timeAgo(iso: string): string {
   const diffMs = Date.now() - new Date(iso).getTime()
@@ -32,27 +32,27 @@ export default async function ProfilesPage() {
         </div>
         <Link
           href="/dashboard/profiles/new"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+          className="rounded bg-[#0D9488] px-4 py-2 text-sm font-medium text-white hover:bg-[#0F766E] transition-colors"
         >
           New profile
         </Link>
       </div>
 
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-3">
+        <p className="text-sm text-[#DC2626] bg-[rgba(220,38,38,0.06)] border border-[rgba(220,38,38,0.2)] rounded px-4 py-3">
           {error.message}
         </p>
       )}
 
       {!error && profiles?.length === 0 && (
-        <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-8 py-16 text-center">
+        <div className="rounded-md border border-dashed border-[#E2E8F0] bg-white px-8 py-16 text-center">
           <p className="text-sm font-medium text-zinc-900">No profiles yet</p>
           <p className="mt-1 text-sm text-zinc-500">
             Create your first product profile to start running recall searches.
           </p>
           <Link
             href="/dashboard/profiles/new"
-            className="mt-4 inline-block rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
+            className="mt-4 inline-block rounded bg-[#0D9488] px-4 py-2 text-sm font-medium text-white hover:bg-[#0F766E] transition-colors"
           >
             New profile
           </Link>
@@ -60,7 +60,7 @@ export default async function ProfilesPage() {
       )}
 
       {profiles && profiles.length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
+        <div className="rounded-md border border-[#E2E8F0] bg-white overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">
@@ -82,7 +82,7 @@ export default async function ProfilesPage() {
                   >
                     <td className="px-4 py-3">
                       <Link href={`/dashboard/profiles/${p.id}/edit`}
-                        className="font-medium text-zinc-900 hover:text-blue-600 transition-colors">
+                        className="font-medium text-zinc-900 hover:text-[#0D9488] transition-colors">
                         {p.device_name}
                       </Link>
                       {wasEdited && (
@@ -103,7 +103,7 @@ export default async function ProfilesPage() {
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/dashboard/profiles/${p.id}/edit`}
-                          className="text-xs font-medium text-zinc-500 hover:text-blue-600 transition-colors border border-zinc-200 rounded px-2.5 py-1 hover:border-blue-300"
+                          className="text-xs font-medium text-zinc-500 hover:text-[#0D9488] transition-colors border border-[#E2E8F0] rounded px-2.5 py-1 hover:border-[#0D9488]"
                         >
                           Edit
                         </Link>

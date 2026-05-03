@@ -130,7 +130,7 @@ function FsnRow({
           <div className="flex items-start justify-between gap-2">
             <a href={result.source_url} target="_blank" rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="text-sm font-medium text-zinc-900 hover:text-blue-600 hover:underline line-clamp-2">
+              className="text-sm font-medium text-zinc-900 hover:text-[#0D9488] hover:underline line-clamp-2">
               {result.title}
             </a>
             <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-500">
@@ -145,7 +145,7 @@ function FsnRow({
               )}
             </div>
             {d && (
-              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${BADGE_STYLES[d.decision] ?? ''}`}>
+              <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${BADGE_STYLES[d.decision] ?? ''}`}>
                 {badgeLabels[d.decision] ?? d.decision}
               </span>
             )}
@@ -156,7 +156,7 @@ function FsnRow({
 
       {expanded && (
         <div className="px-4 pb-4 ml-5">
-          <div className={clsx('rounded-lg border p-3 text-sm', d ? PANEL_STYLES[d.decision] : 'bg-zinc-50 border-zinc-200')}>
+          <div className={clsx('rounded border p-3 text-sm', d ? PANEL_STYLES[d.decision] : 'bg-zinc-50 border-zinc-200')}>
             {!d && <p className="text-xs text-zinc-500 italic">No AI assessment available for this item.</p>}
             {d?.decision === 'filter_failed' && (
               <p className="text-xs font-medium text-red-700">AI filter was not applied — manual review required.</p>
@@ -172,7 +172,7 @@ function FsnRow({
               {d?.model && <span>Model: {d.model}</span>}
               <a href={result.source_url} target="_blank" rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="ml-auto text-blue-600 hover:underline text-xs">
+                className="ml-auto text-[#0D9488] hover:underline text-xs">
                 View source ↗
               </a>
             </div>
@@ -188,7 +188,7 @@ function FsnRow({
 function Toast({ msg, type }: { msg: string; type: 'success' | 'error' }) {
   return (
     <div className={clsx(
-      'fixed bottom-6 right-6 z-50 rounded-lg px-4 py-3 text-sm font-medium shadow-lg pointer-events-none',
+      'fixed bottom-6 right-6 z-50 rounded px-4 py-3 text-sm font-medium shadow-lg pointer-events-none',
       type === 'success' ? 'bg-green-700 text-white' : 'bg-red-700 text-white'
     )}>
       {msg}
@@ -205,7 +205,7 @@ function TermRow({ value, onChange, onRemove, placeholder, showRemove }: {
   return (
     <div className="relative">
       <textarea rows={4} value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-3 border border-slate-300 rounded-lg font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10"
+        className="w-full px-4 py-3 border border-[#E2E8F0] rounded font-mono text-sm focus:ring-2 focus:ring-[#0D9488] focus:border-transparent pr-10"
         placeholder={placeholder} />
       {showRemove && onRemove && (
         <button type="button" onClick={onRemove}
@@ -272,11 +272,11 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   useEffect(() => {
     if (state.phase !== 'done') return
     if (state.results.length === 0) return
-    const hasSearchedBefore = localStorage.getItem('kodex-has-searched')
-    const dismissedUntil    = parseInt(localStorage.getItem('kodex-feedback-dismissed-until') ?? '0')
+    const hasSearchedBefore = localStorage.getItem('neuridion-has-searched')
+    const dismissedUntil    = parseInt(localStorage.getItem('neuridion-feedback-dismissed-until') ?? '0')
     if (!hasSearchedBefore && Date.now() > dismissedUntil) {
       setTimeout(() => setShowFeedback(true), 5000)
-      localStorage.setItem('kodex-has-searched', 'true')
+      localStorage.setItem('neuridion-has-searched', 'true')
     }
   }, [state.phase])
 
@@ -419,26 +419,26 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       {/* Page header */}
       <div className="mb-8">
         <div className="flex items-center gap-4 mb-3">
-          <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold text-lg">1</div>
-          <h1 className="text-3xl font-bold text-slate-900">{t.search.pageTitle}</h1>
+          <div className="w-10 h-10 bg-[#0D9488] text-white rounded-md flex items-center justify-center font-medium text-lg">1</div>
+          <h1 className="text-xl font-bold text-[#0F1F3D]">{t.search.pageTitle}</h1>
         </div>
         <p className="text-slate-600 ml-14">{t.search.pageSubtitle}</p>
       </div>
 
       <div className="space-y-8">
         {/* Profile selector */}
-        <section className="bg-white rounded-xl border border-slate-200 p-8">
-          <h2 className="text-xl font-bold text-slate-900 mb-6">
+        <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
+          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-6">
             {t.search.productProfile} <span className="text-red-500">*</span>
           </h2>
           {noProfiles ? (
             <p className="text-sm text-slate-500">
               {t.search.noProfiles} —{' '}
-              <a href="/dashboard/profiles/new" className="text-blue-600 hover:underline">{t.search.createFirst}</a>
+              <a href="/dashboard/profiles/new" className="text-[#0D9488] hover:underline">{t.search.createFirst}</a>
             </p>
           ) : (
             <select value={profileId} onChange={(e) => setProfileId(e.target.value)}
-              className="w-full max-w-md rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+              className="w-full max-w-md rounded border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent">
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>{p.device_name} — {p.manufacturer}</option>
               ))}
@@ -447,14 +447,14 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         </section>
 
         {/* Databases */}
-        <section className="bg-white rounded-xl border border-slate-200 p-8">
+        <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-slate-900">
+            <h2 className="text-xl font-semibold text-[#0F1F3D]">
               {t.search.databases} ({selectedDbs.size} {t.search.selected}) <span className="text-red-500">*</span>
             </h2>
             <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:text-slate-900">
               <input type="checkbox" checked={allActiveSelected} onChange={toggleAll}
-                className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                className="w-4 h-4 rounded border-slate-300 text-[#0D9488] focus:ring-[#0D9488]" />
               {t.search.selectDeselectAll}
             </label>
           </div>
@@ -463,22 +463,22 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
               <div key={db.id} className="relative"
                 onMouseEnter={() => !db.active && setHoveredDb(db.id)}
                 onMouseLeave={() => setHoveredDb(null)}>
-                <label className={`flex items-start gap-3 p-4 border rounded-lg transition-all cursor-pointer ${
+                <label className={`flex items-start gap-3 p-4 border rounded transition-all cursor-pointer ${
                   db.active
-                    ? selectedDbs.has(db.id) ? 'border-blue-600 bg-blue-50' : 'border-slate-200 hover:border-slate-300'
-                    : 'border-slate-200 bg-slate-50 opacity-40 cursor-not-allowed'
+                    ? selectedDbs.has(db.id) ? 'border-[#0D9488] bg-[rgba(13,148,136,0.06)]' : 'border-[#E2E8F0] hover:border-[#0D9488]'
+                    : 'border-[#E2E8F0] bg-zinc-50 opacity-40 cursor-not-allowed'
                 }`}>
                   <input type="checkbox" checked={selectedDbs.has(db.id)} onChange={() => toggleDb(db.id)} disabled={!db.active}
-                    className="w-5 h-5 mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50" />
+                    className="w-5 h-5 mt-0.5 rounded border-slate-300 text-[#0D9488] focus:ring-[#0D9488] disabled:opacity-50" />
                   <div className="flex-1">
                     <div className="font-semibold text-slate-900 text-sm">{db.name}</div>
                     <div className="text-xs text-slate-500">{db.region}</div>
                   </div>
                 </label>
                 {!db.active && hoveredDb === db.id && (
-                  <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-purple-600 text-white text-sm rounded-lg shadow-lg z-10 whitespace-nowrap">
+                  <div className="absolute top-full left-0 mt-2 px-3 py-2 bg-[#0F1F3D] text-white text-sm rounded shadow-lg z-10 whitespace-nowrap">
                     Coming soon
-                    <div className="absolute -top-1 left-4 w-2 h-2 bg-purple-600 rotate-45" />
+                    <div className="absolute -top-1 left-4 w-2 h-2 bg-[#0F1F3D] rotate-45" />
                   </div>
                 )}
               </div>
@@ -487,30 +487,30 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         </section>
 
         {/* Search period */}
-        <section className="bg-white rounded-xl border border-slate-200 p-8">
-          <h2 className="text-xl font-bold text-slate-900 mb-6">
+        <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
+          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-6">
             {t.search.searchPeriod} <span className="text-red-500">*</span>
           </h2>
           <div className="flex items-center gap-6 max-w-xl">
             <div className="flex-1">
               <label className="block text-sm font-medium text-slate-700 mb-2">{t.search.from}</label>
               <input type="date" value={fromDate} max={toDate} onChange={(e) => setFromDate(e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                className="w-full px-4 py-3 border border-[#E2E8F0] rounded focus:ring-2 focus:ring-[#0D9488] focus:border-transparent" />
               <div className="text-sm text-slate-500 mt-1">{formatDateDE(fromDate)}</div>
             </div>
             <div className="text-slate-400 mt-8">→</div>
             <div className="flex-1">
               <label className="block text-sm font-medium text-slate-700 mb-2">{t.search.to}</label>
               <input type="date" value={toDate} min={fromDate} max={format(new Date(), 'yyyy-MM-dd')} onChange={(e) => setToDate(e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                className="w-full px-4 py-3 border border-[#E2E8F0] rounded focus:ring-2 focus:ring-[#0D9488] focus:border-transparent" />
               <div className="text-sm text-slate-500 mt-1">{formatDateDE(toDate)}</div>
             </div>
           </div>
         </section>
 
         {/* Generic search terms */}
-        <section className="bg-white rounded-xl border border-slate-200 p-8">
-          <h2 className="text-xl font-bold text-slate-900 mb-2">{t.search.genericTerms}</h2>
+        <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
+          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-2">{t.search.genericTerms}</h2>
           <p className="text-sm text-slate-500 italic mb-6">{t.search.genericHint}</p>
           <div className="space-y-3">
             {genericTerms.map((term, idx) => (
@@ -522,14 +522,14 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             ))}
           </div>
           <button type="button" onClick={() => setGenericTerms((prev) => [...prev, ''])}
-            className="mt-4 flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm">
+            className="mt-4 flex items-center gap-2 text-[#0D9488] hover:text-[#0F766E] font-medium text-sm">
             <Plus className="w-4 h-4" />{t.search.addCombination}
           </button>
         </section>
 
         {/* Manufacturer search terms */}
-        <section className="bg-white rounded-xl border border-slate-200 p-8">
-          <h2 className="text-xl font-bold text-slate-900 mb-2">{t.search.manufacturerTerms}</h2>
+        <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
+          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-2">{t.search.manufacturerTerms}</h2>
           <p className="text-sm text-slate-500 italic mb-6">{t.search.manufacturerHint}</p>
           <div className="space-y-3">
             {manufacturerTerms.map((term, idx) => (
@@ -541,18 +541,18 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             ))}
           </div>
           <button type="button" onClick={() => setManufacturerTerms((prev) => [...prev, ''])}
-            className="mt-4 flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium text-sm">
+            className="mt-4 flex items-center gap-2 text-[#0D9488] hover:text-[#0F766E] font-medium text-sm">
             <Plus className="w-4 h-4" />{t.search.addCombination}
           </button>
         </section>
 
         {/* File upload */}
-        <section className="bg-white rounded-xl border border-slate-200 p-8">
-          <h2 className="text-xl font-bold text-slate-900 mb-6">{t.search.strategyDocs}</h2>
+        <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
+          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-6">{t.search.strategyDocs}</h2>
           <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg" className="hidden"
             onChange={(e) => e.target.files && handleFiles(e.target.files)} />
-          <div className={clsx('border-2 border-dashed rounded-lg p-12 text-center transition-colors cursor-pointer',
-            isDragging ? 'border-blue-400 bg-blue-50' : 'border-slate-300 hover:border-blue-400 hover:bg-blue-50')}
+          <div className={clsx('border-2 border-dashed rounded p-12 text-center transition-colors cursor-pointer',
+            isDragging ? 'border-[#0D9488] bg-[rgba(13,148,136,0.06)]' : 'border-slate-300 hover:border-[#0D9488] hover:bg-[rgba(13,148,136,0.06)]')}
             onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
             onClick={() => fileInputRef.current?.click()}>
             <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
@@ -581,16 +581,16 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
         {/* Date range warnings */}
         {isOverLimit && (
-          <div className="rounded-lg border border-red-500 bg-red-100 p-4">
-            <p className="text-sm text-red-900 font-semibold">
+          <div className="rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] p-4">
+            <p className="text-sm text-[#DC2626] font-semibold">
               Maximum range: 3 years. BfArM provides direct year-archive access for the
               current year, last year, and year before last. For deeper history, contact us.
             </p>
           </div>
         )}
         {isLongSearch && (
-          <div className="rounded-lg border border-orange-300 bg-orange-50 p-4">
-            <p className="text-sm text-orange-900">
+          <div className="rounded border border-[rgba(217,119,6,0.2)] bg-[rgba(217,119,6,0.08)] p-4">
+            <p className="text-sm text-[#D97706]">
               <strong>Multi-year search:</strong> ~{totalDays} days
               (~{Math.round(totalDays / 365)} years). Estimated time: 15–40 minutes.
               Do not close this tab.
@@ -598,8 +598,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           </div>
         )}
         {isMediumSearch && (
-          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
-            <p className="text-sm text-amber-900">
+          <div className="rounded border border-[rgba(217,119,6,0.2)] bg-[rgba(217,119,6,0.08)] p-4">
+            <p className="text-sm text-[#D97706]">
               <strong>Long search:</strong> ~{totalDays} days. Estimated time: 5–15 minutes.
               Audit-grade accuracy via BfArM year archive.
             </p>
@@ -609,17 +609,17 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         {/* Action bar */}
         <div className="flex items-center justify-between pt-6 border-t border-slate-200 flex-wrap gap-3">
           <button type="button" onClick={() => saveDraft()} disabled={draftSaving}
-            className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+            className="px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
             {draftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
             {t.search.saveDraft}
           </button>
           <div className="flex items-center gap-3 flex-wrap">
             <button type="button" onClick={saveProfileAndDraft} disabled={draftSaving || noProfiles}
-              className="px-6 py-3 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed">
+              className="px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed">
               {t.search.createProfile}
             </button>
             <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || isOverLimit}
-              className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+              className="px-8 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
               {state.phase === 'running'
                 ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.searching}</>
                 : <>{t.search.runSearch} <span>→</span></>
@@ -631,8 +631,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
       {/* Error */}
       {state.phase === 'error' && (
-        <div className="mt-8 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-          <p className="text-sm text-red-700">{state.message}</p>
+        <div className="mt-8 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-4 py-3">
+          <p className="text-sm text-[#DC2626]">{state.message}</p>
         </div>
       )}
 
@@ -640,7 +640,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       {state.phase === 'done' && (
         <div ref={resultsRef} className="mt-8 scroll-mt-6">
           {state.results.length === 0 ? (
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-4 max-w-lg">
+            <div className="rounded border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 max-w-lg">
               <p className="text-sm font-medium text-zinc-700 mb-1">{t.search.noResults}</p>
               <p className="text-xs text-zinc-500">{t.search.noResultsHint}</p>
             </div>
@@ -718,7 +718,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                     <div className="flex items-center gap-3 mb-4 flex-wrap">
                       {reportState.phase === 'idle' && (
                         <button onClick={() => generateReport(state.runId)}
-                          className="flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                          className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
                           <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                           </svg>
@@ -735,7 +735,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                         <>
                           {reportState.pdfStatus === 'generated' && reportState.pdfUrl ? (
                             <a href={reportState.pdfUrl} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                              className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
                               <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                               </svg>
@@ -745,7 +745,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                             <div className="flex flex-col gap-1">
                               {reportState.htmlUrl && (
                                 <a href={reportState.htmlUrl} target="_blank" rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                                  className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
                                   <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                                   </svg>
@@ -761,7 +761,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                           )}
                           {reportState.excelUrl && (
                             <a href={reportState.excelUrl} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                              className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
                               <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375m-3.75.125V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-1.5A1.125 1.125 0 0118 18.375M20.625 4.5H3.375m17.25 0c.621 0 1.125.504 1.125 1.125M20.625 4.5h-1.5C18.504 4.5 18 5.004 18 5.625m3.75-.125V5.625m0 0v1.5c0 .621-.504 1.125-1.125 1.125M3.375 4.5c-.621 0-1.125.504-1.125 1.125M3.375 4.5h1.5C5.496 4.5 6 5.004 6 5.625m-3.75.125V5.625m0 0v1.5c0 .621.504 1.125 1.125 1.125m0 0h1.5m-1.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m1.5-3.75C5.496 8.25 6 7.746 6 7.125v-1.5M4.875 8.25C5.496 8.25 6 8.754 6 9.375v1.5m0-5.25v5.25m0-5.25C6 5.004 6.504 4.5 7.125 4.5h9.75c.621 0 1.125.504 1.125 1.125m1.125 2.625h1.5m-1.5 0A1.125 1.125 0 0118 7.125v-1.5m1.125 2.625c-.621 0-1.125.504-1.125 1.125v1.5m2.625-2.625c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125M18 5.625v5.25M7.125 12h9.75m-9.75 0A1.125 1.125 0 016 10.875M7.125 12C6.504 12 6 12.504 6 13.125m0-2.25C6 11.496 5.496 12 4.875 12M18 10.875c0 .621-.504 1.125-1.125 1.125M18 10.875c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-9.75 0h9.75" />
                               </svg>
@@ -779,7 +779,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                     {visible.length === 0 ? (
                       <p className="text-sm text-zinc-400 py-8 text-center">{t.search.noCategory}</p>
                     ) : (
-                      <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
+                      <div className="rounded-md border border-[#E2E8F0] bg-white overflow-hidden">
                         {visible.map((result) => (
                           <FsnRow key={result.id} result={result}
                             expanded={expandedIds.has(result.id)}

@@ -47,7 +47,7 @@ export function SearchStatusWidget() {
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2" style={{ pointerEvents: 'none' }}>
       <div
-        className="rounded-xl border border-zinc-200 bg-white shadow-xl px-4 py-3 flex items-start gap-3 w-72"
+        className="rounded-md border border-[#E2E8F0] bg-white shadow-md px-4 py-3 flex items-start gap-3 w-72"
         style={{ pointerEvents: 'auto' }}
       >
 

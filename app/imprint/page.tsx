@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-export const metadata = { title: 'Imprint — Kodex Medical' }
+export const metadata = { title: 'Imprint — Neuridion' }
 
 export default function ImprintPage() {
   return (

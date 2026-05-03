@@ -78,7 +78,7 @@ export default async function QrCodesPage() {
       {batches.length === 0 ? (
         <p className="text-sm text-zinc-400">No batches yet. Generate one above.</p>
       ) : (
-        <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
+        <div className="rounded-md border border-[#E2E8F0] bg-white overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-zinc-50 border-b border-zinc-200">
               <tr>

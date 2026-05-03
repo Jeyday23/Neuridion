@@ -116,7 +116,7 @@ export function SettingsClient({
     <div className="space-y-10">
 
       {/* 1. Account info */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
+      <section className="rounded-md border border-[#E2E8F0] bg-white p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-5">Account information</h2>
         <div className="space-y-4">
           <div>
@@ -124,7 +124,7 @@ export function SettingsClient({
             <input
               value={initialEmail}
               disabled
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-500 cursor-not-allowed"
+              className="w-full rounded border border-[#E2E8F0] bg-[#F8FAFC] px-3.5 py-2.5 text-sm text-[#6B7280] cursor-not-allowed"
             />
             <p className="mt-1 text-xs text-slate-400">Email cannot be changed here. Contact support.</p>
           </div>
@@ -133,7 +133,7 @@ export function SettingsClient({
             <input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
             />
           </div>
           <div>
@@ -141,7 +141,7 @@ export function SettingsClient({
             <input
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
             />
           </div>
           {infoMsg && (
@@ -152,7 +152,7 @@ export function SettingsClient({
           <button
             onClick={saveInfo}
             disabled={infoSaving}
-            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            className="rounded bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#0F766E] transition-colors disabled:opacity-50"
           >
             {infoSaving ? 'Saving…' : 'Save changes'}
           </button>
@@ -160,7 +160,7 @@ export function SettingsClient({
       </section>
 
       {/* 2. Password */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
+      <section className="rounded-md border border-[#E2E8F0] bg-white p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-5">Change password</h2>
         <div className="space-y-4">
           <div>
@@ -169,7 +169,7 @@ export function SettingsClient({
               type="password"
               value={currentPw}
               onChange={(e) => setCurrentPw(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
               placeholder="••••••••••"
             />
           </div>
@@ -179,7 +179,7 @@ export function SettingsClient({
               type="password"
               value={newPw}
               onChange={(e) => setNewPw(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
               placeholder="••••••••••"
             />
           </div>
@@ -189,7 +189,7 @@ export function SettingsClient({
               type="password"
               value={confirmPw}
               onChange={(e) => setConfirmPw(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
               placeholder="••••••••••"
             />
           </div>
@@ -201,7 +201,7 @@ export function SettingsClient({
           <button
             onClick={changePassword}
             disabled={pwSaving || !newPw || !confirmPw}
-            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+            className="rounded bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#0F766E] transition-colors disabled:opacity-50"
           >
             {pwSaving ? 'Updating…' : 'Update password'}
           </button>
@@ -209,7 +209,7 @@ export function SettingsClient({
       </section>
 
       {/* 3. Data export */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
+      <section className="rounded-md border border-[#E2E8F0] bg-white p-6">
         <h2 className="text-lg font-semibold text-slate-900 mb-2">Download my data</h2>
         <p className="text-sm text-slate-500 mb-4">
           Export all your data (profiles, search runs, reports, audit log) as a JSON file.
@@ -217,14 +217,14 @@ export function SettingsClient({
         </p>
         <button
           onClick={downloadData}
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          className="rounded border border-[#E2E8F0] bg-white px-4 py-2.5 text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors"
         >
           Download my data
         </button>
       </section>
 
       {/* 4. Delete account */}
-      <section className="rounded-xl border border-red-200 bg-white p-6">
+      <section className="rounded-md border border-[rgba(220,38,38,0.2)] bg-white p-6">
         <h2 className="text-lg font-semibold text-red-700 mb-2">Delete account</h2>
         {deletionPending ? (
           <div className="space-y-3">
@@ -237,7 +237,7 @@ export function SettingsClient({
             <button
               onClick={cancelDeletion}
               disabled={cancelling}
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              className="rounded border border-[#E2E8F0] bg-white px-4 py-2.5 text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors"
             >
               {cancelling ? 'Cancelling…' : 'Cancel account deletion'}
             </button>
@@ -256,14 +256,14 @@ export function SettingsClient({
                 value={deleteConfirm}
                 onChange={(e) => setDeleteConfirm(e.target.value)}
                 placeholder="DELETE MY ACCOUNT"
-                className="w-full rounded-lg border border-red-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                className="w-full rounded border border-[rgba(220,38,38,0.3)] bg-white px-3.5 py-2.5 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:border-transparent"
               />
             </div>
             {deleteMsg && <p className="text-sm text-red-600">{deleteMsg}</p>}
             <button
               onClick={deleteAccount}
               disabled={deleting || deleteConfirm !== 'DELETE MY ACCOUNT'}
-              className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              className="rounded bg-[#DC2626] px-4 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors disabled:opacity-50"
             >
               {deleting ? 'Processing…' : 'Delete my account'}
             </button>

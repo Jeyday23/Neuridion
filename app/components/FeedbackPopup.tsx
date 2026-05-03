@@ -46,7 +46,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
       })
       setSubmitted(true)
       localStorage.setItem(
-        'kodex-feedback-dismissed-until',
+        'neuridion-feedback-dismissed-until',
         String(Date.now() + 30 * 24 * 60 * 60 * 1000),
       )
       setTimeout(onClose, 2000)
@@ -58,7 +58,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
 
   function handleSkip() {
     localStorage.setItem(
-      'kodex-feedback-dismissed-until',
+      'neuridion-feedback-dismissed-until',
       String(Date.now() + 30 * 24 * 60 * 60 * 1000),
     )
     onClose()
@@ -66,15 +66,15 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
 
   if (submitted) {
     return (
-      <div className="fixed bottom-4 right-4 z-50 w-96 rounded-lg bg-green-50 border border-green-200 p-6 shadow-xl">
-        <p className="text-green-900 font-semibold">Thank you!</p>
-        <p className="text-sm text-green-700 mt-1">Your feedback helps us improve Kodex.</p>
+      <div className="fixed bottom-4 right-4 z-50 w-96 rounded-md bg-[rgba(5,150,105,0.08)] border border-[rgba(5,150,105,0.2)] p-6 shadow-md">
+        <p className="text-[#059669] font-semibold">Thank you!</p>
+        <p className="text-sm text-[#059669] mt-1">Your feedback helps us improve Neuridion.</p>
       </div>
     )
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-96 rounded-lg bg-white border border-slate-200 p-6 shadow-xl animate-slide-up">
+    <div className="fixed bottom-4 right-4 z-50 w-96 rounded-md bg-white border border-[#E2E8F0] p-6 shadow-lg animate-slide-up">
       <button
         onClick={handleSkip}
         className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"
@@ -84,12 +84,12 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
       </button>
 
       <h3 className="text-lg font-semibold text-slate-900 mb-1">Quick feedback?</h3>
-      <p className="text-sm text-slate-600 mb-4">Help us improve Kodex — takes 30 seconds.</p>
+      <p className="text-sm text-slate-600 mb-4">Help us improve Neuridion — takes 30 seconds.</p>
 
       {/* Rating */}
       <div className="mb-4">
         <label className="text-sm font-medium text-slate-900 block mb-2">
-          How would you rate Kodex so far?
+          How would you rate Neuridion so far?
         </label>
         <div className="flex gap-1">
           {[1, 2, 3, 4, 5].map(n => (
@@ -112,10 +112,10 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
             <button
               key={opt}
               onClick={() => toggleTag(opt)}
-              className={`px-3 py-1 rounded-full text-xs border transition-colors ${
+              className={`px-3 py-1 rounded text-xs border transition-colors ${
                 usefulTags.includes(opt)
-                  ? 'bg-blue-100 border-blue-400 text-blue-900'
-                  : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400'
+                  ? 'bg-[rgba(13,148,136,0.08)] border-[rgba(13,148,136,0.4)] text-[#0D9488]'
+                  : 'bg-white border-[#E2E8F0] text-[#374151] hover:border-[#0D9488]'
               }`}
             >
               {opt}
@@ -133,7 +133,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
           value={missing}
           onChange={(e) => setMissing(e.target.value.slice(0, 500))}
           className="w-full rounded border border-slate-300 p-2 text-sm h-20 resize-none"
-          placeholder="Tell us what would make Kodex more useful..."
+          placeholder="Tell us what would make Neuridion more useful..."
         />
         <p className="text-xs text-slate-400 mt-1">{missing.length}/500</p>
       </div>
@@ -148,7 +148,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
         <button
           onClick={handleSubmit}
           disabled={rating === 0 || submitting}
-          className="px-4 py-2 bg-blue-600 text-white rounded text-sm font-medium hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-[#0D9488] text-white rounded text-sm font-medium hover:bg-[#0F766E] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {submitting ? 'Sending…' : 'Send'}
         </button>

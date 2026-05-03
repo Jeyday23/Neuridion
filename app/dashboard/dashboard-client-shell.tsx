@@ -21,7 +21,7 @@ export function DashboardClientShell({ userRole, children }: Props) {
           {/* Sidebar — inside providers so translations work */}
           <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shrink-0">
             <div className="p-6 border-b border-slate-200">
-              <h1 className="text-2xl font-bold text-slate-900">Kodex Medical</h1>
+              <h1 className="text-xl font-bold text-[#0F1F3D]">Neuridion</h1>
             </div>
             <SidebarNav userRole={userRole} />
           </aside>

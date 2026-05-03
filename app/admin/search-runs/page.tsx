@@ -89,12 +89,12 @@ export default async function AdminSearchRunsPage() {
       <h1 className="text-xl font-bold text-zinc-900 mb-6">Search Runs</h1>
 
       {loadError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-4 py-3 text-sm text-[#DC2626]">
           <strong>Query error:</strong> {loadError}
         </div>
       )}
 
-      <div className="rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-[#E2E8F0] bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50 text-left">

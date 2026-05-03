@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { BillingActions } from './billing-actions'
 
-export const metadata = { title: 'Billing — Kodex' }
+export const metadata = { title: 'Billing — Neuridion' }
 
 const UPGRADE_PLANS: PlanId[] = ['starter', 'pro', 'enterprise']
 
@@ -72,18 +72,18 @@ export default async function BillingPage({
 
       {/* Flash messages */}
       {params.success && (
-        <div className="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
-          <p className="text-sm text-green-700 font-medium">Subscription activated — thank you!</p>
+        <div className="mb-6 rounded border border-[rgba(5,150,105,0.2)] bg-[rgba(5,150,105,0.08)] px-4 py-3">
+          <p className="text-sm text-[#059669] font-medium">Subscription activated — thank you!</p>
         </div>
       )}
       {params.canceled && (
-        <div className="mb-6 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
-          <p className="text-sm text-zinc-600">Checkout was canceled. Your plan was not changed.</p>
+        <div className="mb-6 rounded border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+          <p className="text-sm text-[#374151]">Checkout was canceled. Your plan was not changed.</p>
         </div>
       )}
 
       {/* Current plan card */}
-      <div className="mb-8 rounded-xl border border-zinc-200 bg-white px-6 py-5">
+      <div className="mb-8 rounded-md border border-[#E2E8F0] bg-white px-6 py-5">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 mb-1">Current plan</p>
@@ -93,12 +93,12 @@ export default async function BillingPage({
             </div>
             {userData?.subscription_status && userData.subscription_status !== 'inactive' && (
               <div className="mt-1 flex items-center gap-2">
-                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
+                <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${
                   isActive
-                    ? 'bg-green-50 text-green-700 border-green-200'
+                    ? 'bg-[rgba(5,150,105,0.08)] text-[#059669] border-[rgba(5,150,105,0.2)]'
                     : userData.subscription_status === 'past_due'
-                    ? 'bg-red-50 text-red-700 border-red-200'
-                    : 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                    ? 'bg-[rgba(220,38,38,0.06)] text-[#DC2626] border-[rgba(220,38,38,0.2)]'
+                    : 'bg-[#F8FAFC] text-[#6B7280] border-[#E2E8F0]'
                 }`}>
                   {userData.subscription_status}
                 </span>
@@ -147,12 +147,12 @@ export default async function BillingPage({
               return (
                 <div
                   key={planId}
-                  className={`rounded-xl border bg-white px-5 py-5 flex flex-col ${
-                    planId === 'pro' ? 'border-blue-300 ring-1 ring-blue-200' : 'border-zinc-200'
+                  className={`rounded-md border bg-white px-5 py-5 flex flex-col ${
+                    planId === 'pro' ? 'border-[#0D9488] ring-1 ring-[rgba(13,148,136,0.2)]' : 'border-[#E2E8F0]'
                   }`}
                 >
                   {planId === 'pro' && (
-                    <span className="mb-3 self-start rounded-full bg-blue-600 px-2.5 py-0.5 text-xs font-semibold text-white">
+                    <span className="mb-3 self-start rounded bg-[#0D9488] px-2.5 py-0.5 text-xs font-medium text-white">
                       Most popular
                     </span>
                   )}
@@ -177,8 +177,8 @@ export default async function BillingPage({
                       <BillingActions mode="checkout" priceId={priceId} label={`Upgrade to ${plan.label}`} />
                     ) : (
                       <a
-                        href="mailto:hello@kodex.io?subject=Enterprise inquiry"
-                        className="block w-full rounded-lg border border-zinc-300 bg-white px-4 py-2 text-center text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
+                        href="mailto:info@neuridion.eu?subject=Enterprise inquiry"
+                        className="block w-full rounded border border-[#E2E8F0] bg-white px-4 py-2 text-center text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors"
                       >
                         Contact sales
                       </a>

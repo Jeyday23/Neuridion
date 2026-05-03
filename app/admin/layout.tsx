@@ -22,7 +22,7 @@ export default async function AdminLayout({
     <div className="flex min-h-screen bg-zinc-50">
       <aside className="flex w-56 shrink-0 flex-col border-r border-zinc-200 bg-white px-3 py-6">
         <div className="mb-2 px-3">
-          <span className="text-base font-bold tracking-tight text-zinc-900">Kodex</span>
+          <span className="text-base font-bold tracking-tight text-[#0F1F3D]">Neuridion</span>
         </div>
         <div className="mb-6 px-3">
           <span className="text-xs font-semibold uppercase tracking-widest text-red-500">Admin</span>
@@ -56,7 +56,7 @@ export default async function AdminLayout({
           <span className="text-sm font-medium text-zinc-500">Admin Console</span>
           <Link
             href="/dashboard/search"
-            className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline"
+            className="text-sm font-medium text-[#0D9488] hover:text-[#0F766E] hover:underline"
           >
             Exit admin →
           </Link>

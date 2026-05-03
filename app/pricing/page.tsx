@@ -8,7 +8,7 @@ const plans = [
   {
     name: 'Free',
     price: '$0',
-    description: 'Get started with Kodex',
+    description: 'Get started with Neuridion',
     features: ['5 documents', 'Basic compliance checks', 'Email support'],
     priceId: null,
   },
@@ -62,7 +62,7 @@ export default function PricingPage() {
       )}
       <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
         {plans.map((plan) => (
-          <div key={plan.name} className="bg-white rounded-2xl shadow p-8 flex flex-col">
+          <div key={plan.name} className="bg-white rounded-md border border-[#E2E8F0] p-8 flex flex-col">
             <h2 className="text-2xl font-bold mb-2">{plan.name}</h2>
             <p className="text-4xl font-bold mb-4">{plan.price}</p>
             <p className="text-gray-500 mb-6">{plan.description}</p>
@@ -77,12 +77,12 @@ export default function PricingPage() {
               <button
                 onClick={() => handleUpgrade(plan.priceId!)}
                 disabled={loading}
-                className="bg-blue-600 text-white rounded-xl py-3 font-semibold hover:bg-blue-700 disabled:opacity-50"
+                className="bg-[#0D9488] text-white rounded py-3 font-medium hover:bg-[#0F766E] disabled:opacity-50"
               >
                 {loading ? 'Redirecting...' : 'Upgrade to Pro'}
               </button>
             ) : (
-              <button className="bg-gray-200 text-gray-600 rounded-xl py-3 font-semibold cursor-default">
+              <button className="bg-[#F8FAFC] text-[#6B7280] border border-[#E2E8F0] rounded py-3 font-medium cursor-default">
                 Current Plan
               </button>
             )}

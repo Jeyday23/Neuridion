@@ -28,7 +28,7 @@ export default async function AdminUsersPage() {
   return (
     <div className="p-8">
       <h1 className="text-xl font-bold text-zinc-900 mb-6">Users</h1>
-      <div className="rounded-xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-md border border-[#E2E8F0] bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50 text-left">

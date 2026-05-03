@@ -34,7 +34,7 @@ const DECISION_LABELS: Record<string, string> = {
 
 function DecisionBadge({ decision }: { decision: string }) {
   return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${DECISION_STYLES[decision] ?? ''}`}>
+    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${DECISION_STYLES[decision] ?? ''}`}>
       {DECISION_LABELS[decision] ?? decision}
     </span>
   )
@@ -57,7 +57,7 @@ function ResultRow({ result }: { result: FsnResult }) {
               rel="noopener noreferrer"
               className={clsx(
                 'text-sm font-medium hover:underline',
-                isExcluded ? 'text-zinc-500' : 'text-zinc-900 hover:text-blue-600'
+                isExcluded ? 'text-zinc-500' : 'text-zinc-900 hover:text-[#0D9488]'
               )}
             >
               {result.title}
@@ -99,7 +99,7 @@ function ResultRow({ result }: { result: FsnResult }) {
           )}
 
           {isFailed && (
-            <div className="mt-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-2">
+            <div className="mt-1.5 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-3 py-2">
               <p className="text-xs font-medium text-red-700 flex items-center gap-1">
                 <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
@@ -163,7 +163,7 @@ export function RunResults({ results }: { results: FsnResult[] }) {
   return (
     <div>
       {counts.filter_failed > 0 && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-4 py-3 text-sm text-[#DC2626]">
           <strong>{counts.filter_failed} item{counts.filter_failed !== 1 ? 's were' : ' was'} not analyzed by the AI filter</strong> due to API rate limiting during this run.
           These items require manual review.
         </div>
@@ -192,7 +192,7 @@ export function RunResults({ results }: { results: FsnResult[] }) {
       {filtered.length === 0 ? (
         <p className="text-sm text-zinc-400 py-8 text-center">No results in this category.</p>
       ) : (
-        <div className="rounded-xl border border-zinc-200 bg-white">
+        <div className="rounded-md border border-[#E2E8F0] bg-white">
           {filtered.map((r) => <ResultRow key={r.id} result={r} />)}
         </div>
       )}

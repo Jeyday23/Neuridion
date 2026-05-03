@@ -92,11 +92,11 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
 
   if (rows.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-zinc-300 bg-white px-8 py-16 text-center">
+      <div className="rounded-md border border-dashed border-[#E2E8F0] bg-white px-8 py-16 text-center">
         <p className="text-sm font-medium text-zinc-900">No searches yet</p>
         <p className="mt-1 text-sm text-zinc-500">
           Start your first search from the{' '}
-          <a href="/dashboard/search" className="text-blue-600 hover:underline">Search</a>
+          <a href="/dashboard/search" className="text-[#0D9488] hover:underline">Search</a>
           {' '}page to see results here.
         </p>
       </div>
@@ -109,10 +109,10 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
       <div className="flex gap-3 flex-wrap">
         {toast && (
           <div
-            className={`w-full rounded-lg border px-3 py-2 text-sm ${
+            className={`w-full rounded border px-3 py-2 text-sm ${
               toast.type === 'success'
-                ? 'border-green-200 bg-green-50 text-green-700'
-                : 'border-red-200 bg-red-50 text-red-700'
+                ? 'border-[rgba(5,150,105,0.2)] bg-[rgba(5,150,105,0.08)] text-[#059669]'
+                : 'border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] text-[#DC2626]'
             }`}
             role="status"
           >
@@ -122,7 +122,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
         <select
           value={profileFilter}
           onChange={(e) => setProfileFilter(e.target.value)}
-          className="text-sm border border-zinc-200 rounded-lg px-3 py-1.5 bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-sm border border-[#E2E8F0] rounded px-3 py-1.5 bg-white text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
         >
           <option value="all">All profiles</option>
           {profileNames.map((name) => (
@@ -133,7 +133,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="text-sm border border-zinc-200 rounded-lg px-3 py-1.5 bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-sm border border-[#E2E8F0] rounded px-3 py-1.5 bg-white text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
         >
           <option value="all">All statuses</option>
           <option value="complete">Completed</option>
@@ -152,7 +152,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
       {filtered.length === 0 ? (
         <p className="text-sm text-zinc-400 py-6 text-center">No runs match the current filters.</p>
       ) : (
-        <div className="rounded-xl border border-zinc-200 bg-white overflow-x-auto">
+        <div className="rounded-md border border-[#E2E8F0] bg-white overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-zinc-200 bg-zinc-50">

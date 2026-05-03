@@ -118,7 +118,7 @@ export default async function RunDetailPage({
       </div>
 
       {/* Meta card */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-5 mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+      <div className="rounded-md border border-[#E2E8F0] bg-white p-5 mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
         <div>
           <p className="text-xs text-zinc-400 uppercase tracking-wide mb-0.5">Period</p>
           <p className="text-zinc-800">{period}</p>
@@ -129,11 +129,11 @@ export default async function RunDetailPage({
         </div>
         <div>
           <p className="text-xs text-zinc-400 uppercase tracking-wide mb-0.5">Status</p>
-          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${
-            run.status === 'complete'   ? 'bg-green-50 text-green-700 border-green-200' :
+          <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${
+            run.status === 'complete'   ? 'bg-[rgba(5,150,105,0.08)] text-[#059669] border-[rgba(5,150,105,0.2)]' :
             (run.status === 'running' || run.status === 'filtering') ? 'bg-blue-50 text-blue-700 border-blue-200' :
-            run.status === 'error'     ? 'bg-red-50 text-red-700 border-red-200' :
-                                         'bg-zinc-100 text-zinc-600 border-zinc-200'
+            run.status === 'error'     ? 'bg-[rgba(220,38,38,0.06)] text-[#DC2626] border-[rgba(220,38,38,0.2)]' :
+                                         'bg-[#F8FAFC] text-[#6B7280] border-[#E2E8F0]'
           }`}>
             {run.status}
           </span>
@@ -149,7 +149,7 @@ export default async function RunDetailPage({
       </div>
 
       {/* Summary counts */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-5 mb-6">
+      <div className="rounded-md border border-[#E2E8F0] bg-white p-5 mb-6">
         <div className="flex gap-6 flex-wrap text-sm">
           <div className="text-center">
             <p className="text-2xl font-semibold text-zinc-900">{tot}</p>
@@ -177,7 +177,7 @@ export default async function RunDetailPage({
       </div>
 
       {run.status === 'error' && run.error_message && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-4 py-3 text-sm text-[#DC2626]">
           <strong>Error:</strong> {run.error_message}
         </div>
       )}

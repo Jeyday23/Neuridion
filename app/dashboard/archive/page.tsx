@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ArchiveTable } from './archive-table'
 
-export const metadata = { title: 'Archive — Kodex' }
+export const metadata = { title: 'Archive — Neuridion' }
 
 export default async function ArchivePage() {
   // Auth: use server client (cookie-based session) to get the user identity

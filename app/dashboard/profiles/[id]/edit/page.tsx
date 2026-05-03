@@ -67,14 +67,14 @@ export default async function EditProfilePage({
         </p>
       </div>
 
-      <div className="rounded-xl border border-zinc-200 bg-white px-8 py-8 mb-8">
+      <div className="rounded-md border border-[#E2E8F0] bg-white px-8 py-8 mb-8">
         <EditProfileForm profile={profile} />
       </div>
 
       {history.length > 0 && (
         <div>
           <h2 className="text-sm font-semibold text-zinc-700 mb-3">Edit history</h2>
-          <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden">
+          <div className="rounded-md border border-[#E2E8F0] bg-white overflow-hidden">
             {history.map((entry, i) => {
               const fields = Object.keys(entry.changed_fields)
               return (

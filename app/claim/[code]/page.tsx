@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ClaimForm } from './ClaimForm'
 
-export const metadata = { title: 'Claim Your Free Search — Kodex Medical' }
+export const metadata = { title: 'Claim Your Free Search — Neuridion' }
 
 export default async function ClaimPage({
   params,
@@ -64,10 +64,10 @@ export default async function ClaimPage({
   return (
     <ClaimShell>
       <div className="mb-6 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full bg-green-100 border border-green-200 px-4 py-1.5 mb-4">
-          <span className="text-green-700 text-sm font-semibold">1 Free PMS Search</span>
+        <div className="inline-flex items-center gap-2 rounded border border-[rgba(5,150,105,0.2)] bg-[rgba(5,150,105,0.08)] px-4 py-1.5 mb-4">
+          <span className="text-[#059669] text-sm font-medium">1 Free PMS Search</span>
         </div>
-        <h1 className="text-2xl font-bold text-zinc-900 mb-2">Claim your free Kodex search</h1>
+        <h1 className="text-xl font-bold text-[#0F1F3D] mb-2">Claim your free Neuridion search</h1>
         <p className="text-sm text-zinc-500">
           Enter your work email to create your account instantly — no credit card needed.
         </p>
@@ -96,11 +96,11 @@ export default async function ClaimPage({
 
 function ClaimShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex flex-col items-center justify-center px-4 py-12">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center px-4 py-12">
       <div className="mb-8 text-center">
-        <span className="text-2xl font-bold text-zinc-900">Kodex Medical</span>
+        <span className="text-xl font-bold text-[#0F1F3D]">Neuridion</span>
       </div>
-      <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white px-8 py-8 shadow-sm">
+      <div className="w-full max-w-sm rounded-md border border-[#E2E8F0] bg-white px-8 py-8">
         {children}
       </div>
     </div>

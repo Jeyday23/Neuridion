@@ -38,7 +38,7 @@ export function GenerateBatch() {
   }
 
   return (
-    <form onSubmit={submit} className="rounded-xl border border-zinc-200 bg-white p-6 space-y-4">
+    <form onSubmit={submit} className="rounded-md border border-[#E2E8F0] bg-white p-6 space-y-4">
       <h2 className="text-base font-semibold text-zinc-900">Generate new batch</h2>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
@@ -48,7 +48,7 @@ export function GenerateBatch() {
             onChange={(e) => setBatchName(e.target.value)}
             placeholder="DEMA 2026"
             required
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="w-full rounded border border-[#E2E8F0] px-3 py-2 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           />
         </div>
         <div>
@@ -56,7 +56,7 @@ export function GenerateBatch() {
           <select
             value={quantity}
             onChange={(e) => setQuantity(Number(e.target.value))}
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none"
+            className="w-full rounded border border-[#E2E8F0] px-3 py-2 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           >
             {[10, 25, 50, 100].map((n) => (
               <option key={n} value={n}>{n} codes</option>
@@ -71,7 +71,7 @@ export function GenerateBatch() {
             type="date"
             value={expiresAt}
             onChange={(e) => setExpiresAt(e.target.value)}
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 focus:border-blue-500 focus:outline-none"
+            className="w-full rounded border border-[#E2E8F0] px-3 py-2 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           />
         </div>
       </div>
@@ -83,7 +83,7 @@ export function GenerateBatch() {
       <button
         type="submit"
         disabled={loading}
-        className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+        className="rounded bg-[#0D9488] px-5 py-2 text-sm font-medium text-white hover:bg-[#0F766E] transition-colors disabled:opacity-50"
       >
         {loading ? 'Generating…' : 'Generate codes'}
       </button>

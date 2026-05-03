@@ -90,7 +90,7 @@ export default async function AdminOverviewPage() {
         {cards.map((card) => (
           <div
             key={card.label}
-            className="rounded-xl border border-zinc-200 bg-white px-6 py-5 shadow-sm"
+            className="rounded-md border border-[#E2E8F0] bg-white px-6 py-5"
           >
             <p className="text-sm text-zinc-500">{card.label}</p>
             <p className="mt-1 text-3xl font-bold text-zinc-900">{card.value}</p>

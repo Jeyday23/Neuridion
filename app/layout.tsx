@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kodex — Automated PMS Recall Search for EU MDR",
-  description: "Kodex automates mandatory recall database searches for medical device manufacturers under EU MDR Article 83. Run BfArM, FDA, and MHRA searches in minutes, not hours.",
+  title: "Neuridion — Automated PMS Recall Search for EU MDR",
+  description: "Neuridion automates mandatory recall database searches for medical device manufacturers under EU MDR Article 83. Run BfArM, FDA, and MHRA searches in minutes, not hours.",
 };
 
 export default function RootLayout({

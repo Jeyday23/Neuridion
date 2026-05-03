@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { ProfileForm } from './profile-form'
 
-export const metadata = { title: 'New profile — Kodex' }
+export const metadata = { title: 'New profile — Neuridion' }
 
 export default function NewProfilePage() {
   return (
@@ -19,7 +19,7 @@ export default function NewProfilePage() {
         </p>
       </div>
 
-      <div className="rounded-xl border border-zinc-200 bg-white px-8 py-8">
+      <div className="rounded-md border border-[#E2E8F0] bg-white px-8 py-8">
         <ProfileForm />
       </div>
     </div>

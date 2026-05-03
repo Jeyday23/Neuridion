@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-export const metadata = { title: 'Data Processing Agreement — Kodex Medical' }
+export const metadata = { title: 'Data Processing Agreement — Neuridion' }
 
 export default function DpaPage() {
   return (
@@ -19,17 +19,17 @@ export default function DpaPage() {
 
         <div className="space-y-8 text-zinc-700 text-sm leading-relaxed">
 
-          <section className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <h2 className="text-base font-semibold text-blue-900 mb-2">Do you need a DPA?</h2>
-            <p className="text-blue-800">
-              If your organisation processes personal data using Kodex Medical and is itself a data
+          <section className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-md p-6">
+            <h2 className="text-base font-semibold text-[#0F1F3D] mb-2">Do you need a DPA?</h2>
+            <p className="text-[#374151]">
+              If your organisation processes personal data using Neuridion and is itself a data
               controller (e.g. a medical device manufacturer processing patient-related search terms),
               a Data Processing Agreement is required under Art. 28 GDPR.
             </p>
-            <p className="mt-2 text-blue-800">
+            <p className="mt-2 text-[#374151]">
               Contact us to sign a DPA:{' '}
-              <a href="mailto:legal@kodex-medical.com" className="underline">
-                legal@kodex-medical.com
+              <a href="mailto:info@neuridion.eu" className="underline text-[#0D9488]">
+                info@neuridion.eu
               </a>
             </p>
           </section>
@@ -85,8 +85,8 @@ export default function DpaPage() {
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">Request a DPA</h2>
             <p>
               To receive a draft DPA for countersignature, email{' '}
-              <a href="mailto:legal@kodex-medical.com" className="text-blue-600 hover:underline">
-                legal@kodex-medical.com
+              <a href="mailto:info@neuridion.eu" className="text-[#0D9488] hover:underline">
+                info@neuridion.eu
               </a>{' '}
               with the subject line &quot;DPA Request&quot; and your company details. We aim to respond
               within 5 business days.
@@ -96,9 +96,9 @@ export default function DpaPage() {
         </div>
 
         <div className="mt-10 pt-8 border-t border-zinc-200 flex gap-4 text-sm">
-          <Link href="/"        className="text-blue-600 hover:underline">← Home</Link>
-          <Link href="/privacy" className="text-blue-600 hover:underline">Privacy</Link>
-          <Link href="/terms"   className="text-blue-600 hover:underline">Terms</Link>
+          <Link href="/"        className="text-[#0D9488] hover:underline">← Home</Link>
+          <Link href="/privacy" className="text-[#0D9488] hover:underline">Privacy</Link>
+          <Link href="/terms"   className="text-[#0D9488] hover:underline">Terms</Link>
         </div>
       </div>
     </div>

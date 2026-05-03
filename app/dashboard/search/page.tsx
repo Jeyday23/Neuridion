@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { SearchPanel } from './search-panel'
 
-export const metadata = { title: 'Search — Kodex' }
+export const metadata = { title: 'Search — Neuridion' }
 
 export default async function SearchPage() {
   const supabase = await createClient()
