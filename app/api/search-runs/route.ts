@@ -2,7 +2,7 @@ import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeBfarm, type ScrapedFsn, type ScraperResult, type ScraperParams } from '@/lib/scrapers/bfarm'
-import { buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
+import { buildManufacturerSearchTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 import { scrapeMhra }       from '@/lib/scrapers/mhra'
 import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
 import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
@@ -399,15 +399,31 @@ export async function POST(request: Request) {
       }
     }
 
-    // FIX 2: Manufacturer pre-filter — drop clear mismatches before any AI call
+    // FIX 2: Manufacturer + device pre-filter — AND logic when device terms exist
+    // Split filterSearchTerms into manufacturer tokens and device-name tokens so
+    // a row must match BOTH to pass, preventing "medtronic" alone from passing all FDA rows.
+    const manufacturerTerms = extractManufacturerTerms(profile.manufacturer ?? '')
+    const deviceTerms       = filterSearchTerms.filter(t => !manufacturerTerms.includes(t))
+
     let toFilter = needsFilter
     if (filterSearchTerms.length > 0) {
       const mfrMatched:  typeof insertedRows = []
       const mfrExcluded: typeof insertedRows = []
 
       for (const row of needsFilter) {
-        const hay     = `${row.title} ${row.manufacturer}`.toLowerCase()
-        const matches = filterSearchTerms.some(t => hay.includes(t.toLowerCase()))
+        const hay = `${row.title} ${row.manufacturer} ${row.raw_content}`.toLowerCase()
+
+        let matches: boolean
+        if (deviceTerms.length === 0) {
+          // No device terms extracted — fall back to OR: any manufacturer term matches
+          matches = manufacturerTerms.some(t => hay.includes(t.toLowerCase()))
+        } else {
+          // AND: must match at least one manufacturer term AND at least one device term
+          const mfrMatch = manufacturerTerms.length === 0 || manufacturerTerms.some(t => hay.includes(t.toLowerCase()))
+          const devMatch = deviceTerms.some(t => hay.includes(t.toLowerCase()))
+          matches = mfrMatch && devMatch
+        }
+
         if (matches) {
           mfrMatched.push(row)
         } else {
@@ -422,7 +438,7 @@ export async function POST(request: Request) {
         }
       }
 
-      console.log(`[filter] manufacturer pre-filter: ${mfrMatched.length} relevant, ${mfrExcluded.length} excluded`)
+      console.log(`[filter] manufacturer pre-filter: ${mfrMatched.length} relevant, ${mfrExcluded.length} excluded (device+mfr match required)`)
       toFilter = mfrMatched
     }
 
