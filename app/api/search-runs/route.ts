@@ -219,12 +219,25 @@ export async function POST(request: Request) {
 
         // Fetch covered ranges from canonical DB (no source request needed)
         const coveredRangesInWindow = covered.filter(c => c.to >= period_from! && c.from <= (overlapFrom > period_from! ? prevDay(overlapFrom) : period_from!))
+        const mfrTerms = extractManufacturerTerms(profile?.manufacturer ?? '')
+        const devTerms = searchTerms.filter(t => !mfrTerms.includes(t))
         for (const range of coveredRangesInWindow) {
           const canonicalFrom = range.from < period_from! ? period_from! : range.from
           const canonicalTo   = range.to   > period_to!   ? period_to!   : range.to
           const cached = await getCanonicalItems(sourceId, canonicalFrom, canonicalTo)
-          console.log(`[search] ${sourceId}: served ${cached.length} items from canonical (${canonicalFrom} → ${canonicalTo})`)
-          items.push(...cached)
+          // Apply the same manufacturer+device AND pre-filter here so canonical rows
+          // that don't match the profile never enter fsn_results or the AI filter.
+          const filtered = searchTerms.length === 0 ? cached : cached.filter(item => {
+            const hay = `${item.title} ${item.manufacturer ?? ''} ${item.raw_content ?? ''}`.toLowerCase()
+            if (devTerms.length === 0) {
+              return mfrTerms.some(t => hay.includes(t.toLowerCase()))
+            }
+            const mfrMatch = mfrTerms.length === 0 || mfrTerms.some(t => hay.includes(t.toLowerCase()))
+            const devMatch = devTerms.some(t => hay.includes(t.toLowerCase()))
+            return mfrMatch && devMatch
+          })
+          console.log(`[search] ${sourceId}: served ${filtered.length}/${cached.length} items from canonical (${canonicalFrom} → ${canonicalTo}) after pre-filter`)
+          items.push(...filtered)
         }
       }
 
@@ -552,7 +565,7 @@ export async function POST(request: Request) {
 
     await db
       .from('search_runs')
-      .update({ status: 'error', error_message: errMsg })
+      .update({ status: 'error', error: errMsg })
       .eq('id', run.id)
 
     return Response.json({ error: errMsg, run_id: run.id }, { status: 500 })
