@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { scrapeBfarm, type ScrapedFsn, type ScraperResult, type ScraperParams } from '@/lib/scrapers/bfarm'
@@ -5,7 +6,7 @@ import { buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
 import { scrapeMhra }       from '@/lib/scrapers/mhra'
 import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
 import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
-import { stage1Filter } from '@/lib/claude/filter-pipeline'
+import { stage1Filter, getProfileFingerprint, type FilterDecision } from '@/lib/claude/filter-pipeline'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { sendSearchRunNotification } from '@/lib/email'
 import { logAuditEvent } from '@/lib/audit'
@@ -341,19 +342,103 @@ export async function POST(request: Request) {
     }
 
     console.log('[search] Running AI filter on', insertedRows.length, 'rows')
-    // Step 3: Run AI filter sequentially with GC pauses every 25 items
-    const decisions: (Awaited<ReturnType<typeof stage1Filter>> & { fsn_result_id: string })[] = []
-    for (let i = 0; i < insertedRows.length; i++) {
-      const row = insertedRows[i]
-      const skipCache = allContentChanged.has(row.external_id ?? '')
+    // Step 3: Batch cache pre-check → manufacturer pre-filter → AI filter
+    const decisions: (FilterDecision & { fsn_result_id: string })[] = []
+
+    // Mirrors getFsnExternalId in filter-pipeline.ts (not exported)
+    const fsnIdOf = (title: string) =>
+      createHash('sha256').update(title.toLowerCase().trim()).digest('hex').slice(0, 32)
+
+    const filterSearchTerms = buildManufacturerSearchTerms(profile.manufacturer ?? '', profile.device_name ?? '')
+    const profileFingerprint = getProfileFingerprint(profile)
+
+    // FIX 1: Single bulk cache lookup — replaces one DB round-trip per row
+    let needsFilter = insertedRows
+
+    if (insertedRows.length > 0) {
+      const { data: cacheHits } = await db
+        .from('filter_decision_cache')
+        .select('fsn_external_id, decision, rationale, confidence, model_used')
+        .in('fsn_external_id', insertedRows.map(r => fsnIdOf(r.title)))
+        .eq('profile_fingerprint', profileFingerprint)
+
+      const cacheMap = new Map<string, {
+        decision:   string
+        rationale:  string | null
+        confidence: number | null
+        model_used: string | null
+      }>()
+      for (const hit of cacheHits ?? []) {
+        cacheMap.set(hit.fsn_external_id, hit)
+      }
+
+      const alreadyCached: typeof insertedRows = []
+      needsFilter = []
+
+      for (const row of insertedRows) {
+        const skipCache = allContentChanged.has(row.external_id ?? '')
+        if (!skipCache && cacheMap.has(fsnIdOf(row.title))) {
+          alreadyCached.push(row)
+        } else {
+          needsFilter.push(row)
+        }
+      }
+
+      console.log(`[filter] cache hits: ${alreadyCached.length} / ${insertedRows.length} rows skipped`)
+
+      // Reconstruct decisions from cache (confidence stored as 0-100 integer in DB)
+      for (const row of alreadyCached) {
+        const hit = cacheMap.get(fsnIdOf(row.title))!
+        decisions.push({
+          fsn_result_id: row.id,
+          decision:      hit.decision as FilterDecision['decision'],
+          rationale:     hit.rationale ?? '',
+          confidence:    hit.confidence != null ? hit.confidence / 100 : null,
+          model:         hit.model_used ?? null,
+        })
+      }
+    }
+
+    // FIX 2: Manufacturer pre-filter — drop clear mismatches before any AI call
+    let toFilter = needsFilter
+    if (filterSearchTerms.length > 0) {
+      const mfrMatched:  typeof insertedRows = []
+      const mfrExcluded: typeof insertedRows = []
+
+      for (const row of needsFilter) {
+        const hay     = `${row.title} ${row.manufacturer}`.toLowerCase()
+        const matches = filterSearchTerms.some(t => hay.includes(t.toLowerCase()))
+        if (matches) {
+          mfrMatched.push(row)
+        } else {
+          mfrExcluded.push(row)
+          decisions.push({
+            fsn_result_id: row.id,
+            decision:      'excluded',
+            rationale:     'Manufacturer mismatch — not relevant to profile.',
+            confidence:    0.95,
+            model:         null,
+          })
+        }
+      }
+
+      console.log(`[filter] manufacturer pre-filter: ${mfrMatched.length} relevant, ${mfrExcluded.length} excluded`)
+      toFilter = mfrMatched
+    }
+
+    console.log(`[filter] sending ${toFilter.length} rows to AI`)
+
+    // AI filter — cache already resolved above, skip redundant per-row lookup
+    for (let i = 0; i < toFilter.length; i++) {
+      const row = toFilter[i]
       const d = await stage1Filter(
         { title: row.title, manufacturer: row.manufacturer, raw_content: row.raw_content, fsn_date: row.fsn_date },
         profile,
-        { skipCache },
+        { skipCache: true },
       )
       decisions.push({ ...d, fsn_result_id: row.id })
       if ((i + 1) % 25 === 0) {
-        console.log(`[filter] Progress: ${i + 1}/${insertedRows.length} (${Math.round((i + 1) / insertedRows.length * 100)}%)`)
+        console.log(`[filter] Progress: ${i + 1}/${toFilter.length} (${Math.round((i + 1) / toFilter.length * 100)}%)`)
         await new Promise(r => setTimeout(r, 200))
       }
     }
