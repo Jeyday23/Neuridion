@@ -476,20 +476,19 @@ export async function POST(request: Request) {
     if (runStatus === 'degraded') {
       console.warn(`[search] Run ${run.id} marked degraded: ${allWarnings.join(' | ')}`)
     }
-    await db
+    const { error: updateError } = await db
       .from('search_runs')
       .update({
         status:               runStatus,
-        error_message:        allWarnings.length > 0 ? allWarnings.join('\n') : null,
+        error:                allWarnings.length > 0 ? allWarnings.join('\n') : null,
         completed_at:         new Date().toISOString(),
-        total_results:        items.length,
         relevant_count:       counts.relevant,
         uncertain_count:      counts.uncertain,
         excluded_count:       counts.excluded,
         filter_failed_count:  counts.filter_failed,
-        dbs_searched:         [...searchedSources],
       })
       .eq('id', run.id)
+    if (updateError) console.error('[search] Final update failed:', updateError.message)
 
     // Step 7: Audit log
     await logAuditEvent(user.id, 'search_run', {
