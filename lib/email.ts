@@ -55,7 +55,7 @@ export async function sendSearchRunNotification(
   summary: SearchRunSummary,
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY
-  const from = process.env.RESEND_FROM_ADDRESS ?? 'Kodex <noreply@kodex.io>'
+  const from = process.env.RESEND_FROM_ADDRESS ?? 'Neuridion <noreply@neuridion.eu>'
 
   if (!apiKey) {
     throw new Error('RESEND_API_KEY is not set')
@@ -67,8 +67,8 @@ export async function sendSearchRunNotification(
   const total = summary.relevantCount + summary.uncertainCount + summary.excludedCount
   const actionable = summary.relevantCount + summary.uncertainCount
   const subject = actionable > 0
-    ? `[Kodex] ${actionable} notice${actionable !== 1 ? 's' : ''} require attention — ${summary.deviceName}`
-    : `[Kodex] Search complete — ${summary.deviceName}`
+    ? `[Neuridion] ${actionable} notice${actionable !== 1 ? 's' : ''} require attention — ${summary.deviceName}`
+    : `[Neuridion] Search complete — ${summary.deviceName}`
 
   const lines: string[] = [
     `Your recall search for <strong>${summary.deviceName}</strong> (${summary.manufacturer}) has completed.`,
@@ -93,11 +93,11 @@ export async function sendSearchRunNotification(
 <html>
 <head><meta charset="utf-8"></head>
 <body style="font-family:system-ui,sans-serif;font-size:14px;color:#18181b;max-width:480px;margin:0 auto;padding:32px 16px">
-  <p style="margin:0 0 4px 0;font-size:18px;font-weight:700;color:#18181b">Kodex</p>
-  <hr style="border:none;border-top:1px solid #e4e4e7;margin:12px 0 20px">
+  <p style="margin:0 0 4px 0;font-size:18px;font-weight:700;color:#0F1F3D">Neuridion</p>
+  <hr style="border:none;border-top:1px solid #E2E8F0;margin:12px 0 20px">
   ${lines.map((l) => l === '' ? '<br>' : `<p style="margin:4px 0">${l}</p>`).join('\n  ')}
   <hr style="border:none;border-top:1px solid #e4e4e7;margin:24px 0 16px">
-  <p style="margin:0;font-size:12px;color:#a1a1aa">You are receiving this because email notifications are enabled on your Kodex account.</p>
+  <p style="margin:0;font-size:12px;color:#6B7280">You are receiving this because email notifications are enabled on your Neuridion account.</p>
 </body>
 </html>`
 
