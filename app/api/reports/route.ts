@@ -123,29 +123,29 @@ async function buildExcel(
 
     // Freeze header
     ws.views = [{ state: 'frozen', ySplit: 1 }]
+  }
 
-    // Summary sheet
-    const sumWs = wb.addWorksheet('Summary')
-    sumWs.columns = [{ width: 30 }, { width: 40 }]
-    const addMeta = (label: string, value: string) => {
-      const r = sumWs.addRow([label, value])
-      r.getCell(1).font = { bold: true }
-    }
-    sumWs.addRow(['POST-MARKET SURVEILLANCE', 'Field Safety Notice Review']).font = { bold: true, size: 13 }
-    sumWs.addRow([])
-    addMeta('Device', meta.device)
-    addMeta('Manufacturer', meta.manufacturer)
-    addMeta('Review period', `${meta.period_from} to ${meta.period_to}`)
-    addMeta('Report generated', fmtDate(new Date().toISOString()))
-    sumWs.addRow([])
-    addMeta('Total notices reviewed', String(rows.length))
-    addMeta('Potentially relevant', String(rows.filter((r) => r.filter_decision?.decision === 'relevant').length))
-    addMeta('Requires further review', String(rows.filter((r) => r.filter_decision?.decision === 'uncertain').length))
-    addMeta('Not relevant', String(rows.filter((r) => r.filter_decision?.decision === 'excluded').length))
-    const failedCount = rows.filter((r) => r.filter_decision?.decision === 'filter_failed').length
-    if (failedCount > 0) {
-      addMeta('AI filter unavailable (manual review required)', String(failedCount))
-    }
+  // Summary sheet — created once after all source sheets
+  const sumWs = wb.addWorksheet('Summary')
+  sumWs.columns = [{ width: 30 }, { width: 40 }]
+  const addMeta = (label: string, value: string) => {
+    const r = sumWs.addRow([label, value])
+    r.getCell(1).font = { bold: true }
+  }
+  sumWs.addRow(['POST-MARKET SURVEILLANCE', 'Field Safety Notice Review']).font = { bold: true, size: 13 }
+  sumWs.addRow([])
+  addMeta('Device', meta.device)
+  addMeta('Manufacturer', meta.manufacturer)
+  addMeta('Review period', `${meta.period_from} to ${meta.period_to}`)
+  addMeta('Report generated', fmtDate(new Date().toISOString()))
+  sumWs.addRow([])
+  addMeta('Total notices reviewed', String(rows.length))
+  addMeta('Potentially relevant', String(rows.filter((r) => r.filter_decision?.decision === 'relevant').length))
+  addMeta('Requires further review', String(rows.filter((r) => r.filter_decision?.decision === 'uncertain').length))
+  addMeta('Not relevant', String(rows.filter((r) => r.filter_decision?.decision === 'excluded').length))
+  const failedCount = rows.filter((r) => r.filter_decision?.decision === 'filter_failed').length
+  if (failedCount > 0) {
+    addMeta('AI filter unavailable (manual review required)', String(failedCount))
   }
 
   const buf = await wb.xlsx.writeBuffer()
