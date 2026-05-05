@@ -96,8 +96,8 @@ Now assess the following FSN using the record_decision tool.`.trim()
 
 const FilterDecisionSchema = z.object({
   decision:   z.enum(['relevant', 'uncertain', 'excluded']),
-  rationale:  z.string(),
-  confidence: z.number().min(0).max(1),
+  rationale:  z.string().optional().default(''),
+  confidence: z.number().min(0).max(1).optional().default(0.5),
 })
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -315,7 +315,7 @@ async function sonnetFullFilter(
   return {
     decision:   parsed.decision,
     rationale:  parsed.rationale,
-    confidence: Math.max(0, Math.min(1, parsed.confidence)),
+    confidence: Math.max(0, Math.min(1, parsed.confidence ?? 0.5)),
     model:      SONNET_MODEL,
   }
 }
