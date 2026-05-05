@@ -498,16 +498,28 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           selected_dbs: [...selectedDbs],
         }),
       })
+
+      if (!res.ok) {
+        // 524/504 = Cloudflare/proxy timeout — body is HTML, not JSON
+        if (res.status === 524 || res.status === 504 || res.status === 408) {
+          setState({ phase: 'error', message: 'The search timed out. Try a shorter date range or fewer databases.' })
+          return
+        }
+        let errMsg = `Search failed (HTTP ${res.status}).`
+        try {
+          const errData = await res.json() as { error?: string }
+          if (errData.error) errMsg = errData.error
+        } catch { /* body may not be JSON */ }
+        setState({ phase: 'error', message: errMsg })
+        return
+      }
+
       const data = await res.json() as {
         run_id?:  string
         status?:  string
         results?: FsnResult[]
         counts?:  { relevant: number; uncertain: number; excluded: number }
         error?:   string
-      }
-      if (!res.ok) {
-        setState({ phase: 'error', message: data.error ?? 'Search failed.' })
-        return
       }
       setState({
         phase:    'done',
@@ -517,7 +529,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         startedAt,
       })
     } catch (err) {
-      setState({ phase: 'error', message: String(err) })
+      setState({ phase: 'error', message: err instanceof TypeError ? 'Network error — check your connection and try again.' : String(err) })
     }
   }
 
