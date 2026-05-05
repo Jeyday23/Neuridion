@@ -416,7 +416,74 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     }
 
     const supabase = createClient()
-    const channel  = supabase
+    let completionHandled = false
+    let queuedTimer: ReturnType<typeof setTimeout> | undefined
+    // Object ref so handleUpdate can call unsubscribe before channel is assigned
+    const channelRef: { current: ReturnType<typeof supabase.channel> | null } = { current: null }
+
+    type RunRow = {
+      status:          string
+      progress:        { current_source: string | null; sources_done: string[]; sources_total: string[]; items_found: number } | null
+      relevant_count:  number
+      uncertain_count: number
+      excluded_count:  number
+      error:           string | null
+    }
+
+    async function handleUpdate(row: RunRow): Promise<void> {
+      if (row.status === 'running') {
+        setState({ phase: 'running', runId, startedAt, progress: row.progress ?? null })
+        return
+      }
+
+      if (row.status === 'complete' || row.status === 'degraded') {
+        if (completionHandled) return
+        completionHandled = true
+        channelRef.current?.unsubscribe()
+        clearTimeout(queuedTimer)
+        try {
+          const detailRes = await fetch(`/api/search-runs/${runId}`)
+          const detail    = await detailRes.json() as { results?: FsnResult[]; error?: string }
+          if (!detailRes.ok) {
+            setState({ phase: 'error', message: detail.error ?? 'Failed to load results.' })
+            return
+          }
+          setState({
+            phase:    'done',
+            runId,
+            results:  detail.results ?? [],
+            counts:   {
+              relevant:  row.relevant_count  ?? 0,
+              uncertain: row.uncertain_count ?? 0,
+              excluded:  row.excluded_count  ?? 0,
+            },
+            startedAt,
+          })
+        } catch (err) {
+          setState({ phase: 'error', message: String(err) })
+        }
+        return
+      }
+
+      if (row.status === 'error' || row.status === 'failed') {
+        if (completionHandled) return
+        completionHandled = true
+        channelRef.current?.unsubscribe()
+        clearTimeout(queuedTimer)
+        setState({ phase: 'error', message: row.error ?? 'Search run failed.' })
+      }
+    }
+
+    async function pollCurrentState(): Promise<void> {
+      const { data } = await supabase
+        .from('search_runs')
+        .select('status, progress, relevant_count, uncertain_count, excluded_count, error')
+        .eq('id', runId)
+        .single()
+      if (data) await handleUpdate(data as RunRow)
+    }
+
+    channelRef.current = supabase
       .channel(`run:${runId}`)
       .on(
         'postgres_changes',
@@ -427,58 +494,23 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           filter: `id=eq.${runId}`,
         },
         async (payload) => {
-          const row = payload.new as {
-            status:          string
-            progress:        { current_source: string | null; sources_done: string[]; sources_total: string[]; items_found: number } | null
-            relevant_count:  number
-            uncertain_count: number
-            excluded_count:  number
-            error:           string | null
-          }
-
-          if (row.status === 'running') {
-            setState({
-              phase:    'running',
-              runId,
-              startedAt,
-              progress: row.progress ?? null,
-            })
-            return
-          }
-
-          if (row.status === 'complete' || row.status === 'degraded') {
-            channel.unsubscribe()
-            try {
-              const detailRes = await fetch(`/api/search-runs/${runId}`)
-              const detail    = await detailRes.json() as { results?: FsnResult[]; error?: string }
-              if (!detailRes.ok) {
-                setState({ phase: 'error', message: detail.error ?? 'Failed to load results.' })
-                return
-              }
-              setState({
-                phase:     'done',
-                runId,
-                results:   detail.results ?? [],
-                counts:    {
-                  relevant:  row.relevant_count  ?? 0,
-                  uncertain: row.uncertain_count ?? 0,
-                  excluded:  row.excluded_count  ?? 0,
-                },
-                startedAt,
-              })
-            } catch (err) {
-              setState({ phase: 'error', message: String(err) })
-            }
-            return
-          }
-
-          if (row.status === 'error' || row.status === 'failed') {
-            channel.unsubscribe()
-            setState({ phase: 'error', message: row.error ?? 'Search run failed.' })
-          }
+          await handleUpdate(payload.new as RunRow)
         },
       )
-      .subscribe()
+      .subscribe(async (subStatus) => {
+        if (subStatus === 'SUBSCRIBED') {
+          // Catch any updates that fired before the subscription was active
+          await pollCurrentState()
+        } else if (subStatus === 'CHANNEL_ERROR' || subStatus === 'TIMED_OUT') {
+          if (!completionHandled) {
+            completionHandled = true
+            setState({ phase: 'error', message: 'Connection to progress feed lost. Please refresh the page.' })
+          }
+        }
+      })
+
+    // 30-second safety-net: if still queued after this delay, poll current state directly
+    queuedTimer = setTimeout(pollCurrentState, 30_000)
   }
 
   const noProfiles = profiles.length === 0
