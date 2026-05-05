@@ -9,6 +9,89 @@ import { createAdminClient } from '@/lib/supabase/admin'
 const HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 const SONNET_MODEL = 'claude-sonnet-4-6'
 
+// ── Module-level singleton — avoids re-initialising HTTP client per call ──────
+
+const anthropic = new Anthropic()
+
+// ── System prompt ─────────────────────────────────────────────────────────────
+// Target: ~1,200 tokens so the cache_control breakpoint clears the 1,024-token
+// minimum required for claude-sonnet-4-6 prompt caching.
+// Includes regulatory context, decision criteria, confidence rubric,
+// edge-case rules, and the three few-shot examples.
+
+const SYSTEM_PROMPT = `You are a medical device post-market surveillance (PMS) specialist. Your role is to assess whether a Field Safety Notice (FSN) or Field Safety Corrective Action (FSCA) is relevant to a specific product profile, in accordance with EU MDR 2017/745 and IVDR 2017/746.
+
+REGULATORY CONTEXT
+
+EU MDR 2017/745 Article 83 requires manufacturers to operate a post-market surveillance system proportionate to device risk class. Article 84 mandates a documented PMS plan. Article 85 (Class I) and Article 86 (Class IIa, IIb, III) require periodic reporting via Post-Market Surveillance Reports (PMSR) or Periodic Safety Update Reports (PSUR). FSNs published by other manufacturers are primary evidence for trend identification, proactive risk assessment, and PSUR updates — particularly where the FSN concerns a device with shared technology, clinical indication, or failure mode.
+
+Article 87 defines reportable serious incidents. Article 88 defines Field Safety Corrective Actions. A manufacturer's PMS obligation extends to devices that are substantially equivalent in design, materials, intended purpose, or technology — not only to their own exact product line.
+
+DECISION CRITERIA
+
+"relevant" — The FSN concerns any of the following:
+- The same device or a substantially equivalent device (same manufacturer, overlapping intended purpose, same core technology)
+- A component, consumable, or accessory integral to the device's function in normal clinical use
+- A device using the same primary mechanism of action (same energy source, same sensor principle, same drug-delivery pathway)
+- A rebranded, OEM-supplied, or white-label version of the profiled device
+- A device in the same EMDN/GMDN category where the failure mode is technology-generic
+
+"uncertain" — The FSN concerns any of the following:
+- A device in the same broad clinical domain but different technology class or intended purpose
+- An accessory or peripheral with independent market distribution whose compatibility with the profiled device is plausible but unconfirmed
+- A partially overlapping manufacturer name (subsidiary, acquired brand, OEM relationship possible but not confirmed)
+- Insufficient FSN content to determine product overlap with confidence
+- Same EMDN code, different intended purpose or patient population
+
+"excluded" — The FSN concerns any of the following:
+- A device with a completely different clinical domain, technology, or intended purpose
+- A different manufacturer with no plausible technology, OEM, or subsidiary relationship
+- A software-only device when the profile is hardware (or vice versa) with no combination-product relationship
+- An IVD device when the profile is a therapeutic or surgical device, unless they form a combination product
+
+CONFIDENCE SCORING
+
+0.90–1.00  Clear manufacturer + product-name match; or same EMDN code + same mechanism of action
+0.70–0.89  Same manufacturer, different product line; or same technology, different manufacturer
+0.50–0.69  Same clinical domain, ambiguous technology overlap
+0.30–0.49  Peripheral or accessory relationship — plausible but unconfirmed
+0.10–0.29  Very weak signal; classify as uncertain with explicit reasoning
+
+EDGE CASES
+
+OEM / rebranded devices: If the FSN manufacturer is a known OEM supplier to the profiled device's manufacturer, classify as relevant even when product names differ.
+
+Combination products: A drug-device combination FSN is relevant to the device component when that component matches the profiled device.
+
+Accessories and consumables: Integral accessories (electrode pads, pump tubing, infusion sets) are relevant. Optional accessories with standalone market distribution require uncertain unless the FSN describes a failure mode that propagates to the primary device.
+
+Platform devices: An FSN for a software module or algorithm that executes on a platform device is relevant to that platform.
+
+EXAMPLES
+
+EXAMPLE 1 — CLEARLY RELEVANT
+Profile: MAGNETOM MRI Scanner, Siemens Healthineers (Class IIb)
+FSN Title: "Urgent Safety Notice: MAGNETOM gradient coil overheating"
+FSN Manufacturer: Siemens Healthineers
+Decision: relevant
+Rationale: Direct manufacturer and product-name match on primary device. The gradient coil is an integral part of the MAGNETOM system and this FSN has immediate PMS relevance.
+
+EXAMPLE 2 — CLEARLY EXCLUDED
+Profile: MAGNETOM MRI Scanner, Siemens Healthineers (Class IIb)
+FSN Title: "Urgent Safety Notice: CGM CLINICAL insulin dosing app — incorrect dose calculation"
+FSN Manufacturer: Roche Diagnostics
+Decision: excluded
+Rationale: Completely different device class (IVD software vs. imaging hardware) and entirely different clinical domain (diabetes management vs. diagnostic imaging). No plausible PMS overlap.
+
+EXAMPLE 3 — UNCERTAIN (ADJACENT DEVICE)
+Profile: MAGNETOM MRI Scanner, Siemens Healthineers (Class IIb)
+FSN Title: "Resoundant Acoustic Driver System — vibration amplitude variance"
+FSN Manufacturer: Resoundant Inc.
+Decision: uncertain
+Rationale: MRE acoustic driver hardware is routinely paired with MAGNETOM scanners in clinical MR elastography workflows. Different manufacturer, but this is a peripheral accessory to the device. Requires human review to determine PMS obligation.
+
+Now assess the following FSN using the record_decision tool.`.trim()
+
 // ── Schemas ───────────────────────────────────────────────────────────────────
 
 const FilterDecisionSchema = z.object({
@@ -41,34 +124,6 @@ export interface FsnContext {
   raw_content:  string
   fsn_date:     string | null
 }
-
-// ── Few-shot examples for Stage 2 (Sonnet) ───────────────────────────────────
-
-const FEW_SHOT_EXAMPLES = `
-EXAMPLE 1 — CLEARLY RELEVANT
-Profile: MAGNETOM MRI Scanner, Siemens Healthineers (Class IIb)
-FSN Title: "Urgent Safety Notice: MAGNETOM gradient coil overheating"
-FSN Manufacturer: Siemens Healthineers
-Decision: relevant
-Rationale: Direct manufacturer and product-name match on primary device. The gradient coil is an integral part of the MAGNETOM system and this FSN has immediate PMS relevance.
-
-EXAMPLE 2 — CLEARLY EXCLUDED
-Profile: MAGNETOM MRI Scanner, Siemens Healthineers (Class IIb)
-FSN Title: "Urgent Safety Notice: CGM CLINICAL insulin dosing app — incorrect dose calculation"
-FSN Manufacturer: Roche Diagnostics
-Decision: excluded
-Rationale: Completely different device class (IVD software vs. imaging hardware) and entirely different clinical domain (diabetes management vs. diagnostic imaging). No plausible PMS overlap.
-
-EXAMPLE 3 — UNCERTAIN (ADJACENT DEVICE)
-Profile: MAGNETOM MRI Scanner, Siemens Healthineers (Class IIb)
-FSN Title: "Resoundant Acoustic Driver System — vibration amplitude variance"
-FSN Manufacturer: Resoundant Inc.
-Decision: uncertain
-Rationale: MRE acoustic driver hardware is routinely paired with MAGNETOM scanners in clinical MR elastography workflows. Different manufacturer, but this is a peripheral accessory to the device. Requires human review to determine PMS obligation.
-
----
-Now assess the following FSN:
-`.trim()
 
 // ── Cache helpers ─────────────────────────────────────────────────────────────
 
@@ -149,8 +204,7 @@ async function haikuPreFilter(
   profile: ProfileContext,
 ): Promise<'CLEAR_EXCLUDE' | 'UNCERTAIN'> {
   const result = await callHaikuWithRetry(async () => {
-    const client = new Anthropic()
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model:      HAIKU_MODEL,
       max_tokens: 16,
       system:
@@ -202,18 +256,16 @@ async function sonnetFullFilter(
   const content = fsn.raw_content.slice(0, 2000)
 
   const parsed = await callAnthropicWithRetry(async () => {
-    const client = new Anthropic()
-    const response = await client.messages.create({
+    const response = await anthropic.messages.create({
       model:      SONNET_MODEL,
       max_tokens: 512,
-      system: `You are a medical device post-market surveillance (PMS) specialist assessing whether a Field Safety Notice (FSN) or recall notice is relevant to a specific product profile.
-
-Decision criteria:
-- "relevant"  — The FSN clearly concerns the same device type, manufacturer, technology, or a substantially similar device that could affect PMS obligations.
-- "uncertain" — Ambiguous: similar device category, overlapping indications, or insufficient information to decide confidently.
-- "excluded"  — The FSN clearly concerns an unrelated product or manufacturer with no plausible PMS relevance.
-
-Confidence is a float 0.0–1.0 reflecting how sure you are of the decision.`,
+      system: [
+        {
+          type:          'text',
+          text:          SYSTEM_PROMPT,
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
       tools: [
         {
           name:        'record_decision',
@@ -233,14 +285,22 @@ Confidence is a float 0.0–1.0 reflecting how sure you are of the decision.`,
       messages: [
         {
           role: 'user',
-          content:
-            `${FEW_SHOT_EXAMPLES}\n\n` +
-            `Product Profile:\n${profileLines}\n\n` +
-            `FSN Notice:\n` +
-            `Title: ${fsn.title}\n` +
-            `Manufacturer: ${fsn.manufacturer || 'Unknown'}\n` +
-            `Date: ${fsn.fsn_date || 'Unknown'}\n` +
-            `Content: ${content}`,
+          content: [
+            {
+              type:          'text',
+              text:          `Product Profile:\n${profileLines}`,
+              cache_control: { type: 'ephemeral' },
+            },
+            {
+              type: 'text',
+              text:
+                `FSN Notice:\n` +
+                `Title: ${fsn.title}\n` +
+                `Manufacturer: ${fsn.manufacturer || 'Unknown'}\n` +
+                `Date: ${fsn.fsn_date || 'Unknown'}\n` +
+                `Content: ${content}`,
+            },
+          ],
         },
       ],
     })
