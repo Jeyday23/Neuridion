@@ -361,10 +361,11 @@ export async function runSearchPipeline(
       decisions.map((d) => ({
         fsn_result_id: d.fsn_result_id,
         search_run_id: runId,
+        stage:         'stage1',
         decision:      d.decision,
         rationale:     d.rationale,
         confidence:    d.confidence,
-        model:         d.model,
+        model_used:    d.model,
       })),
     )
     if (decisionsError) throw decisionsError
