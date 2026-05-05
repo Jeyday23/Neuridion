@@ -10,6 +10,28 @@
 
 ---
 
+## Development Workflow — MANDATORY
+
+These rules apply to every session, every task, every change — no exceptions.
+
+**Before any code, file creation, or edit:**
+
+1. **`superpowers:brainstorming`** — before any new feature or architectural decision
+2. **`superpowers:writing-plans`** — before any implementation; break into 2–5 minute tasks with exact file paths and verification steps
+3. **`superpowers:subagent-driven-development`** — execute the plan task-by-task with review between each task
+4. **`superpowers:systematic-debugging`** — before any bug fix; gather evidence and verify root cause before touching code
+5. **`superpowers:test-driven-development`** — write failing test first, then implement, then verify green
+6. **`superpowers:requesting-code-review`** — after each task completes, review before moving to next
+7. **`context7`** — fetch current documentation for any library before using it (Supabase, Next.js, QStash, Anthropic SDK)
+
+**Hard rules:**
+- Never skip straight to writing code
+- Never assume library APIs from training data — always verify with context7 first
+- Never mark a task complete without TypeScript check passing
+- Never proceed to next task without reviewing current task
+
+---
+
 ## Project Overview
 
 **PMS in Seconds** is a full-stack, AI-powered Post-Market Surveillance tool for medical device
