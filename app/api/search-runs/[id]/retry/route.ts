@@ -1,6 +1,8 @@
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { type SearchJobPayload } from '@/lib/pipeline/run-search'
+import { type QStashJobMessage } from '@/app/api/worker/process-job/route'
+import { Client } from '@upstash/qstash'
 
 export async function POST(
   _request: Request,
@@ -67,14 +69,36 @@ export async function POST(
     return Response.json({ error: 'Failed to reset run status' }, { status: 500 })
   }
 
-  // Enqueue a fresh job
-  const { error: queueError } = await db.from('search_job_queue').insert({
-    run_id:  runId,
-    payload,
-  })
+  // Insert a fresh job row for status tracking and future payload recovery
+  const { data: newJob, error: queueError } = await db
+    .from('search_job_queue')
+    .insert({ run_id: runId, payload })
+    .select('id')
+    .single()
 
-  if (queueError) {
-    // Restore error status so the user can try again
+  if (queueError || !newJob) {
+    await db.from('search_runs').update({ status: 'error' }).eq('id', runId)
+    return Response.json({ error: 'Failed to create retry job record' }, { status: 500 })
+  }
+
+  // Publish to QStash
+  const message: QStashJobMessage = {
+    run_id: runId,
+    job_id: newJob.id,
+    ...payload,
+  }
+  try {
+    const qstash = new Client({ token: process.env.QSTASH_TOKEN! })
+    await qstash.publishJSON({
+      url:     `${process.env.NEXT_PUBLIC_SITE_URL}/api/worker/process-job`,
+      body:    message,
+      retries: 3,
+      timeout: 900,
+    })
+  } catch (err) {
+    console.error('[retry] QStash publish failed:', err)
+    // Roll back both changes so the run stays retryable
+    await db.from('search_job_queue').delete().eq('id', newJob.id)
     await db.from('search_runs').update({ status: 'error' }).eq('id', runId)
     return Response.json({ error: 'Failed to enqueue retry job' }, { status: 500 })
   }

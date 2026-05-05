@@ -2,6 +2,8 @@ import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { type SearchJobPayload } from '@/lib/pipeline/run-search'
+import { type QStashJobMessage } from '@/app/api/worker/process-job/route'
+import { Client } from '@upstash/qstash'
 import { z } from 'zod'
 
 const KNOWN_SOURCES  = ['bfarm', 'mhra', 'fda', 'swissmedic'] as const
@@ -96,7 +98,7 @@ export async function POST(request: Request) {
     return Response.json({ error: runError.message }, { status: 500 })
   }
 
-  // Enqueue the job
+  // Insert job queue row for status tracking and retry payload recovery
   const jobPayload: SearchJobPayload = {
     profile_id,
     period_from,
@@ -105,14 +107,37 @@ export async function POST(request: Request) {
     user_id:       user.id,
     force_refresh: force_refresh ?? false,
   }
-  const { error: queueError } = await db.from('search_job_queue').insert({
-    run_id:  run.id,
-    payload: jobPayload,
-  })
-  if (queueError) {
-    // Roll back the run row so the user doesn't see a ghost run
+  const { data: queueRow, error: queueInsertError } = await db
+    .from('search_job_queue')
+    .insert({ run_id: run.id, payload: jobPayload })
+    .select('id')
+    .single()
+  if (queueInsertError || !queueRow) {
     const { error: rollbackError } = await db.from('search_runs').delete().eq('id', run.id)
     if (rollbackError) console.error('[search-runs] rollback failed for run', run.id, rollbackError.message)
+    return Response.json({ error: 'Failed to create job record' }, { status: 500 })
+  }
+
+  // Publish to QStash — webhook calls /api/worker/process-job
+  const message: QStashJobMessage = {
+    run_id: run.id,
+    job_id: queueRow.id,
+    ...jobPayload,
+  }
+  try {
+    const qstash = new Client({ token: process.env.QSTASH_TOKEN! })
+    await qstash.publishJSON({
+      url:     `${process.env.NEXT_PUBLIC_SITE_URL}/api/worker/process-job`,
+      body:    message,
+      retries: 3,
+      timeout: 900,  // 900s = free plan maximum
+    })
+  } catch (err) {
+    console.error('[search-runs] QStash publish failed:', err)
+    // Roll back both rows so the user doesn't see a ghost run
+    await db.from('search_job_queue').delete().eq('id', queueRow.id)
+    const { error: rollbackError } = await db.from('search_runs').delete().eq('id', run.id)
+    if (rollbackError) console.error('[search-runs] run rollback failed for run', run.id, rollbackError.message)
     return Response.json({ error: 'Failed to enqueue search job' }, { status: 500 })
   }
 

@@ -6,11 +6,3 @@ services:
     startCommand: npm start
     envVarGroups:
       - neuridion-env
-
-  - type: worker
-    name: neuridion-search-worker
-    env: node
-    buildCommand: npm install
-    startCommand: npx tsx worker/search-runner.ts
-    envVarGroups:
-      - neuridion-env
