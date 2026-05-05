@@ -9,12 +9,8 @@ const PUBLIC_PATHS = [
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // API routes manage their own auth — never redirect them
-  if (pathname.startsWith('/api/')) {
-    return NextResponse.next({ request })
-  }
-
-  // Build response that carries refreshed cookies forward
+  // Build response that carries refreshed cookies forward — must run for ALL routes
+  // including /api/ so server-side getUser() receives a valid session token.
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -37,6 +33,11 @@ export async function proxy(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
+
+  // API routes manage their own auth redirects — return with refreshed cookies only
+  if (pathname.startsWith('/api/')) {
+    return supabaseResponse
+  }
 
   const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/claim/')
 
