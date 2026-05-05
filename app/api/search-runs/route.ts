@@ -4,7 +4,7 @@ import { PLANS, type PlanId } from '@/lib/plans'
 import { type SearchJobPayload } from '@/lib/pipeline/run-search'
 import { z } from 'zod'
 
-const KNOWN_SOURCES  = ['bfarm', 'mhra', 'fda', 'swissmedic']
+const KNOWN_SOURCES  = ['bfarm', 'mhra', 'fda', 'swissmedic'] as const
 const ISO_DATE       = /^\d{4}-\d{2}-\d{2}$/
 const MAX_SPAN_YEARS = 5
 
@@ -12,7 +12,7 @@ const SearchRunBodySchema = z.object({
   profile_id:    z.string().uuid(),
   period_from:   z.string().regex(ISO_DATE, 'period_from must be YYYY-MM-DD'),
   period_to:     z.string().regex(ISO_DATE, 'period_to must be YYYY-MM-DD'),
-  selected_dbs:  z.array(z.enum(KNOWN_SOURCES as [string, ...string[]])).min(1).max(KNOWN_SOURCES.length).optional(),
+  selected_dbs:  z.array(z.enum(KNOWN_SOURCES)).min(1).max(KNOWN_SOURCES.length).optional(),
   force_refresh: z.boolean().optional(),
 }).superRefine((val, ctx) => {
   const from = new Date(val.period_from)
@@ -111,7 +111,8 @@ export async function POST(request: Request) {
   })
   if (queueError) {
     // Roll back the run row so the user doesn't see a ghost run
-    await db.from('search_runs').delete().eq('id', run.id)
+    const { error: rollbackError } = await db.from('search_runs').delete().eq('id', run.id)
+    if (rollbackError) console.error('[search-runs] rollback failed for run', run.id, rollbackError.message)
     return Response.json({ error: 'Failed to enqueue search job' }, { status: 500 })
   }
 
