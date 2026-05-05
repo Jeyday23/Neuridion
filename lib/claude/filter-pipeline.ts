@@ -13,6 +13,29 @@ const SONNET_MODEL = 'claude-sonnet-4-6'
 
 const anthropic = new Anthropic()
 
+// ── Credit exhaustion guard ───────────────────────────────────────────────────
+// Set on first credit exhaustion error; prevents cascade spend within a process.
+// Resets on process restart (workers are ephemeral).
+
+let creditExhausted = false
+
+function isCreditExhaustionError(err: unknown): boolean {
+  if (err instanceof Anthropic.AuthenticationError)  return true   // 401
+  if (err instanceof Anthropic.PermissionDeniedError) return true  // 403
+  if (err instanceof Anthropic.APIError) {
+    if (err.status === 402) return true
+    const msg = String(err.message).toLowerCase()
+    return msg.includes('credit balance') || msg.includes('insufficient_quota') || msg.includes('billing')
+  }
+  return false
+}
+
+function markCreditExhausted(err: unknown): void {
+  creditExhausted = true
+  console.error('[filter] Anthropic credit exhausted — all subsequent AI calls will skip:',
+    err instanceof Error ? err.message : String(err))
+}
+
 // ── System prompt ─────────────────────────────────────────────────────────────
 // Target: ~1,200 tokens so the cache_control breakpoint clears the 1,024-token
 // minimum required for claude-sonnet-4-6 prompt caching.
@@ -337,6 +360,17 @@ export async function stage1Filter(
   profile: ProfileContext,
   options?: { skipCache?: boolean },
 ): Promise<FilterDecision> {
+  // ── 0. Credit guard — fast path, no API call ─────────────────────────────
+  if (creditExhausted) {
+    return {
+      decision:   'filter_failed',
+      rationale:  'Anthropic credit exhausted — manual review required.',
+      confidence: null,
+      model:      null,
+      error:      'credit_exhausted',
+    }
+  }
+
   const fsnId      = getFsnExternalId(fsn)
   const fingerprint = getProfileFingerprint(profile)
 
@@ -353,7 +387,11 @@ export async function stage1Filter(
     try {
       haikuVerdict = await haikuPreFilter(fsn, profile)
     } catch (haikuErr) {
-      // Haiku failure is non-fatal — fall through to Sonnet
+      if (isCreditExhaustionError(haikuErr)) {
+        markCreditExhausted(haikuErr)
+        throw haikuErr  // propagates to outer catch → filter_failed, stops cascade
+      }
+      // Transient error (rate limit, timeout, overload) — fall through to Sonnet
       console.warn('[filter] haiku pre-filter failed, falling back to Sonnet:', haikuErr)
     }
 
@@ -379,6 +417,7 @@ export async function stage1Filter(
 
     return decision
   } catch (err) {
+    if (isCreditExhaustionError(err)) markCreditExhausted(err)
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error('[stage1Filter] Failed after retries:', errMsg)
     return {
