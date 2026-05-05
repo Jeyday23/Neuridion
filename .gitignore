@@ -25,7 +25,12 @@
 *.pem
 
 # local agent/worktree artifacts
-.claude/worktrees/
+.claude/
+.claude.backup/
+CLAUDE.md.backup
+PROGRESS.md
+*.pdf
+QR codes/
 
 # supabase local CLI temp/state
 supabase/.temp/
