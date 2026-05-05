@@ -606,7 +606,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         channelRef.current?.unsubscribe()
         stopPolling()
         try {
-          const detailRes = await fetch(`/api/search-runs/${runId}`)
+          const detailRes = await fetch(`/api/search-runs/${runId}`, { credentials: 'include' })
           const detail    = await detailRes.json() as { results?: FsnResult[]; error?: string }
           if (!detailRes.ok) {
             setState({ phase: 'error', message: detail.error ?? 'Failed to load results.' })
@@ -646,7 +646,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       // is always reliable. It also returns results in the same response so we avoid
       // a second fetch on completion.
       let res: Response
-      try { res = await fetch(`/api/search-runs/${runId}`) }
+      try { res = await fetch(`/api/search-runs/${runId}`, { credentials: 'include' }) }
       catch { return }  // Network error — retry next tick
       if (!res.ok) return  // Auth / not-found — retry next tick
       const body = await res.json() as {
