@@ -364,8 +364,7 @@ export async function runSearchPipeline(
         decision:      d.decision,
         rationale:     d.rationale,
         confidence:    d.confidence,
-        model_used:    d.model,
-        stage:         'stage1',
+        model:         d.model,
       })),
     )
     if (decisionsError) throw decisionsError
