@@ -1,0 +1,83 @@
+import { createClient }      from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { type SearchJobPayload } from '@/lib/pipeline/run-search'
+
+export async function POST(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id: runId } = await params
+  const supabase = await createClient()
+  const db       = createAdminClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // Verify ownership and current status
+  const { data: run, error: runError } = await supabase
+    .from('search_runs')
+    .select('id, user_id, status, period_from, period_to, profile_id')
+    .eq('id', runId)
+    .eq('user_id', user.id)
+    .single()
+
+  if (runError || !run) {
+    return Response.json({ error: 'Run not found' }, { status: 404 })
+  }
+
+  if (run.status !== 'error' && run.status !== 'failed') {
+    return Response.json(
+      { error: `Cannot retry a run with status "${run.status}". Only failed or errored runs can be retried.` },
+      { status: 409 },
+    )
+  }
+
+  // Recover the original payload so selected_dbs and force_refresh are preserved
+  const { data: existingJob } = await db
+    .from('search_job_queue')
+    .select('payload')
+    .eq('run_id', runId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  const payload: SearchJobPayload = existingJob?.payload ?? {
+    profile_id:    run.profile_id,
+    period_from:   run.period_from,
+    period_to:     run.period_to,
+    selected_dbs:  ['bfarm'],
+    user_id:       user.id,
+    force_refresh: false,
+  }
+  // Ensure the re-queued job is attributed to the requesting user
+  payload.user_id = user.id
+
+  // Reset the run to pending
+  const { error: resetError } = await db.from('search_runs').update({
+    status:       'pending',
+    error:        null,
+    completed_at: null,
+    started_at:   null,
+    progress:     null,
+  }).eq('id', runId)
+
+  if (resetError) {
+    return Response.json({ error: 'Failed to reset run status' }, { status: 500 })
+  }
+
+  // Enqueue a fresh job
+  const { error: queueError } = await db.from('search_job_queue').insert({
+    run_id:  runId,
+    payload,
+  })
+
+  if (queueError) {
+    // Restore error status so the user can try again
+    await db.from('search_runs').update({ status: 'error' }).eq('id', runId)
+    return Response.json({ error: 'Failed to enqueue retry job' }, { status: 500 })
+  }
+
+  return Response.json({ run_id: runId, status: 'pending' }, { status: 200 })
+}
