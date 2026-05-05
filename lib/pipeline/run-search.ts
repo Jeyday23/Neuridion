@@ -320,6 +320,8 @@ export async function runSearchPipeline(
     toFilter = mfrMatched
   }
 
+  console.log(`[pipeline] AI filter starting: ${toFilter.length} items to filter`)
+
   // Per-run AI filter cap — prevents runaway spend on large result sets
   const MAX_FILTER_ITEMS = Math.max(1, parseInt(process.env.MAX_FILTER_ITEMS_PER_RUN ?? '300', 10))
   if (toFilter.length > MAX_FILTER_ITEMS) {
@@ -349,6 +351,8 @@ export async function runSearchPipeline(
       await new Promise((r) => setTimeout(r, 200))
     }
   }
+
+  console.log(`[pipeline] AI filter complete: ${decisions.length} decisions (${toFilter.length} AI-filtered)`)
 
   // ── Step 4: Insert filter_decisions ─────────────────────────────────────────
 

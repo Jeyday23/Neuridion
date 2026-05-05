@@ -12,6 +12,8 @@ async function handler(req: Request): Promise<Response> {
   const msg = await req.json() as QStashJobMessage
   const { run_id, job_id, ...jobPayload } = msg
 
+  console.log(`[process-job] received run_id=${run_id} job_id=${job_id}`)
+
   await Promise.all([
     db.from('search_runs').update({
       status:     'running',
@@ -22,6 +24,9 @@ async function handler(req: Request): Promise<Response> {
       started_at: new Date().toISOString(),
     }).eq('id', job_id),
   ])
+
+  console.log(`[process-job] pipeline starting run_id=${run_id}`)
+  const pipelineStart = Date.now()
 
   try {
     await runSearchPipeline(
@@ -35,6 +40,9 @@ async function handler(req: Request): Promise<Response> {
       },
     )
 
+    const elapsed = Math.round((Date.now() - pipelineStart) / 1000)
+    console.log(`[process-job] pipeline complete run_id=${run_id} in ${elapsed}s`)
+
     await db.from('search_job_queue').update({
       status:       'completed',
       completed_at: new Date().toISOString(),
@@ -43,8 +51,9 @@ async function handler(req: Request): Promise<Response> {
 
     return new Response('OK', { status: 200 })
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err)
-    console.error('[process-job] pipeline failed:', errMsg)
+    const elapsed = Math.round((Date.now() - pipelineStart) / 1000)
+    const errMsg  = err instanceof Error ? err.message : String(err)
+    console.error(`[process-job] pipeline failed run_id=${run_id} in ${elapsed}s:`, errMsg)
 
     await Promise.all([
       db.from('search_job_queue').update({
