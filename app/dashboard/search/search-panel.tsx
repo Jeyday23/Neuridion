@@ -417,9 +417,13 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
     const supabase = createClient()
     let completionHandled = false
-    let queuedTimer: ReturnType<typeof setTimeout> | undefined
-    // Object ref so handleUpdate can call unsubscribe before channel is assigned
+    // Object refs so handleUpdate can tear down before channel/interval are assigned
     const channelRef: { current: ReturnType<typeof supabase.channel> | null } = { current: null }
+    const pollRef:    { interval: ReturnType<typeof setInterval> | null }      = { interval: null }
+
+    function stopPolling() {
+      if (pollRef.interval !== null) { clearInterval(pollRef.interval); pollRef.interval = null }
+    }
 
     type RunRow = {
       status:          string
@@ -440,7 +444,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         if (completionHandled) return
         completionHandled = true
         channelRef.current?.unsubscribe()
-        clearTimeout(queuedTimer)
+        stopPolling()
         try {
           const detailRes = await fetch(`/api/search-runs/${runId}`)
           const detail    = await detailRes.json() as { results?: FsnResult[]; error?: string }
@@ -469,12 +473,13 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         if (completionHandled) return
         completionHandled = true
         channelRef.current?.unsubscribe()
-        clearTimeout(queuedTimer)
+        stopPolling()
         setState({ phase: 'error', message: row.error ?? 'Search run failed.' })
       }
     }
 
     async function pollCurrentState(): Promise<void> {
+      if (completionHandled) { stopPolling(); return }
       const { data } = await supabase
         .from('search_runs')
         .select('status, progress, relevant_count, uncertain_count, excluded_count, error')
@@ -483,18 +488,18 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       if (data) await handleUpdate(data as RunRow)
     }
 
+    // Subscribe without a server-side filter — UPDATE events on search_runs require
+    // REPLICA IDENTITY FULL for server-side row filters to work. We filter client-side
+    // instead, which is safe and always reliable.
     channelRef.current = supabase
       .channel(`run:${runId}`)
       .on(
         'postgres_changes',
-        {
-          event:  'UPDATE',
-          schema: 'public',
-          table:  'search_runs',
-          filter: `id=eq.${runId}`,
-        },
+        { event: 'UPDATE', schema: 'public', table: 'search_runs' },
         async (payload) => {
-          await handleUpdate(payload.new as RunRow)
+          const row = payload.new as RunRow & { id: string }
+          if (row.id !== runId) return  // client-side filter
+          await handleUpdate(row)
         },
       )
       .subscribe(async (subStatus) => {
@@ -504,13 +509,30 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         } else if (subStatus === 'CHANNEL_ERROR' || subStatus === 'TIMED_OUT') {
           if (!completionHandled) {
             completionHandled = true
+            stopPolling()
             setState({ phase: 'error', message: 'Connection to progress feed lost. Please refresh the page.' })
           }
         }
       })
 
-    // 30-second safety-net: if still queued after this delay, poll current state directly
-    queuedTimer = setTimeout(pollCurrentState, 30_000)
+    // Poll every 3s — catches completion within 3s regardless of Realtime delivery.
+    // Stops automatically once completionHandled is set. Times out after 16 minutes
+    // (slightly over QStash's 900s max) to surface a clear error instead of spinning forever.
+    const MAX_POLL_MS = 16 * 60 * 1000
+    const pollStart   = Date.now()
+    pollRef.interval  = setInterval(async () => {
+      if (completionHandled) { stopPolling(); return }
+      if (Date.now() - pollStart > MAX_POLL_MS) {
+        stopPolling()
+        if (!completionHandled) {
+          completionHandled = true
+          channelRef.current?.unsubscribe()
+          setState({ phase: 'error', message: 'Search timed out. Check the archive for results or retry.' })
+        }
+        return
+      }
+      await pollCurrentState()
+    }, 3_000)
   }
 
   const noProfiles = profiles.length === 0
