@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { useSearchContext, type SearchProgress } from '../search-context'
+import { useSearchContext } from '../search-context'
 import { useLanguage } from '../language-context'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
@@ -270,31 +270,7 @@ function RotatingTip() {
 
 // ─── Search progress card ─────────────────────────────────────────────────────
 
-type ActiveSearchState =
-  | { phase: 'queued';  runId: string; startedAt: number }
-  | { phase: 'running'; runId: string; startedAt: number; progress: SearchProgress | null }
-
-function SearchProgressCard({ state }: { state: ActiveSearchState }) {
-  const progress     = state.phase === 'running' ? state.progress : null
-  const sourcesDone  = progress?.sources_done  ?? []
-  const sourcesTotal = progress?.sources_total ?? []
-  const itemsFound   = progress?.items_found   ?? 0
-  const currentSrc   = progress?.current_source ?? null
-  const allSrcsDone  = sourcesTotal.length > 0 && sourcesDone.length >= sourcesTotal.length
-
-  const barPercent =
-    state.phase === 'queued'  ? 3  :
-    sourcesTotal.length === 0 ? 8  :
-    allSrcsDone               ? 88 :
-    Math.round((sourcesDone.length / sourcesTotal.length) * 75) + 5
-
-  const statusMsg =
-    state.phase === 'queued' ? 'Connecting to databases…'                      :
-    allSrcsDone              ? 'Finalising results…'                           :
-    currentSrc               ? `Scraping ${formatSourceLabel(currentSrc)}…`   :
-    itemsFound > 0           ? 'Running AI analysis…'                          :
-                               'Initialising search pipeline…'
-
+function SearchProgressCard({ startedAt }: { startedAt: number }) {
   return (
     <div className="mt-6 rounded-lg border border-[#E2E8F0] bg-white overflow-hidden shadow-sm">
       {/* Header */}
@@ -304,66 +280,24 @@ function SearchProgressCard({ state }: { state: ActiveSearchState }) {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
             <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400" />
           </span>
-          <span className="text-sm font-medium text-white truncate">{statusMsg}</span>
+          <span className="text-sm font-medium text-white truncate">Searching databases…</span>
         </div>
         <span className="text-xs text-slate-400 font-mono tabular-nums shrink-0">
-          <ElapsedTimer startedAt={state.startedAt} />
+          <ElapsedTimer startedAt={startedAt} />
         </span>
       </div>
 
-      {/* Progress bar */}
-      <div className="h-0.5 bg-slate-100">
-        <div
-          className="h-full bg-gradient-to-r from-[#0D9488] to-[#14b8a6] transition-[width] duration-700 ease-out"
-          style={{ width: `${barPercent}%` }}
-        />
+      {/* Indeterminate progress bar */}
+      <div className="h-0.5 bg-slate-100 overflow-hidden">
+        <div className="h-full w-1/3 bg-gradient-to-r from-[#0D9488] to-[#14b8a6] animate-[slide_2s_ease-in-out_infinite]" />
       </div>
 
       {/* Body */}
       <div className="px-5 py-4 space-y-4">
-        {/* Sources grid */}
-        {sourcesTotal.length > 0 ? (
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-4">
-            {sourcesTotal.map((src) => {
-              const done   = sourcesDone.includes(src)
-              const active = currentSrc === src
-              return (
-                <div key={src} className="flex items-center gap-2">
-                  {done ? (
-                    <CheckCircle className="w-4 h-4 text-teal-500 shrink-0" />
-                  ) : active ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
-                  ) : (
-                    <div className="w-4 h-4 shrink-0 flex items-center justify-center">
-                      <div className="w-2 h-2 rounded-full bg-slate-200" />
-                    </div>
-                  )}
-                  <span className={clsx(
-                    'text-sm truncate',
-                    done   ? 'text-teal-700'              :
-                    active ? 'text-slate-900 font-medium' :
-                             'text-slate-400'
-                  )}>
-                    {formatSourceLabel(src)}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
-            <span>Preparing search pipeline…</span>
-          </div>
-        )}
-
-        {/* Items found counter */}
-        {itemsFound > 0 && (
-          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-50 border border-teal-100">
-            <span className="text-sm font-semibold text-teal-700 tabular-nums">{itemsFound}</span>
-            <span className="text-xs text-teal-600">field safety notices found</span>
-          </div>
-        )}
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
+          <span>Running AI relevance filter — do not close this tab</span>
+        </div>
 
         {/* Rotating tip */}
         <div className="flex items-start gap-2 pt-1 border-t border-slate-100">
@@ -550,10 +484,11 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     setExpandedIds(new Set())
     setFilterTab('all')
 
-    let runId: string
     const startedAt = Date.now()
+    setState({ phase: 'running', runId: '', startedAt, progress: null })
+
     try {
-      const res  = await fetch('/api/search-runs', {
+      const res = await fetch('/api/search-runs', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
@@ -563,181 +498,27 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           selected_dbs: [...selectedDbs],
         }),
       })
-      const data = await res.json() as { run_id?: string; error?: string }
+      const data = await res.json() as {
+        run_id?:  string
+        status?:  string
+        results?: FsnResult[]
+        counts?:  { relevant: number; uncertain: number; excluded: number }
+        error?:   string
+      }
       if (!res.ok) {
         setState({ phase: 'error', message: data.error ?? 'Search failed.' })
         return
       }
-      runId = data.run_id!
-      setState({ phase: 'queued', runId, startedAt })
+      setState({
+        phase:    'done',
+        runId:    data.run_id ?? '',
+        results:  data.results ?? [],
+        counts:   data.counts  ?? { relevant: 0, uncertain: 0, excluded: 0 },
+        startedAt,
+      })
     } catch (err) {
       setState({ phase: 'error', message: String(err) })
-      return
     }
-
-    const supabase = createClient()
-    let completionHandled = false
-    // Object refs so handleUpdate can tear down before channel/interval are assigned
-    const channelRef: { current: ReturnType<typeof supabase.channel> | null } = { current: null }
-    const pollRef:    { interval: ReturnType<typeof setInterval> | null }      = { interval: null }
-
-    function stopPolling() {
-      if (pollRef.interval !== null) { clearInterval(pollRef.interval); pollRef.interval = null }
-    }
-
-    type RunRow = {
-      status:          string
-      progress:        { current_source: string | null; sources_done: string[]; sources_total: string[]; items_found: number } | null
-      relevant_count:  number
-      uncertain_count: number
-      excluded_count:  number
-      error:           string | null
-    }
-
-    async function handleUpdate(row: RunRow): Promise<void> {
-      if (row.status === 'running') {
-        setState({ phase: 'running', runId, startedAt, progress: row.progress ?? null })
-        return
-      }
-
-      if (row.status === 'complete' || row.status === 'degraded') {
-        if (completionHandled) return
-        completionHandled = true
-        channelRef.current?.unsubscribe()
-        stopPolling()
-        try {
-          const detailRes = await fetch(`/api/search-runs/${runId}`, { credentials: 'include' })
-          const detail    = await detailRes.json() as { results?: FsnResult[]; error?: string }
-          if (!detailRes.ok) {
-            setState({ phase: 'error', message: detail.error ?? 'Failed to load results.' })
-            return
-          }
-          setState({
-            phase:    'done',
-            runId,
-            results:  detail.results ?? [],
-            counts:   {
-              relevant:  row.relevant_count  ?? 0,
-              uncertain: row.uncertain_count ?? 0,
-              excluded:  row.excluded_count  ?? 0,
-            },
-            startedAt,
-          })
-        } catch (err) {
-          setState({ phase: 'error', message: String(err) })
-        }
-        return
-      }
-
-      if (row.status === 'error' || row.status === 'failed') {
-        if (completionHandled) return
-        completionHandled = true
-        channelRef.current?.unsubscribe()
-        stopPolling()
-        setState({ phase: 'error', message: row.error ?? 'Search run failed.' })
-      }
-    }
-
-    async function pollCurrentState(): Promise<void> {
-      if (completionHandled) { stopPolling(); return }
-      // Poll via the authenticated API route instead of the browser Supabase client.
-      // Direct browser DB queries silently return null when auth cookies are stale or
-      // RLS isn't satisfied client-side — the API route uses server-side auth which
-      // is always reliable. It also returns results in the same response so we avoid
-      // a second fetch on completion.
-      let res: Response
-      try { res = await fetch(`/api/search-runs/${runId}`, { credentials: 'include' }) }
-      catch { return }  // Network error — retry next tick
-      if (!res.ok) return  // Auth / not-found — retry next tick
-      const body = await res.json() as {
-        run?: {
-          status:          string
-          progress:        RunRow['progress']
-          relevant_count:  number | null
-          uncertain_count: number | null
-          excluded_count:  number | null
-          error:           string | null
-        }
-        results?: FsnResult[]
-      }
-      if (!body.run) return
-      const r = body.run
-      if (r.status === 'running') {
-        setState({ phase: 'running', runId, startedAt, progress: r.progress ?? null })
-        return
-      }
-      if (r.status === 'complete' || r.status === 'degraded') {
-        if (completionHandled) return
-        completionHandled = true
-        channelRef.current?.unsubscribe()
-        stopPolling()
-        setState({
-          phase:    'done',
-          runId,
-          results:  body.results ?? [],
-          counts:   {
-            relevant:  r.relevant_count  ?? 0,
-            uncertain: r.uncertain_count ?? 0,
-            excluded:  r.excluded_count  ?? 0,
-          },
-          startedAt,
-        })
-        return
-      }
-      if (r.status === 'error' || r.status === 'failed') {
-        if (completionHandled) return
-        completionHandled = true
-        channelRef.current?.unsubscribe()
-        stopPolling()
-        setState({ phase: 'error', message: r.error ?? 'Search run failed.' })
-      }
-    }
-
-    // Subscribe without a server-side filter — UPDATE events on search_runs require
-    // REPLICA IDENTITY FULL for server-side row filters to work. We filter client-side
-    // instead, which is safe and always reliable.
-    channelRef.current = supabase
-      .channel(`run:${runId}`)
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'search_runs' },
-        async (payload) => {
-          const row = payload.new as RunRow & { id: string }
-          if (row.id !== runId) return  // client-side filter
-          await handleUpdate(row)
-        },
-      )
-      .subscribe(async (subStatus) => {
-        if (subStatus === 'SUBSCRIBED') {
-          // Catch any updates that fired before the subscription was active
-          await pollCurrentState()
-        } else if (subStatus === 'CHANNEL_ERROR' || subStatus === 'TIMED_OUT') {
-          if (!completionHandled) {
-            completionHandled = true
-            stopPolling()
-            setState({ phase: 'error', message: 'Connection to progress feed lost. Please refresh the page.' })
-          }
-        }
-      })
-
-    // Poll every 3s — catches completion within 3s regardless of Realtime delivery.
-    // Stops automatically once completionHandled is set. Times out after 16 minutes
-    // (slightly over QStash's 900s max) to surface a clear error instead of spinning forever.
-    const MAX_POLL_MS = 16 * 60 * 1000
-    const pollStart   = Date.now()
-    pollRef.interval  = setInterval(async () => {
-      if (completionHandled) { stopPolling(); return }
-      if (Date.now() - pollStart > MAX_POLL_MS) {
-        stopPolling()
-        if (!completionHandled) {
-          completionHandled = true
-          channelRef.current?.unsubscribe()
-          setState({ phase: 'error', message: 'Search timed out. Check the archive for results or retry.' })
-        }
-        return
-      }
-      await pollCurrentState()
-    }, 3_000)
   }
 
   const noProfiles = profiles.length === 0
@@ -946,9 +727,9 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
               className="px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed">
               {t.search.createProfile}
             </button>
-            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'queued' || state.phase === 'running' || isOverLimit}
+            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || isOverLimit}
               className="px-8 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
-              {(state.phase === 'queued' || state.phase === 'running')
+              {state.phase === 'running'
                 ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.searching}</>
                 : <>{t.search.runSearch} <span>→</span></>
               }
@@ -958,8 +739,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       </div>
 
       {/* Progress */}
-      {(state.phase === 'queued' || state.phase === 'running') && (
-        <SearchProgressCard state={state} />
+      {state.phase === 'running' && (
+        <SearchProgressCard startedAt={state.startedAt} />
       )}
 
       {/* Error */}

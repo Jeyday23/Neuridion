@@ -1,10 +1,11 @@
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PLANS, type PlanId } from '@/lib/plans'
-import { type SearchJobPayload } from '@/lib/pipeline/run-search'
-import { type QStashJobMessage } from '@/app/api/worker/process-job/route'
-import { Client } from '@upstash/qstash'
+import { runSearchPipeline, type SearchJobPayload } from '@/lib/pipeline/run-search'
 import { z } from 'zod'
+
+// Allow up to 30 minutes — long date ranges can take 15–20 min synchronously
+export const maxDuration = 1800
 
 const KNOWN_SOURCES  = ['bfarm', 'mhra', 'fda', 'swissmedic'] as const
 const ISO_DATE       = /^\d{4}-\d{2}-\d{2}$/
@@ -82,13 +83,13 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Profile not found' }, { status: 404 })
   }
 
-  // Create the search run in pending state
+  // Create the search run
   const { data: run, error: runError } = await db
     .from('search_runs')
     .insert({
       profile_id,
-      user_id:     user.id,
-      status:      'pending',
+      user_id:    user.id,
+      status:     'running',
       period_from,
       period_to,
     })
@@ -98,7 +99,6 @@ export async function POST(request: Request) {
     return Response.json({ error: runError.message }, { status: 500 })
   }
 
-  // Insert job queue row for status tracking and retry payload recovery
   const jobPayload: SearchJobPayload = {
     profile_id,
     period_from,
@@ -107,39 +107,78 @@ export async function POST(request: Request) {
     user_id:       user.id,
     force_refresh: force_refresh ?? false,
   }
-  const { data: queueRow, error: queueInsertError } = await db
-    .from('search_job_queue')
-    .insert({ run_id: run.id, payload: jobPayload })
-    .select('id')
-    .single()
-  if (queueInsertError || !queueRow) {
-    const { error: rollbackError } = await db.from('search_runs').delete().eq('id', run.id)
-    if (rollbackError) console.error('[search-runs] rollback failed for run', run.id, rollbackError.message)
-    return Response.json({ error: 'Failed to create job record' }, { status: 500 })
-  }
 
-  // Publish to QStash — webhook calls /api/worker/process-job
-  const message: QStashJobMessage = {
-    run_id: run.id,
-    job_id: queueRow.id,
-    ...jobPayload,
-  }
+  // Run the pipeline synchronously — updates search_runs.status on completion
   try {
-    const qstash = new Client({ token: process.env.QSTASH_TOKEN! })
-    await qstash.publishJSON({
-      url:     `${process.env.NEXT_PUBLIC_SITE_URL}/api/worker/process-job`,
-      body:    message,
-      retries: 3,
-      timeout: 900,  // 900s = free plan maximum
-    })
+    await runSearchPipeline(run.id, jobPayload)
   } catch (err) {
-    console.error('[search-runs] QStash publish failed:', err)
-    // Roll back both rows so the user doesn't see a ghost run
-    await db.from('search_job_queue').delete().eq('id', queueRow.id)
-    const { error: rollbackError } = await db.from('search_runs').delete().eq('id', run.id)
-    if (rollbackError) console.error('[search-runs] run rollback failed for run', run.id, rollbackError.message)
-    return Response.json({ error: 'Failed to enqueue search job' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[search-runs] pipeline error for run', run.id, msg)
+    await db.from('search_runs').update({
+      status:       'error',
+      error:        msg,
+      completed_at: new Date().toISOString(),
+    }).eq('id', run.id)
+    return Response.json({ error: 'Search pipeline failed: ' + msg }, { status: 500 })
   }
 
-  return Response.json({ run_id: run.id, status: 'pending' }, { status: 201 })
+  // Read back the run row (pipeline sets status, counts, completed_at)
+  const { data: finishedRun } = await db
+    .from('search_runs')
+    .select('status, relevant_count, uncertain_count, excluded_count, error')
+    .eq('id', run.id)
+    .single()
+
+  // Fetch FSN results
+  const { data: rawResults } = await db
+    .from('fsn_results')
+    .select('id, title, manufacturer, fsn_date, source_url, source_db')
+    .eq('run_id', run.id)
+    .order('fsn_date', { ascending: false })
+
+  // Fetch filter decisions and join client-side
+  const resultIds = (rawResults ?? []).map((r) => r.id)
+  const decisionsMap: Record<string, {
+    decision:   string
+    rationale:  string
+    confidence: number | null
+    model:      string | null
+  }> = {}
+
+  if (resultIds.length > 0) {
+    const { data: decisions } = await db
+      .from('filter_decisions')
+      .select('fsn_result_id, decision, rationale, confidence, model_used')
+      .in('fsn_result_id', resultIds)
+
+    for (const d of decisions ?? []) {
+      decisionsMap[d.fsn_result_id] = {
+        decision:   d.decision,
+        rationale:  d.rationale ?? '',
+        confidence: d.confidence != null ? Number(d.confidence) : null,
+        model:      d.model_used ?? null,
+      }
+    }
+  }
+
+  const results = (rawResults ?? []).map((r) => ({
+    id:              r.id,
+    title:           r.title,
+    manufacturer:    r.manufacturer,
+    fsn_date:        r.fsn_date,
+    source_url:      r.source_url,
+    source:          r.source_db,
+    filter_decision: decisionsMap[r.id] ?? null,
+  }))
+
+  return Response.json({
+    run_id:  run.id,
+    status:  finishedRun?.status ?? 'complete',
+    results,
+    counts: {
+      relevant:  finishedRun?.relevant_count  ?? 0,
+      uncertain: finishedRun?.uncertain_count ?? 0,
+      excluded:  finishedRun?.excluded_count  ?? 0,
+    },
+  })
 }
