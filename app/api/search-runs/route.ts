@@ -1,39 +1,12 @@
-import { createHash } from 'crypto'
-import { createClient } from '@/lib/supabase/server'
+import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { scrapeBfarm, type ScrapedFsn, type ScraperResult, type ScraperParams } from '@/lib/scrapers/bfarm'
-import { buildManufacturerSearchTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
-import { scrapeMhra }       from '@/lib/scrapers/mhra'
-import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
-import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
-import { stage1Filter, getProfileFingerprint, type FilterDecision } from '@/lib/claude/filter-pipeline'
 import { PLANS, type PlanId } from '@/lib/plans'
-import { sendSearchRunNotification } from '@/lib/email'
-import { logAuditEvent } from '@/lib/audit'
-import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
-import { upsertCanonical, getCanonicalItems, computeContentHash } from '@/lib/sync/canonical'
+import { type SearchJobPayload } from '@/lib/pipeline/run-search'
 import { z } from 'zod'
 
-interface SuccessfulSourceResult {
-  sourceId:        string
-  items:           ScrapedFsn[]
-  warnings:        string[]
-  contentChanged:  Set<string>
-  canonicalIds:    Map<string, string>
-}
-
-// Registry — keys match the `id` values in the UI database list
-const SCRAPERS: Record<string, (p: ScraperParams) => Promise<ScraperResult>> = {
-  bfarm:      scrapeBfarm,
-  mhra:       scrapeMhra,
-  fda:        scrapeFdaMaude,
-  swissmedic: scrapeSwissmedic,
-}
-
-const KNOWN_SOURCES = Object.keys(SCRAPERS)
+const KNOWN_SOURCES  = ['bfarm', 'mhra', 'fda', 'swissmedic']
+const ISO_DATE       = /^\d{4}-\d{2}-\d{2}$/
 const MAX_SPAN_YEARS = 5
-
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 const SearchRunBodySchema = z.object({
   profile_id:    z.string().uuid(),
@@ -45,12 +18,10 @@ const SearchRunBodySchema = z.object({
   const from = new Date(val.period_from)
   const to   = new Date(val.period_to)
   if (isNaN(from.getTime())) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'period_from is not a valid date', path: ['period_from'] })
-    return
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'period_from is not a valid date', path: ['period_from'] }); return
   }
   if (isNaN(to.getTime())) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'period_to is not a valid date', path: ['period_to'] })
-    return
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'period_to is not a valid date', path: ['period_to'] }); return
   }
   if (from > to) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'period_from must be on or before period_to', path: ['period_from'] })
@@ -61,12 +32,9 @@ const SearchRunBodySchema = z.object({
   }
 })
 
-// 30 minutes — Render ignores this but documents intent for long 2-year searches
-export const maxDuration = 1800
-
 export async function POST(request: Request) {
-  const supabase = await createClient()   // anon client — auth checks only
-  const db = createAdminClient()          // service role — bypasses RLS for data ops
+  const supabase = await createClient()
+  const db       = createAdminClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
@@ -74,500 +42,78 @@ export async function POST(request: Request) {
   }
 
   let rawBody: unknown
-  try {
-    rawBody = await request.json()
-  } catch {
-    return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
+  try { rawBody = await request.json() }
+  catch { return Response.json({ error: 'Invalid JSON body' }, { status: 400 }) }
 
   const bodyResult = SearchRunBodySchema.safeParse(rawBody)
   if (!bodyResult.success) {
-    const message = bodyResult.error.issues.map(i => i.message).join('; ')
-    return Response.json({ error: message }, { status: 400 })
+    return Response.json({ error: bodyResult.error.issues.map((i) => i.message).join('; ') }, { status: 400 })
   }
 
   const { profile_id, period_from, period_to, selected_dbs, force_refresh } = bodyResult.data
 
-  // Enforce plan search-run limit
-  const { data: userData } = await supabase
-    .from('users')
-    .select('plan, email')
-    .eq('id', user.id)
-    .single()
-
+  // Plan limit check
+  const { data: userData } = await supabase.from('users').select('plan').eq('id', user.id).single()
   const userPlan = ((userData?.plan ?? 'free') as PlanId)
   const runLimit = PLANS[userPlan].maxSearchRuns
-
   if (runLimit !== -1) {
     const { count: runCount } = await supabase
       .from('search_runs')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', user.id)
-
     if ((runCount ?? 0) >= runLimit) {
       return Response.json(
         { error: `Your ${PLANS[userPlan].label} plan allows ${runLimit} search run${runLimit === 1 ? '' : 's'}. Upgrade to run more searches.` },
-        { status: 403 }
+        { status: 403 },
       )
     }
   }
 
-  // Fetch the profile and verify ownership
+  // Profile ownership check
   const { data: profile, error: profileError } = await supabase
     .from('product_profiles')
-    .select('device_name, manufacturer, intended_use, emdn_code, device_class')
+    .select('id')
     .eq('id', profile_id)
     .eq('user_id', user.id)
     .single()
-
   if (profileError || !profile) {
     return Response.json({ error: 'Profile not found' }, { status: 404 })
   }
 
-  // Create the search run
+  // Create the search run in pending state
   const { data: run, error: runError } = await db
     .from('search_runs')
     .insert({
       profile_id,
-      user_id:              user.id,
-      status:               'running',
-      search_period_from:   period_from,
-      search_period_to:     period_to,
+      user_id:     user.id,
+      status:      'pending',
       period_from,
       period_to,
-      started_at:           new Date().toISOString(),
     })
     .select()
     .single()
-
   if (runError) {
     return Response.json({ error: runError.message }, { status: 500 })
   }
 
-  try {
-    // Step 1: Coverage-aware source processing — serve cached ranges, fetch only gaps.
-    // allSettled: one source failing does not abort the others.
-    // All source results are collected before a single combined DB insert — no concurrent writes.
-    const activeSources = (selected_dbs ?? ['bfarm']).filter(id => SCRAPERS[id])
-    if (activeSources.length === 0) activeSources.push('bfarm')
-
-    const forceRefresh = force_refresh === true
-
-    console.log(`[search] Sources: [${activeSources.join(', ')}] | ${period_from} → ${period_to}${forceRefresh ? ' (force_refresh)' : ''}`)
-
-    async function processSource(sourceId: string): Promise<SuccessfulSourceResult> {
-      const items:          ScrapedFsn[]         = []
-      const warnings:       string[]             = []
-      const contentChanged: Set<string>          = new Set()
-      const canonicalIds:   Map<string, string>  = new Map()
-      const fetchedRanges:  { from: string; to: string }[] = []
-
-      const searchTerms = profile
-        ? buildManufacturerSearchTerms(profile.manufacturer ?? '', profile.device_name ?? '')
-        : []
-
-      async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
-        const result = await SCRAPERS[sourceId]({
-          fromDate:    range.from,
-          toDate:      range.to,
-          searchTerms: searchTerms.length > 0 ? searchTerms : undefined,
-          profile:     profile ? {
-            manufacturer: profile.manufacturer ?? '',
-            device_name:  profile.device_name  ?? '',
-          } : undefined,
-        })
-        items.push(...result.items)
-        warnings.push(...result.warnings)
-
-        // Only mark ranges as covered when the scraper completed without
-        // degradation warnings. This prevents partial Swissmedic/API results
-        // from poisoning coverage for future cached searches.
-        if (result.warnings.length === 0) {
-          fetchedRanges.push(range)
-        }
-      }
-
-      // 7-day overlap window: always re-fetch the last 7 days to catch corrections
-      const overlapFrom = overlapWindowStart(period_to!)
-
-      if (forceRefresh) {
-        // Skip coverage check — do full fetch
-        await fetchSourceRange({ from: period_from!, to: period_to! })
-      } else {
-        // Check which sub-ranges are already covered
-        const covered   = await getCoveredRanges(sourceId)
-        // Always include overlap window as uncovered (may have corrections)
-        const effectiveTo = period_to!
-        // Gap check: pass ALL covered rows (including ones that span into the overlap
-        // window). computeUncoveredRanges clips by the provided toDate, so a coverage
-        // row like [Feb01→Feb28] correctly covers the [Feb01→Feb20] sub-range even
-        // though it extends past the overlap boundary.
-        const gapCheckTo      = overlapFrom > period_from! ? prevDay(overlapFrom) : period_from!
-        const uncoveredRanges = computeUncoveredRanges(covered, period_from!, gapCheckTo)
-
-        // Fetch uncovered ranges from source
-        for (const range of uncoveredRanges) {
-          console.log(`[search] ${sourceId}: fetching uncovered ${range.from} → ${range.to}`)
-          await fetchSourceRange(range)
-        }
-
-        // Always fetch overlap window from source
-        if (overlapFrom <= effectiveTo) {
-          console.log(`[search] ${sourceId}: fetching overlap window ${overlapFrom} → ${effectiveTo}`)
-          await fetchSourceRange({ from: overlapFrom, to: effectiveTo })
-        }
-
-        // Fetch covered ranges from canonical DB (no source request needed)
-        const coveredRangesInWindow = covered.filter(c => c.to >= period_from! && c.from <= (overlapFrom > period_from! ? prevDay(overlapFrom) : period_from!))
-        const mfrTerms = extractManufacturerTerms(profile?.manufacturer ?? '')
-        const devTerms = searchTerms.filter(t => !mfrTerms.includes(t))
-        for (const range of coveredRangesInWindow) {
-          const canonicalFrom = range.from < period_from! ? period_from! : range.from
-          const canonicalTo   = range.to   > period_to!   ? period_to!   : range.to
-          const cached = await getCanonicalItems(sourceId, canonicalFrom, canonicalTo)
-          // Apply the same manufacturer+device AND pre-filter here so canonical rows
-          // that don't match the profile never enter fsn_results or the AI filter.
-          const filtered = searchTerms.length === 0 ? cached : cached.filter(item => {
-            const hay = `${item.title} ${item.manufacturer ?? ''} ${item.raw_content ?? ''}`.toLowerCase()
-            if (devTerms.length === 0) {
-              return mfrTerms.some(t => hay.includes(t.toLowerCase()))
-            }
-            const mfrMatch = mfrTerms.length === 0 || mfrTerms.some(t => hay.includes(t.toLowerCase()))
-            const devMatch = devTerms.some(t => hay.includes(t.toLowerCase()))
-            return mfrMatch && devMatch
-          })
-          console.log(`[search] ${sourceId}: served ${filtered.length}/${cached.length} items from canonical (${canonicalFrom} → ${canonicalTo}) after pre-filter`)
-          items.push(...filtered)
-        }
-      }
-
-      // Deduplicate across all sources (live fetch + canonical)
-      const seen = new Set<string>()
-      const deduped = items.filter(item => {
-        if (seen.has(item.external_id)) return false
-        seen.add(item.external_id)
-        return true
-      })
-
-      // Upsert into canonical and detect content changes. Coverage is merged
-      // only after canonical persistence succeeds; otherwise later searches
-      // could treat an uncached range as cached and miss source items.
-      let canonicalPersisted = deduped.length === 0
-      if (deduped.length > 0) {
-        try {
-          const canonicalResults = await upsertCanonical(deduped)
-          for (let i = 0; i < canonicalResults.length; i++) {
-            const r = canonicalResults[i]
-            canonicalIds.set(deduped[i].external_id, r.canonical_id)
-            if (r.content_changed) {
-              contentChanged.add(deduped[i].external_id)
-            }
-          }
-          canonicalPersisted = true
-        } catch (err) {
-          // Canonical upsert failure is non-fatal — run continues with fresh data
-          console.error(`[search] ${sourceId}: canonical upsert failed:`, err)
-        }
-      }
-
-      if (canonicalPersisted) {
-        for (const range of fetchedRanges) {
-          await mergeCoverage(sourceId, range)
-        }
-      }
-
-      return { sourceId, items: deduped, warnings, contentChanged, canonicalIds }
-    }
-
-    function prevDay(date: string): string {
-      const d = new Date(date + 'T00:00:00.000Z')
-      d.setUTCDate(d.getUTCDate() - 1)
-      return d.toISOString().slice(0, 10)
-    }
-
-    const sourceResults = await Promise.allSettled(
-      activeSources.map(id => processSource(id))
-    )
-
-    const items: ScrapedFsn[] = []
-    const allWarnings: string[] = []
-    const allContentChanged = new Set<string>()
-    const allCanonicalIds   = new Map<string, string>()
-    const searchedSources   = new Set<string>()
-
-    for (let i = 0; i < sourceResults.length; i++) {
-      const r     = sourceResults[i]
-      const srcId = activeSources[i]
-      if (r.status === 'fulfilled') {
-        searchedSources.add(srcId)
-        console.log(`[search] ${srcId}: ${r.value.items.length} items${r.value.warnings.length ? `, ${r.value.warnings.length} warning(s)` : ''}`)
-        items.push(...r.value.items)
-        allWarnings.push(...r.value.warnings)
-        r.value.contentChanged.forEach(id => allContentChanged.add(id))
-        r.value.canonicalIds.forEach((cid, eid) => allCanonicalIds.set(eid, cid))
-      } else {
-        // Surface the error clearly — no silent retry loop
-        console.error(`[search] ${srcId} FAILED:`, r.reason)
-      }
-    }
-
-    console.log(`[search] Combined: ${items.length} total items across ${activeSources.length} source(s)${allWarnings.length ? ` — ${allWarnings.length} degraded warning(s)` : ''}`)
-    if (items.length > 0) {
-      console.log('[search] Sample item:', JSON.stringify(items[0], null, 2))
-    }
-
-    // Step 2: Insert raw FSN results
-    let insertedRows: {
-      id: string
-      external_id: string
-      title: string
-      manufacturer: string
-      raw_content: string
-      fsn_date: string | null
-    }[] = []
-
-    if (items.length > 0) {
-      const rows = items.map((item) => ({
-        run_id:        run.id,
-        external_id:   item.external_id,
-        title:         item.title,
-        manufacturer:  item.manufacturer ?? '',
-        fsn_date:      item.fsn_date || null,
-        source_url:    item.source_url,
-        raw_content:   item.raw_content,
-        source_db:     item.source_db,
-        content_hash:  computeContentHash(item),
-        canonical_id:  allCanonicalIds.get(item.external_id) ?? null,
-      }))
-
-      console.log('[search] Inserting', rows.length, 'rows into fsn_results')
-      const { data: inserted, error: insertError } = await db
-        .from('fsn_results')
-        .insert(rows)
-        .select('id, external_id, title, manufacturer, raw_content, fsn_date')
-
-      console.log('[search] Insert error:', insertError)
-      console.log('[search] Inserted rows returned:', inserted?.length ?? 0)
-      if (insertError) throw insertError
-      insertedRows = inserted ?? []
-    } else {
-      console.log('[search] Skipping insert — 0 items scraped')
-    }
-
-    console.log('[search] Running AI filter on', insertedRows.length, 'rows')
-    // Step 3: Batch cache pre-check → manufacturer pre-filter → AI filter
-    const decisions: (FilterDecision & { fsn_result_id: string })[] = []
-
-    // Mirrors getFsnExternalId in filter-pipeline.ts (not exported)
-    const fsnIdOf = (title: string) =>
-      createHash('sha256').update(title.toLowerCase().trim()).digest('hex').slice(0, 32)
-
-    const filterSearchTerms = buildManufacturerSearchTerms(profile.manufacturer ?? '', profile.device_name ?? '')
-    const profileFingerprint = getProfileFingerprint(profile)
-
-    // FIX 1: Single bulk cache lookup — replaces one DB round-trip per row
-    let needsFilter = insertedRows
-
-    if (insertedRows.length > 0) {
-      const { data: cacheHits } = await db
-        .from('filter_decision_cache')
-        .select('fsn_external_id, decision, rationale, confidence, model_used')
-        .in('fsn_external_id', insertedRows.map(r => fsnIdOf(r.title)))
-        .eq('profile_fingerprint', profileFingerprint)
-
-      const cacheMap = new Map<string, {
-        decision:   string
-        rationale:  string | null
-        confidence: number | null
-        model_used: string | null
-      }>()
-      for (const hit of cacheHits ?? []) {
-        cacheMap.set(hit.fsn_external_id, hit)
-      }
-
-      const alreadyCached: typeof insertedRows = []
-      needsFilter = []
-
-      for (const row of insertedRows) {
-        const skipCache = allContentChanged.has(row.external_id ?? '')
-        if (!skipCache && cacheMap.has(fsnIdOf(row.title))) {
-          alreadyCached.push(row)
-        } else {
-          needsFilter.push(row)
-        }
-      }
-
-      console.log(`[filter] cache hits: ${alreadyCached.length} / ${insertedRows.length} rows skipped`)
-
-      // Reconstruct decisions from cache (confidence stored as 0-100 integer in DB)
-      for (const row of alreadyCached) {
-        const hit = cacheMap.get(fsnIdOf(row.title))!
-        decisions.push({
-          fsn_result_id: row.id,
-          decision:      hit.decision as FilterDecision['decision'],
-          rationale:     hit.rationale ?? '',
-          confidence:    hit.confidence != null ? hit.confidence / 100 : null,
-          model:         hit.model_used ?? null,
-        })
-      }
-    }
-
-    // FIX 2: Manufacturer + device pre-filter — AND logic when device terms exist
-    // Split filterSearchTerms into manufacturer tokens and device-name tokens so
-    // a row must match BOTH to pass, preventing "medtronic" alone from passing all FDA rows.
-    const manufacturerTerms = extractManufacturerTerms(profile.manufacturer ?? '')
-    const deviceTerms       = filterSearchTerms.filter(t => !manufacturerTerms.includes(t))
-
-    let toFilter = needsFilter
-    if (filterSearchTerms.length > 0) {
-      const mfrMatched:  typeof insertedRows = []
-      const mfrExcluded: typeof insertedRows = []
-
-      for (const row of needsFilter) {
-        const hay = `${row.title} ${row.manufacturer} ${row.raw_content}`.toLowerCase()
-
-        let matches: boolean
-        if (deviceTerms.length === 0) {
-          // No device terms extracted — fall back to OR: any manufacturer term matches
-          matches = manufacturerTerms.some(t => hay.includes(t.toLowerCase()))
-        } else {
-          // AND: must match at least one manufacturer term AND at least one device term
-          const mfrMatch = manufacturerTerms.length === 0 || manufacturerTerms.some(t => hay.includes(t.toLowerCase()))
-          const devMatch = deviceTerms.some(t => hay.includes(t.toLowerCase()))
-          matches = mfrMatch && devMatch
-        }
-
-        if (matches) {
-          mfrMatched.push(row)
-        } else {
-          mfrExcluded.push(row)
-          decisions.push({
-            fsn_result_id: row.id,
-            decision:      'excluded',
-            rationale:     'Manufacturer mismatch — not relevant to profile.',
-            confidence:    0.95,
-            model:         null,
-          })
-        }
-      }
-
-      console.log(`[filter] manufacturer pre-filter: ${mfrMatched.length} relevant, ${mfrExcluded.length} excluded (device+mfr match required)`)
-      toFilter = mfrMatched
-    }
-
-    console.log(`[filter] sending ${toFilter.length} rows to AI`)
-
-    // AI filter — cache already resolved above, skip redundant per-row lookup
-    for (let i = 0; i < toFilter.length; i++) {
-      const row = toFilter[i]
-      const d = await stage1Filter(
-        { title: row.title, manufacturer: row.manufacturer, raw_content: row.raw_content, fsn_date: row.fsn_date },
-        profile,
-        { skipCache: true },
-      )
-      decisions.push({ ...d, fsn_result_id: row.id })
-      if ((i + 1) % 25 === 0) {
-        console.log(`[filter] Progress: ${i + 1}/${toFilter.length} (${Math.round((i + 1) / toFilter.length * 100)}%)`)
-        await new Promise(r => setTimeout(r, 200))
-      }
-    }
-
-    // Step 4: Insert filter decisions
-    if (decisions.length > 0) {
-      const decisionRows = decisions.map((d) => ({
-        fsn_result_id: d.fsn_result_id,
-        search_run_id: run.id,
-        decision:      d.decision,
-        rationale:     d.rationale,
-        confidence:    d.confidence,
-        model_used:    d.model,
-        stage:         'stage1',
-      }))
-
-      const { error: decisionsError } = await db
-        .from('filter_decisions')
-        .insert(decisionRows)
-
-      if (decisionsError) throw decisionsError
-    }
-
-    // Step 5: Count by decision
-    const counts = decisions.reduce(
-      (acc, d) => {
-        acc[d.decision] = (acc[d.decision] ?? 0) + 1
-        return acc
-      },
-      { relevant: 0, uncertain: 0, excluded: 0, filter_failed: 0 } as Record<string, number>
-    )
-
-    // Step 6: Mark run completed (or degraded if any source returned warnings)
-    const runStatus = allWarnings.length > 0 ? 'degraded' : 'complete'
-    if (runStatus === 'degraded') {
-      console.warn(`[search] Run ${run.id} marked degraded: ${allWarnings.join(' | ')}`)
-    }
-    const { error: updateError } = await db
-      .from('search_runs')
-      .update({
-        status:               runStatus,
-        error:                allWarnings.length > 0 ? allWarnings.join('\n') : null,
-        completed_at:         new Date().toISOString(),
-        relevant_count:       counts.relevant,
-        uncertain_count:      counts.uncertain,
-        excluded_count:       counts.excluded,
-        filter_failed_count:  counts.filter_failed,
-      })
-      .eq('id', run.id)
-    if (updateError) console.error('[search] Final update failed:', updateError.message)
-
-    // Step 7: Audit log
-    await logAuditEvent(user.id, 'search_run', {
-      run_id:          run.id,
-      profile_id,
-      result_count:    items.length,
-      relevant_count:  counts.relevant,
-    }, request)
-
-    // Step 8: Email notification for paid plans (fire-and-forget)
-    const toEmail = userData?.email ?? user.email
-    if (toEmail && userPlan !== 'free' && process.env.RESEND_API_KEY) {
-      sendSearchRunNotification(toEmail, {
-        deviceName:     profile.device_name,
-        manufacturer:   profile.manufacturer,
-        periodFrom:     period_from,
-        periodTo:       period_to,
-        relevantCount:  counts.relevant,
-        uncertainCount: counts.uncertain,
-        excludedCount:  counts.excluded,
-        runId:          run.id,
-      }).catch((err) => console.error('Email notification failed:', err))
-    }
-
-    return Response.json(
-      {
-        run_id:               run.id,
-        run_status:           runStatus,
-        warnings:             allWarnings,
-        result_count:         items.length,
-        relevant_count:       counts.relevant,
-        uncertain_count:      counts.uncertain,
-        excluded_count:       counts.excluded,
-        filter_failed_count:  counts.filter_failed,
-      },
-      { status: 201 }
-    )
-  } catch (err) {
-    const errMsg =
-      err instanceof Error
-        ? err.message
-        : (err && typeof err === 'object' && 'message' in err)
-          ? String((err as Record<string, unknown>).message)
-          : String(err)
-
-    await db
-      .from('search_runs')
-      .update({ status: 'error', error: errMsg })
-      .eq('id', run.id)
-
-    return Response.json({ error: errMsg, run_id: run.id }, { status: 500 })
+  // Enqueue the job
+  const jobPayload: SearchJobPayload = {
+    profile_id,
+    period_from,
+    period_to,
+    selected_dbs:  selected_dbs ?? ['bfarm'],
+    user_id:       user.id,
+    force_refresh: force_refresh ?? false,
   }
+  const { error: queueError } = await db.from('search_job_queue').insert({
+    run_id:  run.id,
+    payload: jobPayload,
+  })
+  if (queueError) {
+    // Roll back the run row so the user doesn't see a ghost run
+    await db.from('search_runs').delete().eq('id', run.id)
+    return Response.json({ error: 'Failed to enqueue search job' }, { status: 500 })
+  }
+
+  return Response.json({ run_id: run.id, status: 'pending' }, { status: 201 })
 }
