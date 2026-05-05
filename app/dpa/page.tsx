@@ -35,7 +35,7 @@ export default function DpaPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-zinc-900 mb-3">What a Kodex DPA covers</h2>
+            <h2 className="text-xl font-semibold text-zinc-900 mb-3">What a Neuridion DPA covers</h2>
             <ul className="list-disc pl-5 space-y-2">
               <li>Subject matter, duration, nature and purpose of processing</li>
               <li>Categories of personal data processed (names, emails, device search terms)</li>

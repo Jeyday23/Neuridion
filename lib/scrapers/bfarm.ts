@@ -8,7 +8,7 @@ const RESULTS_PER_PAGE = 30
 const MAX_PAGES  = 50
 const MAX_ITEMS  = 200
 const MAX_PAGES_YEAR = 50  // 50 pages × 30 items = 1,500 max per year shortcut
-const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0)'
+const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
 export interface ScrapedFsn {
   external_id:  string

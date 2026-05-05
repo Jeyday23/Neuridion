@@ -5,7 +5,7 @@ const API_BASE   = 'https://fsca.swissmedic.ch/mep/api/publications'
 const PUBLIC_BASE = 'https://fsca.swissmedic.ch/mep'
 const MAX_PAGES  = 50
 const MAX_ITEMS  = 500
-const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0; +https://kodex.medical)'
+const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
 type MaybeString = string | null | undefined
 

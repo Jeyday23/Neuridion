@@ -53,7 +53,7 @@ async function buildExcel(
   meta: { device: string; manufacturer: string; period_from: string; period_to: string }
 ): Promise<Buffer> {
   const wb = new ExcelJS.Workbook()
-  wb.creator = 'Kodex'
+  wb.creator = 'Neuridion'
   wb.created = new Date()
 
   // Group by source database — currently only BfArM; extend when more sources added

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
-const COOKIE_NAME = 'kodex_cookie_consent'
+const COOKIE_NAME = 'neuridion_cookie_consent'
 
 function getConsent(): string | undefined {
   if (typeof document === 'undefined') return undefined

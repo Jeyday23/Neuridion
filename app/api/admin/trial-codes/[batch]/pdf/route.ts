@@ -41,7 +41,7 @@ export async function GET(
         <div class="code-card">
           ${svg}
           <div class="code-text">${row.code}</div>
-          <div class="tagline">Kodex Medical — 1 Free Search</div>
+          <div class="tagline">Neuridion — 1 Free Search</div>
           ${expires ? `<div class="expires">${expires}</div>` : ''}
         </div>`
     })
@@ -103,7 +103,7 @@ export async function GET(
       Print / Save PDF
     </button>
   </div>
-  <h1>Kodex Medical — Trial Codes | Batch: ${batchName} | ${new Date().toLocaleDateString('en-GB')}</h1>
+  <h1>Neuridion — Trial Codes | Batch: ${batchName} | ${new Date().toLocaleDateString('en-GB')}</h1>
   <div class="grid">
     ${codeBlocks.join('\n')}
   </div>

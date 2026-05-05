@@ -9,7 +9,7 @@ const MAX_ITEMS        = 500            // Per-quarter cap. Quarterly chunking m
                                         // can return up to 4 × 500 = 2,000 records instead of 500.
                                         // Callers should pass searchTerms to narrow the Lucene query.
 const PAGE_DELAY_MS    = 400            // ~150 req/min — well under 240 RPM limit
-const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0; +https://kodex.medical)'
+const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
 export async function scrapeFdaMaude(params: {
   fromDate:     string

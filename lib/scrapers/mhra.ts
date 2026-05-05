@@ -4,7 +4,7 @@ const SEARCH_API      = 'https://www.gov.uk/api/search.json'
 const CONTENT_API_BASE = 'https://www.gov.uk/api/content'
 const PAGE_SIZE        = 100
 const DETAIL_CONCURRENCY = 3
-const UA = 'Mozilla/5.0 (compatible; KodexMedical/1.0; +https://kodex.medical)'
+const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
 export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> {
   const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')

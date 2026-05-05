@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   await logAuditEvent(user.id, 'data_exported', { run_count: runIds.length }, request)
 
   const date     = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  const filename = `kodex-data-export-${date}.json`
+  const filename = `neuridion-data-export-${date}.json`
 
   return new Response(JSON.stringify(exportPayload, null, 2), {
     headers: {

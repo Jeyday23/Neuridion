@@ -87,7 +87,7 @@ export async function sendSearchRunNotification(
     lines.push(`<strong style="color:#71717a">Excluded:</strong> ${summary.excludedCount}`)
   }
 
-  lines.push('', `<a href="${archiveUrl}">View results in Kodex →</a>`)
+  lines.push('', `<a href="${archiveUrl}">View results in Neuridion →</a>`)
 
   const html = `<!DOCTYPE html>
 <html>
