@@ -640,12 +640,57 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
     async function pollCurrentState(): Promise<void> {
       if (completionHandled) { stopPolling(); return }
-      const { data } = await supabase
-        .from('search_runs')
-        .select('status, progress, relevant_count, uncertain_count, excluded_count, error')
-        .eq('id', runId)
-        .single()
-      if (data) await handleUpdate(data as RunRow)
+      // Poll via the authenticated API route instead of the browser Supabase client.
+      // Direct browser DB queries silently return null when auth cookies are stale or
+      // RLS isn't satisfied client-side — the API route uses server-side auth which
+      // is always reliable. It also returns results in the same response so we avoid
+      // a second fetch on completion.
+      let res: Response
+      try { res = await fetch(`/api/search-runs/${runId}`) }
+      catch { return }  // Network error — retry next tick
+      if (!res.ok) return  // Auth / not-found — retry next tick
+      const body = await res.json() as {
+        run?: {
+          status:          string
+          progress:        RunRow['progress']
+          relevant_count:  number | null
+          uncertain_count: number | null
+          excluded_count:  number | null
+          error:           string | null
+        }
+        results?: FsnResult[]
+      }
+      if (!body.run) return
+      const r = body.run
+      if (r.status === 'running') {
+        setState({ phase: 'running', runId, startedAt, progress: r.progress ?? null })
+        return
+      }
+      if (r.status === 'complete' || r.status === 'degraded') {
+        if (completionHandled) return
+        completionHandled = true
+        channelRef.current?.unsubscribe()
+        stopPolling()
+        setState({
+          phase:    'done',
+          runId,
+          results:  body.results ?? [],
+          counts:   {
+            relevant:  r.relevant_count  ?? 0,
+            uncertain: r.uncertain_count ?? 0,
+            excluded:  r.excluded_count  ?? 0,
+          },
+          startedAt,
+        })
+        return
+      }
+      if (r.status === 'error' || r.status === 'failed') {
+        if (completionHandled) return
+        completionHandled = true
+        channelRef.current?.unsubscribe()
+        stopPolling()
+        setState({ phase: 'error', message: r.error ?? 'Search run failed.' })
+      }
     }
 
     // Subscribe without a server-side filter — UPDATE events on search_runs require
