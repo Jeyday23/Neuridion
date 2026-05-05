@@ -320,6 +320,22 @@ export async function runSearchPipeline(
     toFilter = mfrMatched
   }
 
+  // Per-run AI filter cap — prevents runaway spend on large result sets
+  const MAX_FILTER_ITEMS = Math.max(1, parseInt(process.env.MAX_FILTER_ITEMS_PER_RUN ?? '300', 10))
+  if (toFilter.length > MAX_FILTER_ITEMS) {
+    const skipped = toFilter.splice(MAX_FILTER_ITEMS)
+    console.warn(`[pipeline] item cap: ${skipped.length} items skipped (limit=${MAX_FILTER_ITEMS})`)
+    for (const row of skipped) {
+      decisions.push({
+        fsn_result_id: row.id,
+        decision:      'filter_failed',
+        rationale:     `Run item limit (${MAX_FILTER_ITEMS}) reached — manual review required.`,
+        confidence:    null,
+        model:         null,
+      })
+    }
+  }
+
   for (let i = 0; i < toFilter.length; i++) {
     const row = toFilter[i]
     const d = await stage1Filter(
