@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { useSearchContext } from '../search-context'
+import { useSearchContext, type SearchProgress } from '../search-context'
 import { useLanguage } from '../language-context'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
@@ -213,6 +213,166 @@ function TermRow({ value, onChange, onRemove, placeholder, showRemove }: {
           <X className="w-4 h-4" />
         </button>
       )}
+    </div>
+  )
+}
+
+// ─── Progress tips ────────────────────────────────────────────────────────────
+
+const PROGRESS_TIPS = [
+  'Scanning Field Safety Notices issued in your selected period',
+  'Cross-referencing manufacturer aliases and trade name variants',
+  'Applying 2-stage AI relevance filter using Claude Sonnet',
+  'Checking EU MDR compliance signals across regulatory databases',
+  'Deduplicating FSN records to prevent double-counting across sources',
+  'Comparing notices against your device EMDN classification',
+  'Identifying Field Safety Corrective Actions relevant to your profile',
+  'Filtering by manufacturer name variants and legal entity suffixes',
+]
+
+// ─── Elapsed timer ────────────────────────────────────────────────────────────
+
+function ElapsedTimer({ startedAt }: { startedAt: number }) {
+  const [elapsed, setElapsed] = useState(() => Math.floor((Date.now() - startedAt) / 1000))
+  useEffect(() => {
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startedAt) / 1000)), 1000)
+    return () => clearInterval(id)
+  }, [startedAt])
+  const m = Math.floor(elapsed / 60)
+  const s = elapsed % 60
+  return <span>{m > 0 ? `${m}m ${s.toString().padStart(2, '0')}s` : `${s}s`}</span>
+}
+
+// ─── Rotating tip ─────────────────────────────────────────────────────────────
+
+function RotatingTip() {
+  const [idx, setIdx]         = useState(0)
+  const [visible, setVisible] = useState(true)
+
+  useEffect(() => {
+    const id = setInterval(() => setVisible(false), 4000)
+    return () => clearInterval(id)
+  }, [])
+
+  useEffect(() => {
+    if (!visible) {
+      const t = setTimeout(() => { setIdx((i) => (i + 1) % PROGRESS_TIPS.length); setVisible(true) }, 300)
+      return () => clearTimeout(t)
+    }
+  }, [visible])
+
+  return (
+    <p className="text-xs text-slate-400 italic transition-opacity duration-300" style={{ opacity: visible ? 1 : 0 }}>
+      {PROGRESS_TIPS[idx]}
+    </p>
+  )
+}
+
+// ─── Search progress card ─────────────────────────────────────────────────────
+
+type ActiveSearchState =
+  | { phase: 'queued';  runId: string; startedAt: number }
+  | { phase: 'running'; runId: string; startedAt: number; progress: SearchProgress | null }
+
+function SearchProgressCard({ state }: { state: ActiveSearchState }) {
+  const progress     = state.phase === 'running' ? state.progress : null
+  const sourcesDone  = progress?.sources_done  ?? []
+  const sourcesTotal = progress?.sources_total ?? []
+  const itemsFound   = progress?.items_found   ?? 0
+  const currentSrc   = progress?.current_source ?? null
+  const allSrcsDone  = sourcesTotal.length > 0 && sourcesDone.length >= sourcesTotal.length
+
+  const barPercent =
+    state.phase === 'queued'  ? 3  :
+    sourcesTotal.length === 0 ? 8  :
+    allSrcsDone               ? 88 :
+    Math.round((sourcesDone.length / sourcesTotal.length) * 75) + 5
+
+  const statusMsg =
+    state.phase === 'queued' ? 'Connecting to databases…'                      :
+    allSrcsDone              ? 'Finalising results…'                           :
+    currentSrc               ? `Scraping ${formatSourceLabel(currentSrc)}…`   :
+    itemsFound > 0           ? 'Running AI analysis…'                          :
+                               'Initialising search pipeline…'
+
+  return (
+    <div className="mt-6 rounded-lg border border-[#E2E8F0] bg-white overflow-hidden shadow-sm">
+      {/* Header */}
+      <div className="px-5 py-3.5 bg-gradient-to-r from-[#0F1F3D] to-[#0a2e2b] flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-400" />
+          </span>
+          <span className="text-sm font-medium text-white truncate">{statusMsg}</span>
+        </div>
+        <span className="text-xs text-slate-400 font-mono tabular-nums shrink-0">
+          <ElapsedTimer startedAt={state.startedAt} />
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-0.5 bg-slate-100">
+        <div
+          className="h-full bg-gradient-to-r from-[#0D9488] to-[#14b8a6] transition-[width] duration-700 ease-out"
+          style={{ width: `${barPercent}%` }}
+        />
+      </div>
+
+      {/* Body */}
+      <div className="px-5 py-4 space-y-4">
+        {/* Sources grid */}
+        {sourcesTotal.length > 0 ? (
+          <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-4">
+            {sourcesTotal.map((src) => {
+              const done   = sourcesDone.includes(src)
+              const active = currentSrc === src
+              return (
+                <div key={src} className="flex items-center gap-2">
+                  {done ? (
+                    <CheckCircle className="w-4 h-4 text-teal-500 shrink-0" />
+                  ) : active ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
+                  ) : (
+                    <div className="w-4 h-4 shrink-0 flex items-center justify-center">
+                      <div className="w-2 h-2 rounded-full bg-slate-200" />
+                    </div>
+                  )}
+                  <span className={clsx(
+                    'text-sm truncate',
+                    done   ? 'text-teal-700'              :
+                    active ? 'text-slate-900 font-medium' :
+                             'text-slate-400'
+                  )}>
+                    {formatSourceLabel(src)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
+            <span>Preparing search pipeline…</span>
+          </div>
+        )}
+
+        {/* Items found counter */}
+        {itemsFound > 0 && (
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-50 border border-teal-100">
+            <span className="text-sm font-semibold text-teal-700 tabular-nums">{itemsFound}</span>
+            <span className="text-xs text-teal-600">field safety notices found</span>
+          </div>
+        )}
+
+        {/* Rotating tip */}
+        <div className="flex items-start gap-2 pt-1 border-t border-slate-100">
+          <svg className="w-3.5 h-3.5 text-slate-300 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+          </svg>
+          <RotatingTip />
+        </div>
+      </div>
     </div>
   )
 }
@@ -754,51 +914,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
       {/* Progress */}
       {(state.phase === 'queued' || state.phase === 'running') && (
-        <div className="mt-6 space-y-3">
-          <div className="flex items-center gap-3 text-slate-600">
-            <Loader2 className="w-5 h-5 animate-spin text-teal-600 shrink-0" />
-            <span className="text-sm font-medium">
-              {state.phase === 'queued'
-                ? 'Search queued…'
-                : (state.progress?.current_source
-                    ? `Scraping ${formatSourceLabel(state.progress.current_source)}…`
-                    : 'Running AI filter…'
-                  )
-              }
-            </span>
-          </div>
-
-          {state.phase === 'running' && state.progress && (
-            <div className="space-y-1.5 pl-8">
-              {state.progress.sources_total.map((src) => {
-                const done   = state.progress!.sources_done.includes(src)
-                const active = state.progress!.current_source === src
-                return (
-                  <div key={src} className="flex items-center gap-2 text-sm text-slate-500">
-                    {done
-                      ? <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-                      : active
-                        ? <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
-                        : <div className="w-4 h-4 rounded-full border border-slate-300 shrink-0" />
-                    }
-                    <span className={
-                      done   ? 'text-green-700' :
-                      active ? 'text-teal-700 font-medium' :
-                               'text-slate-400'
-                    }>
-                      {formatSourceLabel(src)}
-                    </span>
-                  </div>
-                )
-              })}
-              {state.progress.items_found > 0 && (
-                <p className="text-xs text-slate-400 pt-1 pl-6">
-                  {state.progress.items_found} notices found so far
-                </p>
-              )}
-            </div>
-          )}
-        </div>
+        <SearchProgressCard state={state} />
       )}
 
       {/* Error */}
