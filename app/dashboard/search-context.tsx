@@ -19,11 +19,19 @@ export interface FsnResult {
   filter_decision: FilterDecision | null
 }
 
+export interface SearchProgress {
+  current_source: string | null
+  sources_done:   string[]
+  sources_total:  string[]
+  items_found:    number
+}
+
 export type SearchRunState =
   | { phase: 'idle' }
-  | { phase: 'running'; startedAt: number }
-  | { phase: 'done'; runId: string; results: FsnResult[]; counts: { relevant: number; uncertain: number; excluded: number }; startedAt: number }
-  | { phase: 'error'; message: string }
+  | { phase: 'queued';  runId: string; startedAt: number }
+  | { phase: 'running'; runId: string; startedAt: number; progress: SearchProgress | null }
+  | { phase: 'done';    runId: string; results: FsnResult[]; counts: { relevant: number; uncertain: number; excluded: number }; startedAt: number }
+  | { phase: 'error';   message: string }
 
 interface SearchContextValue {
   searchState: SearchRunState

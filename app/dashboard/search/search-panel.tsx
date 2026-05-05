@@ -386,30 +386,99 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
   async function runSearch() {
     if (!profileId) return
-    setState({ phase: 'running', startedAt: Date.now() })
     setReportState({ phase: 'idle' })
     setExpandedIds(new Set())
     setFilterTab('all')
+
+    let runId: string
+    const startedAt = Date.now()
     try {
-      const res  = await fetch('/api/search-runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profile_id: profileId, period_from: fromDate, period_to: toDate, selected_dbs: [...selectedDbs] }) })
-      const data = await res.json() as { run_id?: string; relevant_count?: number; uncertain_count?: number; excluded_count?: number; error?: string }
+      const res  = await fetch('/api/search-runs', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          profile_id:   profileId,
+          period_from:  fromDate,
+          period_to:    toDate,
+          selected_dbs: [...selectedDbs],
+        }),
+      })
+      const data = await res.json() as { run_id?: string; error?: string }
       if (!res.ok) {
-        const msg = data.error
-        setState({ phase: 'error', message: typeof msg === 'string' ? msg : msg ? JSON.stringify(msg) : 'Search failed.' })
+        setState({ phase: 'error', message: data.error ?? 'Search failed.' })
         return
       }
-      const detailRes = await fetch(`/api/search-runs/${data.run_id}`)
-      const detail    = await detailRes.json() as { results?: FsnResult[]; error?: string }
-      if (!detailRes.ok) { setState({ phase: 'error', message: detail.error ?? 'Failed to load results.' }); return }
-      setState({
-        phase: 'done', runId: data.run_id!,
-        results: detail.results ?? [],
-        counts: { relevant: data.relevant_count ?? 0, uncertain: data.uncertain_count ?? 0, excluded: data.excluded_count ?? 0 },
-        startedAt: state.phase === 'running' ? state.startedAt : Date.now(),
-      })
+      runId = data.run_id!
+      setState({ phase: 'queued', runId, startedAt })
     } catch (err) {
       setState({ phase: 'error', message: String(err) })
+      return
     }
+
+    const supabase = createClient()
+    const channel  = supabase
+      .channel(`run:${runId}`)
+      .on(
+        'postgres_changes',
+        {
+          event:  'UPDATE',
+          schema: 'public',
+          table:  'search_runs',
+          filter: `id=eq.${runId}`,
+        },
+        async (payload) => {
+          const row = payload.new as {
+            status:          string
+            progress:        { current_source: string | null; sources_done: string[]; sources_total: string[]; items_found: number } | null
+            relevant_count:  number
+            uncertain_count: number
+            excluded_count:  number
+            error:           string | null
+          }
+
+          if (row.status === 'running') {
+            setState({
+              phase:    'running',
+              runId,
+              startedAt,
+              progress: row.progress ?? null,
+            })
+            return
+          }
+
+          if (row.status === 'complete' || row.status === 'degraded') {
+            channel.unsubscribe()
+            try {
+              const detailRes = await fetch(`/api/search-runs/${runId}`)
+              const detail    = await detailRes.json() as { results?: FsnResult[]; error?: string }
+              if (!detailRes.ok) {
+                setState({ phase: 'error', message: detail.error ?? 'Failed to load results.' })
+                return
+              }
+              setState({
+                phase:     'done',
+                runId,
+                results:   detail.results ?? [],
+                counts:    {
+                  relevant:  row.relevant_count  ?? 0,
+                  uncertain: row.uncertain_count ?? 0,
+                  excluded:  row.excluded_count  ?? 0,
+                },
+                startedAt,
+              })
+            } catch (err) {
+              setState({ phase: 'error', message: String(err) })
+            }
+            return
+          }
+
+          if (row.status === 'error' || row.status === 'failed') {
+            channel.unsubscribe()
+            setState({ phase: 'error', message: row.error ?? 'Search run failed.' })
+          }
+        },
+      )
+      .subscribe()
   }
 
   const noProfiles = profiles.length === 0
@@ -618,9 +687,9 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
               className="px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed">
               {t.search.createProfile}
             </button>
-            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || isOverLimit}
+            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'queued' || state.phase === 'running' || isOverLimit}
               className="px-8 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
-              {state.phase === 'running'
+              {(state.phase === 'queued' || state.phase === 'running')
                 ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.searching}</>
                 : <>{t.search.runSearch} <span>→</span></>
               }
@@ -628,6 +697,55 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           </div>
         </div>
       </div>
+
+      {/* Progress */}
+      {(state.phase === 'queued' || state.phase === 'running') && (
+        <div className="mt-6 space-y-3">
+          <div className="flex items-center gap-3 text-slate-600">
+            <Loader2 className="w-5 h-5 animate-spin text-teal-600 shrink-0" />
+            <span className="text-sm font-medium">
+              {state.phase === 'queued'
+                ? 'Search queued…'
+                : (state.progress?.current_source
+                    ? `Scraping ${formatSourceLabel(state.progress.current_source)}…`
+                    : 'Running AI filter…'
+                  )
+              }
+            </span>
+          </div>
+
+          {state.phase === 'running' && state.progress && (
+            <div className="space-y-1.5 pl-8">
+              {state.progress.sources_total.map((src) => {
+                const done   = state.progress!.sources_done.includes(src)
+                const active = state.progress!.current_source === src
+                return (
+                  <div key={src} className="flex items-center gap-2 text-sm text-slate-500">
+                    {done
+                      ? <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
+                      : active
+                        ? <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
+                        : <div className="w-4 h-4 rounded-full border border-slate-300 shrink-0" />
+                    }
+                    <span className={
+                      done   ? 'text-green-700' :
+                      active ? 'text-teal-700 font-medium' :
+                               'text-slate-400'
+                    }>
+                      {formatSourceLabel(src)}
+                    </span>
+                  </div>
+                )
+              })}
+              {state.progress.items_found > 0 && (
+                <p className="text-xs text-slate-400 pt-1 pl-6">
+                  {state.progress.items_found} notices found so far
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Error */}
       {state.phase === 'error' && (
