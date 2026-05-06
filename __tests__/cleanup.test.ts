@@ -27,4 +27,12 @@ describe('isStuckRun', () => {
     expect(isStuckRun({ status: 'running', started_at: null, created_at: '2026-05-06T08:00:00.000Z' }, CUTOFF)).toBe(false)
     expect(isStuckRun({ status: 'running', started_at: null, created_at: '2026-05-06T09:00:00.000Z' }, CUTOFF)).toBe(false)
   })
+
+  it('returns true when status is pending and created_at is before cutoff', () => {
+    expect(isStuckRun({ status: 'pending', started_at: null, created_at: '2026-05-06T07:00:00.000Z' }, CUTOFF)).toBe(true)
+  })
+
+  it('returns false when status is pending and created_at is at or after cutoff', () => {
+    expect(isStuckRun({ status: 'pending', started_at: null, created_at: '2026-05-06T08:00:00.000Z' }, CUTOFF)).toBe(false)
+  })
 })
