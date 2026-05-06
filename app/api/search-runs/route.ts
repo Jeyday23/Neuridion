@@ -128,12 +128,17 @@ export async function POST(request: Request) {
     await runSearchPipeline(run.id, jobPayload)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error('[search-runs] pipeline error for run', run.id, msg)
-    await db.from('search_runs').update({
+    console.error(`[lifecycle] run_id=${run.id} pipeline error caught in route: ${msg}`)
+    const { error: recoveryError } = await db.from('search_runs').update({
       status:       'error',
       error:        msg,
       completed_at: new Date().toISOString(),
-    }).eq('id', run.id)
+    }).eq('id', run.id).eq('status', 'running')
+    if (recoveryError) {
+      console.error(`[lifecycle] run_id=${run.id} CRITICAL: recovery update failed: ${recoveryError.message}`)
+    } else {
+      console.log(`[lifecycle] run_id=${run.id} transition running→error (route catch)`)
+    }
     return Response.json({ error: 'Search pipeline failed: ' + msg }, { status: 500 })
   }
 

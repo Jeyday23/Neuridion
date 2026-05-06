@@ -46,6 +46,8 @@ export async function runSearchPipeline(
   onProgress?: (update: ProgressUpdate) => Promise<void>,
 ): Promise<void> {
   const db = createAdminClient()
+  let lifecycleComplete = false
+  console.log(`[lifecycle] run_id=${runId} transition pending→running started`)
 
   const { data: profile, error: profileError } = await db
     .from('product_profiles')
@@ -181,6 +183,8 @@ export async function runSearchPipeline(
 
     return { sourceId, items: deduped, warnings, contentChanged, canonicalIds }
   }
+
+  try {
 
   // ── Step 1: Scrape all sources ───────────────────────────────────────────────
 
@@ -391,6 +395,8 @@ export async function runSearchPipeline(
     progress:            null,
   }).eq('id', runId)
   if (finalizeError) throw new Error(`Failed to finalize run ${runId}: ${finalizeError.message}`)
+  lifecycleComplete = true
+  console.log(`[lifecycle] run_id=${runId} transition running→${runStatus} at ${new Date().toISOString()}`)
 
   // ── Step 6: Audit log ────────────────────────────────────────────────────────
 
@@ -420,5 +426,20 @@ export async function runSearchPipeline(
       excludedCount:  counts.excluded,
       runId,
     }).catch((err) => console.error('[pipeline] Email notification failed:', err))
+  }
+
+  } catch (err) {
+    if (!lifecycleComplete) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[lifecycle] run_id=${runId} pipeline error: ${msg}`)
+      await db.from('search_runs').update({
+        status:       'error',
+        error:        msg,
+        completed_at: new Date().toISOString(),
+        progress:     null,
+      }).eq('id', runId)
+      console.log(`[lifecycle] run_id=${runId} transition running→error (pipeline catch)`)
+    }
+    throw err
   }
 }
