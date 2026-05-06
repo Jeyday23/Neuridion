@@ -41,24 +41,24 @@ export async function GET(
   // Fetch filter decisions for these results
   const resultIds = (results ?? []).map((r) => r.id)
   const decisionsMap: Record<string, {
-    decision: string
-    rationale: string
-    confidence: number
-    model: string
+    decision:   string
+    rationale:  string
+    confidence: number | null
+    model:      string | null
   }> = {}
 
   if (resultIds.length > 0) {
     const { data: decisions } = await supabase
       .from('filter_decisions')
-      .select('fsn_result_id, decision, rationale, confidence, model')
+      .select('fsn_result_id, decision, rationale, confidence, model_used')
       .in('fsn_result_id', resultIds)
 
     for (const d of decisions ?? []) {
       decisionsMap[d.fsn_result_id] = {
         decision:   d.decision,
         rationale:  d.rationale,
-        confidence: Number(d.confidence),
-        model:      d.model,
+        confidence: d.confidence != null ? Number(d.confidence) : null,
+        model:      d.model_used ?? null,
       }
     }
   }

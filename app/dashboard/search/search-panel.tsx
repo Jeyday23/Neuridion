@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { useSearchContext } from '../search-context'
+import { useSearchContext, type SearchProgress } from '../search-context'
 import { useLanguage } from '../language-context'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
@@ -270,7 +270,7 @@ function RotatingTip() {
 
 // ─── Search progress card ─────────────────────────────────────────────────────
 
-function SearchProgressCard({ startedAt }: { startedAt: number }) {
+function SearchProgressCard({ startedAt, progress }: { startedAt: number; progress: SearchProgress | null }) {
   return (
     <div className="mt-6 rounded-lg border border-[#E2E8F0] bg-white overflow-hidden shadow-sm">
       {/* Header */}
@@ -294,10 +294,55 @@ function SearchProgressCard({ startedAt }: { startedAt: number }) {
 
       {/* Body */}
       <div className="px-5 py-4 space-y-4">
-        <div className="flex items-center gap-2 text-sm text-slate-500">
-          <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
-          <span>Running AI relevance filter — do not close this tab</span>
-        </div>
+        {progress && progress.sources_total.length > 0 ? (
+          <div className="space-y-2">
+            {progress.sources_total.map((sourceId) => {
+              const isDone   = progress.sources_done.includes(sourceId)
+              const isActive = progress.current_source === sourceId
+              return (
+                <div key={sourceId} className="flex items-center gap-2.5">
+                  {isDone  && <CheckCircle className="w-4 h-4 text-teal-500 shrink-0" />}
+                  {isActive && <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />}
+                  {!isDone && !isActive && (
+                    <span className="w-4 h-4 shrink-0 flex items-center justify-center">
+                      <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                    </span>
+                  )}
+                  <span className={clsx(
+                    'text-sm',
+                    isDone    ? 'text-slate-500'
+                    : isActive ? 'text-slate-800 font-medium'
+                    :            'text-slate-400'
+                  )}>
+                    {formatSourceLabel(sourceId)}
+                  </span>
+                  {isActive && (
+                    <span className="text-xs text-teal-600 font-medium ml-auto">scanning…</span>
+                  )}
+                </div>
+              )
+            })}
+
+            {/* AI filter phase — all sources done, current_source is null */}
+            {progress.current_source === null && progress.sources_done.length > 0 && (
+              <div className="flex items-center gap-2.5 pt-1">
+                <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
+                <span className="text-sm text-slate-800 font-medium">Running AI relevance filter…</span>
+              </div>
+            )}
+
+            {progress.items_found > 0 && (
+              <p className="text-xs text-slate-400 pt-1 border-t border-slate-100">
+                {progress.items_found} item{progress.items_found !== 1 ? 's' : ''} found so far
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
+            <span>{progress ? 'Running AI relevance filter…' : 'Starting search…'}</span>
+          </div>
+        )}
 
         {/* Rotating tip */}
         <div className="flex items-start gap-2 pt-1 border-t border-slate-100">
@@ -349,7 +394,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const isLongSearch   = totalDays > 365 && totalDays <= MAX_DAYS
   const isOverLimit    = totalDays > MAX_DAYS
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef   = useRef<HTMLInputElement>(null)
+  const submittingRef  = useRef(false)
   // Scroll target for "View results" navigation
   const resultsRef = useRef<HTMLDivElement>(null)
 
@@ -479,7 +525,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   }
 
   async function runSearch() {
-    if (!profileId) return
+    if (!profileId || submittingRef.current) return
+    submittingRef.current = true
     setReportState({ phase: 'idle' })
     setExpandedIds(new Set())
     setFilterTab('all')
@@ -530,6 +577,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       })
     } catch (err) {
       setState({ phase: 'error', message: err instanceof TypeError ? 'Network error — check your connection and try again.' : String(err) })
+    } finally {
+      submittingRef.current = false
     }
   }
 
@@ -739,7 +788,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
               className="px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed">
               {t.search.createProfile}
             </button>
-            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || isOverLimit}
+            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || state.phase === 'queued' || isOverLimit}
               className="px-8 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
               {state.phase === 'running'
                 ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.searching}</>
@@ -751,8 +800,11 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       </div>
 
       {/* Progress */}
-      {state.phase === 'running' && (
-        <SearchProgressCard startedAt={state.startedAt} />
+      {(state.phase === 'running' || state.phase === 'queued') && (
+        <SearchProgressCard
+          startedAt={state.startedAt}
+          progress={state.phase === 'running' ? state.progress : null}
+        />
       )}
 
       {/* Error */}

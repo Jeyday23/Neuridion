@@ -19,6 +19,18 @@ export interface FsnResult {
 
 type Tab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
 
+function formatSourceLabel(src: string | null | undefined): string {
+  if (!src) return 'BfArM'
+  const map: Record<string, string> = {
+    bfarm:      'BfArM',
+    fda:        'FDA MAUDE',
+    maude:      'FDA MAUDE',
+    mhra:       'MHRA',
+    swissmedic: 'Swissmedic',
+  }
+  return map[src.toLowerCase()] ?? src.toUpperCase()
+}
+
 const DECISION_STYLES: Record<string, string> = {
   relevant:      'bg-green-50 text-green-700 border-green-200',
   uncertain:     'bg-amber-50 text-amber-700 border-amber-200',
@@ -74,7 +86,7 @@ function ResultRow({ result }: { result: FsnResult }) {
                 })}
               </span>
             )}
-            <span className="uppercase tracking-wide text-zinc-400">{result.source_db}</span>
+            <span className="text-zinc-400">{formatSourceLabel(result.source_db)}</span>
             {d && d.confidence != null && (
               <span className="text-zinc-400">{Math.round(d.confidence * 100)}% confidence</span>
             )}
