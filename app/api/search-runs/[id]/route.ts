@@ -28,28 +28,21 @@ export async function GET(
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // ── DIAGNOSTIC LOGGING ───────────────────────────────────────────────────────
-  const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
-  console.log(`[diag] client type: ${hasServiceKey ? 'admin (service role)' : 'MISSING SERVICE KEY — falling back to anon'}`)
-  console.log(`[diag] fsn_results query: run_id=${id}`)
-
   // Fetch FSN results — use admin client to bypass RLS on internal pipeline tables
   const { data: results, error: resultsError } = await db.from('fsn_results')
     .select('*')
     .eq('run_id', id)
     .order('fsn_date', { ascending: false })
 
-  console.log(`[diag] fsn_results result count: ${results?.length ?? 0}`)
+  console.log(`[get-run] fsn_results count=${results?.length ?? 0} run_id=${id}`)
+
   if (resultsError) {
-    console.error(`[diag] fsn_results error: ${resultsError.message}`)
+    console.error(`[get-run] fsn_results error: ${resultsError.message}`)
     return Response.json({ error: resultsError.message }, { status: 500 })
   }
-  if (results && results.length > 0) {
-    console.log(`[diag] fsn_results first row id: ${results[0].id} run_id: ${results[0].run_id ?? '(no run_id col)'} search_run_id: ${results[0].search_run_id ?? '(none)'}`)
-  }
 
-  // Fetch filter decisions for these results
-  const resultIds = (results ?? []).map((r) => r.id)
+  // Fetch filter decisions — query by search_run_id directly (reliable single-step lookup)
+  // Previously used .in('fsn_result_id', resultIds) which silently failed for large result sets
   const decisionsMap: Record<string, {
     decision:   string
     rationale:  string
@@ -57,38 +50,18 @@ export async function GET(
     model:      string | null
   }> = {}
 
-  console.log(`[diag] filter_decisions query: run_id=${id} fsn_result_ids count=${resultIds.length}`)
+  const { data: decisions, error: decisionsError } = await db.from('filter_decisions')
+    .select('fsn_result_id, decision, rationale, confidence, model_used')
+    .eq('search_run_id', id)
 
-  if (resultIds.length > 0) {
-    const { data: decisions, error: decisionsError } = await db.from('filter_decisions')
-      .select('fsn_result_id, decision, rationale, confidence, model_used')
-      .in('fsn_result_id', resultIds)
+  console.log(`[get-run] filter_decisions count=${decisions?.length ?? 0} error=${decisionsError?.message ?? 'none'}`)
 
-    console.log(`[diag] filter_decisions result count: ${decisions?.length ?? 0}`)
-    if (decisionsError) {
-      console.error(`[diag] filter_decisions error: ${decisionsError.message}`)
-    }
-    if (decisions && decisions.length > 0) {
-      console.log(`[diag] filter_decisions first row: ${JSON.stringify(decisions[0])}`)
-    } else {
-      // No decisions found — also try querying by search_run_id to reveal if data exists under a different FK
-      const { data: byRunId, error: byRunIdError } = await db.from('filter_decisions')
-        .select('id, fsn_result_id, decision, search_run_id')
-        .eq('search_run_id', id)
-        .limit(3)
-      console.log(`[diag] filter_decisions by search_run_id count: ${byRunId?.length ?? 0} error: ${byRunIdError?.message ?? 'none'}`)
-      if (byRunId && byRunId.length > 0) {
-        console.log(`[diag] filter_decisions by search_run_id first row: ${JSON.stringify(byRunId[0])}`)
-      }
-    }
-
-    for (const d of decisions ?? []) {
-      decisionsMap[d.fsn_result_id] = {
-        decision:   d.decision,
-        rationale:  d.rationale,
-        confidence: d.confidence != null ? Number(d.confidence) : null,
-        model:      d.model_used ?? null,
-      }
+  for (const d of decisions ?? []) {
+    decisionsMap[d.fsn_result_id] = {
+      decision:   d.decision,
+      rationale:  d.rationale,
+      confidence: d.confidence != null ? Number(d.confidence) : null,
+      model:      d.model_used ?? null,
     }
   }
 
