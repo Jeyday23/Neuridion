@@ -242,14 +242,14 @@ export async function runSearchPipeline(
         fsn_date:     item.fsn_date || null,
         source_url:   item.source_url,
         raw_content:  item.raw_content,
-        source_db:    item.source_db,
+        source:       item.source_db,
         content_hash: computeContentHash(item),
         canonical_id: allCanonicalIds.get(item.external_id) ?? null,
       })))
       .select('id, external_id, title, manufacturer, raw_content, fsn_date')
 
     console.log(`[pipeline] step2: insert complete — rows_returned=${inserted?.length ?? 0} error=${insertError?.message ?? 'none'}`)
-    if (insertError) throw insertError
+    if (insertError) throw new Error(`fsn_results insert: ${insertError.message} (code=${insertError.code})`)
     insertedRows = inserted ?? []
   }
   console.log(`[pipeline] step2: insertedRows=${insertedRows.length}`)
@@ -388,7 +388,7 @@ export async function runSearchPipeline(
       })),
     )
     console.log(`[pipeline] step4: insert complete — error=${decisionsError?.message ?? 'none'}`)
-    if (decisionsError) throw decisionsError
+    if (decisionsError) throw new Error(`filter_decisions insert: ${decisionsError.message} (code=${decisionsError.code})`)
   }
 
   // ── Step 5: Finalise run ─────────────────────────────────────────────────────
