@@ -390,8 +390,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
   const MAX_DAYS = 365 * 3 + 1  // 3 years = 1096 days
 
-  const isMediumSearch = totalDays > 90  && totalDays <= 365
-  const isLongSearch   = totalDays > 365 && totalDays <= MAX_DAYS
+  const isMediumSearch = totalDays > 90  && totalDays <= 366
+  const isLongSearch   = totalDays > 366 && totalDays <= MAX_DAYS
   const isOverLimit    = totalDays > MAX_DAYS
 
   const fileInputRef   = useRef<HTMLInputElement>(null)
