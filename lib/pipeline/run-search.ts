@@ -380,7 +380,7 @@ export async function runSearchPipeline(
         decision:      d.decision,
         rationale:     d.rationale,
         confidence:    d.confidence,
-        model:         d.model,
+        model_used:    d.model,
       })),
     )
     if (decisionsError) throw decisionsError

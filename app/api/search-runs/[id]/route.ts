@@ -51,7 +51,7 @@ export async function GET(
   }> = {}
 
   const { data: decisions, error: decisionsError } = await db.from('filter_decisions')
-    .select('fsn_result_id, decision, rationale, confidence, model')
+    .select('fsn_result_id, decision, rationale, confidence, model_used')
     .eq('search_run_id', id)
 
   console.log(`[get-run] filter_decisions count=${decisions?.length ?? 0} error=${decisionsError?.message ?? 'none'}`)
@@ -61,7 +61,7 @@ export async function GET(
       decision:   d.decision,
       rationale:  d.rationale,
       confidence: d.confidence != null ? Number(d.confidence) : null,
-      model:      d.model ?? null,
+      model:      d.model_used ?? null,
     }
   }
 
