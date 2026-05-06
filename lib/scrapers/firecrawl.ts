@@ -43,6 +43,10 @@ export async function firecrawlFallback(params: ScraperParams): Promise<ScraperR
       }),
     })
 
+    if (startRes.status === 402) {
+      console.warn('[bfarm] Firecrawl fallback skipped: no credits')
+      return { items: [], warnings: ['Firecrawl fallback skipped: no credits (HTTP 402)'] }
+    }
     if (startRes.status === 401 || startRes.status === 403) {
       return { items: [], warnings: [`Firecrawl auth failed: ${startRes.status}`] }
     }

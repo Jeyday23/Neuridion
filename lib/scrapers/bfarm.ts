@@ -360,9 +360,17 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
     primary = { items: [], warnings: [`BfArM primary scraper threw: ${String(err)}`] }
   }
 
-  const result: ScraperResult = (primary.items.length > 0 || primary.archiveLimitationHit)
-    ? primary
-    : await firecrawlFallback(params)
+  let result: ScraperResult
+  if (primary.items.length > 0 || primary.archiveLimitationHit) {
+    result = primary
+  } else {
+    const fallback = await firecrawlFallback(params)
+    // If Firecrawl itself failed (402, timeout, etc.) fall back to primary so
+    // a Firecrawl outage never silently discards whatever the regular scraper found.
+    result = fallback.items.length > 0
+      ? fallback
+      : { items: primary.items, warnings: [...primary.warnings, ...fallback.warnings], archiveLimitationHit: primary.archiveLimitationHit }
+  }
 
   if (params.searchTerms && params.searchTerms.length > 0) {
     const terms = params.searchTerms.map(t => t.toLowerCase())
