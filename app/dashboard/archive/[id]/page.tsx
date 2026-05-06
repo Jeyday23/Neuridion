@@ -88,6 +88,11 @@ export default async function RunDetailPage({
     ? (run.dbs_searched as string[]).join(', ')
     : (run.dbs_searched as string | null) ?? '—'
 
+  const mhraSearched = (Array.isArray(run.dbs_searched) ? run.dbs_searched as string[] : [])
+    .some((db: string) => db.toLowerCase() === 'mhra')
+  const showMhraWarning = mhraSearched && run.status === 'complete' &&
+    !results.some(r => r.source_db === 'mhra')
+
   const rel  = run.relevant_count      ?? 0
   const unc  = run.uncertain_count     ?? 0
   const exc  = run.excluded_count      ?? 0
@@ -170,11 +175,17 @@ export default async function RunDetailPage({
           {fail > 0 && (
             <div className="text-center">
               <p className="text-2xl font-semibold text-red-600">{fail}</p>
-              <p className="text-xs text-zinc-400 mt-0.5">Filter Unavailable</p>
+              <p className="text-xs text-zinc-400 mt-0.5">Not Reviewed</p>
             </div>
           )}
         </div>
       </div>
+
+      {showMhraWarning && (
+        <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <strong>MHRA data unavailable</strong> — the MHRA (UK) source returned no results for this search. The source may be temporarily offline. Results from other databases are unaffected.
+        </div>
+      )}
 
       {run.status === 'error' && run.error_message && (
         <div className="mb-6 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-4 py-3 text-sm text-[#DC2626]">

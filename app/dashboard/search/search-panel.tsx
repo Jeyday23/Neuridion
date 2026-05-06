@@ -159,7 +159,7 @@ function FsnRow({
           <div className={clsx('rounded border p-3 text-sm', d ? PANEL_STYLES[d.decision] : 'bg-zinc-50 border-zinc-200')}>
             {!d && <p className="text-xs text-zinc-500 italic">No AI assessment available for this item.</p>}
             {d?.decision === 'filter_failed' && (
-              <p className="text-xs font-medium text-red-700">AI filter was not applied — manual review required.</p>
+              <p className="text-xs font-medium text-amber-700">Not reviewed — manual review required.</p>
             )}
             {d && d.decision !== 'filter_failed' && (
               <>

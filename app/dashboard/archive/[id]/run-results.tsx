@@ -41,7 +41,7 @@ const DECISION_LABELS: Record<string, string> = {
   relevant:      'Relevant',
   uncertain:     'Uncertain',
   excluded:      'Excluded',
-  filter_failed: 'Filter Unavailable',
+  filter_failed: 'Not Reviewed',
 }
 
 function DecisionBadge({ decision }: { decision: string }) {
@@ -111,14 +111,14 @@ function ResultRow({ result }: { result: FsnResult }) {
           )}
 
           {isFailed && (
-            <div className="mt-1.5 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-3 py-2">
-              <p className="text-xs font-medium text-red-700 flex items-center gap-1">
+            <div className="mt-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-2">
+              <p className="text-xs font-medium text-amber-700 flex items-center gap-1">
                 <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                 </svg>
-                AI filter was not applied — manual review required
+                Not reviewed — manual review required
               </p>
-              <p className="mt-0.5 text-xs text-red-600">This item was not analyzed due to an API error during the search run.</p>
+              <p className="mt-0.5 text-xs text-amber-600">This item exceeded the AI filter cap for this run and was not assessed.</p>
             </div>
           )}
 
@@ -168,16 +168,15 @@ export function RunResults({ results }: { results: FsnResult[] }) {
     { key: 'uncertain',     label: `Uncertain (${counts.uncertain})` },
     { key: 'excluded',      label: `Excluded (${counts.excluded})` },
     ...(counts.filter_failed > 0
-      ? [{ key: 'filter_failed' as Tab, label: `Filter Unavailable (${counts.filter_failed})` }]
+      ? [{ key: 'filter_failed' as Tab, label: `Not Reviewed (${counts.filter_failed})` }]
       : []),
   ]
 
   return (
     <div>
       {counts.filter_failed > 0 && (
-        <div className="mb-4 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-4 py-3 text-sm text-[#DC2626]">
-          <strong>{counts.filter_failed} item{counts.filter_failed !== 1 ? 's were' : ' was'} not analyzed by the AI filter</strong> due to API rate limiting during this run.
-          These items require manual review.
+        <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <strong>{counts.filter_failed} item{counts.filter_failed !== 1 ? 's were' : ' was'} not reviewed</strong> — these items exceeded the AI filter cap for this run and were not assessed. Manual review required.
         </div>
       )}
 

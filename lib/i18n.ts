@@ -48,13 +48,13 @@ export const translations = {
       relevant:     'Relevant',
       uncertain:    'Uncertain',
       excluded:     'Excluded',
-      failed:       'Failed',
+      failed:       'Not Reviewed',
     },
     badges: {
       relevant:      'Potentially Relevant',
       uncertain:     'Requires Review',
       excluded:      'Not Relevant',
-      filter_failed: 'Filter Unavailable',
+      filter_failed: 'Not Reviewed',
     },
     widget: {
       running:       'Search running',
@@ -119,13 +119,13 @@ export const translations = {
       relevant:     'Relevant',
       uncertain:    'Unsicher',
       excluded:     'Ausgeschlossen',
-      failed:       'Fehler',
+      failed:       'Nicht geprüft',
     },
     badges: {
       relevant:      'Möglicherweise relevant',
       uncertain:     'Überprüfung erforderlich',
       excluded:      'Nicht relevant',
-      filter_failed: 'Filter nicht verfügbar',
+      filter_failed: 'Nicht geprüft',
     },
     widget: {
       running:       'Suche läuft',

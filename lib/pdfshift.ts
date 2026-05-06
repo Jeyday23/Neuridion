@@ -4,31 +4,58 @@ const PDFSHIFT_API_URL = 'https://api.pdfshift.io/v3/convert/pdf'
 const MONTHLY_LIMIT = 45  // global cap — stay under 50-conversion free tier
 const PER_USER_LIMIT = 15 // prevents a single user from burning all credits
 
-export async function generatePdfFromHtml(html: string): Promise<Buffer> {
-  const apiKey = process.env.PDFSHIFT_API_KEY
-  if (!apiKey) throw new Error('PDFSHIFT_API_KEY not configured')
-
-  const response = await fetch(PDFSHIFT_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      source: html,
+async function generateWithPuppeteer(html: string): Promise<Buffer> {
+  const puppeteer = await import('puppeteer')
+  const browser = await puppeteer.default.launch({
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    headless: true,
+  })
+  try {
+    const page = await browser.newPage()
+    await page.setContent(html, { waitUntil: 'networkidle0' })
+    const pdf = await page.pdf({
       format: 'A4',
       margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '20mm' },
-      sandbox: false,
-    }),
-  })
+    })
+    return Buffer.from(pdf)
+  } finally {
+    await browser.close()
+  }
+}
 
-  if (!response.ok) {
-    const errText = await response.text()
-    throw new Error(`PDFShift ${response.status}: ${errText}`)
+export async function generatePdfFromHtml(html: string): Promise<Buffer> {
+  const apiKey = process.env.PDFSHIFT_API_KEY
+
+  if (apiKey) {
+    try {
+      const response = await fetch(PDFSHIFT_API_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          source: html,
+          format: 'A4',
+          margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '20mm' },
+          sandbox: false,
+        }),
+      })
+
+      if (response.ok) {
+        return Buffer.from(await response.arrayBuffer())
+      }
+
+      const errText = await response.text()
+      console.warn(`[PDF] PDFShift ${response.status}: ${errText} — falling back to Puppeteer`)
+    } catch (err) {
+      console.warn(`[PDF] PDFShift request failed: ${String(err)} — falling back to Puppeteer`)
+    }
+  } else {
+    console.warn('[PDF] PDFSHIFT_API_KEY not set — using Puppeteer fallback')
   }
 
-  const arrayBuffer = await response.arrayBuffer()
-  return Buffer.from(arrayBuffer)
+  return generateWithPuppeteer(html)
 }
 
 export async function canGeneratePdf(
