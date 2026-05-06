@@ -13,10 +13,23 @@ const GENERIC_DEVICE_WORDS = new Set([
   'scanner', 'scanners', 'new', 'one', 'two', 'three',
 ])
 
+// Normalise a manufacturer name for tokenisation:
+// - Splits CamelCase runs (BBraun → B Braun, MedTech → Med Tech)
+// - Replaces all non-letter/non-digit characters with spaces
+//   (handles middle dot · U+00B7, en-dash –, em-dash —, slash, etc.)
+function normalizeMfr(str: string): string {
+  return str
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')        // "BBraun" → "B Braun"
+    .replace(/([a-z])([A-Z])(?=[a-z])/g, '$1 $2')  // "MedTech" → "Med Tech"; skips terminal uppercase (GmbH stays intact)
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')           // Unicode/ASCII punct → space
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export function extractManufacturerTerms(manufacturer: string): string[] {
   if (!manufacturer.trim()) return []
 
-  const cleaned = manufacturer.replace(/[.,()&]/g, ' ')
+  const cleaned = normalizeMfr(manufacturer)
   const tokens  = cleaned.split(/\s+/).filter(Boolean)
 
   const meaningful = tokens
@@ -35,7 +48,10 @@ export function buildManufacturerSearchTerms(
   if (!deviceName?.trim()) return mfrTerms
 
   const deviceTokens = deviceName
-    .replace(/[.,()&]/g, ' ')
+    // Keep ASCII hyphen so "Accu-Chek" stays as one token; normalise everything else
+    .replace(/[^\p{L}\p{N}\s\-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
     .split(/\s+/)
     .filter(Boolean)
     .map(t => t.toLowerCase())

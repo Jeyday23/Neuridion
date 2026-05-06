@@ -15,8 +15,8 @@ describe('extractManufacturerTerms', () => {
   it('"B. Braun" → ["braun"] (B filtered by <2 char rule)', () => {
     expect(extractManufacturerTerms('B. Braun')).toEqual(['braun'])
   })
-  it('"BBraun" → ["bbraun"]', () => {
-    expect(extractManufacturerTerms('BBraun')).toEqual(['bbraun'])
+  it('"BBraun" CamelCase splits → ["braun"]', () => {
+    expect(extractManufacturerTerms('BBraun')).toEqual(['braun'])
   })
   it('"Medtronic" → ["medtronic"]', () => {
     expect(extractManufacturerTerms('Medtronic')).toEqual(['medtronic'])
