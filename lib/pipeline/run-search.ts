@@ -230,6 +230,7 @@ export async function runSearchPipeline(
     manufacturer: string; raw_content: string; fsn_date: string | null
   }[] = []
 
+  console.log(`[pipeline] step2: inserting ${items.length} items to fsn_results run_id=${runId}`)
   if (items.length > 0) {
     const { data: inserted, error: insertError } = await db
       .from('fsn_results')
@@ -247,9 +248,11 @@ export async function runSearchPipeline(
       })))
       .select('id, external_id, title, manufacturer, raw_content, fsn_date')
 
+    console.log(`[pipeline] step2: insert complete — rows_returned=${inserted?.length ?? 0} error=${insertError?.message ?? 'none'}`)
     if (insertError) throw insertError
     insertedRows = inserted ?? []
   }
+  console.log(`[pipeline] step2: insertedRows=${insertedRows.length}`)
 
   // ── Step 3: AI filter ────────────────────────────────────────────────────────
 
@@ -372,6 +375,7 @@ export async function runSearchPipeline(
 
   // ── Step 4: Insert filter_decisions ─────────────────────────────────────────
 
+  console.log(`[pipeline] step4: inserting ${decisions.length} decisions to filter_decisions run_id=${runId}`)
   if (decisions.length > 0) {
     const { error: decisionsError } = await db.from('filter_decisions').insert(
       decisions.map((d) => ({
@@ -383,6 +387,7 @@ export async function runSearchPipeline(
         model_used:    d.model,
       })),
     )
+    console.log(`[pipeline] step4: insert complete — error=${decisionsError?.message ?? 'none'}`)
     if (decisionsError) throw decisionsError
   }
 
