@@ -58,11 +58,11 @@ export async function POST(
 
   // Reset the run to pending
   const { error: resetError } = await db.from('search_runs').update({
-    status:       'pending',
-    error:        null,
-    completed_at: null,
-    started_at:   null,
-    progress:     null,
+    status:        'pending',
+    error_message: null,
+    completed_at:  null,
+    started_at:    null,
+    progress:      null,
   }).eq('id', runId)
 
   if (resetError) {

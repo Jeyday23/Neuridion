@@ -62,9 +62,9 @@ async function handler(req: Request): Promise<Response> {
         completed_at: new Date().toISOString(),
       }).eq('id', job_id),
       db.from('search_runs').update({
-        status:       'error',
-        error:        errMsg,
-        completed_at: new Date().toISOString(),
+        status:        'error',
+        error_message: errMsg,
+        completed_at:  new Date().toISOString(),
       }).eq('id', run_id),
     ])
 

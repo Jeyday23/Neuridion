@@ -386,7 +386,7 @@ export async function runSearchPipeline(
 
   const { error: finalizeError } = await db.from('search_runs').update({
     status:              runStatus,
-    error:               allWarnings.length > 0 ? allWarnings.join('\n') : null,
+    error_message:       allWarnings.length > 0 ? allWarnings.join('\n') : null,
     completed_at:        new Date().toISOString(),
     relevant_count:      counts.relevant,
     uncertain_count:     counts.uncertain,
@@ -433,10 +433,10 @@ export async function runSearchPipeline(
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[lifecycle] run_id=${runId} pipeline error: ${msg}`)
       await db.from('search_runs').update({
-        status:       'error',
-        error:        msg,
-        completed_at: new Date().toISOString(),
-        progress:     null,
+        status:        'error',
+        error_message: msg,
+        completed_at:  new Date().toISOString(),
+        progress:      null,
       }).eq('id', runId)
       console.log(`[lifecycle] run_id=${runId} transition running→error (pipeline catch)`)
     }

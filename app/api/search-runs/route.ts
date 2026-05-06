@@ -130,9 +130,9 @@ export async function POST(request: Request) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`[lifecycle] run_id=${run.id} pipeline error caught in route: ${msg}`)
     const { error: recoveryError } = await db.from('search_runs').update({
-      status:       'error',
-      error:        msg,
-      completed_at: new Date().toISOString(),
+      status:        'error',
+      error_message: msg,
+      completed_at:  new Date().toISOString(),
     }).eq('id', run.id).eq('status', 'running')
     if (recoveryError) {
       console.error(`[lifecycle] run_id=${run.id} CRITICAL: recovery update failed: ${recoveryError.message}`)

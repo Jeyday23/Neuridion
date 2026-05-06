@@ -43,15 +43,15 @@ async function runCleanup(): Promise<{ cleaned: number; run_ids: string[] }> {
     return { cleaned: 0, run_ids: [] }
   }
 
-  const payload = {
-    status:       'error' as const,
-    error:        'Job timed out — no completion signal received. Please retry.',
-    completed_at: now,
+  const runsPayload = {
+    status:        'error' as const,
+    error_message: 'Job timed out — no completion signal received. Please retry.',
+    completed_at:  now,
   }
 
   const [runningResult, pendingResult, queueResult] = await Promise.all([
-    db.from('search_runs').update(payload).in('id', stuckIds).eq('status', 'running'),
-    db.from('search_runs').update(payload).in('id', stuckIds).eq('status', 'pending'),
+    db.from('search_runs').update(runsPayload).in('id', stuckIds).eq('status', 'running'),
+    db.from('search_runs').update(runsPayload).in('id', stuckIds).eq('status', 'pending'),
     (db as any).from('search_job_queue').update({
       status:       'failed',
       error:        'Job timed out — no completion signal received.',
