@@ -7,6 +7,7 @@ export async function GET(
 ) {
   const { id } = await params
   const supabase = await createClient()
+  const db       = createAdminClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
@@ -27,9 +28,8 @@ export async function GET(
     return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Fetch FSN results for this run
-  const { data: results, error: resultsError } = await supabase
-    .from('fsn_results')
+  // Fetch FSN results — use admin client to bypass RLS on internal pipeline tables
+  const { data: results, error: resultsError } = await db.from('fsn_results')
     .select('*')
     .eq('run_id', id)
     .order('fsn_date', { ascending: false })
@@ -48,8 +48,7 @@ export async function GET(
   }> = {}
 
   if (resultIds.length > 0) {
-    const { data: decisions } = await supabase
-      .from('filter_decisions')
+    const { data: decisions } = await db.from('filter_decisions')
       .select('fsn_result_id, decision, rationale, confidence, model_used')
       .in('fsn_result_id', resultIds)
 

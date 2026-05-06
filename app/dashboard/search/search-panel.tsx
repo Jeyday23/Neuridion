@@ -1038,4 +1038,4 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   )
 }
 
-const MODEL_LABEL = 'claude-sonnet-4-6'
+const MODEL_LABEL = 'Haiku + Sonnet'

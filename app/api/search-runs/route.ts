@@ -148,7 +148,7 @@ export async function POST(request: Request) {
     await qstash.publishJSON({
       url:     `${process.env.NEXT_PUBLIC_SITE_URL}/api/worker/process-job`,
       body:    message,
-      retries: 3,
+      retries: 0,
       timeout: 900,
     })
   } catch (err) {

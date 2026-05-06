@@ -17,6 +17,20 @@ async function handler(req: Request): Promise<Response> {
 
   console.log(`[process-job] received run_id=${run_id} job_id=${job_id}`)
 
+  // Idempotency guard — QStash may retry if Cloudflare times out the response
+  // before the pipeline finishes. If the run is no longer pending, it's already
+  // being processed or has completed; return 200 to stop further retries.
+  const { data: existingRun } = await db
+    .from('search_runs')
+    .select('status')
+    .eq('id', run_id)
+    .single()
+
+  if (existingRun?.status !== 'pending') {
+    console.log(`[process-job] run_id=${run_id} status=${existingRun?.status} — duplicate delivery, skipping`)
+    return new Response('Already processed', { status: 200 })
+  }
+
   await Promise.all([
     db.from('search_runs').update({
       status:     'running',
