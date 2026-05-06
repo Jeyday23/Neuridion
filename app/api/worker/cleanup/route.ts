@@ -43,12 +43,15 @@ async function runCleanup(): Promise<{ cleaned: number; run_ids: string[] }> {
     return { cleaned: 0, run_ids: [] }
   }
 
-  const [runsResult, queueResult] = await Promise.all([
-    db.from('search_runs').update({
-      status:       'error',
-      error:        'Job timed out — no completion signal received. Please retry.',
-      completed_at: now,
-    }).in('id', stuckIds).eq('status', 'running'),
+  const payload = {
+    status:       'error' as const,
+    error:        'Job timed out — no completion signal received. Please retry.',
+    completed_at: now,
+  }
+
+  const [runningResult, pendingResult, queueResult] = await Promise.all([
+    db.from('search_runs').update(payload).in('id', stuckIds).eq('status', 'running'),
+    db.from('search_runs').update(payload).in('id', stuckIds).eq('status', 'pending'),
     (db as any).from('search_job_queue').update({
       status:       'failed',
       error:        'Job timed out — no completion signal received.',
@@ -56,8 +59,9 @@ async function runCleanup(): Promise<{ cleaned: number; run_ids: string[] }> {
     }).in('run_id', stuckIds).not('status', 'in', '("completed","failed")'),
   ])
 
-  if (runsResult.error)  console.error('[cleanup] search_runs update failed:', runsResult.error.message)
-  if (queueResult.error) console.error('[cleanup] search_job_queue update failed:', queueResult.error.message)
+  if (runningResult.error)  console.error('[cleanup] search_runs(running) update failed:', runningResult.error.message)
+  if (pendingResult.error)  console.error('[cleanup] search_runs(pending) update failed:', pendingResult.error.message)
+  if (queueResult.error)    console.error('[cleanup] search_job_queue update failed:', queueResult.error.message)
 
   console.log(`[lifecycle] cleanup: marking ${stuckIds.length} stuck run(s) as error: ${stuckIds.join(', ')}`)
   return { cleaned: stuckIds.length, run_ids: stuckIds }

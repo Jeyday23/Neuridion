@@ -27,11 +27,16 @@ export async function GET() {
     if (ts && (!lastActivity || ts > lastActivity)) lastActivity = ts
   }
 
-  // Stuck = running with anchor timestamp older than STUCK_MINUTES
+  // Stuck = running/pending with anchor timestamp older than STUCK_MINUTES
   const stuckRuns = runs.filter((r) => {
-    if (r.status !== 'running') return false
-    const anchor = r.started_at ?? r.created_at
-    return anchor < stuckCutoff
+    if (r.status === 'running') {
+      const anchor = r.started_at ?? r.created_at
+      return anchor < stuckCutoff
+    }
+    if (r.status === 'pending') {
+      return r.created_at < stuckCutoff
+    }
+    return false
   })
 
   return Response.json({

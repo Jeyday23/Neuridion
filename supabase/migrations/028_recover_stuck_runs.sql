@@ -14,13 +14,18 @@ SET
 WHERE status IN ('running', 'pending')
   AND created_at < NOW() - INTERVAL '1 hour';
 
--- Clean up any orphaned search_job_queue entries that are still 'running'
--- or 'pending' with no recent activity. These are from the async architecture
--- that was removed in May 2026.
-UPDATE public.search_job_queue
-SET
-  status       = 'failed',
-  error        = 'Recovered by lifecycle audit — no completion signal.',
-  completed_at = COALESCE(completed_at, NOW())
-WHERE status IN ('running', 'pending')
-  AND created_at < NOW() - INTERVAL '1 hour';
+-- Clean up any orphaned search_job_queue entries. Wrapped in DO block
+-- because the table may not exist on all environments (async arch was removed).
+DO $$
+BEGIN
+  UPDATE public.search_job_queue
+  SET
+    status       = 'failed',
+    error        = 'Recovered by lifecycle audit — no completion signal.',
+    completed_at = COALESCE(completed_at, NOW())
+  WHERE status IN ('running', 'pending')
+    AND created_at < NOW() - INTERVAL '1 hour';
+EXCEPTION
+  WHEN undefined_table THEN
+    RAISE NOTICE 'search_job_queue does not exist, skipping';
+END $$;
