@@ -83,6 +83,20 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Profile not found' }, { status: 404 })
   }
 
+  // Reject if user already has an active run — prevents concurrent pipeline abuse
+  const { count: activeCount } = await db
+    .from('search_runs')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .in('status', ['pending', 'running'])
+
+  if ((activeCount ?? 0) > 0) {
+    return Response.json(
+      { error: 'A search is already running. Please wait for it to complete before starting a new one.' },
+      { status: 429 }
+    )
+  }
+
   // Create the search run
   const { data: run, error: runError } = await db
     .from('search_runs')
