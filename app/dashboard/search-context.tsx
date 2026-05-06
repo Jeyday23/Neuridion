@@ -30,7 +30,7 @@ export type SearchRunState =
   | { phase: 'idle' }
   | { phase: 'queued';  runId: string; startedAt: number }
   | { phase: 'running'; runId: string; startedAt: number; progress: SearchProgress | null }
-  | { phase: 'done';    runId: string; results: FsnResult[]; counts: { relevant: number; uncertain: number; excluded: number }; startedAt: number }
+  | { phase: 'done';    runId: string; results: FsnResult[]; counts: { relevant: number; uncertain: number; excluded: number }; startedAt: number; degraded?: boolean }
   | { phase: 'error';   message: string }
 
 interface SearchContextValue {

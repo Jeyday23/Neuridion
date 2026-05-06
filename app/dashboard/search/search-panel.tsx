@@ -397,7 +397,9 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const fileInputRef   = useRef<HTMLInputElement>(null)
   const submittingRef  = useRef(false)
   // Scroll target for "View results" navigation
-  const resultsRef = useRef<HTMLDivElement>(null)
+  const resultsRef  = useRef<HTMLDivElement>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const timeoutRef  = useRef<ReturnType<typeof setTimeout>  | null>(null)
 
   // Auto-scroll to results when they arrive (initial run or navigate-back)
   useEffect(() => {
@@ -419,6 +421,14 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       localStorage.setItem('neuridion-has-searched', 'true')
     }
   }, [state.phase])
+
+  // Clear polling refs on unmount — prevents state updates after navigation
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      if (timeoutRef.current)  clearTimeout(timeoutRef.current)
+    }
+  }, [])
 
   const activeDbs = databases.filter((d) => d.active)
   const allActiveSelected = activeDbs.every((d) => selectedDbs.has(d.id))
@@ -524,6 +534,59 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     }
   }
 
+  function stopPolling() {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
+    if (timeoutRef.current)  { clearTimeout(timeoutRef.current);   timeoutRef.current  = null }
+  }
+
+  function startPolling(runId: string, startedAt: number) {
+    intervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/search-runs/${runId}`)
+        if (!res.ok) {
+          stopPolling()
+          const msg =
+            res.status === 401 ? 'Your session expired. Please refresh the page.' :
+            `Error ${res.status} — please try again.`
+          setState({ phase: 'error', message: msg })
+          return
+        }
+        const data = await res.json() as {
+          status:          string
+          progress:        SearchProgress | null
+          results:         FsnResult[]
+          relevant_count:  number
+          uncertain_count: number
+          excluded_count:  number
+          error_message:   string | null
+        }
+        if (data.status === 'pending' || data.status === 'running') {
+          setState({ phase: 'running', runId, startedAt, progress: data.progress ?? null })
+        } else if (data.status === 'complete' || data.status === 'degraded') {
+          stopPolling()
+          setState({
+            phase:    'done',
+            runId,
+            results:  data.results,
+            counts:   { relevant: data.relevant_count, uncertain: data.uncertain_count, excluded: data.excluded_count },
+            startedAt,
+            degraded: data.status === 'degraded',
+          })
+        } else {
+          stopPolling()
+          setState({ phase: 'error', message: data.error_message ?? 'Search failed.' })
+        }
+      } catch {
+        // Network blip — keep polling, transient errors resolve
+      }
+    }, 3000)
+
+    timeoutRef.current = setTimeout(() => {
+      stopPolling()
+      setState({ phase: 'error', message: 'Search is taking longer than expected. Check the Archive page for results once complete.' })
+    }, 20 * 60 * 1000)
+  }
+
   async function runSearch() {
     if (!profileId || submittingRef.current) return
     submittingRef.current = true
@@ -532,7 +595,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     setFilterTab('all')
 
     const startedAt = Date.now()
-    setState({ phase: 'running', runId: '', startedAt, progress: null })
 
     try {
       const res = await fetch('/api/search-runs', {
@@ -561,20 +623,9 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         return
       }
 
-      const data = await res.json() as {
-        run_id?:  string
-        status?:  string
-        results?: FsnResult[]
-        counts?:  { relevant: number; uncertain: number; excluded: number }
-        error?:   string
-      }
-      setState({
-        phase:    'done',
-        runId:    data.run_id ?? '',
-        results:  data.results ?? [],
-        counts:   data.counts  ?? { relevant: 0, uncertain: 0, excluded: 0 },
-        startedAt,
-      })
+      const { run_id } = await res.json() as { run_id: string; status: string }
+      setState({ phase: 'queued', runId: run_id, startedAt })
+      startPolling(run_id, startedAt)
     } catch (err) {
       setState({ phase: 'error', message: err instanceof TypeError ? 'Network error — check your connection and try again.' : String(err) })
     } finally {
@@ -790,7 +841,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             </button>
             <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || state.phase === 'queued' || isOverLimit}
               className="px-8 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
-              {state.phase === 'running'
+              {(state.phase === 'running' || state.phase === 'queued')
                 ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.searching}</>
                 : <>{t.search.runSearch} <span>→</span></>
               }
@@ -817,6 +868,11 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       {/* ── Results ── */}
       {state.phase === 'done' && (
         <div ref={resultsRef} className="mt-8 scroll-mt-6">
+          {state.degraded && (
+            <div className="mb-4 rounded border border-[rgba(217,119,6,0.2)] bg-[rgba(217,119,6,0.08)] px-4 py-3">
+              <p className="text-sm text-[#D97706]">Some databases returned partial results — results may be incomplete.</p>
+            </div>
+          )}
           {state.results.length === 0 ? (
             <div className="rounded border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-4 max-w-lg">
               <p className="text-sm font-medium text-zinc-700 mb-1">{t.search.noResults}</p>

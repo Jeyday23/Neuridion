@@ -1,11 +1,13 @@
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PLANS, type PlanId } from '@/lib/plans'
-import { runSearchPipeline, type SearchJobPayload } from '@/lib/pipeline/run-search'
+import { type SearchJobPayload } from '@/lib/pipeline/run-search'
+import { type QStashJobMessage } from '@/app/api/worker/process-job/route'
+import { Client } from '@upstash/qstash'
 import { z } from 'zod'
 
-// Allow up to 30 minutes — long date ranges can take 15–20 min synchronously
-export const maxDuration = 1800
+// POST enqueues to QStash and returns in <200ms — pipeline runs in process-job worker
+export const maxDuration = 30
 
 const KNOWN_SOURCES  = ['bfarm', 'mhra', 'fda', 'swissmedic'] as const
 const ISO_DATE       = /^\d{4}-\d{2}-\d{2}$/
@@ -93,18 +95,17 @@ export async function POST(request: Request) {
   if ((activeCount ?? 0) > 0) {
     return Response.json(
       { error: 'A search is already running. Please wait for it to complete before starting a new one.' },
-      { status: 429 }
+      { status: 429 },
     )
   }
 
-  // Create the search run
+  // Create the search run in pending state — process-job transitions it to running on start
   const { data: run, error: runError } = await db
     .from('search_runs')
     .insert({
       profile_id,
-      user_id:     user.id,
-      status:      'running',
-      started_at:  new Date().toISOString(),
+      user_id:    user.id,
+      status:     'pending',
       period_from,
       period_to,
     })
@@ -123,82 +124,40 @@ export async function POST(request: Request) {
     force_refresh: force_refresh ?? false,
   }
 
-  // Run the pipeline synchronously — updates search_runs.status on completion
-  try {
-    await runSearchPipeline(run.id, jobPayload)
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error(`[lifecycle] run_id=${run.id} pipeline error caught in route: ${msg}`)
-    const { error: recoveryError } = await db.from('search_runs').update({
-      status:        'error',
-      error_message: msg,
-      completed_at:  new Date().toISOString(),
-    }).eq('id', run.id).eq('status', 'running')
-    if (recoveryError) {
-      console.error(`[lifecycle] run_id=${run.id} CRITICAL: recovery update failed: ${recoveryError.message}`)
-    } else {
-      console.log(`[lifecycle] run_id=${run.id} transition running→error (route catch)`)
-    }
-    return Response.json({ error: 'Search pipeline failed: ' + msg }, { status: 500 })
-  }
-
-  // Read back the run row (pipeline sets status, counts, completed_at)
-  const { data: finishedRun } = await db
-    .from('search_runs')
-    .select('status, relevant_count, uncertain_count, excluded_count, error')
-    .eq('id', run.id)
+  // Insert job queue row for status tracking and payload recovery on retry
+  const { data: newJob, error: queueError } = await db
+    .from('search_job_queue')
+    .insert({ run_id: run.id, payload: jobPayload })
+    .select('id')
     .single()
 
-  // Fetch FSN results
-  const { data: rawResults } = await db
-    .from('fsn_results')
-    .select('id, title, manufacturer, fsn_date, source_url, source_db')
-    .eq('run_id', run.id)
-    .order('fsn_date', { ascending: false })
-
-  // Fetch filter decisions and join client-side
-  const resultIds = (rawResults ?? []).map((r) => r.id)
-  const decisionsMap: Record<string, {
-    decision:   string
-    rationale:  string
-    confidence: number | null
-    model:      string | null
-  }> = {}
-
-  if (resultIds.length > 0) {
-    const { data: decisions } = await db
-      .from('filter_decisions')
-      .select('fsn_result_id, decision, rationale, confidence, model_used')
-      .in('fsn_result_id', resultIds)
-
-    for (const d of decisions ?? []) {
-      decisionsMap[d.fsn_result_id] = {
-        decision:   d.decision,
-        rationale:  d.rationale ?? '',
-        confidence: d.confidence != null ? Number(d.confidence) : null,
-        model:      d.model_used ?? null,
-      }
-    }
+  if (queueError || !newJob) {
+    await db.from('search_runs').delete().eq('id', run.id)
+    return Response.json({ error: 'Failed to create job record' }, { status: 500 })
   }
 
-  const results = (rawResults ?? []).map((r) => ({
-    id:              r.id,
-    title:           r.title,
-    manufacturer:    r.manufacturer,
-    fsn_date:        r.fsn_date,
-    source_url:      r.source_url,
-    source:          r.source_db,
-    filter_decision: decisionsMap[r.id] ?? null,
-  }))
+  // Publish to QStash — pipeline runs async in /api/worker/process-job
+  const message: QStashJobMessage = {
+    run_id: run.id,
+    job_id: newJob.id,
+    ...jobPayload,
+  }
 
-  return Response.json({
-    run_id:  run.id,
-    status:  finishedRun?.status ?? 'complete',
-    results,
-    counts: {
-      relevant:  finishedRun?.relevant_count  ?? 0,
-      uncertain: finishedRun?.uncertain_count ?? 0,
-      excluded:  finishedRun?.excluded_count  ?? 0,
-    },
-  })
+  try {
+    const qstash = new Client({ token: process.env.QSTASH_TOKEN! })
+    await qstash.publishJSON({
+      url:     `${process.env.NEXT_PUBLIC_SITE_URL}/api/worker/process-job`,
+      body:    message,
+      retries: 3,
+      timeout: 900,
+    })
+  } catch (err) {
+    console.error(`[search-runs] QStash publish failed for run_id=${run.id}:`, err)
+    await db.from('search_job_queue').delete().eq('id', newJob.id)
+    await db.from('search_runs').delete().eq('id', run.id)
+    return Response.json({ error: 'Failed to enqueue search job' }, { status: 500 })
+  }
+
+  console.log(`[lifecycle] run_id=${run.id} enqueued to QStash job_id=${newJob.id}`)
+  return Response.json({ run_id: run.id, status: 'pending' }, { status: 202 })
 }

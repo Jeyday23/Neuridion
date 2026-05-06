@@ -74,7 +74,15 @@ export async function GET(
     filter_decision: decisionsMap[r.id] ?? null,
   }))
 
-  return Response.json({ run, results: enriched })
+  return Response.json({
+    status:          run.status,
+    progress:        (run as { progress?: unknown }).progress ?? null,
+    error_message:   (run as { error_message?: string }).error_message ?? null,
+    relevant_count:  (run as { relevant_count?: number }).relevant_count  ?? 0,
+    uncertain_count: (run as { uncertain_count?: number }).uncertain_count ?? 0,
+    excluded_count:  (run as { excluded_count?: number }).excluded_count  ?? 0,
+    results:         enriched,
+  })
 }
 
 export async function DELETE(

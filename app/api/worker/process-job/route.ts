@@ -2,6 +2,9 @@ import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runSearchPipeline, type SearchJobPayload, type ProgressUpdate } from '@/lib/pipeline/run-search'
 
+// Allow up to 13 minutes — long date ranges can take 10–12 min on BfArM archive
+export const maxDuration = 800
+
 export interface QStashJobMessage extends SearchJobPayload {
   run_id: string
   job_id: string
