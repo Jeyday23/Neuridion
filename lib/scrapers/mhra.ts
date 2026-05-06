@@ -16,9 +16,8 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
 
   while (true) {
     const url = new URL(SEARCH_API)
-    url.searchParams.set('filter_format',     'medical_safety_alert')
-    url.searchParams.set('filter_alert_type', 'Field safety notice')
-    url.searchParams.set('count',             String(PAGE_SIZE))
+    url.searchParams.set('filter_format', 'medical_safety_alert')
+    url.searchParams.set('count',         String(PAGE_SIZE))
     url.searchParams.set('start',             String(start))
     url.searchParams.set('order',             '-public_timestamp')
     url.searchParams.append('fields[]',        'title')
@@ -44,6 +43,10 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
         break
       }
       if (pubDate && pubDate > toDate) continue
+
+      // GOV.UK mixes medicine recalls with device FSNs — keep only FSN-related entries
+      const titleLower = (item.title ?? '').toLowerCase()
+      if (!titleLower.includes('field safety')) continue
 
       const linkPath = item.link ?? ''
       listings.push({
@@ -74,6 +77,11 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
   const deduped  = dedup(enriched)
   console.log(`[mhra] Final: ${deduped.length} deduplicated items`)
 
+  const warnings: string[] = []
+  if (deduped.length === 0) {
+    warnings.push('MHRA returned 0 Field Safety Notices for the selected date range. The GOV.UK search API may be temporarily unavailable or the date range contains no FSNs.')
+  }
+
   if (params.searchTerms && params.searchTerms.length > 0) {
     const terms    = params.searchTerms.map(t => t.toLowerCase())
     const filtered = deduped.filter(item => {
@@ -81,10 +89,10 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
       return terms.some(t => hay.includes(t))
     })
     console.log(`[mhra] searchTerms filter (${terms.join(', ')}): ${deduped.length} → ${filtered.length} items`)
-    return { items: filtered, warnings: [] }
+    return { items: filtered, warnings }
   }
 
-  return { items: deduped, warnings: [] }
+  return { items: deduped, warnings }
 }
 
 // ─── Detail enrichment ────────────────────────────────────────────────────────
