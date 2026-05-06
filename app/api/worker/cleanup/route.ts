@@ -1,26 +1,39 @@
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 import { createAdminClient } from '@/lib/supabase/admin'
 
-// Runs stuck longer than this are considered dead (QStash timeout is 900s = 15 min)
 const STUCK_THRESHOLD_MINUTES = 20
+
+export function isStuckRun(
+  run: { status: string; started_at: string | null; created_at: string },
+  cutoff: Date,
+): boolean {
+  if (run.status !== 'running') return false
+  const anchor = run.started_at ? new Date(run.started_at) : new Date(run.created_at)
+  return anchor < cutoff
+}
 
 async function runCleanup(): Promise<{ cleaned: number; run_ids: string[] }> {
   const db     = createAdminClient()
-  const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MINUTES * 60 * 1000).toISOString()
-  const now    = new Date().toISOString()
+  const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MINUTES * 60 * 1000)
+  const cutoffIso = cutoff.toISOString()
+  const now       = new Date().toISOString()
 
-  const { data: stuckRuns } = await db
-    .from('search_runs')
-    .select('id')
-    .eq('status', 'running')
-    .lt('started_at', cutoff)
+  const [byStartedAt, byCreatedAt] = await Promise.all([
+    db.from('search_runs').select('id').eq('status', 'running').lt('started_at', cutoffIso),
+    db.from('search_runs').select('id').eq('status', 'running').is('started_at', null).lt('created_at', cutoffIso),
+  ])
 
-  if (!stuckRuns?.length) {
+  const stuckIds = [
+    ...new Set([
+      ...(byStartedAt.data ?? []).map((r) => r.id),
+      ...(byCreatedAt.data ?? []).map((r) => r.id),
+    ]),
+  ]
+
+  if (stuckIds.length === 0) {
     console.log('[cleanup] no stuck runs found')
     return { cleaned: 0, run_ids: [] }
   }
-
-  const stuckIds = stuckRuns.map((r) => r.id)
 
   const [runsResult, queueResult] = await Promise.all([
     db.from('search_runs').update({
@@ -28,9 +41,7 @@ async function runCleanup(): Promise<{ cleaned: number; run_ids: string[] }> {
       error:        'Job timed out — no completion signal received. Please retry.',
       completed_at: now,
     }).in('id', stuckIds),
-    // Update all non-terminal queue rows for these runs (not just 'running' — avoids
-    // silent no-op if the row status differs from what we expect)
-    db.from('search_job_queue').update({
+    (db as any).from('search_job_queue').update({
       status:       'failed',
       error:        'Job timed out — no completion signal received.',
       completed_at: now,
@@ -44,7 +55,6 @@ async function runCleanup(): Promise<{ cleaned: number; run_ids: string[] }> {
   return { cleaned: stuckIds.length, run_ids: stuckIds }
 }
 
-// POST — called by QStash hourly schedule (signature verified in production)
 async function postHandler(_req: Request): Promise<Response> {
   const result = await runCleanup()
   return Response.json(result)
@@ -53,9 +63,8 @@ async function postHandler(_req: Request): Promise<Response> {
 export const POST =
   process.env.NODE_ENV === 'development'
     ? postHandler
-    : verifySignatureAppRouter(postHandler)
+    : (req: Request) => verifySignatureAppRouter(postHandler)(req)
 
-// GET — manual invocation from browser or curl (no auth, stats are non-sensitive)
 export async function GET() {
   const result = await runCleanup()
   return Response.json(result)
