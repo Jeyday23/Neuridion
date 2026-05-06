@@ -1,5 +1,6 @@
 import { parseStringPromise } from 'xml2js'
 import { daysBetween } from '@/lib/utils/date-chunks'
+import { sanitizeContent } from './sanitize'
 
 export const BFARM_ORIGIN = 'https://www.bfarm.de'
 const SEARCH_BASE  = `${BFARM_ORIGIN}/SiteGlobals/Forms/Suche/Expertensuche_Formular.html`
@@ -160,7 +161,7 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
           product_name: null,
           fsn_date:     item.date ? item.date.toISOString().split('T')[0] : null,
           source_url:   `${BFARM_ORIGIN}${item.href}`,
-          raw_content:  item.title,
+          raw_content:  sanitizeContent(item.title),
           source_db:    'bfarm',
         })
       }
@@ -292,7 +293,7 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
     product_name: null,
     fsn_date:     item.date ? item.date.toISOString().split('T')[0] : null,
     source_url:   `${BFARM_ORIGIN}${item.href}`,
-    raw_content:  item.title,
+    raw_content:  sanitizeContent(item.title),
     source_db:    'bfarm',
   }))
 
@@ -392,7 +393,7 @@ export async function scrapeRssFeed(options: ScraperOptions = {}): Promise<Scrap
         ? itemDate.toISOString().split('T')[0]
         : null,
       source_url:   link,
-      raw_content:  description,
+      raw_content:  sanitizeContent(description),
       source_db:    'bfarm',
     })
   }

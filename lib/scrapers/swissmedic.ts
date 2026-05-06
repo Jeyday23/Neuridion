@@ -1,5 +1,6 @@
 import type { ScrapedFsn, ScraperResult, ScraperParams } from './bfarm'
 import { buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
+import { sanitizeContent } from './sanitize'
 
 const API_BASE   = 'https://fsca.swissmedic.ch/mep/api/publications'
 const PUBLIC_BASE = 'https://fsca.swissmedic.ch/mep'
@@ -182,7 +183,7 @@ function toScrapedFsn(publication: SwissmedicPublication): ScrapedFsn | null {
     product_name: productName || null,
     fsn_date: publication.publikationsDatum ?? publication.statusDatum ?? null,
     source_url: `${PUBLIC_BASE}/?search=${encodeURIComponent(ref)}`,
-    raw_content: rawParts.join('\n\n'),
+    raw_content: sanitizeContent(rawParts.join('\n\n')),
     source_db: 'swissmedic',
   }
 }

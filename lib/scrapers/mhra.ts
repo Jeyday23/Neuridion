@@ -1,4 +1,5 @@
 import type { ScrapedFsn, ScraperResult, ScraperParams } from './bfarm'
+import { sanitizeContent } from './sanitize'
 
 const SEARCH_API      = 'https://www.gov.uk/api/search.json'
 const CONTENT_API_BASE = 'https://www.gov.uk/api/content'
@@ -52,7 +53,7 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
         product_name: extractProductName(item.title ?? ''),
         fsn_date:     pubDate ? pubDate.toISOString().slice(0, 10) : null,
         source_url:   linkPath ? `https://www.gov.uk${linkPath}` : '',
-        raw_content:  [item.title, item.description].filter(Boolean).join('\n\n'),
+        raw_content:  sanitizeContent([item.title, item.description].filter(Boolean).join('\n\n')),
         source_db:    'mhra',
       })
     }
@@ -125,7 +126,7 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn> {
     return {
       ...item,
       fsn_date:    (issuedDate || item.fsn_date) ?? null,
-      raw_content: rawParts.join('\n\n'),
+      raw_content: sanitizeContent(rawParts.join('\n\n')),
     }
   } catch (err) {
     console.warn(`[mhra] Detail fetch failed for ${linkPath}: ${String(err)}`)

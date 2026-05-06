@@ -1,4 +1,5 @@
 import type { ScrapedFsn, ScraperResult } from './bfarm'
+import { sanitizeContent } from './sanitize'
 
 // openFDA device/event endpoint — no auth required, API key raises daily quota
 // Docs: https://open.fda.gov/apis/device/event/
@@ -216,7 +217,7 @@ function mapMaudeRecord(r: MaudeRecord): ScrapedFsn {
     product_name: brandName || genericName || null,
     fsn_date,
     source_url:   sourceUrl,
-    raw_content:  rawParts.join('\n\n'),
+    raw_content:  sanitizeContent(rawParts.join('\n\n')),
     source_db:    'fda',
   }
 }
