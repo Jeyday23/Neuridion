@@ -422,21 +422,18 @@ export async function POST(request: Request) {
   }
 
   // Fetch filter decisions
-  const resultIds = (rawResults ?? []).map((r) => r.id)
   const decisionsMap: Record<string, { decision: string; rationale: string; confidence: number }> = {}
 
-  if (resultIds.length > 0) {
-    const { data: decisions } = await supabase
-      .from('filter_decisions')
-      .select('fsn_result_id, decision, rationale, confidence')
-      .in('fsn_result_id', resultIds)
+  const { data: decisions } = await supabase
+    .from('filter_decisions')
+    .select('fsn_result_id, decision, rationale, confidence')
+    .eq('search_run_id', run_id)
 
-    for (const d of decisions ?? []) {
-      decisionsMap[d.fsn_result_id] = {
-        decision:   d.decision,
-        rationale:  d.rationale,
-        confidence: Number(d.confidence),
-      }
+  for (const d of decisions ?? []) {
+    decisionsMap[d.fsn_result_id] = {
+      decision:   d.decision,
+      rationale:  d.rationale,
+      confidence: Number(d.confidence),
     }
   }
 
@@ -446,7 +443,7 @@ export async function POST(request: Request) {
     manufacturer:    r.manufacturer,
     fsn_date:        r.fsn_date,
     source_url:      r.source_url,
-    source_db:       r.source_db,
+    source_db:       r.source,
     raw_content:     r.raw_content,
     filter_decision: (decisionsMap[r.id] as FsnRow['filter_decision']) ?? null,
   }))
