@@ -176,7 +176,7 @@ async function getCachedDecision(
     const admin = createAdminClient()
     const { data, error } = await admin
       .from('filter_decision_cache')
-      .select('decision, rationale, confidence, model_used')
+      .select('decision, reasoning, confidence')
       .eq('fsn_external_id', fsnId)
       .eq('profile_fingerprint', fingerprint)
       .single()
@@ -185,9 +185,9 @@ async function getCachedDecision(
 
     return {
       decision:   data.decision as FilterDecision['decision'],
-      rationale:  data.rationale ?? '',
-      confidence: data.confidence != null ? data.confidence / 100 : null,
-      model:      data.model_used ?? null,
+      rationale:  data.reasoning ?? '',
+      confidence: data.confidence != null ? parseFloat(data.confidence) / 100 : null,
+      model:      null,
     }
   } catch {
     return null  // cache miss on any error — fall through to AI
@@ -205,12 +205,11 @@ async function setCachedDecision(
       {
         fsn_external_id:     fsnId,
         profile_fingerprint: fingerprint,
-        decision:            decision.decision,
-        rationale:           decision.rationale,
-        confidence:          decision.confidence != null
-          ? Math.round(decision.confidence * 100)
+        decision:  decision.decision,
+        reasoning: decision.rationale,
+        confidence: decision.confidence != null
+          ? String(Math.round(decision.confidence * 100))
           : null,
-        model_used:          decision.model,
       },
       { onConflict: 'fsn_external_id,profile_fingerprint' },
     )

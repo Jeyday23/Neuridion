@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import type { Json } from '@/types/supabase'
 
 type AuditEventType =
   | 'login'
@@ -24,7 +25,7 @@ export async function logAuditEvent(
     await admin.from('audit_log').insert({
       user_id:    userId,
       event_type: eventType,
-      event_data: eventData ?? null,
+      event_data: (eventData ?? null) as Json,
       ip_address: hdrs?.get('x-forwarded-for')?.split(',')[0].trim() ?? null,
       user_agent: hdrs?.get('user-agent') ?? null,
     })

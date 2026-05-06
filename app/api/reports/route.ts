@@ -443,7 +443,7 @@ export async function POST(request: Request) {
     manufacturer:    r.manufacturer,
     fsn_date:        r.fsn_date,
     source_url:      r.source_url,
-    source_db:       r.source,
+    source_db:       r.source_db,
     raw_content:     r.raw_content,
     filter_decision: (decisionsMap[r.id] as FsnRow['filter_decision']) ?? null,
   }))

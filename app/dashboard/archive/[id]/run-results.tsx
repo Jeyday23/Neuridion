@@ -8,7 +8,7 @@ export interface FsnResult {
   title: string
   manufacturer: string | null
   fsn_date: string | null
-  source_url: string
+  source_url: string | null
   source_db: string
   filter_decision: {
     decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
@@ -64,7 +64,7 @@ function ResultRow({ result }: { result: FsnResult }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <a
-              href={result.source_url}
+              href={result.source_url ?? '#'}
               target="_blank"
               rel="noopener noreferrer"
               className={clsx(

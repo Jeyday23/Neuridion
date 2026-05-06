@@ -3,6 +3,11 @@ import { stripe } from '@/lib/stripe'
 import { planFromPriceId } from '@/lib/plans'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type Stripe from 'stripe'
+import type { Database } from '@/types/supabase'
+
+// Stripe billing columns (stripe_customer_id, stripe_subscription_id, etc.) exist in
+// production but are not yet tracked in the generated types. Cast to bypass type check.
+type UserUpdate = Database['public']['Tables']['users']['Update']
 
 export async function POST(request: Request) {
   const body = await request.text()
@@ -56,7 +61,7 @@ export async function POST(request: Request) {
           subscription_status:    subscription.status,
           current_period_end:     periodEnd,
           plan,
-        })
+        } as unknown as UserUpdate)
         .eq('id', userId)
 
       break
@@ -75,8 +80,8 @@ export async function POST(request: Request) {
           subscription_status: subscription.status,
           current_period_end:  periodEnd,
           plan: subscription.status === 'active' || subscription.status === 'trialing' ? plan : 'free',
-        })
-        .eq('stripe_subscription_id', subscription.id)
+        } as unknown as UserUpdate)
+        .eq('stripe_subscription_id' as 'id', subscription.id)
 
       break
     }
@@ -91,8 +96,8 @@ export async function POST(request: Request) {
           subscription_status:    'canceled',
           current_period_end:     null,
           plan:                   'free',
-        })
-        .eq('stripe_subscription_id', subscription.id)
+        } as unknown as UserUpdate)
+        .eq('stripe_subscription_id' as 'id', subscription.id)
 
       break
     }
@@ -103,8 +108,8 @@ export async function POST(request: Request) {
 
       await supabase
         .from('users')
-        .update({ subscription_status: 'past_due' })
-        .eq('stripe_subscription_id', invoice.subscription)
+        .update({ subscription_status: 'past_due' } as unknown as UserUpdate)
+        .eq('stripe_subscription_id' as 'id', invoice.subscription)
 
       break
     }

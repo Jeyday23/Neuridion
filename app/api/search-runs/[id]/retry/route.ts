@@ -45,7 +45,7 @@ export async function POST(
     .limit(1)
     .single()
 
-  const payload: SearchJobPayload = existingJob?.payload ?? {
+  const payload: SearchJobPayload = (existingJob?.payload as SearchJobPayload | null) ?? {
     profile_id:    run.profile_id,
     period_from:   run.period_from,
     period_to:     run.period_to,
@@ -72,7 +72,7 @@ export async function POST(
   // Insert a fresh job row for status tracking and future payload recovery
   const { data: newJob, error: queueError } = await db
     .from('search_job_queue')
-    .insert({ run_id: runId, payload })
+    .insert({ run_id: runId, payload: payload as unknown as import('@/types/supabase').Json })
     .select('id')
     .single()
 

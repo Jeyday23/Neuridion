@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
+import type { Json, Database } from '@/types/supabase'
 
 const DEVICE_CLASSES = ['Class I', 'Class IIa', 'Class IIb', 'Class III'] as const
 
@@ -75,8 +76,8 @@ export async function PATCH(
     await db.from('profile_edit_history').insert({
       profile_id:      id,
       edited_by:       user.id,
-      changed_fields:  changedFields,
-      previous_values: previousValues,
+      changed_fields:  changedFields  as Json,
+      previous_values: previousValues as Json,
     })
   }
 
@@ -91,9 +92,10 @@ export async function PATCH(
     }
   }
 
+  type ProfileUpdate = Database['public']['Tables']['product_profiles']['Update']
   const { data: updated, error: updateError } = await db
     .from('product_profiles')
-    .update(updatePayload)
+    .update(updatePayload as unknown as ProfileUpdate)
     .eq('id', id)
     .select()
     .single()

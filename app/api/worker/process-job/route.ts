@@ -1,6 +1,7 @@
 import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runSearchPipeline, type SearchJobPayload, type ProgressUpdate } from '@/lib/pipeline/run-search'
+import type { Json } from '@/types/supabase'
 
 // Allow up to 13 minutes — long date ranges can take 10–12 min on BfArM archive
 export const maxDuration = 800
@@ -51,8 +52,8 @@ async function handler(req: Request): Promise<Response> {
       jobPayload,
       async (update: ProgressUpdate) => {
         await Promise.all([
-          db.from('search_runs').update({ progress: update }).eq('id', run_id),
-          db.from('search_job_queue').update({ progress: update }).eq('id', job_id),
+          db.from('search_runs').update({ progress: update as unknown as Json }).eq('id', run_id),
+          db.from('search_job_queue').update({ progress: update as unknown as Json }).eq('id', job_id),
         ])
       },
     )

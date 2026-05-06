@@ -226,8 +226,8 @@ export async function runSearchPipeline(
   // ── Step 2: Insert fsn_results ───────────────────────────────────────────────
 
   let insertedRows: {
-    id: string; external_id: string; title: string
-    manufacturer: string; raw_content: string; fsn_date: string | null
+    id: string; external_id: string | null; title: string
+    manufacturer: string | null; raw_content: string | null; fsn_date: string | null
   }[] = []
 
   console.log(`[pipeline] step2: inserting ${items.length} items to fsn_results run_id=${runId}`)
@@ -242,7 +242,7 @@ export async function runSearchPipeline(
         fsn_date:     item.fsn_date || null,
         source_url:   item.source_url,
         raw_content:  item.raw_content,
-        source:       item.source_db,
+        source_db:    item.source_db,
         content_hash: computeContentHash(item),
         canonical_id: allCanonicalIds.get(item.external_id) ?? null,
       })))
@@ -268,13 +268,12 @@ export async function runSearchPipeline(
   if (insertedRows.length > 0) {
     const { data: cacheHits } = await db
       .from('filter_decision_cache')
-      .select('fsn_external_id, decision, rationale, confidence, model_used')
+      .select('fsn_external_id, decision, reasoning, confidence')
       .in('fsn_external_id', insertedRows.map((r) => fsnIdOf(r.title)))
       .eq('profile_fingerprint', profileFingerprint)
 
     const cacheMap = new Map<string, {
-      decision: string; rationale: string | null
-      confidence: number | null; model_used: string | null
+      decision: string; reasoning: string | null; confidence: string | null
     }>()
     for (const hit of cacheHits ?? []) cacheMap.set(hit.fsn_external_id, hit)
 
@@ -296,9 +295,9 @@ export async function runSearchPipeline(
       decisions.push({
         fsn_result_id: row.id,
         decision:      hit.decision as FilterDecision['decision'],
-        rationale:     hit.rationale ?? '',
-        confidence:    hit.confidence != null ? hit.confidence / 100 : null,
-        model:         hit.model_used ?? null,
+        rationale:     hit.reasoning ?? '',
+        confidence:    hit.confidence != null ? parseFloat(hit.confidence) / 100 : null,
+        model:         null,
       })
     }
   }
@@ -360,7 +359,7 @@ export async function runSearchPipeline(
   for (let i = 0; i < toFilter.length; i++) {
     const row = toFilter[i]
     const d = await stage1Filter(
-      { title: row.title, manufacturer: row.manufacturer, raw_content: row.raw_content, fsn_date: row.fsn_date },
+      { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date },
       safeProfile,
       { skipCache: true },
     )
@@ -385,6 +384,7 @@ export async function runSearchPipeline(
         rationale:     d.rationale,
         confidence:    d.confidence,
         model_used:    d.model,
+        stage:         'stage1',
       })),
     )
     console.log(`[pipeline] step4: insert complete — error=${decisionsError?.message ?? 'none'}`)

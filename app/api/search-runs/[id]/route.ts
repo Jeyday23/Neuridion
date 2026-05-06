@@ -72,7 +72,7 @@ export async function GET(
     manufacturer: r.manufacturer,
     fsn_date:     r.fsn_date,
     source_url:   r.source_url,
-    source:       r.source,
+    source:       r.source_db,
     filter_decision: decisionsMap[r.id] ?? null,
   }))
 

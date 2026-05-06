@@ -127,7 +127,7 @@ export async function POST(request: Request) {
   // Insert job queue row for status tracking and payload recovery on retry
   const { data: newJob, error: queueError } = await db
     .from('search_job_queue')
-    .insert({ run_id: run.id, payload: jobPayload })
+    .insert({ run_id: run.id, payload: jobPayload as unknown as import('@/types/supabase').Json })
     .select('id')
     .single()
 
