@@ -38,8 +38,9 @@ export interface ScraperParams {
 // Returned by every public scraper function.
 // Non-empty warnings → the caller should mark the run as 'degraded'.
 export interface ScraperResult {
-  items:    ScrapedFsn[]
-  warnings: string[]
+  items:                 ScrapedFsn[]
+  warnings:              string[]
+  archiveLimitationHit?: boolean   // true when results are empty due to a known archive limit, not a scraper error
 }
 
 interface ScraperOptions {
@@ -297,7 +298,7 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
   console.log(`[bfarm] Long search — scraping year shortcuts: ${yearsToScrape.join(', ') || '(none)'}`)
 
   if (yearsToScrape.length === 0) {
-    return { items: [], warnings }
+    return { items: [], warnings, archiveLimitationHit: true }
   }
 
   const allParsed: ParsedItem[] = []
@@ -336,12 +337,13 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
   })
   console.log(`[bfarm] Dedup: ${inRange.length} → ${deduped.length}`)
 
-  return { items: deduped, warnings }
+  return { items: deduped, warnings, archiveLimitationHit: warnings.length > 0 }
 }
 
 // Public entry point — dispatches to date-range mode (≤90 days) or year-shortcut
 // mode (>90 days). Both paths return deduped, date-filtered results.
-// Falls back to Firecrawl when the primary scraper returns empty or warns.
+// Falls back to Firecrawl only when the primary scraper fails unexpectedly.
+// Does NOT fall back when 0 items is due to a known archive limitation.
 export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult> {
   const { firecrawlFallback } = await import('./firecrawl')
 
@@ -358,11 +360,7 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
     primary = { items: [], warnings: [`BfArM primary scraper threw: ${String(err)}`] }
   }
 
-  // Don't invoke Firecrawl when 0 items is due to a known archive limitation,
-  // not a scraper failure. The sentinel "3-year archive window" appears only in
-  // warnings emitted by scrapeBfarmYearShortcuts for out-of-range years.
-  const archiveLimitation = primary.warnings.some(w => w.includes('3-year archive window'))
-  const result: ScraperResult = (primary.items.length > 0 || archiveLimitation)
+  const result: ScraperResult = (primary.items.length > 0 || primary.archiveLimitationHit)
     ? primary
     : await firecrawlFallback(params)
 
