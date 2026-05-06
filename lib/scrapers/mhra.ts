@@ -72,6 +72,17 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
   const enriched = await enrichWithDetails(listings)
   const deduped  = dedup(enriched)
   console.log(`[mhra] Final: ${deduped.length} deduplicated items`)
+
+  if (params.searchTerms && params.searchTerms.length > 0) {
+    const terms    = params.searchTerms.map(t => t.toLowerCase())
+    const filtered = deduped.filter(item => {
+      const hay = `${item.title} ${item.raw_content ?? ''}`.toLowerCase()
+      return terms.some(t => hay.includes(t))
+    })
+    console.log(`[mhra] searchTerms filter (${terms.join(', ')}): ${deduped.length} → ${filtered.length} items`)
+    return { items: filtered, warnings: [] }
+  }
+
   return { items: deduped, warnings: [] }
 }
 
