@@ -232,6 +232,18 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
 
 // ─── Year-shortcut mode (for searches > 90 days) ─────────────────────────────
 
+/**
+ * Maps a calendar year to its BfArM URL shortcut key.
+ * BfArM only exposes archives for the current year and 2 years prior.
+ * Returns null for any year outside that window.
+ */
+export function yearToShortcut(year: number, currentYear: number): string | null {
+  if (year === currentYear)     return 'current_year'
+  if (year === currentYear - 1) return 'lastyear'
+  if (year === currentYear - 2) return 'penultimateyear'
+  return null
+}
+
 async function scrapeYearShortcut(shortcut: string): Promise<ParsedItem[]> {
   const items: ParsedItem[] = []
   let pageNum = 1
@@ -261,20 +273,32 @@ async function scrapeYearShortcut(shortcut: string): Promise<ParsedItem[]> {
   return items
 }
 
-async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: string }): Promise<ScrapedFsn[]> {
-  const fromYear   = new Date(params.fromDate + 'T00:00:00.000Z').getUTCFullYear()
-  const toYear     = new Date(params.toDate   + 'T00:00:00.000Z').getUTCFullYear()
+async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: string }): Promise<ScraperResult> {
+  const fromYear    = new Date(params.fromDate + 'T00:00:00.000Z').getUTCFullYear()
+  const toYear      = new Date(params.toDate   + 'T00:00:00.000Z').getUTCFullYear()
   const currentYear = new Date().getUTCFullYear()
 
   const yearsToScrape: string[] = []
+  const warnings: string[]      = []
+
   for (let year = fromYear; year <= toYear; year++) {
-    if      (year === currentYear)     yearsToScrape.push('current_year')
-    else if (year === currentYear - 1) yearsToScrape.push('lastyear')
-    else if (year === currentYear - 2) yearsToScrape.push('penultimateyear')
-    else console.warn(`[bfarm] Year ${year} beyond BfArM shortcut support (max 2 years back), skipping`)
+    const shortcut = yearToShortcut(year, currentYear)
+    if (shortcut) {
+      yearsToScrape.push(shortcut)
+    } else {
+      const msg =
+        `BfArM: year ${year} is outside the 3-year archive window ` +
+        `(${currentYear - 2}–${currentYear}). Data for this period is unavailable via automated search.`
+      console.warn(`[bfarm] ${msg}`)
+      warnings.push(msg)
+    }
   }
 
-  console.log(`[bfarm] Long search — scraping year shortcuts: ${yearsToScrape.join(', ')}`)
+  console.log(`[bfarm] Long search — scraping year shortcuts: ${yearsToScrape.join(', ') || '(none)'}`)
+
+  if (yearsToScrape.length === 0) {
+    return { items: [], warnings }
+  }
 
   const allParsed: ParsedItem[] = []
   for (const shortcut of yearsToScrape) {
@@ -312,7 +336,7 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
   })
   console.log(`[bfarm] Dedup: ${inRange.length} → ${deduped.length}`)
 
-  return deduped
+  return { items: deduped, warnings }
 }
 
 // Public entry point — dispatches to date-range mode (≤90 days) or year-shortcut
@@ -329,12 +353,16 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
   try {
     primary = total <= 90
       ? { items: await scrapeBfArM({ fromDate: from, toDate: to }), warnings: [] }
-      : { items: await scrapeBfarmYearShortcuts(params), warnings: [] }
+      : await scrapeBfarmYearShortcuts(params)
   } catch (err) {
     primary = { items: [], warnings: [`BfArM primary scraper threw: ${String(err)}`] }
   }
 
-  const result: ScraperResult = (primary.items.length > 0 && primary.warnings.length === 0)
+  // Don't invoke Firecrawl when 0 items is due to a known archive limitation,
+  // not a scraper failure. The sentinel "3-year archive window" appears only in
+  // warnings emitted by scrapeBfarmYearShortcuts for out-of-range years.
+  const archiveLimitation = primary.warnings.some(w => w.includes('3-year archive window'))
+  const result: ScraperResult = (primary.items.length > 0 || archiveLimitation)
     ? primary
     : await firecrawlFallback(params)
 
