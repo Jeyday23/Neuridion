@@ -380,7 +380,7 @@ export async function runSearchPipeline(
 
   const runStatus = allWarnings.length > 0 ? 'degraded' : 'complete'
 
-  await db.from('search_runs').update({
+  const { error: finalizeError } = await db.from('search_runs').update({
     status:              runStatus,
     error:               allWarnings.length > 0 ? allWarnings.join('\n') : null,
     completed_at:        new Date().toISOString(),
@@ -390,6 +390,7 @@ export async function runSearchPipeline(
     filter_failed_count: counts.filter_failed,
     progress:            null,
   }).eq('id', runId)
+  if (finalizeError) throw new Error(`Failed to finalize run ${runId}: ${finalizeError.message}`)
 
   // ── Step 6: Audit log ────────────────────────────────────────────────────────
 
