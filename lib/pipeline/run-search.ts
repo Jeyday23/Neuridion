@@ -29,6 +29,14 @@ export interface ProgressUpdate {
   items_found:    number
 }
 
+// Coverage cache is only valid for unfiltered (all-items) fetches. Any search
+// with manufacturer terms must bypass it — a previous Siemens search populates
+// canonical with Siemens items and marks the range covered; a later B. Braun
+// search would then silently load those Siemens items and find nothing.
+export function shouldBypassCoverageCache(searchTerms: string[]): boolean {
+  return searchTerms.length > 0
+}
+
 // ── Scraper registry ──────────────────────────────────────────────────────────
 
 const SCRAPERS: Record<string, (p: ScraperParams) => Promise<ScraperResult>> = {
@@ -89,10 +97,11 @@ export async function runSearchPipeline(
     const canonicalIds:   Map<string, string> = new Map()
     const fetchedRanges:  { from: string; to: string }[] = []
 
-    const searchTerms = buildManufacturerSearchTerms(
+    const searchTerms          = buildManufacturerSearchTerms(
       safeProfile.manufacturer ?? '',
       safeProfile.device_name  ?? '',
     )
+    const hasManufacturerTerms = shouldBypassCoverageCache(searchTerms)
 
     async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
       const result = await SCRAPERS[sourceId]({
@@ -111,7 +120,10 @@ export async function runSearchPipeline(
 
     const overlapFrom = overlapWindowStart(period_to)
 
-    if (forceRefresh) {
+    if (forceRefresh || hasManufacturerTerms) {
+      if (hasManufacturerTerms) {
+        console.log(`[pipeline] ${sourceId}: manufacturer filter present — bypassing coverage cache, fetching full range`)
+      }
       await fetchSourceRange({ from: period_from, to: period_to })
     } else {
       const covered    = await getCoveredRanges(sourceId)
@@ -171,7 +183,7 @@ export async function runSearchPipeline(
       }
     }
 
-    if (canonicalPersisted) {
+    if (canonicalPersisted && !hasManufacturerTerms) {
       for (const range of fetchedRanges) await mergeCoverage(sourceId, range)
     }
 
