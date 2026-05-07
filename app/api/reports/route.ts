@@ -157,7 +157,8 @@ async function buildExcel(
 function buildReportHtml(
   profile: { device_name: string; manufacturer: string; device_class: string | null; emdn_code: string | null },
   run: { period_from: string; period_to: string },
-  rows: FsnRow[]
+  rows: FsnRow[],
+  runId: string
 ): string {
   const today = fmtDate(new Date().toISOString())
 
@@ -273,12 +274,12 @@ function buildReportHtml(
     ${profile.emdn_code ? `<tr><td>EMDN Code</td><td>${escHtml(profile.emdn_code)}</td></tr>` : ''}
     <tr><td>Review Period</td><td>${escHtml(run.period_from)} to ${escHtml(run.period_to)}</td></tr>
     <tr><td>Report Date</td><td>${today}</td></tr>
-    <tr><td>Document Reference</td><td>PMS-FSN-${new Date().getFullYear()}</td></tr>
+    <tr><td>Document Reference</td><td>PMS-FSN-${new Date().getFullYear()}-${runId.slice(0, 8).toUpperCase()}</td></tr>
   </table>
 
   <h2>2. Search Methodology</h2>
   <table class="meta-table">
-    <tr><td>Databases Searched</td><td>BfArM (Bundesinstitut f&#252;r Arzneimittel und Medizinprodukte) &mdash; Kundeninformation / Field Safety Notice Feed</td></tr>
+    <tr><td>Databases Searched</td><td>${[...new Set(rows.map(r => fmtSourceDb(r.source_db)))].join(', ')}</td></tr>
     <tr><td>Search Date Range</td><td>${escHtml(run.period_from)} to ${escHtml(run.period_to)}</td></tr>
     <tr><td>Search Parameters</td><td>All published FSNs within the specified period were retrieved and assessed for relevance to the device profile above.</td></tr>
     <tr><td>Assessment Criteria</td><td>Each notice was evaluated for device type, manufacturer, intended use, and applicable risk.</td></tr>
@@ -353,6 +354,10 @@ function buildReportHtml(
       Date: ___________________________
     </div>
   </div>
+
+  <p style="margin-top:14mm;font-size:7.5pt;color:#666;border-top:1px solid #ddd;padding-top:6px;line-height:1.5;">
+  <strong>AI Disclaimer:</strong> Relevance assessments in this report were produced by an AI language model (Anthropic Claude) and must be reviewed and approved by a qualified PRRC before inclusion in any Technical File, PMSR, or PSUR. AI outputs do not constitute a regulatory decision.
+  </p>
 
 </div>
 </body>
@@ -457,7 +462,7 @@ export async function POST(request: Request) {
   })
 
   // ── Generate HTML report (open in browser and print to PDF natively) ─────────
-  const html = buildReportHtml(profile, { period_from: run.period_from, period_to: run.period_to }, rows)
+  const html = buildReportHtml(profile, { period_from: run.period_from, period_to: run.period_to }, rows, run_id)
   const htmlBuf = Buffer.from(html, 'utf-8')
 
   // ── Upload to Supabase Storage ──────────────────────────────────────────────
