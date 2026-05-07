@@ -1,5 +1,18 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { z } from 'zod'
+
+const SaveDraftSchema = z.object({
+  id:               z.string().uuid().optional(),
+  name:             z.string().max(200).optional(),
+  profile_id:       z.string().uuid().nullable().optional(),
+  from:             z.string().optional(),
+  to:               z.string().optional(),
+  dbs:              z.array(z.string()).max(10).optional(),
+  genericTerms:     z.array(z.string().max(200)).max(50).optional(),
+  manufacturerTerms: z.array(z.string().max(200)).max(50).optional(),
+  uploadedPaths:    z.array(z.string().max(500)).max(20).optional(),
+})
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -15,6 +28,10 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
+  const parsed = SaveDraftSchema.safeParse(body)
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 })
+  }
   const {
     id,
     name,
@@ -25,17 +42,7 @@ export async function POST(request: Request) {
     genericTerms,
     manufacturerTerms,
     uploadedPaths,
-  } = body as {
-    id?: string
-    name?: string
-    profile_id?: string | null
-    from?: string
-    to?: string
-    dbs?: string[]
-    genericTerms?: string[]
-    manufacturerTerms?: string[]
-    uploadedPaths?: string[]
-  }
+  } = parsed.data
 
   const db = createAdminClient()
   const now = new Date().toISOString()

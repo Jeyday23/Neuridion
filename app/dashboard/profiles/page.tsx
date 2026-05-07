@@ -48,7 +48,7 @@ export default async function ProfilesPage() {
         <div className="rounded-md border border-dashed border-[#E2E8F0] bg-white px-8 py-16 text-center">
           <p className="text-sm font-medium text-zinc-900">No profiles yet</p>
           <p className="mt-1 text-sm text-zinc-500">
-            Create your first product profile to start running recall searches.
+            Create your first product profile to start your first PMS search.
           </p>
           <Link
             href="/dashboard/profiles/new"

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { z } from 'zod'
 import ExcelJS from 'exceljs'
 import { generatePdfFromHtml, canGeneratePdf, incrementPdfUsage } from '@/lib/pdfshift'
 import { logAuditEvent } from '@/lib/audit'
@@ -390,8 +391,8 @@ export async function POST(request: Request) {
   }
 
   const { run_id } = body as { run_id?: string }
-  if (!run_id) {
-    return Response.json({ error: 'run_id is required' }, { status: 422 })
+  if (!run_id || !z.string().uuid().safeParse(run_id).success) {
+    return Response.json({ error: 'run_id must be a valid UUID' }, { status: 422 })
   }
 
   // Fetch run + profile (validates ownership)

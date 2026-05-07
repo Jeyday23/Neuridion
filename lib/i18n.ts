@@ -12,7 +12,7 @@ export const translations = {
     },
     search: {
       pageTitle:       'Define Search Strategy',
-      pageSubtitle:    'Select databases and configure search parameters for your PMS search',
+      pageSubtitle:    'Select databases and configure your Post-Market Surveillance (PMS) search parameters',
       productProfile:  'Product Profile',
       databases:       'Databases',
       selected:        'selected',
@@ -39,7 +39,7 @@ export const translations = {
       downloadPdf:     'Download PDF',
       downloadHtml:    'Download HTML',
       downloadExcel:   'Download Excel',
-      noResults:       'No FSNs found for the selected databases and period',
+      noResults:       'No Field Safety Notices (FSNs) found for the selected databases and period',
       noResultsHint:   'Databases may not publish daily. Try a wider date range — the last 14 days across all active databases typically has 10–30 FSNs.',
       noCategory:      'No results in this category.',
     },

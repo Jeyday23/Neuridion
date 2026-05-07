@@ -835,10 +835,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             {t.search.saveDraft}
           </button>
           <div className="flex items-center gap-3 flex-wrap">
-            <button type="button" onClick={saveProfileAndDraft} disabled={draftSaving || noProfiles}
-              className="px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium disabled:opacity-60 disabled:cursor-not-allowed">
-              {t.search.createProfile}
-            </button>
             <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || state.phase === 'queued' || isOverLimit}
               className="px-8 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
               {(state.phase === 'running' || state.phase === 'queued')

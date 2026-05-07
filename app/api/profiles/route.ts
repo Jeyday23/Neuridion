@@ -1,5 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { PLANS, type PlanId } from '@/lib/plans'
+import { z } from 'zod'
+
+const CreateProfileSchema = z.object({
+  device_name:  z.string().min(1).max(200),
+  manufacturer: z.string().min(1).max(200),
+  device_class: z.enum(['Class I', 'Class IIa', 'Class IIb', 'Class III']).optional(),
+  emdn_code:    z.string().max(20).optional(),
+  intended_use: z.string().max(2000).optional(),
+})
 
 export async function GET() {
   const supabase = await createClient()
@@ -36,14 +45,11 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { device_name, manufacturer, emdn_code, device_class, intended_use } = body
-
-  if (!device_name || !manufacturer) {
-    return Response.json(
-      { error: 'device_name and manufacturer are required' },
-      { status: 422 }
-    )
+  const parsed = CreateProfileSchema.safeParse(body)
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 })
   }
+  const { device_name, manufacturer, emdn_code, device_class, intended_use } = parsed.data
 
   // Enforce plan profile limit
   const { data: userData } = await supabase
