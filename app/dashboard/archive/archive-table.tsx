@@ -34,8 +34,21 @@ const STATUS_STYLES: Record<string, string> = {
   running:    'bg-blue-50 text-blue-700 border-blue-200',
   filtering:  'bg-blue-50 text-blue-700 border-blue-200',
   queued:     'bg-zinc-100 text-zinc-600 border-zinc-200',
+  pending:    'bg-zinc-100 text-zinc-600 border-zinc-200',
   error:      'bg-red-50 text-red-700 border-red-200',
+  degraded:   'bg-amber-50 text-amber-700 border-amber-200',
   cancelled:  'bg-zinc-100 text-zinc-600 border-zinc-200',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  complete:   'Complete',
+  running:    'Running',
+  filtering:  'Running',
+  pending:    'Queued',
+  queued:     'Queued',
+  error:      'Failed',
+  degraded:   'Partial results',
+  cancelled:  'Cancelled',
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -56,14 +69,21 @@ function getPeriod(run: RunRow): string {
   const from = run.search_period_from ?? run.period_from
   const to   = run.search_period_to   ?? run.period_to
   if (!from && !to) return '—'
-  return `${from ?? '?'} → ${to ?? '?'}`
+  return `${fmtDate(from)} – ${fmtDate(to)}`
+}
+
+const DB_LABELS: Record<string, string> = {
+  bfarm:      'BfArM',
+  maude:      'FDA MAUDE',
+  mhra:       'MHRA',
+  swissmedic: 'Swissmedic',
 }
 
 function getDbsLabel(dbs: unknown): string {
   if (!dbs) return '—'
-  if (Array.isArray(dbs)) return dbs.join(', ')
-  if (typeof dbs === 'string') return dbs
-  return '—'
+  const arr = Array.isArray(dbs) ? dbs : typeof dbs === 'string' ? [dbs] : []
+  if (arr.length === 0) return '—'
+  return arr.map((d) => DB_LABELS[String(d).toLowerCase()] ?? String(d)).join(', ')
 }
 
 export function ArchiveTable({ runs }: { runs: RunRow[] }) {
@@ -218,7 +238,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusStyle}`}
                         title={run.error_message ?? undefined}
                       >
-                        {run.status}
+                        {STATUS_LABELS[run.status] ?? run.status}
                       </span>
                       {run.status === 'error' && run.error_message && (
                         <p className="mt-1 text-xs text-red-500 max-w-[180px] truncate" title={run.error_message}>

@@ -474,7 +474,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     return isNaN(d.getTime()) ? s : d.toLocaleDateString('de-DE')
   }
 
-  async function saveDraft(successMsg = t.search.saveDraft) {
+  async function saveDraft(successMsg = 'Draft saved') {
     setDraftSaving(true)
     try {
       const body = {
@@ -498,7 +498,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     }
   }
 
-  async function saveProfileAndDraft() { await saveDraft(t.search.saveDraft) }
+  async function saveProfileAndDraft() { await saveDraft('Draft saved') }
 
   async function handleFiles(files: FileList | File[]) {
     for (const file of Array.from(files)) {

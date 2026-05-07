@@ -13,8 +13,6 @@ export default async function ArchivePage() {
   // Data: use admin client to bypass RLS — reads are scoped to the user's id below
   const adminClient = createAdminClient()
 
-  console.log('[archive] querying for user_id:', user.id)
-
   const { data: runs, error } = await adminClient
     .from('search_runs')
     .select(`
@@ -30,12 +28,6 @@ export default async function ArchivePage() {
     .order('created_at', { ascending: false })
     .limit(100)
 
-  console.log('[archive] query result:', {
-    error: error?.message,
-    rowCount: runs?.length,
-    firstRow: runs?.[0],
-  })
-
   return (
     <div className="p-8">
       <div className="mb-6">
@@ -45,13 +37,7 @@ export default async function ArchivePage() {
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <strong>Query error:</strong> {error.message}
-          {error.message.includes('column') && (
-            <p className="mt-1 text-xs text-red-500">
-              Migration 009_add_report_paths.sql may not have been applied yet.
-              Run it in the Supabase SQL Editor and reload.
-            </p>
-          )}
+          Unable to load your search history. Please try refreshing or contact support.
         </div>
       )}
 
