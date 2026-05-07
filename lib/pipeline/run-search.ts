@@ -9,6 +9,7 @@ import { stage1Filter, getProfileFingerprint, type FilterDecision } from '@/lib/
 import { sendSearchRunNotification } from '@/lib/email'
 import { logAuditEvent } from '@/lib/audit'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
+import pLimit from 'p-limit'
 import { upsertCanonical, getCanonicalItems, computeContentHash } from '@/lib/sync/canonical'
 
 // ── Public types ──────────────────────────────────────────────────────────────
@@ -356,19 +357,21 @@ export async function runSearchPipeline(
     }
   }
 
-  for (let i = 0; i < toFilter.length; i++) {
-    const row = toFilter[i]
-    const d = await stage1Filter(
-      { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date },
-      safeProfile,
-      { skipCache: true },
-    )
-    decisions.push({ ...d, fsn_result_id: row.id })
-    if ((i + 1) % 25 === 0) {
-      console.log(`[pipeline] AI filter: ${i + 1}/${toFilter.length}`)
-      await new Promise((r) => setTimeout(r, 200))
-    }
-  }
+  const filterLimit = pLimit(8)
+  const filterResults = await Promise.all(
+    toFilter.map((row, i) => filterLimit(async () => {
+      const d = await stage1Filter(
+        { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date },
+        safeProfile,
+        { skipCache: true },
+      )
+      if ((i + 1) % 25 === 0) {
+        console.log(`[pipeline] AI filter: ${i + 1}/${toFilter.length}`)
+      }
+      return { ...d, fsn_result_id: row.id }
+    }))
+  )
+  decisions.push(...filterResults)
 
   console.log(`[pipeline] AI filter complete: ${decisions.length} decisions (${toFilter.length} AI-filtered)`)
 
