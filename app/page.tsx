@@ -39,7 +39,7 @@ export default async function HomePage() {
             </span>
           </Link>
 
-          <div className="hidden md:flex items-center gap-8 text-sm text-[#0F766E]">
+          <div className="hidden md:flex items-center gap-8 text-sm text-[#134E4A]">
             <a href="#features" className="hover:text-[#0F1F3D] transition-colors">
               Features
             </a>
@@ -54,7 +54,7 @@ export default async function HomePage() {
           <div className="flex items-center gap-3">
             <Link
               href="/login"
-              className="text-sm text-[#0F766E] hover:text-[#0F1F3D] transition-colors"
+              className="text-sm text-[#134E4A] hover:text-[#0F1F3D] transition-colors"
             >
               Log in
             </Link>
@@ -77,7 +77,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div>
               <div className="text-2xl font-bold text-[#0D9488]">4</div>
-              <div className="text-sm text-[#115E59] mt-1 font-medium">
+              <div className="text-sm text-[#134E4A] font-medium mt-1 font-medium">
                 Regulatory databases
               </div>
             </div>
@@ -85,17 +85,17 @@ export default async function HomePage() {
               <div className="text-2xl font-bold text-[#0D9488]">
                 EU MDR
               </div>
-              <div className="text-sm text-[#115E59] mt-1 font-medium">
+              <div className="text-sm text-[#134E4A] font-medium mt-1 font-medium">
                 Art. 83 &amp; 84 compliant
               </div>
             </div>
             <div>
               <div className="text-2xl font-bold text-[#0D9488]">GDPR</div>
-              <div className="text-sm text-[#115E59] mt-1 font-medium">By design</div>
+              <div className="text-sm text-[#134E4A] font-medium mt-1 font-medium">By design</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-[#0D9488]">100%</div>
-              <div className="text-sm text-[#115E59] mt-1 font-medium">
+              <div className="text-sm text-[#134E4A] font-medium mt-1 font-medium">
                 Append-only audit trail
               </div>
             </div>
@@ -110,7 +110,7 @@ export default async function HomePage() {
             <h2 className="text-3xl font-bold text-[#0F1F3D] mb-4">
               Everything your PRRC needs
             </h2>
-            <p className="text-[#0F766E] max-w-xl mx-auto">
+            <p className="text-[#134E4A] max-w-xl mx-auto">
               Built specifically for medical device post-market surveillance
               under EU MDR.
             </p>
@@ -223,7 +223,7 @@ export default async function HomePage() {
               <h2 className="text-3xl font-bold text-[#0F1F3D] mb-6">
                 Built for regulatory confidence
               </h2>
-              <p className="text-[#0F766E] mb-8 leading-relaxed">
+              <p className="text-[#134E4A] mb-8 leading-relaxed">
                 Neuridion was designed from the ground up for EU MDR
                 post-market surveillance requirements. Every feature, every data
                 flow, every export format serves one goal: giving your
@@ -243,7 +243,7 @@ export default async function HomePage() {
                     <div className="w-5 h-5 bg-[#F0FDF4] border border-[#BBF7D0] rounded flex items-center justify-center mt-0.5 flex-shrink-0">
                       <Check className="w-3 h-3 text-[#166534]" />
                     </div>
-                    <span className="text-sm text-[#115E59]">{item}</span>
+                    <span className="text-sm text-[#134E4A] font-medium">{item}</span>
                   </div>
                 ))}
               </div>
@@ -307,7 +307,7 @@ export default async function HomePage() {
             <h2 className="text-3xl font-bold text-[#0F1F3D] mb-4">
               Simple, transparent pricing
             </h2>
-            <p className="text-[#115E59]">
+            <p className="text-[#134E4A]">
               14-day free trial on all plans. No credit card required.
             </p>
           </div>
@@ -334,7 +334,7 @@ export default async function HomePage() {
                   'PDF reports',
                   'Email support',
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-[#115E59]">
+                  <li key={f} className="flex items-center gap-2 text-sm text-[#134E4A] font-medium">
                     <Check className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
                     {f}
                   </li>
@@ -342,7 +342,7 @@ export default async function HomePage() {
               </ul>
               <Link
                 href="/signup"
-                className="block w-full text-center py-2.5 border border-[#E2E8F0] text-[#115E59] rounded text-sm font-medium hover:border-[#CBD5E1] transition-colors"
+                className="block w-full text-center py-2.5 border border-[#E2E8F0] text-[#134E4A] rounded text-sm font-medium hover:border-[#CBD5E1] transition-colors"
               >
                 Start free trial
               </Link>
@@ -367,7 +367,7 @@ export default async function HomePage() {
                   'PDF + Excel reports',
                   'Priority support',
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-[#115E59]">
+                  <li key={f} className="flex items-center gap-2 text-sm text-[#134E4A] font-medium">
                     <Check className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
                     {f}
                   </li>
@@ -398,7 +398,7 @@ export default async function HomePage() {
                   'SSO integration',
                   'Dedicated account manager',
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-[#115E59]">
+                  <li key={f} className="flex items-center gap-2 text-sm text-[#134E4A] font-medium">
                     <Check className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
                     {f}
                   </li>
@@ -406,7 +406,7 @@ export default async function HomePage() {
               </ul>
               <a
                 href="mailto:info.kodex.medical@gmail.com"
-                className="block w-full text-center py-2.5 border border-[#E2E8F0] text-[#115E59] rounded text-sm font-medium hover:border-[#CBD5E1] transition-colors"
+                className="block w-full text-center py-2.5 border border-[#E2E8F0] text-[#134E4A] rounded text-sm font-medium hover:border-[#CBD5E1] transition-colors"
               >
                 Contact sales
               </a>
@@ -453,7 +453,7 @@ export default async function HomePage() {
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">
                 Product
               </h4>
-              <ul className="space-y-2 text-sm text-[#0F766E]">
+              <ul className="space-y-2 text-sm text-[#134E4A]">
                 <li>
                   <a href="#features" className="hover:text-[#0F1F3D]">
                     Features
@@ -470,7 +470,7 @@ export default async function HomePage() {
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">
                 Company
               </h4>
-              <ul className="space-y-2 text-sm text-[#0F766E]">
+              <ul className="space-y-2 text-sm text-[#134E4A]">
                 <li>
                   <a
                     href="mailto:info.kodex.medical@gmail.com"
@@ -485,7 +485,7 @@ export default async function HomePage() {
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">
                 Legal
               </h4>
-              <ul className="space-y-2 text-sm text-[#0F766E]">
+              <ul className="space-y-2 text-sm text-[#134E4A]">
                 <li>
                   <Link href="/privacy" className="hover:text-[#0F1F3D]">
                     Privacy
@@ -512,7 +512,7 @@ export default async function HomePage() {
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">
                 Connect
               </h4>
-              <ul className="space-y-2 text-sm text-[#0F766E]">
+              <ul className="space-y-2 text-sm text-[#134E4A]">
                 <li>
                   <a href="#" className="hover:text-[#0F1F3D]">
                     LinkedIn

@@ -24,7 +24,7 @@ function Hero() {
       <div className="max-w-4xl mx-auto px-6">
         <div className="flex gap-6 py-16 lg:py-20 items-center justify-center flex-col">
           <div>
-            <span className="inline-block px-3 py-1 bg-[#F0FDF4] text-[#166534] text-xs font-medium rounded-full border border-[#BBF7D0]">
+            <span className="inline-block px-4 py-1.5 bg-[#CCFBF1] text-[#115E59] text-sm font-semibold rounded-full border border-[#0D9488]">
               EU MDR Article 83 compliant
             </span>
           </div>
@@ -55,7 +55,7 @@ function Hero() {
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl leading-relaxed text-[#0F766E] max-w-2xl text-center mx-auto">
+            <p className="text-lg md:text-xl leading-relaxed text-[#134E4A] max-w-2xl text-center mx-auto font-medium">
               Neuridion searches four regulatory databases, filters Field Safety
               Notices against your device profiles, and generates audit-ready
               reports — so your PRRC can focus on decisions, not data collection.
@@ -71,12 +71,12 @@ function Hero() {
             </Link>
             <a
               href="mailto:info.kodex.medical@gmail.com"
-              className="inline-flex items-center gap-2 px-6 py-3 border border-[#0D9488] text-[#115E59] rounded font-medium hover:bg-[#F0FDFA] transition-colors text-sm"
+              className="inline-flex items-center gap-2 px-6 py-3 border-2 border-[#0D9488] text-[#134E4A] rounded font-semibold hover:bg-[#F0FDFA] transition-colors text-sm"
             >
               Request a demo
             </a>
           </div>
-          <p className="text-sm text-[#0D9488]">
+          <p className="text-sm text-[#115E59] font-medium">
             No credit card required &middot; 14-day trial on all plans &middot; Cancel
             anytime
           </p>

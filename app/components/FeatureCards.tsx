@@ -57,7 +57,7 @@ export function FeatureCards() {
             <h3 className="text-base font-semibold text-[#0F1F3D] mb-2">
               {title}
             </h3>
-            <p className="text-sm text-[#115E59] leading-relaxed">{desc}</p>
+            <p className="text-sm text-[#134E4A] leading-relaxed font-medium">{desc}</p>
           </div>
         </div>
       ))}
