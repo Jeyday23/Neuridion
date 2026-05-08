@@ -6,11 +6,11 @@ import { ChevronDown } from 'lucide-react'
 const faqs = [
   {
     question: 'What databases does Neuridion search?',
-    answer: 'Neuridion searches 20+ global medical device databases including FDA MAUDE (USA), BfArM (Germany), Swissmedic (Switzerland), EUDAMED (EU), MHRA (UK), and many more. We\'re continuously adding new databases.',
+    answer: 'Neuridion currently searches 4 major regulatory databases: FDA MAUDE (USA), BfArM (Germany), MHRA (UK), and Swissmedic (Switzerland). We\'re actively working to add more sources.',
   },
   {
     question: 'How accurate is the AI filtering?',
-    answer: 'Our AI uses Claude to analyze Field Safety Notices and filter them based on your specific device profile. The system achieves 95%+ accuracy in identifying relevant recalls, significantly reducing manual review time.',
+    answer: 'Our AI uses Claude to classify each Field Safety Notice as relevant, uncertain, or excluded based on your device profile. Every AI decision goes through a PRRC review gate before appearing in your final report — AI assists, humans decide.',
   },
   {
     question: 'Is Neuridion MDR compliant?',
@@ -22,7 +22,7 @@ const faqs = [
   },
   {
     question: 'Do you offer a free trial?',
-    answer: 'Yes! Our Free plan includes 1 device profile and 5 searches per month. No credit card required. Upgrade anytime as your needs grow.',
+    answer: 'Yes! Every paid plan includes a 14-day free trial. No credit card required to start. You get full access to all features during the trial period.',
   },
 ]
 
@@ -31,7 +31,7 @@ export function FaqAccordion() {
   return (
     <div className="space-y-4">
       {faqs.map((faq, i) => (
-        <div key={i} className="border border-slate-200 rounded-lg">
+        <div key={i} className="border border-slate-200 rounded-md">
           <button
             onClick={() => setOpen(open === i ? null : i)}
             className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"

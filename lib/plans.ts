@@ -34,7 +34,7 @@ export const PLANS: Record<PlanId, PlanLimits> = {
   },
   enterprise: {
     label: 'Enterprise',
-    priceMonthly: '€2,000+',
+    priceMonthly: '€5,000+',
     maxSearchRuns: -1,
     maxProfiles: -1,
   },

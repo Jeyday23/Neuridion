@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Search, FileText, Download, Shield, CheckCircle, Lock, Award } from 'lucide-react'
+import { Search, FileText, Download, Shield, CheckCircle, Lock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { FaqAccordion } from './components/FaqAccordion'
+import { HeroVapourText } from './components/HeroVapourText'
 
 export const metadata = {
-  title: 'Neuridion — Automated PMS Recall Search for EU MDR',
+  title: 'Neuridion — PMS Compliance in Minutes, Not Days',
 }
 
 export default async function HomePage() {
@@ -34,17 +35,14 @@ export default async function HomePage() {
       </nav>
 
       {/* Hero */}
-      <section className="min-h-screen bg-[#0F1F3D] text-white flex items-center">
-        <div className="max-w-7xl mx-auto px-6 py-32 text-center w-full">
-          <h1
-            className="font-bold tracking-tight leading-none text-white mb-8"
-            style={{ fontSize: 'clamp(3rem, 8vw, 7rem)' }}
-          >
-            NEURIDION
-          </h1>
+      <section className="min-h-screen bg-[#0F1F3D] text-white flex items-center relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6 py-32 text-center w-full relative z-10">
+          <div className="h-28 md:h-36 mb-8 flex items-center justify-center">
+            <HeroVapourText />
+          </div>
 
           <p className="text-xl md:text-2xl text-slate-300 mb-4 max-w-3xl mx-auto leading-relaxed">
-            AI-Powered Post-Market Surveillance for Medical Devices
+            AI searches 4 regulatory databases and filters Field Safety Notices for your device. Your PRRC reviews and approves. Audit-ready reports, instantly.
           </p>
 
           <p className="text-sm md:text-base text-[#0D9488] mb-12 font-mono tracking-wide">
@@ -56,7 +54,7 @@ export default async function HomePage() {
               href="/signup"
               className="px-8 py-4 bg-[#0D9488] hover:bg-[#0F766E] text-white font-medium rounded transition-colors"
             >
-              Start free trial
+              Start 14-day free trial
             </Link>
             <Link
               href="/login"
@@ -71,42 +69,35 @@ export default async function HomePage() {
       {/* Social Proof */}
       <section className="bg-white py-16 border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-6 text-center">
-          <p className="text-slate-500 mb-8">Trusted by PRRCs at medical device companies across Europe</p>
+          <p className="text-slate-500 mb-8">Built for EU MDR Article 83 compliance</p>
           <div className="flex items-center justify-center gap-8 flex-wrap">
             <div className="flex flex-col items-center gap-2 px-6 py-4 bg-[#F8FAFC] rounded-md border border-[#E2E8F0]">
               <div className="w-16 h-16 bg-[rgba(13,148,136,0.08)] rounded-md flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-[#0D9488]" />
+                <Shield className="w-8 h-8 text-[#0D9488]" />
               </div>
-              <div className="font-bold text-slate-900 text-lg">CE</div>
-              <div className="text-xs text-slate-500">Mark</div>
-            </div>
-            <div className="flex flex-col items-center gap-2 px-6 py-4 bg-[#F8FAFC] rounded-md border border-[#E2E8F0]">
-              <div className="w-16 h-16 bg-[rgba(13,148,136,0.08)] rounded-md flex items-center justify-center">
-                <Award className="w-8 h-8 text-[#0D9488]" />
-              </div>
-              <div className="font-bold text-slate-900 text-lg">ISO 13485</div>
-              <div className="text-xs text-slate-500">Certified</div>
+              <div className="font-bold text-slate-900 text-lg">EU MDR Art. 83</div>
+              <div className="text-xs text-slate-500">Compliant workflow</div>
             </div>
             <div className="flex flex-col items-center gap-2 px-6 py-4 bg-[#F8FAFC] rounded-md border border-[#E2E8F0]">
               <div className="w-16 h-16 bg-[rgba(13,148,136,0.08)] rounded-md flex items-center justify-center">
                 <Lock className="w-8 h-8 text-[#0D9488]" />
               </div>
               <div className="font-bold text-slate-900 text-lg">GDPR</div>
-              <div className="text-xs text-slate-500">Compliant</div>
+              <div className="text-xs text-slate-500">By design</div>
             </div>
             <div className="flex flex-col items-center gap-2 px-6 py-4 bg-[#F8FAFC] rounded-md border border-[#E2E8F0]">
               <div className="w-16 h-16 bg-[rgba(13,148,136,0.08)] rounded-md flex items-center justify-center">
-                <Shield className="w-8 h-8 text-[#0D9488]" />
+                <FileText className="w-8 h-8 text-[#0D9488]" />
               </div>
-              <div className="font-bold text-slate-900 text-lg">EU MDR</div>
-              <div className="text-xs text-slate-500">Compliant</div>
+              <div className="font-bold text-slate-900 text-lg">Audit trail</div>
+              <div className="text-xs text-slate-500">Append-only</div>
             </div>
             <div className="flex flex-col items-center gap-2 px-6 py-4 bg-[#F8FAFC] rounded-md border border-[#E2E8F0]">
               <div className="w-16 h-16 bg-[rgba(13,148,136,0.08)] rounded-md flex items-center justify-center">
-                <Shield className="w-8 h-8 text-[#0D9488]" />
+                <CheckCircle className="w-8 h-8 text-[#0D9488]" />
               </div>
-              <div className="font-bold text-slate-900 text-lg">ISO 27001</div>
-              <div className="text-xs text-slate-500">Certified</div>
+              <div className="font-bold text-slate-900 text-lg">AI + human</div>
+              <div className="text-xs text-slate-500">PRRC review gate</div>
             </div>
           </div>
         </div>
@@ -123,22 +114,22 @@ export default async function HomePage() {
               <div className="w-12 h-12 bg-[rgba(13,148,136,0.08)] rounded-md flex items-center justify-center mb-6">
                 <Search className="w-6 h-6 text-[#0D9488]" />
               </div>
-              <h3 className="text-xl font-semibold mb-4 text-[#0F1F3D]">20+ databases</h3>
-              <p className="text-[#6B7280]">BfArM, FDA MAUDE, MHRA and 18 others searched automatically</p>
+              <h3 className="text-xl font-semibold mb-4 text-[#0F1F3D]">4 regulatory databases</h3>
+              <p className="text-[#6B7280]">BfArM, FDA MAUDE, MHRA, and Swissmedic — searched automatically in parallel</p>
             </div>
             <div className="p-8 bg-white border border-[#E2E8F0] rounded-md">
               <div className="w-12 h-12 bg-[rgba(13,148,136,0.08)] rounded-md flex items-center justify-center mb-6">
                 <Shield className="w-6 h-6 text-[#0D9488]" />
               </div>
               <h3 className="text-xl font-semibold mb-4 text-[#0F1F3D]">AI-powered filtering</h3>
-              <p className="text-[#6B7280]">Claude filters FSNs relevant to your specific device profile</p>
+              <p className="text-[#6B7280]">AI classifies each Field Safety Notice as relevant, uncertain, or excluded. Your PRRC reviews before anything ships.</p>
             </div>
             <div className="p-8 bg-white border border-[#E2E8F0] rounded-md">
               <div className="w-12 h-12 bg-[rgba(13,148,136,0.08)] rounded-md flex items-center justify-center mb-6">
                 <FileText className="w-6 h-6 text-[#0D9488]" />
               </div>
               <h3 className="text-xl font-semibold mb-4 text-[#0F1F3D]">Audit-ready reports</h3>
-              <p className="text-[#6B7280]">Export PDF reports formatted for MDR compliance documentation</p>
+              <p className="text-[#6B7280]">PDF and Excel reports formatted for EU MDR compliance. Complete audit trail with timestamps.</p>
             </div>
           </div>
         </div>
@@ -211,30 +202,25 @@ export default async function HomePage() {
           <h2 className="text-4xl font-bold text-center mb-16 text-slate-900">
             Simple pricing for every team
           </h2>
-          <div className="grid md:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-3 gap-6">
             <div className="p-8 bg-white border border-[#E2E8F0] rounded-md">
-              <h3 className="text-2xl font-semibold mb-2 text-[#0F1F3D]">Free</h3>
-              <div className="mb-6"><span className="text-4xl font-bold text-[#0F1F3D]">€0</span><span className="text-[#6B7280]">/month</span></div>
-              <ul className="space-y-3 mb-8 text-[#6B7280]"><li>1 profile</li><li>5 searches/month</li><li>Basic reports</li></ul>
-              <Link href="/signup" className="block w-full text-center px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">Get started</Link>
-            </div>
-            <div className="p-8 bg-white border border-[#E2E8F0] rounded-md">
+              <p className="text-sm text-[#0D9488] font-medium mb-2">14-day free trial</p>
               <h3 className="text-2xl font-semibold mb-2 text-[#0F1F3D]">Starter</h3>
               <div className="mb-6"><span className="text-4xl font-bold text-[#0F1F3D]">€149</span><span className="text-[#6B7280]">/month</span></div>
-              <ul className="space-y-3 mb-8 text-[#6B7280]"><li>5 profiles</li><li>Unlimited searches</li><li>Basic reports</li></ul>
-              <Link href="/signup" className="block w-full text-center px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">Start trial</Link>
+              <ul className="space-y-3 mb-8 text-[#6B7280]"><li>1 device profile</li><li>10 searches/month</li><li>PDF reports</li><li>Email support</li></ul>
+              <Link href="/signup" className="block w-full text-center px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">Start free trial</Link>
             </div>
             <div className="p-8 bg-white border-2 border-[#0D9488] rounded-md relative">
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-[#0D9488] text-white px-4 py-1 rounded text-sm font-medium">Most popular</div>
               <h3 className="text-2xl font-semibold mb-2 text-[#0F1F3D]">Pro</h3>
               <div className="mb-6"><span className="text-4xl font-bold text-[#0F1F3D]">€499</span><span className="text-[#6B7280]">/month</span></div>
-              <ul className="space-y-3 mb-8 text-[#6B7280]"><li>Unlimited profiles</li><li>API access</li><li>Priority support</li></ul>
-              <Link href="/signup" className="block w-full text-center px-6 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium">Start trial</Link>
+              <ul className="space-y-3 mb-8 text-[#6B7280]"><li>5 device profiles</li><li>50 searches/month</li><li>PDF + Excel reports</li><li>Priority support</li></ul>
+              <Link href="/signup" className="block w-full text-center px-6 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium">Start free trial</Link>
             </div>
             <div className="p-8 bg-white border border-[#E2E8F0] rounded-md">
               <h3 className="text-2xl font-semibold mb-2 text-[#0F1F3D]">Enterprise</h3>
-              <div className="mb-6"><span className="text-2xl font-bold text-[#0F1F3D]">Custom</span></div>
-              <ul className="space-y-3 mb-8 text-[#6B7280]"><li>Unlimited everything</li><li>SSO integration</li><li>Dedicated support</li></ul>
+              <div className="mb-6"><span className="text-4xl font-bold text-[#0F1F3D]">€5,000+</span><span className="text-[#6B7280]">/month</span></div>
+              <ul className="space-y-3 mb-8 text-[#6B7280]"><li>Unlimited profiles</li><li>Unlimited searches</li><li>SSO integration</li><li>Dedicated account manager</li></ul>
               <Link href="/signup" className="block w-full text-center px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">Contact sales</Link>
             </div>
           </div>
@@ -252,9 +238,9 @@ export default async function HomePage() {
       {/* Final CTA */}
       <section className="bg-[#0F1F3D] text-white py-20">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="text-4xl font-bold mb-8">Ready to reclaim 5 hours per week?</h2>
+          <h2 className="text-4xl font-bold mb-8">Stop spending days on PMS searches</h2>
           <Link href="/signup" className="inline-block px-8 py-4 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium">
-            Start free trial
+            Start 14-day free trial
           </Link>
         </div>
       </section>
