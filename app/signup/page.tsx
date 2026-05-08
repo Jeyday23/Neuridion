@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { SignupForm } from './signup-form'
 import { Footer } from '@/app/components/Footer'
+import { NeuridionLogo } from '@/components/ui/neuridion-logo'
 
 export const metadata = {
   title: 'Sign up — Neuridion',
@@ -11,9 +12,7 @@ export default function SignupPage() {
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
       <div className="px-6 py-5">
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-[#0F1F3D] rounded flex items-center justify-center">
-            <span className="text-white font-bold text-xs">N</span>
-          </div>
+          <NeuridionLogo size={28} />
           <span className="text-[#0F1F3D] font-semibold text-sm">Neuridion</span>
         </Link>
       </div>
@@ -22,7 +21,7 @@ export default function SignupPage() {
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-[#0F1F3D] mb-1">Create your account</h1>
-            <p className="text-sm text-[#64748B]">Start your 14-day free trial</p>
+            <p className="text-sm text-[#0F766E]">Start your 14-day free trial</p>
           </div>
 
           <div className="bg-white border border-[#E2E8F0] rounded p-6">

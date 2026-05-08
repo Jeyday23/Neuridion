@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { NeuridionLogo } from '@/components/ui/neuridion-logo'
 
 export const metadata = {
   title: 'Pricing — Neuridion',
@@ -68,9 +69,7 @@ export default async function PricingPage() {
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#E2E8F0]">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#0F1F3D] rounded flex items-center justify-center">
-              <span className="text-white font-bold text-sm">N</span>
-            </div>
+            <NeuridionLogo size={32} />
             <span className="text-[#0F1F3D] text-lg font-semibold tracking-tight">
               Neuridion
             </span>
@@ -87,7 +86,7 @@ export default async function PricingPage() {
               <>
                 <Link
                   href="/login"
-                  className="text-sm text-[#64748B] hover:text-[#0F1F3D] transition-colors"
+                  className="text-sm text-[#0F766E] hover:text-[#0F1F3D] transition-colors"
                 >
                   Log in
                 </Link>
@@ -109,7 +108,7 @@ export default async function PricingPage() {
           <h1 className="text-3xl font-bold text-[#0F1F3D] mb-3">
             Simple, transparent pricing
           </h1>
-          <p className="text-[#64748B] max-w-lg mx-auto">
+          <p className="text-[#0F766E] max-w-lg mx-auto">
             All plans include a 14-day free trial. No credit card required.
           </p>
         </div>
@@ -157,7 +156,7 @@ export default async function PricingPage() {
                       {tier.price}
                     </span>
                     {tier.suffix && (
-                      <span className="text-[#94A3B8]">{tier.suffix}</span>
+                      <span className="text-[#0D9488]">{tier.suffix}</span>
                     )}
                   </div>
 
@@ -165,7 +164,7 @@ export default async function PricingPage() {
                     {tier.features.map((feature) => (
                       <li
                         key={feature}
-                        className="flex items-center gap-2 text-sm text-[#64748B]"
+                        className="flex items-center gap-2 text-sm text-[#0F766E]"
                       >
                         <Check className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
                         {feature}
@@ -198,20 +197,20 @@ export default async function PricingPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
             <div>
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">Product</h4>
-              <ul className="space-y-2 text-sm text-[#64748B]">
+              <ul className="space-y-2 text-sm text-[#0F766E]">
                 <li><Link href="/" className="hover:text-[#0F1F3D]">Features</Link></li>
                 <li><Link href="/pricing" className="hover:text-[#0F1F3D]">Pricing</Link></li>
               </ul>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">Company</h4>
-              <ul className="space-y-2 text-sm text-[#64748B]">
+              <ul className="space-y-2 text-sm text-[#0F766E]">
                 <li><a href="mailto:info.kodex.medical@gmail.com" className="hover:text-[#0F1F3D]">Contact</a></li>
               </ul>
             </div>
             <div>
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">Legal</h4>
-              <ul className="space-y-2 text-sm text-[#64748B]">
+              <ul className="space-y-2 text-sm text-[#0F766E]">
                 <li><Link href="/privacy" className="hover:text-[#0F1F3D]">Privacy</Link></li>
                 <li><Link href="/terms" className="hover:text-[#0F1F3D]">Terms</Link></li>
                 <li><Link href="/imprint" className="hover:text-[#0F1F3D]">Imprint</Link></li>
@@ -220,12 +219,12 @@ export default async function PricingPage() {
             </div>
             <div>
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">Connect</h4>
-              <ul className="space-y-2 text-sm text-[#64748B]">
+              <ul className="space-y-2 text-sm text-[#0F766E]">
                 <li><a href="#" className="hover:text-[#0F1F3D]">LinkedIn</a></li>
               </ul>
             </div>
           </div>
-          <div className="pt-8 border-t border-[#E2E8F0] flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#94A3B8]">
+          <div className="pt-8 border-t border-[#E2E8F0] flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#0D9488]">
             <span>&copy; 2026 Neuridion. All rights reserved.</span>
             <span>Built for PRRCs, by people who understand MDR.</span>
           </div>

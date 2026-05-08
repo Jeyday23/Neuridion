@@ -9,6 +9,7 @@ import {
   Globe,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { NeuridionLogo } from '@/components/ui/neuridion-logo'
 import { FaqAccordion } from './components/FaqAccordion'
 import { AnimatedHero } from './components/AnimatedHero'
 import { FeatureCards } from './components/FeatureCards'
@@ -32,15 +33,13 @@ export default async function HomePage() {
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#E2E8F0]">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#0F1F3D] rounded flex items-center justify-center">
-              <span className="text-white font-bold text-sm">N</span>
-            </div>
+            <NeuridionLogo size={32} />
             <span className="text-[#0F1F3D] text-lg font-semibold tracking-tight">
               Neuridion
             </span>
           </Link>
 
-          <div className="hidden md:flex items-center gap-8 text-sm text-[#64748B]">
+          <div className="hidden md:flex items-center gap-8 text-sm text-[#0F766E]">
             <a href="#features" className="hover:text-[#0F1F3D] transition-colors">
               Features
             </a>
@@ -55,7 +54,7 @@ export default async function HomePage() {
           <div className="flex items-center gap-3">
             <Link
               href="/login"
-              className="text-sm text-[#64748B] hover:text-[#0F1F3D] transition-colors"
+              className="text-sm text-[#0F766E] hover:text-[#0F1F3D] transition-colors"
             >
               Log in
             </Link>
@@ -78,7 +77,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div>
               <div className="text-2xl font-bold text-[#0F1F3D]">4</div>
-              <div className="text-sm text-[#64748B] mt-1">
+              <div className="text-sm text-[#0F766E] mt-1">
                 Regulatory databases
               </div>
             </div>
@@ -86,17 +85,17 @@ export default async function HomePage() {
               <div className="text-2xl font-bold text-[#0F1F3D]">
                 EU MDR
               </div>
-              <div className="text-sm text-[#64748B] mt-1">
+              <div className="text-sm text-[#0F766E] mt-1">
                 Art. 83 &amp; 84 compliant
               </div>
             </div>
             <div>
               <div className="text-2xl font-bold text-[#0F1F3D]">GDPR</div>
-              <div className="text-sm text-[#64748B] mt-1">By design</div>
+              <div className="text-sm text-[#0F766E] mt-1">By design</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-[#0F1F3D]">100%</div>
-              <div className="text-sm text-[#64748B] mt-1">
+              <div className="text-sm text-[#0F766E] mt-1">
                 Append-only audit trail
               </div>
             </div>
@@ -111,7 +110,7 @@ export default async function HomePage() {
             <h2 className="text-3xl font-bold text-[#0F1F3D] mb-4">
               Everything your PRRC needs
             </h2>
-            <p className="text-[#64748B] max-w-xl mx-auto">
+            <p className="text-[#0F766E] max-w-xl mx-auto">
               Built specifically for medical device post-market surveillance
               under EU MDR.
             </p>
@@ -128,7 +127,7 @@ export default async function HomePage() {
             <h2 className="text-3xl font-bold text-[#0F1F3D] mb-4">
               Three steps to audit-ready PMS
             </h2>
-            <p className="text-[#64748B] max-w-xl mx-auto">
+            <p className="text-[#0F766E] max-w-xl mx-auto">
               From device profile to compliance report in one workflow.
             </p>
           </div>
@@ -159,12 +158,12 @@ export default async function HomePage() {
                   <div className="w-8 h-8 bg-[#0F1F3D] text-white rounded flex items-center justify-center text-sm font-semibold flex-shrink-0">
                     {step}
                   </div>
-                  <Icon className="w-5 h-5 text-[#64748B]" />
+                  <Icon className="w-5 h-5 text-[#0D9488]" />
                 </div>
                 <h3 className="text-base font-semibold text-[#0F1F3D] mb-2">
                   {title}
                 </h3>
-                <p className="text-sm text-[#64748B] leading-relaxed">{desc}</p>
+                <p className="text-sm text-[#0F766E] leading-relaxed">{desc}</p>
               </div>
             ))}
           </div>
@@ -179,7 +178,7 @@ export default async function HomePage() {
               <h2 className="text-3xl font-bold text-[#0F1F3D] mb-6">
                 Built for regulatory confidence
               </h2>
-              <p className="text-[#64748B] mb-8 leading-relaxed">
+              <p className="text-[#0F766E] mb-8 leading-relaxed">
                 Neuridion was designed from the ground up for EU MDR
                 post-market surveillance requirements. Every feature, every data
                 flow, every export format serves one goal: giving your
@@ -236,15 +235,15 @@ export default async function HomePage() {
                     key={db.name}
                     className="flex items-start gap-3 pb-5 border-b border-[#E2E8F0] last:border-0 last:pb-0"
                   >
-                    <Globe className="w-4 h-4 text-[#64748B] mt-0.5 flex-shrink-0" />
+                    <Globe className="w-4 h-4 text-[#0D9488] mt-0.5 flex-shrink-0" />
                     <div>
                       <div className="text-sm font-medium text-[#0F1F3D]">
                         {db.name}{' '}
-                        <span className="text-[#94A3B8] font-normal">
+                        <span className="text-[#0D9488] font-normal">
                           — {db.region}
                         </span>
                       </div>
-                      <div className="text-xs text-[#94A3B8] mt-0.5">
+                      <div className="text-xs text-[#0D9488] mt-0.5">
                         {db.type}
                       </div>
                     </div>
@@ -263,7 +262,7 @@ export default async function HomePage() {
             <h2 className="text-3xl font-bold text-[#0F1F3D] mb-4">
               Simple, transparent pricing
             </h2>
-            <p className="text-[#64748B]">
+            <p className="text-[#0F766E]">
               14-day free trial on all plans. No credit card required.
             </p>
           </div>
@@ -281,7 +280,7 @@ export default async function HomePage() {
               </h3>
               <div className="mb-6">
                 <span className="text-3xl font-bold text-[#0F1F3D]">€199</span>
-                <span className="text-[#94A3B8]">/month</span>
+                <span className="text-[#0D9488]">/month</span>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
                 {[
@@ -290,7 +289,7 @@ export default async function HomePage() {
                   'PDF reports',
                   'Email support',
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-[#64748B]">
+                  <li key={f} className="flex items-center gap-2 text-sm text-[#0F766E]">
                     <Check className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
                     {f}
                   </li>
@@ -314,7 +313,7 @@ export default async function HomePage() {
               </h3>
               <div className="mb-6">
                 <span className="text-3xl font-bold text-[#0F1F3D]">€599</span>
-                <span className="text-[#94A3B8]">/month</span>
+                <span className="text-[#0D9488]">/month</span>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
                 {[
@@ -323,7 +322,7 @@ export default async function HomePage() {
                   'PDF + Excel reports',
                   'Priority support',
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-[#64748B]">
+                  <li key={f} className="flex items-center gap-2 text-sm text-[#0F766E]">
                     <Check className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
                     {f}
                   </li>
@@ -354,7 +353,7 @@ export default async function HomePage() {
                   'SSO integration',
                   'Dedicated account manager',
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-[#64748B]">
+                  <li key={f} className="flex items-center gap-2 text-sm text-[#0F766E]">
                     <Check className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
                     {f}
                   </li>
@@ -387,7 +386,7 @@ export default async function HomePage() {
           <h2 className="text-3xl font-bold text-white mb-4">
             Ready to simplify your PMS workflow?
           </h2>
-          <p className="text-[#94A3B8] mb-8 max-w-lg mx-auto">
+          <p className="text-[#0D9488] mb-8 max-w-lg mx-auto">
             Join medical device manufacturers who trust Neuridion for their
             post-market surveillance obligations.
           </p>
@@ -409,7 +408,7 @@ export default async function HomePage() {
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">
                 Product
               </h4>
-              <ul className="space-y-2 text-sm text-[#64748B]">
+              <ul className="space-y-2 text-sm text-[#0F766E]">
                 <li>
                   <a href="#features" className="hover:text-[#0F1F3D]">
                     Features
@@ -426,7 +425,7 @@ export default async function HomePage() {
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">
                 Company
               </h4>
-              <ul className="space-y-2 text-sm text-[#64748B]">
+              <ul className="space-y-2 text-sm text-[#0F766E]">
                 <li>
                   <a
                     href="mailto:info.kodex.medical@gmail.com"
@@ -441,7 +440,7 @@ export default async function HomePage() {
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">
                 Legal
               </h4>
-              <ul className="space-y-2 text-sm text-[#64748B]">
+              <ul className="space-y-2 text-sm text-[#0F766E]">
                 <li>
                   <Link href="/privacy" className="hover:text-[#0F1F3D]">
                     Privacy
@@ -468,7 +467,7 @@ export default async function HomePage() {
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">
                 Connect
               </h4>
-              <ul className="space-y-2 text-sm text-[#64748B]">
+              <ul className="space-y-2 text-sm text-[#0F766E]">
                 <li>
                   <a href="#" className="hover:text-[#0F1F3D]">
                     LinkedIn
@@ -477,7 +476,7 @@ export default async function HomePage() {
               </ul>
             </div>
           </div>
-          <div className="pt-8 border-t border-[#E2E8F0] flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#94A3B8]">
+          <div className="pt-8 border-t border-[#E2E8F0] flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#0D9488]">
             <span>&copy; 2026 Neuridion. All rights reserved.</span>
             <span>Built for PRRCs, by people who understand MDR.</span>
           </div>

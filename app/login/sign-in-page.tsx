@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, Mail, CheckCircle } from 'lucide-react'
+import { NeuridionLogo } from '@/components/ui/neuridion-logo'
 
 export function NeuridionSignIn() {
   const router = useRouter()
@@ -112,9 +113,7 @@ export function NeuridionSignIn() {
       {/* Minimal header */}
       <div className="px-6 py-5">
         <Link href="/" className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-[#0F1F3D] rounded flex items-center justify-center">
-            <span className="text-white font-bold text-xs">N</span>
-          </div>
+          <NeuridionLogo size={28} />
           <span className="text-[#0F1F3D] font-semibold text-sm">Neuridion</span>
         </Link>
       </div>

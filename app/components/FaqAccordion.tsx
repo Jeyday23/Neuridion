@@ -42,7 +42,7 @@ export function FaqAccordion() {
             />
           </button>
           {open === i && (
-            <div className="px-6 pb-4 text-slate-600">{faq.answer}</div>
+            <div className="px-6 pb-4 text-[#0F766E]">{faq.answer}</div>
           )}
         </div>
       ))}

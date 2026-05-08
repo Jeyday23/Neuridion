@@ -55,7 +55,7 @@ function Hero() {
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl leading-relaxed text-[#64748B] max-w-2xl text-center mx-auto">
+            <p className="text-lg md:text-xl leading-relaxed text-[#0F766E] max-w-2xl text-center mx-auto">
               Neuridion searches four regulatory databases, filters Field Safety
               Notices against your device profiles, and generates audit-ready
               reports — so your PRRC can focus on decisions, not data collection.
@@ -76,7 +76,7 @@ function Hero() {
               Request a demo
             </a>
           </div>
-          <p className="text-sm text-[#94A3B8]">
+          <p className="text-sm text-[#0D9488]">
             No credit card required &middot; 14-day trial on all plans &middot; Cancel
             anytime
           </p>
