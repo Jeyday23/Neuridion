@@ -47,12 +47,12 @@ export async function generatePdfFromHtml(html: string): Promise<Buffer> {
       }
 
       const errText = await response.text()
-      console.warn(`[PDF] PDFShift ${response.status}: ${errText} — falling back to Puppeteer`)
+      console.error('[PDF]', `PDFShift ${response.status}: ${errText} -- falling back to Puppeteer`)
     } catch (err) {
-      console.warn(`[PDF] PDFShift request failed: ${String(err)} — falling back to Puppeteer`)
+      console.error('[PDF]', `PDFShift request failed: ${String(err)} -- falling back to Puppeteer`)
     }
   } else {
-    console.warn('[PDF] PDFSHIFT_API_KEY not set — using Puppeteer fallback')
+    console.error('[PDF]', 'PDFSHIFT_API_KEY not set -- using Puppeteer fallback')
   }
 
   return generateWithPuppeteer(html)

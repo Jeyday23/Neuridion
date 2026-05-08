@@ -3,9 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 
 const SaveDraftSchema = z.object({
-  id:               z.string().uuid().optional(),
+  id:               z.uuid().optional(),
   name:             z.string().max(200).optional(),
-  profile_id:       z.string().uuid().nullable().optional(),
+  profile_id:       z.uuid().nullable().optional(),
   from:             z.string().optional(),
   to:               z.string().optional(),
   dbs:              z.array(z.string()).max(10).optional(),

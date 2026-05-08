@@ -16,7 +16,7 @@ async function handler(req: Request): Promise<Response> {
   const msg = await req.json() as QStashJobMessage
   const { run_id, job_id, ...jobPayload } = msg
 
-  console.log(`[process-job] received run_id=${run_id} job_id=${job_id}`)
+  console.error('[process-job]', `received run_id=${run_id} job_id=${job_id}`)
 
   // Idempotency guard — QStash may retry if Cloudflare times out the response
   // before the pipeline finishes. If the run is no longer pending, it's already
@@ -28,7 +28,7 @@ async function handler(req: Request): Promise<Response> {
     .single()
 
   if (existingRun?.status !== 'pending') {
-    console.log(`[process-job] run_id=${run_id} status=${existingRun?.status} — duplicate delivery, skipping`)
+    console.error('[process-job]', `run_id=${run_id} status=${existingRun?.status} -- duplicate delivery, skipping`)
     return new Response('Already processed', { status: 200 })
   }
 
@@ -43,7 +43,6 @@ async function handler(req: Request): Promise<Response> {
     }).eq('id', job_id),
   ])
 
-  console.log(`[process-job] pipeline starting run_id=${run_id}`)
   const pipelineStart = Date.now()
 
   try {
@@ -59,7 +58,7 @@ async function handler(req: Request): Promise<Response> {
     )
 
     const elapsed = Math.round((Date.now() - pipelineStart) / 1000)
-    console.log(`[process-job] pipeline complete run_id=${run_id} in ${elapsed}s`)
+    console.error('[process-job]', `pipeline complete run_id=${run_id} in ${elapsed}s`)
 
     await db.from('search_job_queue').update({
       status:       'completed',

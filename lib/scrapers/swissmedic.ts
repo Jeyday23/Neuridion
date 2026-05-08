@@ -50,10 +50,6 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
     ? buildManufacturerSearchTerms(params.profile.manufacturer, params.profile.device_name)
     : []
 
-  if (mfrTerms.length > 0) {
-    console.log(`[swissmedic] Scraping with manufacturer filter: ${JSON.stringify(mfrTerms)}`)
-  }
-
   let hitItemsCap = false
 
   for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber++) {
@@ -66,7 +62,6 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
 
     const publications = page.content ?? []
     const passed = publications.filter(p => isRelevantToProfile(p, mfrTerms))
-    console.log(`[swissmedic] Page ${pageNumber}: ${publications.length} total, ${passed.length} passed manufacturer filter ${JSON.stringify(mfrTerms)}`)
 
     for (const publication of passed) {
       const item = toScrapedFsn(publication)
@@ -99,7 +94,6 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
   }
 
   const deduped = dedup(items)
-  console.log(`[swissmedic] Final: ${deduped.length} deduplicated items${warnings.length ? ` (${warnings.length} warning(s))` : ''}`)
 
   return { items: deduped, warnings }
 }
@@ -123,8 +117,6 @@ async function fetchPublicationPage(
   url.searchParams.set('sortingProperty', 'PUBLICATION_DATE')
   url.searchParams.set('direction', 'DESC')
 
-  console.log(`[swissmedic] Fetching API page ${pageNumber}: ${url}`)
-
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -140,7 +132,7 @@ async function fetchPublicationPage(
     })
 
     if (!res.ok) {
-      console.warn(`[swissmedic] HTTP ${res.status} ${url}`)
+      console.error('[swissmedic]', `HTTP ${res.status} ${url}`)
       return null
     }
 

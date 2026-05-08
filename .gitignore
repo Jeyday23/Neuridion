@@ -28,6 +28,15 @@
 .claude/
 .claude.backup/
 .cursor/
+.agents/
+.claude-flow/
+.codex/
+.swarm/
+.mcp.json
+agentdb.rvf
+agentdb.rvf.lock
+ruvector.db
+CLAUDE.md.bak
 CLAUDE.md.backup
 PROGRESS.md
 *.pdf

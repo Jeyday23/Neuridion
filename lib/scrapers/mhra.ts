@@ -25,11 +25,9 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
     url.searchParams.append('fields[]',        'link')
     url.searchParams.append('fields[]',        'public_timestamp')
 
-    console.log(`[mhra] Search start=${start}: ${url}`)
     const page = await fetchJson(url.toString()) as GovUkSearchResponse | null
 
     if (!page?.results?.length) {
-      console.log(`[mhra] Empty page at start=${start}, stopping`)
       break
     }
 
@@ -38,7 +36,6 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
       const pubDate = item.public_timestamp ? new Date(item.public_timestamp) : null
 
       if (pubDate && pubDate < fromDate) {
-        console.log(`[mhra] Hit fromDate boundary at ${pubDate.toISOString().slice(0, 10)}, stopping`)
         hitBoundary = true
         break
       }
@@ -65,17 +62,13 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
 
     start += PAGE_SIZE
     const total = page.total ?? 0
-    console.log(`[mhra] Collected ${listings.length} / ${total} total`)
     if (start >= total || start >= 2000) break
 
     await jitter(150, 350)
   }
 
-  console.log(`[mhra] Listing complete: ${listings.length} items — enriching via Content API`)
-
   const enriched = await enrichWithDetails(listings)
   const deduped  = dedup(enriched)
-  console.log(`[mhra] Final: ${deduped.length} deduplicated items`)
 
   const warnings: string[] = []
   if (deduped.length === 0) {
@@ -88,7 +81,6 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
       const hay = `${item.title} ${item.raw_content ?? ''}`.toLowerCase()
       return terms.some(t => hay.includes(t))
     })
-    console.log(`[mhra] searchTerms filter (${terms.join(', ')}): ${deduped.length} → ${filtered.length} items`)
     return { items: filtered, warnings }
   }
 
@@ -137,7 +129,7 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn> {
       raw_content: sanitizeContent(rawParts.join('\n\n')),
     }
   } catch (err) {
-    console.warn(`[mhra] Detail fetch failed for ${linkPath}: ${String(err)}`)
+    console.error('[mhra]', `Detail fetch failed for ${linkPath}:`, err)
     return item
   }
 }

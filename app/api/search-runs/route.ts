@@ -14,7 +14,7 @@ const ISO_DATE       = /^\d{4}-\d{2}-\d{2}$/
 const MAX_SPAN_YEARS = 5
 
 const SearchRunBodySchema = z.object({
-  profile_id:    z.string().uuid(),
+  profile_id:    z.uuid(),
   period_from:   z.string().regex(ISO_DATE, 'period_from must be YYYY-MM-DD'),
   period_to:     z.string().regex(ISO_DATE, 'period_to must be YYYY-MM-DD'),
   selected_dbs:  z.array(z.enum(KNOWN_SOURCES)).min(1).max(KNOWN_SOURCES.length).optional(),
@@ -158,6 +158,6 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Failed to enqueue search job' }, { status: 500 })
   }
 
-  console.log(`[lifecycle] run_id=${run.id} enqueued to QStash job_id=${newJob.id}`)
+  console.error('[lifecycle]', `run_id=${run.id} enqueued to QStash job_id=${newJob.id}`)
   return Response.json({ run_id: run.id, status: 'pending' }, { status: 202 })
 }

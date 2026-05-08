@@ -52,8 +52,7 @@ export async function POST(request: Request) {
     scheduled_deleted_at:  deletedAt.toISOString(),
   }, request)
 
-  // Console-log stub: replace with email when Resend is wired up
-  console.log(`[deletion] Account ${user.email} scheduled for deletion on ${deletedAt.toISOString()}`)
+  console.error('[deletion]', `Account ${user.id} scheduled for deletion on ${deletedAt.toISOString()}`)
 
   // Sign out the session
   await supabase.auth.signOut()

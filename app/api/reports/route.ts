@@ -391,7 +391,7 @@ export async function POST(request: Request) {
   }
 
   const { run_id } = body as { run_id?: string }
-  if (!run_id || !z.string().uuid().safeParse(run_id).success) {
+  if (!run_id || !z.uuid().safeParse(run_id).success) {
     return Response.json({ error: 'run_id must be a valid UUID' }, { status: 422 })
   }
 
@@ -511,7 +511,6 @@ export async function POST(request: Request) {
 
   if (quotaCheck.allowed) {
     try {
-      console.log(`[PDF] Generating via PDFShift for user ${user.id}`)
       const pdfBuffer = await generatePdfFromHtml(html)
 
       pdfPath = `${user.id}/${run_id}/${ts}_report.pdf`
@@ -527,7 +526,6 @@ export async function POST(request: Request) {
         pdfUrl = pdfSigned?.signedUrl ?? null
         pdfStatus = 'generated'
         await incrementPdfUsage(adminStorage, user.id)
-        console.log(`[PDF] Success for user ${user.id}`)
       } else {
         console.error('[PDF] Upload failed:', pdfUploadErr.message)
       }
@@ -537,7 +535,7 @@ export async function POST(request: Request) {
     }
   } else {
     pdfStatus = 'quota_exceeded'
-    console.warn(`[PDF] Quota exceeded for user ${user.id}: ${quotaCheck.reason}`)
+    console.error('[PDF]', `Quota exceeded for user ${user.id}: ${quotaCheck.reason}`)
   }
 
   // Persist storage paths so the archive page can regenerate signed URLs on demand

@@ -53,8 +53,8 @@ async function withRetry<T>(
       if (attempt === maxAttempts) break
 
       const backoffMs = 2000 * Math.pow(2, attempt - 1)
-      console.warn(
-        `[rate-limiter] ${label} ${is429 ? '429' : 'overload'} ` +
+      console.error('[rate-limiter]',
+        `${label} ${is429 ? '429' : 'overload'} ` +
         `attempt ${attempt}/${maxAttempts}, retrying in ${backoffMs}ms`,
       )
       await new Promise(r => setTimeout(r, backoffMs))

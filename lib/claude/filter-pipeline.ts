@@ -376,7 +376,6 @@ export async function stage1Filter(
   // ── 1. Cache lookup ──────────────────────────────────────────────────────
   const cached = options?.skipCache ? null : await getCachedDecision(fsnId, fingerprint)
   if (cached) {
-    console.log(`[filter] cache hit: ${fsn.title.slice(0, 60)}`)
     return cached
   }
 
@@ -391,7 +390,7 @@ export async function stage1Filter(
         throw haikuErr  // propagates to outer catch → filter_failed, stops cascade
       }
       // Transient error (rate limit, timeout, overload) — fall through to Sonnet
-      console.warn('[filter] haiku pre-filter failed, falling back to Sonnet:', haikuErr)
+      console.error('[filter]', 'haiku pre-filter failed, falling back to Sonnet:', haikuErr)
     }
 
     let decision: FilterDecision

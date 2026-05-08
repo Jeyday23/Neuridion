@@ -56,7 +56,7 @@ export async function runSearchPipeline(
 ): Promise<void> {
   const db = createAdminClient()
   let lifecycleComplete = false
-  console.log(`[lifecycle] run_id=${runId} transition pending→running started`)
+  console.error('[lifecycle]', `run_id=${runId} transition pending→running started`)
 
   const { data: profile, error: profileError } = await db
     .from('product_profiles')
@@ -122,9 +122,6 @@ export async function runSearchPipeline(
     const overlapFrom = overlapWindowStart(period_to)
 
     if (forceRefresh || hasManufacturerTerms) {
-      if (hasManufacturerTerms) {
-        console.log(`[pipeline] ${sourceId}: manufacturer filter present — bypassing coverage cache, fetching full range`)
-      }
       await fetchSourceRange({ from: period_from, to: period_to })
     } else {
       const covered    = await getCoveredRanges(sourceId)
@@ -132,12 +129,10 @@ export async function runSearchPipeline(
       const uncovered  = computeUncoveredRanges(covered, period_from, gapCheckTo)
 
       for (const range of uncovered) {
-        console.log(`[pipeline] ${sourceId}: fetching uncovered ${range.from} → ${range.to}`)
         await fetchSourceRange(range)
       }
 
       if (overlapFrom <= period_to) {
-        console.log(`[pipeline] ${sourceId}: fetching overlap window ${overlapFrom} → ${period_to}`)
         await fetchSourceRange({ from: overlapFrom, to: period_to })
       }
 
@@ -158,7 +153,6 @@ export async function runSearchPipeline(
           const devMatch = devTerms.some((t) => hay.includes(t.toLowerCase()))
           return mfrMatch && devMatch
         })
-        console.log(`[pipeline] ${sourceId}: ${filtered.length}/${cached.length} from canonical (${canonFrom} → ${canonTo})`)
         items.push(...filtered)
       }
     }
@@ -222,8 +216,6 @@ export async function runSearchPipeline(
     }
   }
 
-  console.log(`[pipeline] Combined: ${items.length} items from ${activeSources.length} source(s)`)
-
   // ── Step 2: Insert fsn_results ───────────────────────────────────────────────
 
   let insertedRows: {
@@ -231,7 +223,6 @@ export async function runSearchPipeline(
     manufacturer: string | null; raw_content: string | null; fsn_date: string | null
   }[] = []
 
-  console.log(`[pipeline] step2: inserting ${items.length} items to fsn_results run_id=${runId}`)
   if (items.length > 0) {
     const { data: inserted, error: insertError } = await db
       .from('fsn_results')
@@ -249,12 +240,9 @@ export async function runSearchPipeline(
       })))
       .select('id, external_id, title, manufacturer, raw_content, fsn_date')
 
-    console.log(`[pipeline] step2: insert complete — rows_returned=${inserted?.length ?? 0} error=${insertError?.message ?? 'none'}`)
     if (insertError) throw new Error(`fsn_results insert: ${insertError.message} (code=${insertError.code})`)
     insertedRows = inserted ?? []
   }
-  console.log(`[pipeline] step2: insertedRows=${insertedRows.length}`)
-
   // ── Step 3: AI filter ────────────────────────────────────────────────────────
 
   const fsnIdOf = (title: string) =>
@@ -290,7 +278,6 @@ export async function runSearchPipeline(
       }
     }
 
-    console.log(`[pipeline] cache hits: ${alreadyCached.length}/${insertedRows.length}`)
     for (const row of alreadyCached) {
       const hit = cacheMap.get(fsnIdOf(row.title))!
       decisions.push({
@@ -335,17 +322,14 @@ export async function runSearchPipeline(
       }
     }
 
-    console.log(`[pipeline] pre-filter: ${mfrMatched.length} pass, ${mfrExcluded.length} excluded`)
     toFilter = mfrMatched
   }
-
-  console.log(`[pipeline] AI filter starting: ${toFilter.length} items to filter`)
 
   // Per-run AI filter cap — prevents runaway spend on large result sets
   const MAX_FILTER_ITEMS = Math.max(1, parseInt(process.env.MAX_FILTER_ITEMS_PER_RUN ?? '300', 10))
   if (toFilter.length > MAX_FILTER_ITEMS) {
     const skipped = toFilter.splice(MAX_FILTER_ITEMS)
-    console.warn(`[pipeline] item cap: ${skipped.length} items skipped (limit=${MAX_FILTER_ITEMS})`)
+    console.error('[pipeline]', `item cap: ${skipped.length} items skipped (limit=${MAX_FILTER_ITEMS})`)
     for (const row of skipped) {
       decisions.push({
         fsn_result_id: row.id,
@@ -365,19 +349,13 @@ export async function runSearchPipeline(
         safeProfile,
         { skipCache: true },
       )
-      if ((i + 1) % 25 === 0) {
-        console.log(`[pipeline] AI filter: ${i + 1}/${toFilter.length}`)
-      }
       return { ...d, fsn_result_id: row.id }
     }))
   )
   decisions.push(...filterResults)
 
-  console.log(`[pipeline] AI filter complete: ${decisions.length} decisions (${toFilter.length} AI-filtered)`)
-
   // ── Step 4: Insert filter_decisions ─────────────────────────────────────────
 
-  console.log(`[pipeline] step4: inserting ${decisions.length} decisions to filter_decisions run_id=${runId}`)
   if (decisions.length > 0) {
     const { error: decisionsError } = await db.from('filter_decisions').insert(
       decisions.map((d) => ({
@@ -390,7 +368,6 @@ export async function runSearchPipeline(
         stage:         'stage1',
       })),
     )
-    console.log(`[pipeline] step4: insert complete — error=${decisionsError?.message ?? 'none'}`)
     if (decisionsError) throw new Error(`filter_decisions insert: ${decisionsError.message} (code=${decisionsError.code})`)
   }
 
@@ -415,7 +392,7 @@ export async function runSearchPipeline(
   }).eq('id', runId)
   if (finalizeError) throw new Error(`Failed to finalize run ${runId}: ${finalizeError.message}`)
   lifecycleComplete = true
-  console.log(`[lifecycle] run_id=${runId} transition running→${runStatus} at ${new Date().toISOString()}`)
+  console.error('[lifecycle]', `run_id=${runId} transition running→${runStatus} at ${new Date().toISOString()}`)
 
   // ── Step 6: Audit log ────────────────────────────────────────────────────────
 
@@ -457,7 +434,7 @@ export async function runSearchPipeline(
         completed_at:  new Date().toISOString(),
         progress:      null,
       }).eq('id', runId)
-      console.log(`[lifecycle] run_id=${runId} transition running→error (pipeline catch)`)
+      console.error('[lifecycle]', `run_id=${runId} transition running→error (pipeline catch)`)
     }
     throw err
   }

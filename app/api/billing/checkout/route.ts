@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
   const allowlist = buildPriceAllowlist()
   if (!allowlist.has(price_id)) {
-    console.warn(`[billing/checkout] rejected unknown price_id from user ${user.id}`)
+    console.error('[billing/checkout]', `rejected unknown price_id from user ${user.id}`)
     return Response.json({ error: 'Invalid price selection' }, { status: 400 })
   }
 

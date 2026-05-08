@@ -20,7 +20,7 @@ export function isStuckRun(
 async function runCleanup(): Promise<{ cleaned: number; run_ids: string[] }> {
   const db     = createAdminClient()
   const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MINUTES * 60 * 1000)
-  console.log(`[lifecycle] cleanup triggered, cutoff=${cutoff.toISOString()}`)
+  console.error('[lifecycle]', `cleanup triggered, cutoff=${cutoff.toISOString()}`)
   const cutoffIso = cutoff.toISOString()
   const now       = new Date().toISOString()
   const [byStartedAt, byCreatedAt, byPending] = await Promise.all([
@@ -36,7 +36,6 @@ async function runCleanup(): Promise<{ cleaned: number; run_ids: string[] }> {
     ]),
   ]
   if (stuckIds.length === 0) {
-    console.log('[cleanup] no stuck runs found')
     return { cleaned: 0, run_ids: [] }
   }
   const runsPayload = {
@@ -56,7 +55,7 @@ async function runCleanup(): Promise<{ cleaned: number; run_ids: string[] }> {
   if (runningResult.error)  console.error('[cleanup] search_runs(running) update failed:', runningResult.error.message)
   if (pendingResult.error)  console.error('[cleanup] search_runs(pending) update failed:', pendingResult.error.message)
   if (queueResult.error)    console.error('[cleanup] search_job_queue update failed:', queueResult.error.message)
-  console.log(`[lifecycle] cleanup: marking ${stuckIds.length} stuck run(s) as error: ${stuckIds.join(', ')}`)
+  console.error('[lifecycle]', `cleanup: marking ${stuckIds.length} stuck run(s) as error: ${stuckIds.join(', ')}`)
   return { cleaned: stuckIds.length, run_ids: stuckIds }
 }
 

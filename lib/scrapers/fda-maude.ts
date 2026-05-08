@@ -23,13 +23,6 @@ export async function scrapeFdaMaude(params: {
   const quarters  = splitIntoQuarters(params.fromDate, params.toDate)
   const termClause = buildTermClause(params.searchTerms)
 
-  console.log(
-    `[fda] ${quarters.length} quarter(s) to fetch in parallel` +
-    ` | ${params.fromDate} → ${params.toDate}` +
-    `${apiKey ? ' (authenticated)' : ' (anonymous — 1k/day cap)'}` +
-    `${termClause ? ` | terms: ${termClause}` : ''}`
-  )
-
   // Fetch all quarters simultaneously — one bad quarter does not abort others
   const settled = await Promise.allSettled(
     quarters.map(q => fetchQuarter(q.from, q.to, termClause, apiKey))
@@ -42,19 +35,16 @@ export async function scrapeFdaMaude(params: {
     const q = quarters[i]
     const r = settled[i]
     if (r.status === 'fulfilled') {
-      console.log(`[fda] Quarter ${q.from}→${q.to}: ${r.value.items.length} records${r.value.warnings.length ? ` (${r.value.warnings.length} warning(s))` : ''}`)
       allItems.push(...r.value.items)
       allWarnings.push(...r.value.warnings)
     } else {
       const msg = `FDA MAUDE: quarter ${q.from}–${q.to} failed — ${String(r.reason)}. Results for this period may be incomplete.`
-      console.warn(`[fda] ${msg}`)
+      console.error('[fda]', msg)
       allWarnings.push(msg)
     }
   }
 
-  console.log(`[fda] Total before dedup: ${allItems.length} records across ${quarters.length} quarter(s)`)
   const deduped = dedup(allItems)
-  console.log(`[fda] Total after dedup: ${deduped.length} records${allWarnings.length ? ` (${allWarnings.length} warning(s))` : ''}`)
 
   return { items: deduped, warnings: allWarnings }
 }
@@ -114,14 +104,13 @@ async function fetchQuarter(
     ].filter(Boolean).join('&')
 
     const url  = `${BASE_URL}?${qs}`
-    console.log(`[fda] ${fromDate}→${toDate} skip=${skip}: fetching`)
     const data = await fetchPage(url)
 
     if (!data) break
 
     if (data.error) {
       if (data.error.code === 'NOT_FOUND') {
-        console.log(`[fda] ${fromDate}→${toDate}: no results (openFDA NOT_FOUND)`)
+        // no results for this date range
       } else {
         console.error(`[fda] ${fromDate}→${toDate}: API error ${data.error.code} — ${data.error.message}`)
       }
@@ -132,8 +121,6 @@ async function fetchQuarter(
     const total       = data.meta?.results?.total ?? 0
 
     if (pageResults.length === 0) break
-
-    console.log(`[fda] ${fromDate}→${toDate} skip=${skip}: ${pageResults.length} records (${total} total in quarter)`)
 
     for (const r of pageResults) {
       if (items.length >= MAX_ITEMS) break
@@ -148,7 +135,7 @@ async function fetchQuarter(
         `${gap.toLocaleString()} records not fetched. ` +
         `Pass searchTerms to narrow the query, or use the openFDA bulk download for full coverage: ` +
         `https://open.fda.gov/apis/device/event/download/`
-      console.warn(`[fda] ${msg}`)
+      console.error('[fda]', msg)
       warnings.push(msg)
       break
     }
@@ -163,7 +150,7 @@ async function fetchQuarter(
         `${total.toLocaleString()} records retrieved for ${fromDate}–${toDate}). ` +
         `${gap.toLocaleString()} records not retrieved. ` +
         `Use the openFDA bulk download for full coverage: https://open.fda.gov/apis/device/event/download/`
-      console.warn(`[fda] ${msg}`)
+      console.error('[fda]', msg)
       warnings.push(msg)
       break
     }

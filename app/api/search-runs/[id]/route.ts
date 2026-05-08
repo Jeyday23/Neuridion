@@ -34,8 +34,6 @@ export async function GET(
     .eq('run_id', id)
     .order('fsn_date', { ascending: false })
 
-  console.log(`[get-run] fsn_results count=${results?.length ?? 0} run_id=${id}`)
-
   if (resultsError) {
     console.error(`[get-run] fsn_results error: ${resultsError.message}`)
     return Response.json({ error: resultsError.message }, { status: 500 })
@@ -53,8 +51,6 @@ export async function GET(
   const { data: decisions, error: decisionsError } = await db.from('filter_decisions')
     .select('fsn_result_id, decision, rationale, confidence, model_used')
     .eq('search_run_id', id)
-
-  console.log(`[get-run] filter_decisions count=${decisions?.length ?? 0} error=${decisionsError?.message ?? 'none'}`)
 
   for (const d of decisions ?? []) {
     decisionsMap[d.fsn_result_id] = {

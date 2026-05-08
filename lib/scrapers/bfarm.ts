@@ -129,26 +129,16 @@ export function parsePage(html: string): ParsedItem[] {
 export async function scrapeBfArM(options: ScraperOptions = {}): Promise<ScrapedFsn[]> {
   const { fromDate, toDate } = options
 
-  console.log('[bfarm-scraper] Input dates:', {
-    fromDate: fromDate?.toISOString() ?? null,
-    toDate:   toDate?.toISOString()   ?? null,
-    serverTZ: Intl.DateTimeFormat().resolvedOptions().timeZone,
-  })
-
   try {
     const raw: ScrapedFsn[] = []
 
     for (let page = 1; page <= MAX_PAGES; page++) {
       const url = buildUrl(page, fromDate, toDate)
-      console.log(`[BfArM] Fetching page ${page}: ${url}`)
-
       const res = await fetch(url, { headers: { 'User-Agent': UA } })
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching page ${page}`)
       const html = await res.text()
 
       const pageItems = parsePage(html)
-      console.log(`[BfArM] Page ${page}: found ${pageItems.length} raw items`)
-      console.log(`[BfArM] Page ${page} item dates:`, pageItems.map(i => i.date?.toISOString().split('T')[0] ?? 'null'))
 
       if (pageItems.length === 0) break
 
@@ -170,8 +160,6 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
       if (raw.length >= MAX_ITEMS || pageItems.length < RESULTS_PER_PAGE) break
     }
 
-    console.log(`[bfarm-scraper] After pagination: ${raw.length} items`)
-
     // Belt-and-suspenders: drop items outside the requested date range.
     // Also drops items with no date — we can't verify their relevance.
     const dropped = raw.filter(item => {
@@ -181,20 +169,6 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
       if (toDate   && d > toDate)   return true
       return false
     })
-    if (dropped.length > 0) {
-      console.log('[bfarm-scraper] Items dropped by date filter:',
-        dropped.slice(0, 5).map(i => ({
-          title:    i.title.slice(0, 60),
-          fsn_date: i.fsn_date,
-          reason:   !i.fsn_date ? 'no_date'
-            : fromDate && new Date(i.fsn_date) < fromDate ? 'before_fromDate'
-            : 'after_toDate',
-          fsn_date_utc:  i.fsn_date ? new Date(i.fsn_date).toISOString() : null,
-          fromDate_utc:  fromDate?.toISOString() ?? null,
-          toDate_utc:    toDate?.toISOString()   ?? null,
-        }))
-      )
-    }
     const inRange = raw.filter(item => {
       if (!item.fsn_date) return false
       const d = new Date(item.fsn_date)
@@ -202,8 +176,6 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
       if (toDate   && d > toDate)   return false
       return true
     })
-    console.log(`[BfArM] In-range filter: ${raw.length} → ${inRange.length}`)
-
     // De-duplicate by external_id (pagination can return the same FSN twice
     // if result order shifts between page fetches).
     const seen = new Set<string>()
@@ -212,13 +184,10 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
       seen.add(item.external_id)
       return true
     })
-    console.log(`[BfArM] Dedup: ${inRange.length} → ${deduped.length}`)
-
     // If no results in range, return empty — do NOT fall back to RSS.
     // RSS ignores the date filter and would pollute results with out-of-range
     // items. Zero results is a valid state: BfArM does not publish daily.
     if (deduped.length === 0) {
-      console.log('[bfarm-scraper] No HTML results for this date range')
       return []
     }
 
@@ -253,15 +222,13 @@ async function scrapeYearShortcut(shortcut: string): Promise<ParsedItem[]> {
     const base = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&dateOfIssue_dt=${shortcut}&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
     const url  = pageNum === 1 ? base : `${base}&gtp=469344_list%3D${pageNum}`
 
-    console.log(`[bfarm] ${shortcut} page ${pageNum}: fetching`)
     const res = await fetch(url, { headers: { 'User-Agent': UA } })
     if (!res.ok) {
-      console.warn(`[bfarm] ${shortcut} page ${pageNum}: HTTP ${res.status}, stopping`)
+      console.error('[bfarm]', `${shortcut} page ${pageNum}: HTTP ${res.status}, stopping`)
       break
     }
     const html      = await res.text()
     const pageItems = parsePage(html)
-    console.log(`[bfarm] ${shortcut} page ${pageNum}: ${pageItems.length} items`)
 
     if (pageItems.length === 0) break
     items.push(...pageItems)
@@ -290,12 +257,10 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
       const msg =
         `BfArM: year ${year} is outside the 3-year archive window ` +
         `(${currentYear - 2}–${currentYear}). Data for this period is unavailable via automated search.`
-      console.warn(`[bfarm] ${msg}`)
+      console.error('[bfarm]', msg)
       warnings.push(msg)
     }
   }
-
-  console.log(`[bfarm] Long search — scraping year shortcuts: ${yearsToScrape.join(', ') || '(none)'}`)
 
   if (yearsToScrape.length === 0) {
     return { items: [], warnings, archiveLimitationHit: true }
@@ -304,7 +269,6 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
   const allParsed: ParsedItem[] = []
   for (const shortcut of yearsToScrape) {
     const yearItems = await scrapeYearShortcut(shortcut)
-    console.log(`[bfarm] ${shortcut}: ${yearItems.length} raw items`)
     allParsed.push(...yearItems)
   }
 
@@ -327,16 +291,12 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
     const d = new Date(item.fsn_date)
     return d >= fromDate && d <= toDate
   })
-  console.log(`[bfarm] Year shortcuts: ${raw.length} total → ${inRange.length} in date range`)
-
   const seen = new Set<string>()
   const deduped = inRange.filter(item => {
     if (seen.has(item.external_id)) return false
     seen.add(item.external_id)
     return true
   })
-  console.log(`[bfarm] Dedup: ${inRange.length} → ${deduped.length}`)
-
   return { items: deduped, warnings, archiveLimitationHit: warnings.length > 0 }
 }
 
@@ -379,7 +339,6 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
       const hay = `${item.title} ${item.raw_content}`.toLowerCase()
       return terms.some(t => hay.includes(t))
     })
-    console.log(`[bfarm] searchTerms filter (${terms.join(', ')}): ${before} → ${filtered.length} items`)
     return { ...result, items: filtered }
   }
 
