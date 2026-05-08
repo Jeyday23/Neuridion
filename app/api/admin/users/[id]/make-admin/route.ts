@@ -16,6 +16,9 @@ export async function POST(
     .update({ role: 'admin' })
     .eq('id', id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[admin:make-admin]', error.message)
+    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

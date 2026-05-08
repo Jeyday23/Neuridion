@@ -488,10 +488,12 @@ export async function POST(request: Request) {
   ])
 
   if (htmlUpload.error) {
-    return Response.json({ error: `Report upload failed: ${htmlUpload.error.message}` }, { status: 500 })
+    console.error('[reports:html-upload]', htmlUpload.error.message)
+    return Response.json({ error: 'Report generation failed' }, { status: 500 })
   }
   if (excelUpload.error) {
-    return Response.json({ error: `Excel upload failed: ${excelUpload.error.message}` }, { status: 500 })
+    console.error('[reports:excel-upload]', excelUpload.error.message)
+    return Response.json({ error: 'Report generation failed' }, { status: 500 })
   }
 
   // ── Create signed URLs (7 days) ─────────────────────────────────────────────

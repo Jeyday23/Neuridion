@@ -19,7 +19,8 @@ export async function GET(req: Request) {
     .order('created_at', { ascending: false })
 
   if (error) {
-    return Response.json({ error: error.message }, { status: 500 })
+    console.error('[worker:health]', error.message)
+    return Response.json({ error: 'Service temporarily unavailable' }, { status: 503 })
   }
 
   const runs = data ?? []

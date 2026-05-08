@@ -26,7 +26,10 @@ export async function GET(
     .is('redeemed_at', null) // only unused codes
     .order('created_at', { ascending: true })
 
-  if (error) return new Response(error.message, { status: 500 })
+  if (error) {
+    console.error('[trial-codes:pdf]', error.message)
+    return new Response('Something went wrong', { status: 500 })
+  }
   if (!codes?.length) return new Response('No available codes in this batch', { status: 404 })
 
   // Generate SVG for each code
