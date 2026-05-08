@@ -4,18 +4,14 @@ import {
   Search,
   FileText,
   Download,
-  Shield,
   Check,
-  Clock,
-  Database,
-  Users,
   ArrowRight,
-  Lock,
   Globe,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { FaqAccordion } from './components/FaqAccordion'
 import { AnimatedHero } from './components/AnimatedHero'
+import { FeatureCards } from './components/FeatureCards'
 
 export const metadata = {
   title: 'Neuridion — Post-Market Surveillance for Medical Device Manufacturers',
@@ -121,53 +117,7 @@ export default async function HomePage() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                icon: Database,
-                title: 'Multi-database search',
-                desc: 'BfArM, FDA MAUDE, MHRA, and Swissmedic — searched in parallel. Define your search terms once, monitor continuously.',
-              },
-              {
-                icon: Shield,
-                title: 'Intelligent filtering',
-                desc: 'Each Field Safety Notice is classified as relevant, uncertain, or excluded against your device profile. Your PRRC reviews every decision.',
-              },
-              {
-                icon: FileText,
-                title: 'Audit-ready reports',
-                desc: 'PDF and Excel reports formatted for EU MDR compliance reviews. Timestamped, traceable, ready for your notified body.',
-              },
-              {
-                icon: Users,
-                title: 'PRRC review gate',
-                desc: 'No result reaches your final report without human review. The tool assists — your Person Responsible decides.',
-              },
-              {
-                icon: Clock,
-                title: 'Minutes, not days',
-                desc: 'What used to take your team days of manual database searching now completes in minutes. Same thoroughness, fraction of the time.',
-              },
-              {
-                icon: Lock,
-                title: 'Data security',
-                desc: 'GDPR-compliant by design. Encrypted data, append-only audit logs, role-based access. No patient data leaves the EU.',
-              },
-            ].map(({ icon: Icon, title, desc }) => (
-              <div
-                key={title}
-                className="p-6 rounded border border-[#E2E8F0] hover:border-[#CBD5E1] transition-colors"
-              >
-                <div className="w-10 h-10 bg-[#F1F5F9] rounded flex items-center justify-center mb-4">
-                  <Icon className="w-5 h-5 text-[#0F1F3D]" />
-                </div>
-                <h3 className="text-base font-semibold text-[#0F1F3D] mb-2">
-                  {title}
-                </h3>
-                <p className="text-sm text-[#64748B] leading-relaxed">{desc}</p>
-              </div>
-            ))}
-          </div>
+          <FeatureCards />
         </div>
       </section>
 
@@ -330,13 +280,13 @@ export default async function HomePage() {
                 Starter
               </h3>
               <div className="mb-6">
-                <span className="text-3xl font-bold text-[#0F1F3D]">€149</span>
+                <span className="text-3xl font-bold text-[#0F1F3D]">€199</span>
                 <span className="text-[#94A3B8]">/month</span>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
                 {[
-                  '1 device profile',
-                  '10 searches/month',
+                  '3 device profiles',
+                  '15 searches/month',
                   'PDF reports',
                   'Email support',
                 ].map((f) => (
@@ -363,12 +313,12 @@ export default async function HomePage() {
                 Pro
               </h3>
               <div className="mb-6">
-                <span className="text-3xl font-bold text-[#0F1F3D]">€499</span>
+                <span className="text-3xl font-bold text-[#0F1F3D]">€599</span>
                 <span className="text-[#94A3B8]">/month</span>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
                 {[
-                  '5 device profiles',
+                  '10 device profiles',
                   '50 searches/month',
                   'PDF + Excel reports',
                   'Priority support',

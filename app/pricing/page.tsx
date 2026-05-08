@@ -9,12 +9,12 @@ export const metadata = {
 const tiers = [
   {
     name: 'Starter',
-    price: '€149',
+    price: '€199',
     suffix: '/month',
     badge: '14-day free trial',
     features: [
-      '1 device profile',
-      '10 searches/month',
+      '3 device profiles',
+      '15 searches/month',
       'PDF reports',
       'Email support',
     ],
@@ -24,11 +24,11 @@ const tiers = [
   },
   {
     name: 'Pro',
-    price: '€499',
+    price: '€599',
     suffix: '/month',
     badge: 'Most popular',
     features: [
-      '5 device profiles',
+      '10 device profiles',
       '50 searches/month',
       'PDF + Excel reports',
       'Priority support',
