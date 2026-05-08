@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { LoginForm } from '../login-form'
 import { Footer } from '@/app/components/Footer'
-import { NeuridionLogo } from '@/components/ui/neuridion-logo'
+import { NeuridionWordmark } from '@/components/ui/neuridion-wordmark'
 
 export const metadata = {
   title: 'Sign in with password — Neuridion',
@@ -17,9 +17,8 @@ export default async function PasswordLoginPage({
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
       <div className="px-6 py-5">
-        <Link href="/" className="flex items-center gap-2">
-          <NeuridionLogo size={28} />
-          <span className="text-[#0F1F3D] font-semibold text-sm">Neuridion</span>
+        <Link href="/" className="flex items-center">
+          <NeuridionWordmark markSize={28} textClass="text-sm" />
         </Link>
       </div>
 

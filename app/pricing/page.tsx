@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { NeuridionLogo } from '@/components/ui/neuridion-logo'
+import { NeuridionWordmark } from '@/components/ui/neuridion-wordmark'
 
 export const metadata = {
   title: 'Pricing — Neuridion',
@@ -68,11 +68,8 @@ export default async function PricingPage() {
       {/* Navigation */}
       <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[#E2E8F0]">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <NeuridionLogo size={32} />
-            <span className="text-[#0F1F3D] text-lg font-semibold tracking-tight">
-              Neuridion
-            </span>
+          <Link href="/" className="flex items-center">
+            <NeuridionWordmark markSize={36} />
           </Link>
           <div className="flex items-center gap-3">
             {isLoggedIn ? (
