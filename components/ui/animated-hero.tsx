@@ -71,7 +71,7 @@ function Hero() {
             </Link>
             <a
               href="mailto:info.kodex.medical@gmail.com"
-              className="inline-flex items-center gap-2 px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded font-medium hover:border-[#CBD5E1] transition-colors text-sm"
+              className="inline-flex items-center gap-2 px-6 py-3 border border-[#0D9488] text-[#115E59] rounded font-medium hover:bg-[#F0FDFA] transition-colors text-sm"
             >
               Request a demo
             </a>

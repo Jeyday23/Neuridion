@@ -27,7 +27,7 @@ export default async function PasswordLoginPage({
         <div className="w-full max-w-sm">
           <div className="text-center mb-8">
             <h1 className="text-2xl font-bold text-[#0F1F3D] mb-1">Sign in</h1>
-            <p className="text-sm text-[#64748B]">Enter your email and password</p>
+            <p className="text-sm text-[#0F766E]">Enter your email and password</p>
           </div>
 
           {params.deleted === '1' && (
@@ -43,12 +43,12 @@ export default async function PasswordLoginPage({
           </div>
 
           <div className="mt-6 text-center space-y-2">
-            <p className="text-sm text-[#64748B]">
+            <p className="text-sm text-[#0F766E]">
               <Link href="/login" className="text-[#0F1F3D] font-medium hover:underline">
                 Sign in with email code instead
               </Link>
             </p>
-            <p className="text-sm text-[#64748B]">
+            <p className="text-sm text-[#0F766E]">
               Don&apos;t have an account?{' '}
               <Link href="/signup" className="text-[#0F1F3D] font-medium hover:underline">
                 Sign up

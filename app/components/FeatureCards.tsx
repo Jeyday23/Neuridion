@@ -48,16 +48,16 @@ export function FeatureCards() {
       {features.map(({ Illustration, title, desc }) => (
         <div
           key={title}
-          className="rounded border border-[#E2E8F0] hover:border-[#CBD5E1] transition-colors overflow-hidden"
+          className="rounded border border-[#E2E8F0] hover:border-[#0D9488] transition-colors overflow-hidden group"
         >
-          <div className="bg-[#F8FAFC] border-b border-[#E2E8F0] px-4 py-4">
+          <div className="bg-[#F0FDFA] border-b border-[#CCFBF1] px-4 py-4 group-hover:bg-[#CCFBF1] transition-colors">
             <Illustration />
           </div>
           <div className="p-5">
             <h3 className="text-base font-semibold text-[#0F1F3D] mb-2">
               {title}
             </h3>
-            <p className="text-sm text-[#0F766E] leading-relaxed">{desc}</p>
+            <p className="text-sm text-[#115E59] leading-relaxed">{desc}</p>
           </div>
         </div>
       ))}

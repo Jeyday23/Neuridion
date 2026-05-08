@@ -125,10 +125,10 @@ export function NeuridionSignIn() {
             <>
               <div className="text-center mb-8">
                 <div className="w-12 h-12 bg-[#F1F5F9] border border-[#E2E8F0] rounded mx-auto mb-4 flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-[#64748B]" />
+                  <Mail className="w-5 h-5 text-[#0F766E]" />
                 </div>
                 <h1 className="text-2xl font-bold text-[#0F1F3D] mb-1">Sign in</h1>
-                <p className="text-sm text-[#64748B]">
+                <p className="text-sm text-[#0F766E]">
                   We&apos;ll send a verification code to your email
                 </p>
               </div>
@@ -148,7 +148,7 @@ export function NeuridionSignIn() {
                       disabled={loading}
                       required
                       autoFocus
-                      className="w-full border border-[#E2E8F0] rounded px-3.5 py-2.5 text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:outline-none focus:ring-2 focus:ring-[#0F1F3D]/20 focus:border-[#0F1F3D] disabled:opacity-50"
+                      className="w-full border border-[#E2E8F0] rounded px-3.5 py-2.5 text-sm text-[#1E293B] placeholder:text-[#0D9488] focus:outline-none focus:ring-2 focus:ring-[#0F1F3D]/20 focus:border-[#0F1F3D] disabled:opacity-50"
                     />
                   </div>
 
@@ -170,7 +170,7 @@ export function NeuridionSignIn() {
               </div>
 
               <div className="mt-6 text-center space-y-2">
-                <p className="text-sm text-[#64748B]">
+                <p className="text-sm text-[#0F766E]">
                   <Link
                     href="/login/password"
                     className="text-[#0F1F3D] font-medium hover:underline"
@@ -178,7 +178,7 @@ export function NeuridionSignIn() {
                     Sign in with password
                   </Link>
                 </p>
-                <p className="text-sm text-[#64748B]">
+                <p className="text-sm text-[#0F766E]">
                   Don&apos;t have an account?{' '}
                   <Link href="/signup" className="text-[#0F1F3D] font-medium hover:underline">
                     Sign up
@@ -192,10 +192,10 @@ export function NeuridionSignIn() {
             <>
               <div className="text-center mb-8">
                 <div className="w-12 h-12 bg-[#F1F5F9] border border-[#E2E8F0] rounded mx-auto mb-4 flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-[#64748B]" />
+                  <Mail className="w-5 h-5 text-[#0F766E]" />
                 </div>
                 <h1 className="text-2xl font-bold text-[#0F1F3D] mb-1">Check your email</h1>
-                <p className="text-sm text-[#64748B]">
+                <p className="text-sm text-[#0F766E]">
                   We sent a 6-digit code to{' '}
                   <span className="text-[#374151] font-medium">{email}</span>
                 </p>
@@ -250,7 +250,7 @@ export function NeuridionSignIn() {
                         setCode(['', '', '', '', '', ''])
                         setError('')
                       }}
-                      className="text-[#64748B] hover:text-[#0F1F3D] transition-colors"
+                      className="text-[#0F766E] hover:text-[#0F1F3D] transition-colors"
                     >
                       Back
                     </button>
@@ -261,7 +261,7 @@ export function NeuridionSignIn() {
                           preventDefault: () => {},
                         } as React.FormEvent)
                       }}
-                      className="text-[#64748B] hover:text-[#0F1F3D] transition-colors"
+                      className="text-[#0F766E] hover:text-[#0F1F3D] transition-colors"
                     >
                       Resend code
                     </button>
@@ -277,7 +277,7 @@ export function NeuridionSignIn() {
                 <CheckCircle className="w-5 h-5 text-[#166534]" />
               </div>
               <h1 className="text-2xl font-bold text-[#0F1F3D] mb-1">Signed in</h1>
-              <p className="text-sm text-[#64748B]">Redirecting to your dashboard...</p>
+              <p className="text-sm text-[#0F766E]">Redirecting to your dashboard...</p>
             </div>
           )}
         </div>

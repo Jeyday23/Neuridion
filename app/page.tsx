@@ -72,30 +72,30 @@ export default async function HomePage() {
       <AnimatedHero />
 
       {/* Trust Bar */}
-      <section className="border-y border-[#E2E8F0] bg-[#F8FAFC] py-10">
+      <section className="border-y border-[#CCFBF1] bg-[#F0FDFA] py-10">
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
             <div>
-              <div className="text-2xl font-bold text-[#0F1F3D]">4</div>
-              <div className="text-sm text-[#0F766E] mt-1">
+              <div className="text-2xl font-bold text-[#0D9488]">4</div>
+              <div className="text-sm text-[#115E59] mt-1 font-medium">
                 Regulatory databases
               </div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-[#0F1F3D]">
+              <div className="text-2xl font-bold text-[#0D9488]">
                 EU MDR
               </div>
-              <div className="text-sm text-[#0F766E] mt-1">
+              <div className="text-sm text-[#115E59] mt-1 font-medium">
                 Art. 83 &amp; 84 compliant
               </div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-[#0F1F3D]">GDPR</div>
-              <div className="text-sm text-[#0F766E] mt-1">By design</div>
+              <div className="text-2xl font-bold text-[#0D9488]">GDPR</div>
+              <div className="text-sm text-[#115E59] mt-1 font-medium">By design</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-[#0F1F3D]">100%</div>
-              <div className="text-sm text-[#0F766E] mt-1">
+              <div className="text-2xl font-bold text-[#0D9488]">100%</div>
+              <div className="text-sm text-[#115E59] mt-1 font-medium">
                 Append-only audit trail
               </div>
             </div>
@@ -121,51 +121,96 @@ export default async function HomePage() {
       </section>
 
       {/* How It Works */}
-      <section id="how-it-works" className="py-24 bg-[#F8FAFC] border-y border-[#E2E8F0]">
+      <section id="how-it-works" className="py-24 bg-[#0F1F3D]">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-[#0F1F3D] mb-4">
+            <h2 className="text-3xl font-bold text-white mb-4">
               Three steps to audit-ready PMS
             </h2>
-            <p className="text-[#0F766E] max-w-xl mx-auto">
+            <p className="text-[#5EEAD4] max-w-xl mx-auto">
               From device profile to compliance report in one workflow.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                step: '1',
-                icon: FileText,
-                title: 'Define your device profile',
-                desc: 'Enter your device name, manufacturer, intended use, and classification. Set up once — reuse across every surveillance cycle.',
-              },
-              {
-                step: '2',
-                icon: Search,
-                title: 'Run a surveillance search',
-                desc: 'Select your databases and date range. Neuridion searches in parallel, deduplicates results, and classifies each FSN against your profile.',
-              },
-              {
-                step: '3',
-                icon: Download,
-                title: 'Review and export',
-                desc: 'Your PRRC reviews the filtered results, confirms or adjusts each classification, then exports an audit-ready PDF or Excel report.',
-              },
-            ].map(({ step, icon: Icon, title, desc }) => (
-              <div key={step} className="relative">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-[#0F1F3D] text-white rounded flex items-center justify-center text-sm font-semibold flex-shrink-0">
-                    {step}
-                  </div>
-                  <Icon className="w-5 h-5 text-[#0D9488]" />
+          <div className="grid md:grid-cols-3 gap-0">
+            {/* Step 1 */}
+            <div className="relative bg-[#162a4d] border border-[#1e3a5f] rounded-l-lg p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-[#0D9488] text-white rounded-lg flex items-center justify-center text-lg font-bold flex-shrink-0">
+                  1
                 </div>
-                <h3 className="text-base font-semibold text-[#0F1F3D] mb-2">
-                  {title}
-                </h3>
-                <p className="text-sm text-[#0F766E] leading-relaxed">{desc}</p>
+                <div className="h-px flex-1 bg-[#0D9488]/30" />
               </div>
-            ))}
+              <div className="mb-5">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                  <rect x="8" y="4" width="24" height="32" rx="3" stroke="#0D9488" strokeWidth="2" fill="none" />
+                  <rect x="12" y="10" width="16" height="2" rx="1" fill="#5EEAD4" />
+                  <rect x="12" y="16" width="12" height="2" rx="1" fill="#5EEAD4" opacity="0.7" />
+                  <rect x="12" y="22" width="14" height="2" rx="1" fill="#5EEAD4" opacity="0.7" />
+                  <rect x="12" y="28" width="10" height="2" rx="1" fill="#5EEAD4" opacity="0.5" />
+                  <path d="M36 16L40 20L36 24" stroke="#5EEAD4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-3">
+                Define your device profile
+              </h3>
+              <p className="text-sm text-[#5EEAD4] leading-relaxed">
+                Enter your device name, manufacturer, intended use, and classification. Set up once — reuse across every surveillance cycle.
+              </p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="relative bg-[#162a4d] border-y border-[#1e3a5f] p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-[#0D9488] text-white rounded-lg flex items-center justify-center text-lg font-bold flex-shrink-0">
+                  2
+                </div>
+                <div className="h-px flex-1 bg-[#0D9488]/30" />
+              </div>
+              <div className="mb-5">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                  <circle cx="20" cy="20" r="12" stroke="#0D9488" strokeWidth="2" fill="none" />
+                  <path d="M29 29L38 38" stroke="#0D9488" strokeWidth="2.5" strokeLinecap="round" />
+                  <circle cx="14" cy="18" r="3" fill="#5EEAD4" opacity="0.6" />
+                  <circle cx="22" cy="14" r="2.5" fill="#5EEAD4" opacity="0.8" />
+                  <circle cx="24" cy="22" r="2" fill="#5EEAD4" />
+                  <path d="M14 18L22 14" stroke="#5EEAD4" strokeWidth="1" opacity="0.4" />
+                  <path d="M22 14L24 22" stroke="#5EEAD4" strokeWidth="1" opacity="0.4" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-3">
+                Run a surveillance search
+              </h3>
+              <p className="text-sm text-[#5EEAD4] leading-relaxed">
+                Select your databases and date range. Neuridion searches in parallel, deduplicates results, and classifies each FSN against your profile.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="relative bg-[#162a4d] border border-[#1e3a5f] rounded-r-lg p-8">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-[#0D9488] text-white rounded-lg flex items-center justify-center text-lg font-bold flex-shrink-0">
+                  3
+                </div>
+              </div>
+              <div className="mb-5">
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                  <rect x="6" y="6" width="20" height="26" rx="2" stroke="#0D9488" strokeWidth="2" fill="none" />
+                  <path d="M11 14h10M11 18h8M11 22h6" stroke="#5EEAD4" strokeWidth="1.5" strokeLinecap="round" opacity="0.7" />
+                  <rect x="10" y="26" width="6" height="3" rx="1" fill="#EF4444" />
+                  <text x="11" y="28.5" fill="white" fontSize="3" fontWeight="700">PDF</text>
+                  <path d="M30 12L34 16L30 20" stroke="#5EEAD4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="40" cy="16" r="6" stroke="#22C55E" strokeWidth="2" fill="none" />
+                  <path d="M37 16L39 18L43 14" stroke="#22C55E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-3">
+                Review and export
+              </h3>
+              <p className="text-sm text-[#5EEAD4] leading-relaxed">
+                Your PRRC reviews the filtered results, confirms or adjusts each classification, then exports an audit-ready PDF or Excel report.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -198,7 +243,7 @@ export default async function HomePage() {
                     <div className="w-5 h-5 bg-[#F0FDF4] border border-[#BBF7D0] rounded flex items-center justify-center mt-0.5 flex-shrink-0">
                       <Check className="w-3 h-3 text-[#166534]" />
                     </div>
-                    <span className="text-sm text-[#374151]">{item}</span>
+                    <span className="text-sm text-[#115E59]">{item}</span>
                   </div>
                 ))}
               </div>
@@ -256,13 +301,13 @@ export default async function HomePage() {
       </section>
 
       {/* Pricing */}
-      <section className="py-24 bg-[#F8FAFC] border-y border-[#E2E8F0]">
+      <section className="py-24 bg-[#F0FDFA] border-y border-[#CCFBF1]">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-[#0F1F3D] mb-4">
               Simple, transparent pricing
             </h2>
-            <p className="text-[#0F766E]">
+            <p className="text-[#115E59]">
               14-day free trial on all plans. No credit card required.
             </p>
           </div>
@@ -289,7 +334,7 @@ export default async function HomePage() {
                   'PDF reports',
                   'Email support',
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-[#0F766E]">
+                  <li key={f} className="flex items-center gap-2 text-sm text-[#115E59]">
                     <Check className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
                     {f}
                   </li>
@@ -297,7 +342,7 @@ export default async function HomePage() {
               </ul>
               <Link
                 href="/signup"
-                className="block w-full text-center py-2.5 border border-[#E2E8F0] text-[#374151] rounded text-sm font-medium hover:border-[#CBD5E1] transition-colors"
+                className="block w-full text-center py-2.5 border border-[#E2E8F0] text-[#115E59] rounded text-sm font-medium hover:border-[#CBD5E1] transition-colors"
               >
                 Start free trial
               </Link>
@@ -322,7 +367,7 @@ export default async function HomePage() {
                   'PDF + Excel reports',
                   'Priority support',
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-[#0F766E]">
+                  <li key={f} className="flex items-center gap-2 text-sm text-[#115E59]">
                     <Check className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
                     {f}
                   </li>
@@ -353,7 +398,7 @@ export default async function HomePage() {
                   'SSO integration',
                   'Dedicated account manager',
                 ].map((f) => (
-                  <li key={f} className="flex items-center gap-2 text-sm text-[#0F766E]">
+                  <li key={f} className="flex items-center gap-2 text-sm text-[#115E59]">
                     <Check className="w-4 h-4 text-[#0D9488] flex-shrink-0" />
                     {f}
                   </li>
@@ -361,7 +406,7 @@ export default async function HomePage() {
               </ul>
               <a
                 href="mailto:info.kodex.medical@gmail.com"
-                className="block w-full text-center py-2.5 border border-[#E2E8F0] text-[#374151] rounded text-sm font-medium hover:border-[#CBD5E1] transition-colors"
+                className="block w-full text-center py-2.5 border border-[#E2E8F0] text-[#115E59] rounded text-sm font-medium hover:border-[#CBD5E1] transition-colors"
               >
                 Contact sales
               </a>

@@ -38,7 +38,7 @@ export function FaqAccordion() {
           >
             <span className="font-semibold text-slate-900">{faq.question}</span>
             <ChevronDown
-              className={`w-5 h-5 text-slate-400 transition-transform ${open === i ? 'rotate-180' : ''}`}
+              className={`w-5 h-5 text-[#0D9488] transition-transform ${open === i ? 'rotate-180' : ''}`}
             />
           </button>
           {open === i && (
