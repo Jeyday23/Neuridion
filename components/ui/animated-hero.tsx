@@ -22,7 +22,7 @@ function Hero() {
   return (
     <div className="w-full">
       <div className="max-w-4xl mx-auto px-6">
-        <div className="flex gap-8 py-24 lg:py-36 items-center justify-center flex-col">
+        <div className="flex gap-6 py-16 lg:py-20 items-center justify-center flex-col">
           <div>
             <span className="inline-block px-3 py-1 bg-[#F0FDF4] text-[#166534] text-xs font-medium rounded-full border border-[#BBF7D0]">
               EU MDR Article 83 compliant
