@@ -27,6 +27,7 @@
 # local agent/worktree artifacts
 .claude/
 .claude.backup/
+.cursor/
 CLAUDE.md.backup
 PROGRESS.md
 *.pdf
