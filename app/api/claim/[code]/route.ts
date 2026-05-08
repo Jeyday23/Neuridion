@@ -1,6 +1,11 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { randomBytes } from 'crypto'
 import { logAuditEvent } from '@/lib/audit'
+import { z } from 'zod'
+
+const ClaimSchema = z.object({
+  email: z.email({ pattern: z.regexes.html5Email }),
+})
 
 function generateTempPassword(): string {
   return randomBytes(12).toString('base64url').slice(0, 16)
@@ -12,13 +17,16 @@ export async function POST(
 ) {
   const { code } = await params
 
-  let body: { email?: string } = {}
-  try { body = await request.json() } catch { /* empty */ }
+  let body: unknown
+  try { body = await request.json() } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
-  const email = (body.email ?? '').trim().toLowerCase()
-  if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+  const parsed = ClaimSchema.safeParse(body)
+  if (!parsed.success) {
     return Response.json({ error: 'A valid email address is required.' }, { status: 400 })
   }
+  const email = parsed.data.email.trim().toLowerCase()
 
   const admin = createAdminClient()
 
@@ -67,7 +75,8 @@ export async function POST(
         error: 'An account with this email already exists. Please sign in instead.',
       }, { status: 409 })
     }
-    return Response.json({ error: createError.message }, { status: 500 })
+    console.error('[claim]', createError.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   const userId = newUser.user.id
