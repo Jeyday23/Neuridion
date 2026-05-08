@@ -1,9 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
+import { z } from 'zod'
 
 const CONFIRMATION_PHRASE = 'DELETE MY ACCOUNT'
 const GRACE_PERIOD_DAYS   = 30
+
+const DeleteAccountSchema = z.object({
+  confirmation: z.literal('DELETE MY ACCOUNT'),
+})
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -12,10 +17,13 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: { confirmation?: string } = {}
-  try { body = await request.json() } catch { /* empty body */ }
+  let body: unknown
+  try { body = await request.json() } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
 
-  if (body.confirmation !== CONFIRMATION_PHRASE) {
+  const parsed = DeleteAccountSchema.safeParse(body)
+  if (!parsed.success) {
     return Response.json(
       { error: `Type "${CONFIRMATION_PHRASE}" to confirm account deletion` },
       { status: 400 }
@@ -35,7 +43,8 @@ export async function POST(request: Request) {
     .eq('id', user.id)
 
   if (updateError) {
-    return Response.json({ error: updateError.message }, { status: 500 })
+    console.error('[account:delete]', updateError.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   await logAuditEvent(user.id, 'account_deleted', {
