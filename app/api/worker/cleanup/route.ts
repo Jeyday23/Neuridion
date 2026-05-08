@@ -1,4 +1,3 @@
-import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const STUCK_THRESHOLD_MINUTES = 20
@@ -64,7 +63,8 @@ async function postHandler(_req: Request): Promise<Response> {
   return Response.json(result)
 }
 
-export const POST =
-  process.env.NODE_ENV === 'development'
-    ? postHandler
-    : (req: Request) => verifySignatureAppRouter(postHandler)(req)
+export async function POST(req: Request): Promise<Response> {
+  if (process.env.NODE_ENV === 'development') return postHandler(req)
+  const { verifySignatureAppRouter } = await import('@upstash/qstash/nextjs')
+  return verifySignatureAppRouter(postHandler)(req)
+}

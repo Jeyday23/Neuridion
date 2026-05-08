@@ -1,4 +1,3 @@
-import { verifySignatureAppRouter } from '@upstash/qstash/nextjs'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runSearchPipeline, type SearchJobPayload, type ProgressUpdate } from '@/lib/pipeline/run-search'
 import type { Json } from '@/types/supabase'
@@ -90,8 +89,8 @@ async function handler(req: Request): Promise<Response> {
   }
 }
 
-// Skip signature verification in local development
-export const POST =
-  process.env.NODE_ENV === 'development'
-    ? handler
-    : verifySignatureAppRouter(handler)
+export async function POST(req: Request): Promise<Response> {
+  if (process.env.NODE_ENV === 'development') return handler(req)
+  const { verifySignatureAppRouter } = await import('@upstash/qstash/nextjs')
+  return verifySignatureAppRouter(handler)(req)
+}
