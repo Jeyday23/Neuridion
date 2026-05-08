@@ -10,12 +10,12 @@ import {
   Database,
   Users,
   ArrowRight,
-  BarChart3,
   Lock,
   Globe,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { FaqAccordion } from './components/FaqAccordion'
+import { AnimatedHero } from './components/AnimatedHero'
 
 export const metadata = {
   title: 'Neuridion — Post-Market Surveillance for Medical Device Manufacturers',
@@ -74,47 +74,7 @@ export default async function HomePage() {
       </nav>
 
       {/* Hero */}
-      <section className="py-24 md:py-32">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <div className="inline-block mb-6 px-3 py-1 bg-[#F0FDF4] text-[#166534] text-xs font-medium rounded-full border border-[#BBF7D0]">
-            EU MDR Article 83 compliant
-          </div>
-
-          <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold leading-tight tracking-tight text-[#0F1F3D] mb-6">
-            Post-Market Surveillance
-            <br />
-            your PRRC can rely on
-          </h1>
-
-          <p className="text-lg md:text-xl text-[#64748B] max-w-2xl mx-auto mb-10 leading-relaxed">
-            Neuridion searches four regulatory databases, filters Field Safety
-            Notices against your device profiles, and generates audit-ready
-            reports — so your compliance team can focus on decisions, not data
-            collection.
-          </p>
-
-          <div className="flex items-center justify-center gap-4 flex-wrap mb-8">
-            <Link
-              href="/signup"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-[#0F1F3D] text-white rounded font-medium hover:bg-[#1a2d52] transition-colors"
-            >
-              Start 14-day free trial
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <a
-              href="mailto:info.kodex.medical@gmail.com"
-              className="inline-flex items-center gap-2 px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded font-medium hover:border-[#CBD5E1] transition-colors"
-            >
-              Request a demo
-            </a>
-          </div>
-
-          <p className="text-sm text-[#94A3B8]">
-            No credit card required &nbsp;·&nbsp; 14-day trial on all plans
-            &nbsp;·&nbsp; Cancel anytime
-          </p>
-        </div>
-      </section>
+      <AnimatedHero />
 
       {/* Trust Bar */}
       <section className="border-y border-[#E2E8F0] bg-[#F8FAFC] py-10">
