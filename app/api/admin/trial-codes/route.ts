@@ -2,6 +2,13 @@ import { createClient } from '@/lib/supabase/server'
 import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { randomBytes } from 'crypto'
+import { z } from 'zod'
+
+const CreateTrialCodesSchema = z.object({
+  batch_name: z.string().min(1).max(100).default('Unnamed'),
+  quantity:   z.number().int().min(1).max(500).default(10),
+  expires_at: z.iso.date().optional(),
+})
 
 const ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 
@@ -18,14 +25,16 @@ export async function POST(request: Request) {
   const adminUser = await checkIsAdmin()
   if (!adminUser) return Response.json({ error: 'Forbidden' }, { status: 403 })
 
-  let body: { batch_name?: string; quantity?: number; expires_at?: string } = {}
-  try { body = await request.json() } catch { /* empty */ }
-
-  const { batch_name = 'Unnamed', quantity = 10, expires_at } = body
-
-  if (quantity < 1 || quantity > 100) {
-    return Response.json({ error: 'Quantity must be 1–100' }, { status: 400 })
+  let body: unknown
+  try { body = await request.json() } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
+
+  const parsed = CreateTrialCodesSchema.safeParse(body)
+  if (!parsed.success) {
+    return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 })
+  }
+  const { batch_name, quantity, expires_at } = parsed.data
 
   const admin = createAdminClient()
   const supabase = await createClient()
@@ -39,7 +48,10 @@ export async function POST(request: Request) {
   }))
 
   const { data, error } = await admin.from('trial_codes').insert(rows).select('id')
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[trial-codes:POST]', error.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
+  }
 
   return Response.json({ ok: true, created: data?.length ?? 0 }, { status: 201 })
 }
@@ -54,6 +66,9 @@ export async function GET() {
     .select('*')
     .order('created_at', { ascending: false })
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[trial-codes:GET]', error.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
+  }
   return Response.json({ codes: data ?? [] })
 }
