@@ -8,29 +8,36 @@ export const metadata = {
 
 export default function SignupPage() {
   return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-xl font-bold tracking-tight text-[#0F1F3D]">
-            Neuridion
-          </h1>
-          <p className="mt-2 text-sm text-zinc-500">
-            Create your account
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
+      <div className="px-6 py-5">
+        <Link href="/" className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-[#0F1F3D] rounded flex items-center justify-center">
+            <span className="text-white font-bold text-xs">N</span>
+          </div>
+          <span className="text-[#0F1F3D] font-semibold text-sm">Neuridion</span>
+        </Link>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center px-4 pb-20">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-[#0F1F3D] mb-1">Create your account</h1>
+            <p className="text-sm text-[#64748B]">Start your 14-day free trial</p>
+          </div>
+
+          <div className="bg-white border border-[#E2E8F0] rounded p-6">
+            <SignupForm />
+          </div>
+
+          <p className="mt-6 text-center text-sm text-[#64748B]">
+            Already have an account?{' '}
+            <Link href="/login" className="text-[#0F1F3D] font-medium hover:underline">
+              Sign in
+            </Link>
           </p>
         </div>
-
-        <div className="rounded-md border border-[#E2E8F0] bg-white px-8 py-8">
-          <SignupForm />
-        </div>
-
-        <p className="mt-6 text-center text-sm text-zinc-500">
-          Already have an account?{' '}
-          <Link href="/login" className="font-medium text-[#0D9488] hover:text-[#0F766E]">
-            Sign in
-          </Link>
-        </p>
       </div>
-      <Footer className="mt-8 border-0" />
+      <Footer className="mt-auto border-0" />
     </div>
   )
 }
