@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { RunResults, type FsnResult } from './run-results'
+import { ReviewBanner } from './review-banner'
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -29,7 +30,7 @@ export default async function RunDetailPage({
       id, status, created_at, started_at, completed_at,
       search_period_from, search_period_to, period_from, period_to,
       total_results, relevant_count, uncertain_count, excluded_count, filter_failed_count,
-      dbs_searched, error_message,
+      dbs_searched, error_message, review_status,
       report_html_path, report_pdf_path, report_excel_path, report_generated_at,
       product_profiles ( device_name, manufacturer )
     `)
@@ -180,6 +181,13 @@ export default async function RunDetailPage({
           )}
         </div>
       </div>
+
+      {run.status === 'complete' && (
+        <ReviewBanner
+          runId={run.id}
+          initialStatus={run.review_status as 'draft' | 'reviewed' | 'approved'}
+        />
+      )}
 
       {showMhraWarning && (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

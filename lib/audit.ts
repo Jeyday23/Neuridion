@@ -12,6 +12,7 @@ type AuditEventType =
   | 'data_exported'
   | 'password_changed'
   | 'admin_action'
+  | 'prrc_review_completed'
 
 export async function logAuditEvent(
   userId: string | null,

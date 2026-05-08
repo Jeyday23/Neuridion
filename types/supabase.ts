@@ -515,6 +515,9 @@ export type Database = {
           report_generated_at: string | null
           report_html_path: string | null
           report_pdf_path: string | null
+          review_status: string
+          reviewed_at: string | null
+          reviewed_by: string | null
           search_period_from: string | null
           search_period_to: string | null
           search_strategy: Json
@@ -541,6 +544,9 @@ export type Database = {
           report_generated_at?: string | null
           report_html_path?: string | null
           report_pdf_path?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           search_period_from?: string | null
           search_period_to?: string | null
           search_strategy?: Json
@@ -567,6 +573,9 @@ export type Database = {
           report_generated_at?: string | null
           report_html_path?: string | null
           report_pdf_path?: string | null
+          review_status?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           search_period_from?: string | null
           search_period_to?: string | null
           search_strategy?: Json

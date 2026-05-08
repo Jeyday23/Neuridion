@@ -407,6 +407,13 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Run not found' }, { status: 404 })
   }
 
+  if (run.review_status !== 'approved') {
+    return Response.json(
+      { error: 'This search must be reviewed and approved before generating a report.' },
+      { status: 422 }
+    )
+  }
+
   const profileRaw = run.product_profiles
   const profile = (Array.isArray(profileRaw) ? profileRaw[0] : profileRaw) as {
     device_name: string; manufacturer: string; device_class: string | null; emdn_code: string | null
