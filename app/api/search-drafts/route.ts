@@ -76,7 +76,10 @@ export async function POST(request: Request) {
       .select('id, updated_at')
       .single()
 
-    if (error) return Response.json({ error: error.message }, { status: 500 })
+    if (error) {
+      console.error('[search-drafts:POST:upsert]', error.message)
+      return Response.json({ error: 'Something went wrong' }, { status: 500 })
+    }
     return Response.json({ id: data.id, saved_at: data.updated_at })
   }
 
@@ -96,7 +99,10 @@ export async function POST(request: Request) {
     .select('id, created_at')
     .single()
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[search-drafts:POST:insert]', error.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
+  }
   return Response.json({ id: data.id, saved_at: data.created_at }, { status: 201 })
 }
 
@@ -114,6 +120,9 @@ export async function GET() {
     .eq('user_id', user.id)
     .order('updated_at', { ascending: false })
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[search-drafts:GET]', error.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
+  }
   return Response.json(data ?? [])
 }
