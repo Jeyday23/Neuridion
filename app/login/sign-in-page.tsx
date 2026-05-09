@@ -10,7 +10,7 @@ export function NeuridionSignIn() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [step, setStep] = useState<'email' | 'code' | 'success'>('email')
-  const [code, setCode] = useState(['', '', '', '', '', ''])
+  const [code, setCode] = useState(['', '', '', '', '', '', '', ''])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const codeInputRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -81,11 +81,11 @@ export function NeuridionSignIn() {
     newCode[index] = value
     setCode(newCode)
 
-    if (value && index < 5) {
+    if (value && index < 7) {
       codeInputRefs.current[index + 1]?.focus()
     }
 
-    if (index === 5 && value) {
+    if (index === 7 && value) {
       const isComplete = newCode.every((d) => d.length === 1)
       if (isComplete) verifyCode(newCode.join(''))
     }
@@ -98,12 +98,12 @@ export function NeuridionSignIn() {
   }
 
   const handlePaste = (e: React.ClipboardEvent) => {
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
-    if (pasted.length === 6) {
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 8)
+    if (pasted.length === 8) {
       e.preventDefault()
       const newCode = pasted.split('')
       setCode(newCode)
-      codeInputRefs.current[5]?.focus()
+      codeInputRefs.current[7]?.focus()
       verifyCode(pasted)
     }
   }
@@ -195,7 +195,7 @@ export function NeuridionSignIn() {
                 </div>
                 <h1 className="text-2xl font-bold text-[#0F1F3D] mb-1">Check your email</h1>
                 <p className="text-sm text-[#0F766E]">
-                  We sent a 6-digit code to{' '}
+                  We sent an 8-digit code to{' '}
                   <span className="text-[#134E4A] font-medium">{email}</span>
                 </p>
               </div>
@@ -234,7 +234,7 @@ export function NeuridionSignIn() {
                   <button
                     onClick={() => {
                       const full = code.join('')
-                      if (full.length === 6) verifyCode(full)
+                      if (full.length === 8) verifyCode(full)
                     }}
                     disabled={!code.every((d) => d !== '') || loading}
                     className="w-full bg-[#0F1F3D] text-white rounded py-2.5 text-sm font-medium hover:bg-[#1a2d52] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -246,7 +246,7 @@ export function NeuridionSignIn() {
                     <button
                       onClick={() => {
                         setStep('email')
-                        setCode(['', '', '', '', '', ''])
+                        setCode(['', '', '', '', '', '', '', ''])
                         setError('')
                       }}
                       className="text-[#0F766E] hover:text-[#0F1F3D] transition-colors"

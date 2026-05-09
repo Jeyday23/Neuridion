@@ -13,7 +13,7 @@ const SendSchema = z.object({
 const VerifySchema = z.object({
   action: z.literal('verify'),
   email: z.string().email(),
-  code: z.string().length(6),
+  code: z.string().length(8),
 })
 
 const RequestSchema = z.discriminatedUnion('action', [SendSchema, VerifySchema])
