@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   const runIds = (runs ?? []).map((r) => r.id)
 
   if (runIds.length > 0) {
-    await admin.from('filter_decisions').delete().in('search_run_id', runIds)
+    await admin.rpc('gdpr_purge_user_data', { p_run_ids: runIds })
     await admin.from('fsn_results').delete().in('run_id', runIds)
   }
 

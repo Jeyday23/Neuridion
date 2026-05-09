@@ -853,6 +853,10 @@ export type Database = {
         Args: { p_timeout_minutes?: number }
         Returns: number
       }
+      gdpr_purge_user_data: {
+        Args: { p_run_ids: string[] }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
