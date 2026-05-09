@@ -34,7 +34,8 @@ export async function login(
   await recordLoginAttempt(ip, email, !error)
 
   if (error) {
-    return { error: error.message }
+    console.error('[login]', error.message)
+    return { error: 'Invalid email or password.' }
   }
 
   await logAuditEvent(data.user?.id ?? null, 'login', { email })

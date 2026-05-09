@@ -64,7 +64,8 @@ export async function signup(
   await recordLoginAttempt(ip, email, !error)
 
   if (error) {
-    return { error: error.message }
+    console.error('[signup]', error.message)
+    return { error: 'Unable to create account. Please try again.' }
   }
 
   if (data.user?.id) {
