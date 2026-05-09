@@ -43,10 +43,10 @@ export function PrototypeBanner() {
           </div>
 
           {/* Divider */}
-          <span className="hidden sm:block text-[#374151] select-none">|</span>
+          <span className="hidden sm:block text-[#134E4A] select-none">|</span>
 
           {/* Message */}
-          <p className="text-[#6B7280] text-sm leading-snug">
+          <p className="text-[#0F766E] text-sm leading-snug">
             You&apos;re previewing an early build —&nbsp;
             <span className="text-white font-medium">
               full launch&nbsp;<span className="text-[#0D9488]">June&nbsp;2026</span>
@@ -59,7 +59,7 @@ export function PrototypeBanner() {
         <button
           onClick={handleDismiss}
           aria-label="Dismiss banner"
-          className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-[#6B7280] hover:text-white transition-colors"
+          className="shrink-0 w-6 h-6 flex items-center justify-center rounded text-[#0F766E] hover:text-white transition-colors"
         >
           <X className="w-3.5 h-3.5" />
         </button>

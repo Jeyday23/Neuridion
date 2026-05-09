@@ -53,7 +53,7 @@ export function SignupForm() {
           type="text"
           autoComplete="name"
           required
-          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
+          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#134E4A] placeholder:text-[#0F766E] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           placeholder="Jane Smith"
         />
       </div>
@@ -68,7 +68,7 @@ export function SignupForm() {
           type="text"
           autoComplete="organization"
           required
-          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
+          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#134E4A] placeholder:text-[#0F766E] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           placeholder="Acme Medical GmbH"
         />
       </div>
@@ -84,7 +84,7 @@ export function SignupForm() {
           type="email"
           autoComplete="email"
           required
-          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
+          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#134E4A] placeholder:text-[#0F766E] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           placeholder="you@company.com"
         />
       </div>
@@ -102,7 +102,7 @@ export function SignupForm() {
           minLength={10}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#374151] placeholder:text-[#6B7280] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
+          className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#134E4A] placeholder:text-[#0F766E] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           placeholder="••••••••••"
         />
         {password && (

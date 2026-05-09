@@ -77,25 +77,25 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
     <div className="fixed bottom-4 right-4 z-50 w-96 rounded-md bg-white border border-[#E2E8F0] p-6 shadow-lg animate-slide-up">
       <button
         onClick={handleSkip}
-        className="absolute top-3 right-3 text-slate-400 hover:text-slate-600"
+        className="absolute top-3 right-3 text-[#0D9488] hover:text-[#134E4A]"
         aria-label="Skip feedback"
       >
         <X className="w-4 h-4" />
       </button>
 
-      <h3 className="text-lg font-semibold text-slate-900 mb-1">Quick feedback?</h3>
-      <p className="text-sm text-slate-600 mb-4">Help us improve Neuridion — takes 30 seconds.</p>
+      <h3 className="text-lg font-semibold text-[#0F1F3D] mb-1">Quick feedback?</h3>
+      <p className="text-sm text-[#134E4A] mb-4">Help us improve Neuridion — takes 30 seconds.</p>
 
       {/* Rating */}
       <div className="mb-4">
-        <label className="text-sm font-medium text-slate-900 block mb-2">
+        <label className="text-sm font-medium text-[#0F1F3D] block mb-2">
           How would you rate Neuridion so far?
         </label>
         <div className="flex gap-1">
           {[1, 2, 3, 4, 5].map(n => (
             <button key={n} onClick={() => setRating(n)} className="p-1" aria-label={`Rate ${n} stars`}>
               <Star
-                className={`w-6 h-6 ${n <= rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`}
+                className={`w-6 h-6 ${n <= rating ? 'fill-amber-400 text-amber-400' : 'text-[#0D9488]'}`}
               />
             </button>
           ))}
@@ -104,7 +104,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
 
       {/* Most useful */}
       <div className="mb-4">
-        <label className="text-sm font-medium text-slate-900 block mb-2">
+        <label className="text-sm font-medium text-[#0F1F3D] block mb-2">
           What&apos;s most useful? (Optional)
         </label>
         <div className="flex flex-wrap gap-2">
@@ -115,7 +115,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
               className={`px-3 py-1 rounded text-xs border transition-colors ${
                 usefulTags.includes(opt)
                   ? 'bg-[rgba(13,148,136,0.08)] border-[rgba(13,148,136,0.4)] text-[#0D9488]'
-                  : 'bg-white border-[#E2E8F0] text-[#374151] hover:border-[#0D9488]'
+                  : 'bg-white border-[#E2E8F0] text-[#134E4A] hover:border-[#0D9488]'
               }`}
             >
               {opt}
@@ -126,7 +126,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
 
       {/* Missing features */}
       <div className="mb-4">
-        <label className="text-sm font-medium text-slate-900 block mb-2">
+        <label className="text-sm font-medium text-[#0F1F3D] block mb-2">
           What&apos;s missing? (Optional)
         </label>
         <textarea
@@ -135,13 +135,13 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
           className="w-full rounded border border-slate-300 p-2 text-sm h-20 resize-none"
           placeholder="Tell us what would make Neuridion more useful..."
         />
-        <p className="text-xs text-slate-400 mt-1">{missing.length}/500</p>
+        <p className="text-xs text-[#0D9488] mt-1">{missing.length}/500</p>
       </div>
 
       <div className="flex gap-2 justify-end">
         <button
           onClick={handleSkip}
-          className="px-4 py-2 text-sm text-slate-600 hover:text-slate-900"
+          className="px-4 py-2 text-sm text-[#134E4A] hover:text-[#0F1F3D]"
         >
           Skip
         </button>

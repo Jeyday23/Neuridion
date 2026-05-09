@@ -19,7 +19,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
-      <h1 className="text-2xl font-bold text-slate-900 mb-8">Account Settings</h1>
+      <h1 className="text-2xl font-bold text-[#0F1F3D] mb-8">Account Settings</h1>
 
       {userData?.deletion_requested_at && (
         <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-5 py-4">

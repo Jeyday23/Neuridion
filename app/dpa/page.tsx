@@ -21,12 +21,12 @@ export default function DpaPage() {
 
           <section className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-md p-6">
             <h2 className="text-base font-semibold text-[#0F1F3D] mb-2">Do you need a DPA?</h2>
-            <p className="text-[#374151]">
+            <p className="text-[#134E4A]">
               If your organisation processes personal data using Neuridion and is itself a data
               controller (e.g. a medical device manufacturer processing patient-related search terms),
               a Data Processing Agreement is required under Art. 28 GDPR.
             </p>
-            <p className="mt-2 text-[#374151]">
+            <p className="mt-2 text-[#134E4A]">
               Contact us to sign a DPA:{' '}
               <a href="mailto:info@neuridion.eu" className="underline text-[#0D9488]">
                 info@neuridion.eu

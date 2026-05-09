@@ -20,13 +20,13 @@ export default async function AdminFeedbackPage() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <h1 className="text-2xl font-semibold mb-2">User Feedback</h1>
-      <p className="text-slate-600 mb-6">
+      <p className="text-[#134E4A] mb-6">
         Average rating: <strong>{avgRating.toFixed(2)} / 5</strong>{' '}
         ({feedback?.length ?? 0} responses)
       </p>
 
       {!feedback?.length && (
-        <p className="text-slate-500 italic">No feedback submitted yet.</p>
+        <p className="text-[#0F766E] italic">No feedback submitted yet.</p>
       )}
 
       <div className="space-y-4">
@@ -37,12 +37,12 @@ export default async function AdminFeedbackPage() {
                 <span className="text-amber-500 text-lg">
                   {'★'.repeat(f.rating as number)}{'☆'.repeat(5 - (f.rating as number))}
                 </span>
-                <span className="text-xs text-slate-500 font-mono">{f.user_id as string}</span>
-                <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
+                <span className="text-xs text-[#0F766E] font-mono">{f.user_id as string}</span>
+                <span className="text-xs text-[#0D9488] bg-[#CCFBF1] px-2 py-0.5 rounded">
                   {f.triggered_by as string}
                 </span>
               </div>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-[#0D9488]">
                 {new Date(f.submitted_at as string).toLocaleDateString('en-GB', {
                   day: '2-digit', month: 'short', year: 'numeric',
                 })}
@@ -60,7 +60,7 @@ export default async function AdminFeedbackPage() {
             )}
 
             {f.missing_features && (
-              <p className="text-sm text-slate-700 italic border-t border-slate-100 pt-2 mt-2">
+              <p className="text-sm text-[#134E4A] italic border-t border-[#CCFBF1] pt-2 mt-2">
                 &ldquo;{f.missing_features as string}&rdquo;
               </p>
             )}

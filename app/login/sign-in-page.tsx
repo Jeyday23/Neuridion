@@ -135,7 +135,7 @@ export function NeuridionSignIn() {
               <div className="bg-white border border-[#E2E8F0] rounded p-6">
                 <form onSubmit={handleEmailSubmit} className="space-y-4">
                   <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-[#374151] mb-1.5">
+                    <label htmlFor="email" className="block text-sm font-medium text-[#134E4A] mb-1.5">
                       Email address
                     </label>
                     <input
@@ -196,7 +196,7 @@ export function NeuridionSignIn() {
                 <h1 className="text-2xl font-bold text-[#0F1F3D] mb-1">Check your email</h1>
                 <p className="text-sm text-[#0F766E]">
                   We sent a 6-digit code to{' '}
-                  <span className="text-[#374151] font-medium">{email}</span>
+                  <span className="text-[#134E4A] font-medium">{email}</span>
                 </p>
               </div>
 

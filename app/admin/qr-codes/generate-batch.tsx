@@ -48,7 +48,7 @@ export function GenerateBatch() {
             onChange={(e) => setBatchName(e.target.value)}
             placeholder="DEMA 2026"
             required
-            className="w-full rounded border border-[#E2E8F0] px-3 py-2 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
+            className="w-full rounded border border-[#E2E8F0] px-3 py-2 text-sm text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           />
         </div>
         <div>
@@ -56,7 +56,7 @@ export function GenerateBatch() {
           <select
             value={quantity}
             onChange={(e) => setQuantity(Number(e.target.value))}
-            className="w-full rounded border border-[#E2E8F0] px-3 py-2 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
+            className="w-full rounded border border-[#E2E8F0] px-3 py-2 text-sm text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           >
             {[10, 25, 50, 100].map((n) => (
               <option key={n} value={n}>{n} codes</option>
@@ -71,7 +71,7 @@ export function GenerateBatch() {
             type="date"
             value={expiresAt}
             onChange={(e) => setExpiresAt(e.target.value)}
-            className="w-full rounded border border-[#E2E8F0] px-3 py-2 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
+            className="w-full rounded border border-[#E2E8F0] px-3 py-2 text-sm text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
           />
         </div>
       </div>

@@ -31,12 +31,12 @@ export function FaqAccordion() {
   return (
     <div className="space-y-4">
       {faqs.map((faq, i) => (
-        <div key={i} className="border border-slate-200 rounded-md">
+        <div key={i} className="border border-[#E2E8F0] rounded-md">
           <button
             onClick={() => setOpen(open === i ? null : i)}
-            className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-slate-50 transition-colors"
+            className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-[#F0FDFA] transition-colors"
           >
-            <span className="font-semibold text-slate-900">{faq.question}</span>
+            <span className="font-semibold text-[#0F1F3D]">{faq.question}</span>
             <ChevronDown
               className={`w-5 h-5 text-[#0D9488] transition-transform ${open === i ? 'rotate-180' : ''}`}
             />

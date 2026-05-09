@@ -48,20 +48,20 @@ export function LanguageSelector() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors text-sm"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-[#134E4A] hover:bg-[#F0FDFA] transition-colors text-sm"
         aria-haspopup="listbox"
         aria-expanded={open}
       >
         <Globe className="w-4 h-4" />
         <span className="text-base leading-none">{current.flag}</span>
         <span className="font-medium">{current.label}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-3.5 h-3.5 text-[#0D9488] transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
         <div
           role="listbox"
-          className="absolute right-0 top-full mt-1 w-40 rounded-lg border border-slate-200 bg-white shadow-lg z-50 overflow-hidden"
+          className="absolute right-0 top-full mt-1 w-40 rounded-lg border border-[#E2E8F0] bg-white shadow-lg z-50 overflow-hidden"
         >
           {LOCALES.map((l) => (
             <button
@@ -70,8 +70,8 @@ export function LanguageSelector() {
               role="option"
               aria-selected={locale === l.id}
               onClick={() => choose(l.id)}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-slate-50 transition-colors ${
-                locale === l.id ? 'font-semibold text-blue-600 bg-blue-50/40' : 'text-slate-700'
+              className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-[#F0FDFA] transition-colors ${
+                locale === l.id ? 'font-semibold text-blue-600 bg-blue-50/40' : 'text-[#134E4A]'
               }`}
             >
               <span className="text-base leading-none">{l.flag}</span>

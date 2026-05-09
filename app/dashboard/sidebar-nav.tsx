@@ -37,7 +37,7 @@ export function SidebarNav({ userRole }: { userRole: string | null }) {
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   active
                     ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-slate-600 hover:bg-slate-50'
+                    : 'text-[#134E4A] hover:bg-[#F0FDFA]'
                 }`}
               >
                 <Icon className="w-5 h-5" />
@@ -48,22 +48,22 @@ export function SidebarNav({ userRole }: { userRole: string | null }) {
         })}
       </ul>
 
-      <div className="border-t border-slate-200 pt-4 space-y-1">
+      <div className="border-t border-[#E2E8F0] pt-4 space-y-1">
         {userRole === 'admin' && (
           <>
             <Link
               href="/admin"
-              className="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-3 px-4 py-3 rounded-lg text-[#134E4A] hover:bg-[#F0FDFA] transition-colors"
             >
               <Shield className="w-5 h-5" />
               <span>Admin</span>
             </Link>
-            <div className="border-t border-slate-200 my-1" />
+            <div className="border-t border-[#E2E8F0] my-1" />
           </>
         )}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 rounded-lg transition-colors w-full"
+          className="flex items-center gap-3 px-4 py-3 text-[#134E4A] hover:bg-[#F0FDFA] rounded-lg transition-colors w-full"
         >
           <LogOut className="w-5 h-5" />
           <span>{t.nav.logout}</span>

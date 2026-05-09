@@ -142,7 +142,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
         <select
           value={profileFilter}
           onChange={(e) => setProfileFilter(e.target.value)}
-          className="text-sm border border-[#E2E8F0] rounded px-3 py-1.5 bg-white text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
+          className="text-sm border border-[#E2E8F0] rounded px-3 py-1.5 bg-white text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
         >
           <option value="all">All profiles</option>
           {profileNames.map((name) => (
@@ -153,7 +153,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="text-sm border border-[#E2E8F0] rounded px-3 py-1.5 bg-white text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
+          className="text-sm border border-[#E2E8F0] rounded px-3 py-1.5 bg-white text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
         >
           <option value="all">All statuses</option>
           <option value="complete">Completed</option>

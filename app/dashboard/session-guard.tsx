@@ -25,7 +25,7 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
             <h2 className="text-lg font-semibold text-[#0F1F3D] mb-2">
               Session expiring
             </h2>
-            <p className="text-sm text-[#374151] mb-6">
+            <p className="text-sm text-[#134E4A] mb-6">
               You&apos;ll be logged out in 60 seconds due to inactivity. Click
               below to stay logged in.
             </p>

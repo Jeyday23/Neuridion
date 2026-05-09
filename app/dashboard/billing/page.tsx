@@ -78,7 +78,7 @@ export default async function BillingPage({
       )}
       {params.canceled && (
         <div className="mb-6 rounded border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
-          <p className="text-sm text-[#374151]">Checkout was canceled. Your plan was not changed.</p>
+          <p className="text-sm text-[#134E4A]">Checkout was canceled. Your plan was not changed.</p>
         </div>
       )}
 
@@ -98,7 +98,7 @@ export default async function BillingPage({
                     ? 'bg-[rgba(5,150,105,0.08)] text-[#059669] border-[rgba(5,150,105,0.2)]'
                     : userData.subscription_status === 'past_due'
                     ? 'bg-[rgba(220,38,38,0.06)] text-[#DC2626] border-[rgba(220,38,38,0.2)]'
-                    : 'bg-[#F8FAFC] text-[#6B7280] border-[#E2E8F0]'
+                    : 'bg-[#F8FAFC] text-[#0F766E] border-[#E2E8F0]'
                 }`}>
                   {userData.subscription_status}
                 </span>
@@ -178,7 +178,7 @@ export default async function BillingPage({
                     ) : (
                       <a
                         href="mailto:info@neuridion.eu?subject=Enterprise inquiry"
-                        className="block w-full rounded border border-[#E2E8F0] bg-white px-4 py-2 text-center text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors"
+                        className="block w-full rounded border border-[#E2E8F0] bg-white px-4 py-2 text-center text-sm font-medium text-[#134E4A] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors"
                       >
                         Contact sales
                       </a>

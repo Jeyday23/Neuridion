@@ -175,7 +175,7 @@ export default async function PricingPage() {
                       className={`block w-full text-center py-2.5 rounded text-sm font-medium transition-colors ${
                         tier.highlighted
                           ? 'bg-[#0F1F3D] text-white hover:bg-[#1a2d52]'
-                          : 'border border-[#E2E8F0] text-[#374151] hover:border-[#CBD5E1]'
+                          : 'border border-[#E2E8F0] text-[#134E4A] hover:border-[#CBD5E1]'
                       }`}
                     >
                       {tier.ctaLabel}

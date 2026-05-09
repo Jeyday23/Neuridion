@@ -139,7 +139,7 @@ export default async function RunDetailPage({
             run.status === 'complete'   ? 'bg-[rgba(5,150,105,0.08)] text-[#059669] border-[rgba(5,150,105,0.2)]' :
             (run.status === 'running' || run.status === 'filtering') ? 'bg-blue-50 text-blue-700 border-blue-200' :
             run.status === 'error'     ? 'bg-[rgba(220,38,38,0.06)] text-[#DC2626] border-[rgba(220,38,38,0.2)]' :
-                                         'bg-[#F8FAFC] text-[#6B7280] border-[#E2E8F0]'
+                                         'bg-[#F8FAFC] text-[#0F766E] border-[#E2E8F0]'
           }`}>
             {run.status}
           </span>

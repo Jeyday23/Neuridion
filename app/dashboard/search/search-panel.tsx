@@ -262,7 +262,7 @@ function RotatingTip() {
   }, [visible])
 
   return (
-    <p className="text-xs text-slate-400 italic transition-opacity duration-300" style={{ opacity: visible ? 1 : 0 }}>
+    <p className="text-xs text-[#0D9488] italic transition-opacity duration-300" style={{ opacity: visible ? 1 : 0 }}>
       {PROGRESS_TIPS[idx]}
     </p>
   )
@@ -282,13 +282,13 @@ function SearchProgressCard({ startedAt, progress }: { startedAt: number; progre
           </span>
           <span className="text-sm font-medium text-white truncate">Searching databases…</span>
         </div>
-        <span className="text-xs text-slate-400 font-mono tabular-nums shrink-0">
+        <span className="text-xs text-[#0D9488] font-mono tabular-nums shrink-0">
           <ElapsedTimer startedAt={startedAt} />
         </span>
       </div>
 
       {/* Indeterminate progress bar */}
-      <div className="h-0.5 bg-slate-100 overflow-hidden">
+      <div className="h-0.5 bg-[#CCFBF1] overflow-hidden">
         <div className="h-full w-1/3 bg-gradient-to-r from-[#0D9488] to-[#14b8a6] animate-[slide_2s_ease-in-out_infinite]" />
       </div>
 
@@ -310,9 +310,9 @@ function SearchProgressCard({ startedAt, progress }: { startedAt: number; progre
                   )}
                   <span className={clsx(
                     'text-sm',
-                    isDone    ? 'text-slate-500'
-                    : isActive ? 'text-slate-800 font-medium'
-                    :            'text-slate-400'
+                    isDone    ? 'text-[#0F766E]'
+                    : isActive ? 'text-[#0F1F3D] font-medium'
+                    :            'text-[#0D9488]'
                   )}>
                     {formatSourceLabel(sourceId)}
                   </span>
@@ -327,26 +327,26 @@ function SearchProgressCard({ startedAt, progress }: { startedAt: number; progre
             {progress.current_source === null && progress.sources_done.length > 0 && (
               <div className="flex items-center gap-2.5 pt-1">
                 <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
-                <span className="text-sm text-slate-800 font-medium">Running AI relevance filter…</span>
+                <span className="text-sm text-[#0F1F3D] font-medium">Running AI relevance filter…</span>
               </div>
             )}
 
             {progress.items_found > 0 && (
-              <p className="text-xs text-slate-400 pt-1 border-t border-slate-100">
+              <p className="text-xs text-[#0D9488] pt-1 border-t border-[#CCFBF1]">
                 {progress.items_found} item{progress.items_found !== 1 ? 's' : ''} found so far
               </p>
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2 text-sm text-slate-500">
+          <div className="flex items-center gap-2 text-sm text-[#0F766E]">
             <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
             <span>{progress ? 'Running AI relevance filter…' : 'Starting search…'}</span>
           </div>
         )}
 
         {/* Rotating tip */}
-        <div className="flex items-start gap-2 pt-1 border-t border-slate-100">
-          <svg className="w-3.5 h-3.5 text-slate-300 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+        <div className="flex items-start gap-2 pt-1 border-t border-[#CCFBF1]">
+          <svg className="w-3.5 h-3.5 text-[#0D9488] shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
           </svg>
           <RotatingTip />
@@ -643,7 +643,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           <div className="w-10 h-10 bg-[#0D9488] text-white rounded-md flex items-center justify-center font-medium text-lg">1</div>
           <h1 className="text-xl font-bold text-[#0F1F3D]">{t.search.pageTitle}</h1>
         </div>
-        <p className="text-slate-600 ml-14">{t.search.pageSubtitle}</p>
+        <p className="text-[#134E4A] ml-14">{t.search.pageSubtitle}</p>
       </div>
 
       <div className="space-y-8">
@@ -653,13 +653,13 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             {t.search.productProfile} <span className="text-red-500">*</span>
           </h2>
           {noProfiles ? (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[#0F766E]">
               {t.search.noProfiles} —{' '}
               <a href="/dashboard/profiles/new" className="text-[#0D9488] hover:underline">{t.search.createFirst}</a>
             </p>
           ) : (
             <select value={profileId} onChange={(e) => setProfileId(e.target.value)}
-              className="w-full max-w-md rounded border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#374151] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent">
+              className="w-full max-w-md rounded border border-[#E2E8F0] bg-white px-4 py-3 text-sm text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent">
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>{p.device_name} — {p.manufacturer}</option>
               ))}
@@ -673,7 +673,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             <h2 className="text-xl font-semibold text-[#0F1F3D]">
               {t.search.databases} ({selectedDbs.size} {t.search.selected}) <span className="text-red-500">*</span>
             </h2>
-            <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer hover:text-slate-900">
+            <label className="flex items-center gap-2 text-sm text-[#134E4A] cursor-pointer hover:text-[#0F1F3D]">
               <input type="checkbox" checked={allActiveSelected} onChange={toggleAll}
                 className="w-4 h-4 rounded border-slate-300 text-[#0D9488] focus:ring-[#0D9488]" />
               {t.search.selectDeselectAll}
@@ -692,8 +692,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                   <input type="checkbox" checked={selectedDbs.has(db.id)} onChange={() => toggleDb(db.id)} disabled={!db.active}
                     className="w-5 h-5 mt-0.5 rounded border-slate-300 text-[#0D9488] focus:ring-[#0D9488] disabled:opacity-50" />
                   <div className="flex-1">
-                    <div className="font-semibold text-slate-900 text-sm">{db.name}</div>
-                    <div className="text-xs text-slate-500">{db.region}</div>
+                    <div className="font-semibold text-[#0F1F3D] text-sm">{db.name}</div>
+                    <div className="text-xs text-[#0F766E]">{db.region}</div>
                   </div>
                 </label>
                 {!db.active && hoveredDb === db.id && (
@@ -714,17 +714,17 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           </h2>
           <div className="flex items-center gap-6 max-w-xl">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-slate-700 mb-2">{t.search.from}</label>
+              <label className="block text-sm font-medium text-[#134E4A] mb-2">{t.search.from}</label>
               <input type="date" value={fromDate} max={toDate} onChange={(e) => setFromDate(e.target.value)}
                 className="w-full px-4 py-3 border border-[#E2E8F0] rounded focus:ring-2 focus:ring-[#0D9488] focus:border-transparent" />
-              <div className="text-sm text-slate-500 mt-1">{formatDateDE(fromDate)}</div>
+              <div className="text-sm text-[#0F766E] mt-1">{formatDateDE(fromDate)}</div>
             </div>
-            <div className="text-slate-400 mt-8">→</div>
+            <div className="text-[#0D9488] mt-8">→</div>
             <div className="flex-1">
-              <label className="block text-sm font-medium text-slate-700 mb-2">{t.search.to}</label>
+              <label className="block text-sm font-medium text-[#134E4A] mb-2">{t.search.to}</label>
               <input type="date" value={toDate} min={fromDate} max={format(new Date(), 'yyyy-MM-dd')} onChange={(e) => setToDate(e.target.value)}
                 className="w-full px-4 py-3 border border-[#E2E8F0] rounded focus:ring-2 focus:ring-[#0D9488] focus:border-transparent" />
-              <div className="text-sm text-slate-500 mt-1">{formatDateDE(toDate)}</div>
+              <div className="text-sm text-[#0F766E] mt-1">{formatDateDE(toDate)}</div>
             </div>
           </div>
         </section>
@@ -732,7 +732,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         {/* Generic search terms */}
         <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
           <h2 className="text-xl font-semibold text-[#0F1F3D] mb-2">{t.search.genericTerms}</h2>
-          <p className="text-sm text-slate-500 italic mb-6">{t.search.genericHint}</p>
+          <p className="text-sm text-[#0F766E] italic mb-6">{t.search.genericHint}</p>
           <div className="space-y-3">
             {genericTerms.map((term, idx) => (
               <TermRow key={idx} value={term}
@@ -751,7 +751,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         {/* Manufacturer search terms */}
         <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
           <h2 className="text-xl font-semibold text-[#0F1F3D] mb-2">{t.search.manufacturerTerms}</h2>
-          <p className="text-sm text-slate-500 italic mb-6">{t.search.manufacturerHint}</p>
+          <p className="text-sm text-[#0F766E] italic mb-6">{t.search.manufacturerHint}</p>
           <div className="space-y-3">
             {manufacturerTerms.map((term, idx) => (
               <TermRow key={idx} value={term}
@@ -776,9 +776,9 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             isDragging ? 'border-[#0D9488] bg-[rgba(13,148,136,0.06)]' : 'border-slate-300 hover:border-[#0D9488] hover:bg-[rgba(13,148,136,0.06)]')}
             onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
             onClick={() => fileInputRef.current?.click()}>
-            <Upload className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-            <p className="text-slate-700 font-medium mb-1">{t.search.dropFiles}</p>
-            <p className="text-sm text-slate-500">{t.search.dropFilesHint}</p>
+            <Upload className="w-12 h-12 text-[#0D9488] mx-auto mb-4" />
+            <p className="text-[#134E4A] font-medium mb-1">{t.search.dropFiles}</p>
+            <p className="text-sm text-[#0F766E]">{t.search.dropFilesHint}</p>
           </div>
           {uploadedFiles.length > 0 && (
             <ul className="mt-4 space-y-2">
@@ -787,7 +787,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                   {f.status === 'uploading' && <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />}
                   {f.status === 'done'      && <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />}
                   {f.status === 'error'     && <X className="w-4 h-4 text-red-500 shrink-0" />}
-                  <span className={clsx('flex-1 truncate text-slate-700', f.status === 'error' && 'text-red-600')}>{f.name}</span>
+                  <span className={clsx('flex-1 truncate text-[#134E4A]', f.status === 'error' && 'text-red-600')}>{f.name}</span>
                   {f.status !== 'uploading' && (
                     <button type="button" onClick={() => setUploadedFiles((prev) => prev.filter((u) => u.key !== f.key))}
                       className="text-zinc-400 hover:text-red-500 transition-colors" aria-label="Remove file">
@@ -828,9 +828,9 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         )}
 
         {/* Action bar */}
-        <div className="flex items-center justify-between pt-6 border-t border-slate-200 flex-wrap gap-3">
+        <div className="flex items-center justify-between pt-6 border-t border-[#E2E8F0] flex-wrap gap-3">
           <button type="button" onClick={() => saveDraft()} disabled={draftSaving}
-            className="px-6 py-3 border border-[#E2E8F0] text-[#374151] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+            className="px-6 py-3 border border-[#E2E8F0] text-[#134E4A] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
             {draftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
             {t.search.saveDraft}
           </button>
@@ -907,7 +907,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                   <>
                     {/* Summary bar */}
                     <div className="flex items-center gap-4 mb-3 flex-wrap">
-                      <p className="text-sm font-medium text-slate-700">
+                      <p className="text-sm font-medium text-[#134E4A]">
                         {state.results.length} {t.search.noticesFound.replace('{s}', state.results.length !== 1 ? 's' : '').replace('{en}', state.results.length !== 1 ? 'en' : '')}
                       </p>
                       <div className="flex items-center gap-3 text-xs">
@@ -948,7 +948,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                     <div className="flex items-center gap-3 mb-4 flex-wrap">
                       {reportState.phase === 'idle' && (
                         <button onClick={() => generateReport(state.runId)}
-                          className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
+                          className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#134E4A] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
                           <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                           </svg>
@@ -965,7 +965,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                         <>
                           {reportState.pdfStatus === 'generated' && reportState.pdfUrl ? (
                             <a href={reportState.pdfUrl} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
+                              className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#134E4A] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
                               <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                               </svg>
@@ -975,7 +975,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                             <div className="flex flex-col gap-1">
                               {reportState.htmlUrl && (
                                 <a href={reportState.htmlUrl} target="_blank" rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
+                                  className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#134E4A] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
                                   <svg className="h-4 w-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m.75 12l3 3m0 0l3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                                   </svg>
@@ -991,7 +991,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                           )}
                           {reportState.excelUrl && (
                             <a href={reportState.excelUrl} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#374151] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
+                              className="flex items-center gap-1.5 rounded border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#134E4A] hover:border-[#0D9488] hover:text-[#0D9488] transition-colors">
                               <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h1.5C5.496 19.5 6 18.996 6 18.375m-3.75.125V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-1.5A1.125 1.125 0 0118 18.375M20.625 4.5H3.375m17.25 0c.621 0 1.125.504 1.125 1.125M20.625 4.5h-1.5C18.504 4.5 18 5.004 18 5.625m3.75-.125V5.625m0 0v1.5c0 .621-.504 1.125-1.125 1.125M3.375 4.5c-.621 0-1.125.504-1.125 1.125M3.375 4.5h1.5C5.496 4.5 6 5.004 6 5.625m-3.75.125V5.625m0 0v1.5c0 .621.504 1.125 1.125 1.125m0 0h1.5m-1.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m1.5-3.75C5.496 8.25 6 7.746 6 7.125v-1.5M4.875 8.25C5.496 8.25 6 8.754 6 9.375v1.5m0-5.25v5.25m0-5.25C6 5.004 6.504 4.5 7.125 4.5h9.75c.621 0 1.125.504 1.125 1.125m1.125 2.625h1.5m-1.5 0A1.125 1.125 0 0118 7.125v-1.5m1.125 2.625c-.621 0-1.125.504-1.125 1.125v1.5m2.625-2.625c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125M18 5.625v5.25M7.125 12h9.75m-9.75 0A1.125 1.125 0 016 10.875M7.125 12C6.504 12 6 12.504 6 13.125m0-2.25C6 11.496 5.496 12 4.875 12M18 10.875c0 .621-.504 1.125-1.125 1.125M18 10.875c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-9.75 0h9.75" />
                               </svg>

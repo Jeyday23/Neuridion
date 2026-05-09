@@ -19,8 +19,8 @@ export function DashboardClientShell({ userRole, children }: Props) {
       <SearchProvider>
         <div className="flex h-screen bg-slate-50">
           {/* Sidebar — inside providers so translations work */}
-          <aside className="w-60 bg-white border-r border-slate-200 flex flex-col shrink-0">
-            <div className="p-6 border-b border-slate-200">
+          <aside className="w-60 bg-white border-r border-[#E2E8F0] flex flex-col shrink-0">
+            <div className="p-6 border-b border-[#E2E8F0]">
               <h1 className="text-xl font-bold text-[#0F1F3D]">Neuridion</h1>
             </div>
             <SidebarNav userRole={userRole} />
@@ -29,7 +29,7 @@ export function DashboardClientShell({ userRole, children }: Props) {
           {/* Main */}
           <main className="flex-1 flex flex-col overflow-hidden">
             {/* Header — inside providers so language selector can write to context */}
-            <div className="bg-white border-b border-slate-200 px-8 py-4 flex items-center justify-end shrink-0">
+            <div className="bg-white border-b border-[#E2E8F0] px-8 py-4 flex items-center justify-end shrink-0">
               <LanguageSelector />
             </div>
             <div className="flex-1 overflow-y-auto flex flex-col">
