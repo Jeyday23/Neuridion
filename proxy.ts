@@ -6,11 +6,20 @@ const PUBLIC_PATHS = [
   '/privacy', '/terms', '/imprint', '/dpa',
 ]
 
+const PUBLIC_API_ROUTES = [
+  '/api/auth/',
+  '/api/claim/',
+  '/api/webhooks/',
+  '/api/consent/',
+  '/api/worker/',
+]
+
+const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000
+const SESSION_COOKIE     = 'session_started_at'
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Build response that carries refreshed cookies forward — must run for ALL routes
-  // including /api/ so server-side getUser() receives a valid session token.
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -34,8 +43,35 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // API routes manage their own auth redirects — return with refreshed cookies only
+  // Server-side absolute session expiry (8 hours)
+  if (user) {
+    const started = request.cookies.get(SESSION_COOKIE)?.value
+    if (!started) {
+      supabaseResponse.cookies.set(SESSION_COOKIE, String(Date.now()), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: SESSION_MAX_AGE_MS / 1000,
+      })
+    } else if (Date.now() - Number(started) > SESSION_MAX_AGE_MS) {
+      await supabase.auth.signOut()
+      supabaseResponse.cookies.delete(SESSION_COOKIE)
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json({ error: 'Session expired' }, { status: 401 })
+      }
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+  }
+
+  // API routes: protect non-public endpoints, then return with refreshed cookies
   if (pathname.startsWith('/api/')) {
+    if (!user) {
+      const isPublicApi = PUBLIC_API_ROUTES.some((r) => pathname.startsWith(r))
+      if (!isPublicApi) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+    }
     return supabaseResponse
   }
 
@@ -52,6 +88,19 @@ export async function proxy(request: NextRequest) {
     if (userData?.deleted_at && new Date(userData.deleted_at) <= new Date()) {
       await supabase.auth.signOut()
       return NextResponse.redirect(new URL('/login?deleted=1', request.url))
+    }
+  }
+
+  // Admin pages require admin role
+  if (user && pathname.startsWith('/admin')) {
+    const { data } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (data?.role !== 'admin') {
+      return NextResponse.redirect(new URL('/dashboard/search', request.url))
     }
   }
 
