@@ -47,6 +47,12 @@ export async function POST(req: NextRequest) {
     await recordLoginAttempt(ip, data.email, !error)
 
     if (error) {
+      if (error.status === 429 || error.message?.includes('security purposes')) {
+        return NextResponse.json(
+          { error: 'Please wait a moment before requesting a new code.' },
+          { status: 429 },
+        )
+      }
       return NextResponse.json(
         { error: 'Unable to send verification code. Check your email and try again.' },
         { status: 400 },
