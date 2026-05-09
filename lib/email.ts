@@ -1,3 +1,7 @@
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 export async function sendFeedbackNotification(feedback: {
   rating: number
   most_useful: string[]
@@ -9,8 +13,8 @@ export async function sendFeedbackNotification(feedback: {
 
   const from = process.env.RESEND_FROM_ADDRESS ?? 'Neuridion <noreply@neuridion.eu>'
   const subject = `New Feedback — ${feedback.rating}/5 stars`
-  const mostUseful = feedback.most_useful.length > 0 ? feedback.most_useful.join(', ') : 'not specified'
-  const missing = feedback.missing_features?.trim() || 'not specified'
+  const mostUseful = feedback.most_useful.length > 0 ? escHtml(feedback.most_useful.join(', ')) : 'not specified'
+  const missing = escHtml(feedback.missing_features?.trim() || 'not specified')
   const submittedAt = new Date().toISOString()
 
   const html = `<!DOCTYPE html>
@@ -22,7 +26,7 @@ export async function sendFeedbackNotification(feedback: {
   <p style="margin:4px 0"><strong>Rating:</strong> ${'★'.repeat(feedback.rating)}${'☆'.repeat(5 - feedback.rating)} (${feedback.rating}/5)</p>
   <p style="margin:4px 0"><strong>Most useful:</strong> ${mostUseful}</p>
   <p style="margin:4px 0"><strong>Missing features:</strong> ${missing}</p>
-  <p style="margin:4px 0"><strong>Triggered by:</strong> ${feedback.triggered_by}</p>
+  <p style="margin:4px 0"><strong>Triggered by:</strong> ${escHtml(feedback.triggered_by)}</p>
   <p style="margin:4px 0"><strong>Submitted at:</strong> ${submittedAt}</p>
 </body>
 </html>`
@@ -71,7 +75,7 @@ export async function sendSearchRunNotification(
     : `[Neuridion] Search complete — ${summary.deviceName}`
 
   const lines: string[] = [
-    `Your recall search for <strong>${summary.deviceName}</strong> (${summary.manufacturer}) has completed.`,
+    `Your recall search for <strong>${escHtml(summary.deviceName)}</strong> (${escHtml(summary.manufacturer)}) has completed.`,
     '',
     `<strong>Period:</strong> ${summary.periodFrom} → ${summary.periodTo}`,
     `<strong>Total notices found:</strong> ${total}`,
