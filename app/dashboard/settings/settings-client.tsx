@@ -34,6 +34,7 @@ export function SettingsClient({
   const [infoSaving,  setInfoSaving]  = useState(false)
 
   // Password
+  const [currentPw,  setCurrentPw]  = useState('')
   const [newPw,      setNewPw]      = useState('')
   const [confirmPw,  setConfirmPw]  = useState('')
   const [pwMsg,      setPwMsg]      = useState('')
@@ -66,21 +67,33 @@ export function SettingsClient({
   // ── Password ─────────────────────────────────────────────────────────────────
 
   const changePassword = async () => {
-    if (newPw !== confirmPw) { setPwMsg('Passwords do not match.'); return }
-    if (newPw.length < 10)   { setPwMsg('Password must be at least 10 characters.'); return }
-    if (!/[A-Z]/.test(newPw)) { setPwMsg('Password must contain an uppercase letter.'); return }
-    if (!/[0-9]/.test(newPw)) { setPwMsg('Password must contain a number.'); return }
+    if (!currentPw)             { setPwMsg('Current password is required.'); return }
+    if (newPw !== confirmPw)    { setPwMsg('Passwords do not match.'); return }
+    if (newPw.length < 10)      { setPwMsg('Password must be at least 10 characters.'); return }
+    if (!/[A-Z]/.test(newPw))   { setPwMsg('Password must contain an uppercase letter.'); return }
+    if (!/[0-9]/.test(newPw))   { setPwMsg('Password must contain a number.'); return }
     if (!/[^A-Za-z0-9]/.test(newPw)) { setPwMsg('Password must contain a special character.'); return }
 
     setPwSaving(true)
     setPwMsg('')
     const supabase = createClient()
+
+    const { error: reAuthError } = await supabase.auth.signInWithPassword({
+      email: initialEmail,
+      password: currentPw,
+    })
+    if (reAuthError) {
+      setPwMsg('Current password is incorrect.')
+      setPwSaving(false)
+      return
+    }
+
     const { error } = await supabase.auth.updateUser({ password: newPw })
     if (error) {
       setPwMsg(`Error: ${error.message}`)
     } else {
       setPwMsg('Password updated.')
-      setNewPw(''); setConfirmPw('')
+      setCurrentPw(''); setNewPw(''); setConfirmPw('')
     }
     setPwSaving(false)
   }
@@ -194,6 +207,16 @@ export function SettingsClient({
       <section className="rounded-md border border-[#E2E8F0] bg-white p-6">
         <h2 className="text-lg font-semibold text-[#0F1F3D] mb-5">Change password</h2>
         <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-[#134E4A] mb-1.5">Current password</label>
+            <input
+              type="password"
+              value={currentPw}
+              onChange={(e) => setCurrentPw(e.target.value)}
+              className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
+              placeholder="Enter current password"
+            />
+          </div>
           <div>
             <label className="block text-sm font-medium text-[#134E4A] mb-1.5">New password</label>
             <input
