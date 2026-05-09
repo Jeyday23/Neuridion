@@ -30,14 +30,24 @@ export async function createProfile(
   let ifuStoragePath: string | null = null
   const ifuFile = formData.get('ifu_file') as File | null
   if (ifuFile && ifuFile.size > 0) {
-    const ext = ifuFile.name.split('.').pop()
+    const ALLOWED_EXTENSIONS = ['pdf', 'doc', 'docx']
+    const MAX_FILE_SIZE = 10 * 1024 * 1024
+
+    const ext = (ifuFile.name.split('.').pop() ?? '').toLowerCase()
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      return { error: 'Only PDF and Word documents are allowed for IFU uploads.' }
+    }
+    if (ifuFile.size > MAX_FILE_SIZE) {
+      return { error: 'File size must not exceed 10 MB.' }
+    }
+
     const path = `${user.id}/${crypto.randomUUID()}.${ext}`
     const { error: uploadError } = await supabase.storage
       .from('ifu-documents')
       .upload(path, ifuFile, { contentType: ifuFile.type, upsert: false })
 
     if (uploadError) {
-      return { error: `IFU upload failed: ${uploadError.message}` }
+      return { error: 'IFU upload failed. Please try again.' }
     }
     ifuStoragePath = path
   }
