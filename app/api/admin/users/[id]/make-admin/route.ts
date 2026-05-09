@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAuditEvent } from '@/lib/audit'
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const caller = await checkIsAdmin()
@@ -20,5 +21,11 @@ export async function POST(
     console.error('[admin:make-admin]', error.message)
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
   }
+
+  await logAuditEvent(caller.id, 'admin_action', {
+    action: 'make_admin',
+    target_user_id: id,
+  }, req)
+
   return NextResponse.json({ ok: true })
 }

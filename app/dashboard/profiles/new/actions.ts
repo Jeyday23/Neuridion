@@ -53,7 +53,8 @@ export async function createProfile(
   })
 
   if (error) {
-    return { error: error.message }
+    console.error('[profiles:create]', error.message)
+    return { error: 'Something went wrong. Please try again.' }
   }
 
   redirect('/dashboard/profiles')

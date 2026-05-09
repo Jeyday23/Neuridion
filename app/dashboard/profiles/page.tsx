@@ -40,7 +40,7 @@ export default async function ProfilesPage() {
 
       {error && (
         <p className="text-sm text-[#DC2626] bg-[rgba(220,38,38,0.06)] border border-[rgba(220,38,38,0.2)] rounded px-4 py-3">
-          {error.message}
+          Unable to load profiles. Please try again later.
         </p>
       )}
 

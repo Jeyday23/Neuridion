@@ -24,8 +24,8 @@ export default async function SettingsPage() {
       {userData?.deletion_requested_at && (
         <div className="mb-6 rounded-lg bg-red-50 border border-red-200 px-5 py-4">
           <p className="text-sm font-semibold text-red-800">
-            Your account is scheduled for deletion on{' '}
-            {new Date(userData.deleted_at!).toLocaleDateString('en-GB')}.
+            Your account is scheduled for deletion
+            {userData.deleted_at ? ` on ${new Date(userData.deleted_at).toLocaleDateString('en-GB')}` : ''}.
           </p>
           <p className="text-xs text-red-700 mt-1">
             Log in before that date and cancel below to keep your account.

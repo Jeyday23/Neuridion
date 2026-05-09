@@ -40,17 +40,17 @@ export async function POST(request: Request) {
     })
 
     if (error) {
-      console.error('Failed to save feedback:', error)
-      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+      console.error('[feedback] insert failed:', error?.message)
+      return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
     }
 
     sendFeedbackNotification(validated).catch((err) =>
-      console.error('Failed to send feedback email:', err)
+      console.error('[feedback] email failed:', err instanceof Error ? err.message : 'Unknown')
     )
 
     return NextResponse.json({ success: true })
   } catch (err) {
-    console.error('Feedback API error:', err)
+    console.error('[feedback] error:', err instanceof Error ? err.message : 'Unknown')
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
 }

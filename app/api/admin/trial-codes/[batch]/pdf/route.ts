@@ -2,6 +2,10 @@ import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import QRCode from 'qrcode'
 
+function escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 const BASE_URL = (
   process.env.NEXT_PUBLIC_SITE_URL ??
   process.env.NEXT_PUBLIC_APP_URL ??
@@ -54,7 +58,7 @@ export async function GET(
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Trial Codes — ${batchName}</title>
+  <title>Trial Codes — ${escHtml(batchName)}</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, Helvetica, Arial, sans-serif; background: #fff; }
@@ -101,12 +105,12 @@ export async function GET(
 </head>
 <body>
   <div class="no-print" style="padding:8px 16px;background:#f3f4f6;border-bottom:1px solid #d1d5db;font-size:13px;color:#374151;">
-    <strong>${batchName}</strong> — ${codes.length} unredeemed codes.
+    <strong>${escHtml(batchName)}</strong> — ${codes.length} unredeemed codes.
     <button onclick="window.print()" style="margin-left:12px;padding:4px 14px;background:#2563eb;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;">
       Print / Save PDF
     </button>
   </div>
-  <h1>Neuridion — Trial Codes | Batch: ${batchName} | ${new Date().toLocaleDateString('en-GB')}</h1>
+  <h1>Neuridion — Trial Codes | Batch: ${escHtml(batchName)} | ${new Date().toLocaleDateString('en-GB')}</h1>
   <div class="grid">
     ${codeBlocks.join('\n')}
   </div>

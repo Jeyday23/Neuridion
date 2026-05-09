@@ -498,8 +498,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     }
   }
 
-  async function saveProfileAndDraft() { await saveDraft('Draft saved') }
-
   async function handleFiles(files: FileList | File[]) {
     const sb = createClient()
     const { data: { user: authUser } } = await sb.auth.getUser()

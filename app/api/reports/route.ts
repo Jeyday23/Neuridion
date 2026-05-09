@@ -183,14 +183,14 @@ function buildReportHtml(
       const rationale = isAppendix && raw.length > 120 ? raw.slice(0, 120) + '…' : raw
       if (isAppendix) {
         return `<tr style="background-color:${rowBg};">
-          <td><a href="${r.source_url}" style="color:#1a1a2e;text-decoration:none;">${escHtml(r.title)}</a></td>
+          <td><a href="${safeHref(r.source_url)}" style="color:#1a1a2e;text-decoration:none;">${escHtml(r.title)}</a></td>
           <td>${escHtml(r.manufacturer || '—')}</td>
           <td style="white-space:nowrap;">${fmtDate(r.fsn_date)}</td>
           <td style="font-size:7.5pt;color:#555;">${escHtml(rationale)}</td>
         </tr>`
       }
       return `<tr style="background-color:${rowBg};">
-        <td><a href="${r.source_url}" style="color:#1a1a2e;text-decoration:none;">${escHtml(r.title)}</a></td>
+        <td><a href="${safeHref(r.source_url)}" style="color:#1a1a2e;text-decoration:none;">${escHtml(r.title)}</a></td>
         <td>${escHtml(r.manufacturer || '—')}</td>
         <td style="white-space:nowrap;">${fmtDate(r.fsn_date)}</td>
         <td>${escHtml(fmtSourceDb(r.source_db))}</td>
@@ -372,6 +372,15 @@ function escHtml(str: string | null | undefined): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+function safeHref(url: string | null | undefined): string {
+  if (!url) return '#'
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return url
+  } catch { /* malformed URL */ }
+  return '#'
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────

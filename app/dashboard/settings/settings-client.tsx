@@ -34,7 +34,6 @@ export function SettingsClient({
   const [infoSaving,  setInfoSaving]  = useState(false)
 
   // Password
-  const [currentPw,  setCurrentPw]  = useState('')
   const [newPw,      setNewPw]      = useState('')
   const [confirmPw,  setConfirmPw]  = useState('')
   const [pwMsg,      setPwMsg]      = useState('')
@@ -81,7 +80,7 @@ export function SettingsClient({
       setPwMsg(`Error: ${error.message}`)
     } else {
       setPwMsg('Password updated.')
-      setCurrentPw(''); setNewPw(''); setConfirmPw('')
+      setNewPw(''); setConfirmPw('')
     }
     setPwSaving(false)
   }
@@ -195,16 +194,6 @@ export function SettingsClient({
       <section className="rounded-md border border-[#E2E8F0] bg-white p-6">
         <h2 className="text-lg font-semibold text-[#0F1F3D] mb-5">Change password</h2>
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-[#134E4A] mb-1.5">Current password</label>
-            <input
-              type="password"
-              value={currentPw}
-              onChange={(e) => setCurrentPw(e.target.value)}
-              className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
-              placeholder="••••••••••"
-            />
-          </div>
           <div>
             <label className="block text-sm font-medium text-[#134E4A] mb-1.5">New password</label>
             <input
