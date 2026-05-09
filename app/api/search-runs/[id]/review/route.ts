@@ -45,7 +45,11 @@ export async function PATCH(
     .single()
 
   if (!existing) {
-    return Response.json({ error: 'Run not found' }, { status: 404 })
+    return Response.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  if (existing.user_id !== user.id) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const allowed = VALID_TRANSITIONS[existing.review_status]
