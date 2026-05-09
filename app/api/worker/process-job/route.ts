@@ -90,7 +90,7 @@ async function handler(req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  if (process.env.NODE_ENV === 'development') return handler(req)
+  if (process.env.ENABLE_DEV_WORKER_BYPASS === 'true') return handler(req)
   const { verifySignatureAppRouter } = await import('@upstash/qstash/nextjs')
   return verifySignatureAppRouter(handler)(req)
 }
