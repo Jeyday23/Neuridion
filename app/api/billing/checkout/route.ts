@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { stripe } from '@/lib/stripe'
+import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 // Derived at startup from env — same source of truth as planFromPriceId() in lib/plans.ts.
@@ -24,6 +25,11 @@ export async function POST(request: Request) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = rateLimit(`checkout:${user.id}`, 5, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   let rawBody: unknown

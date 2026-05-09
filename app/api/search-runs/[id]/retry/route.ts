@@ -1,5 +1,6 @@
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { rateLimit } from '@/lib/rate-limit'
 import { type SearchJobPayload } from '@/lib/pipeline/run-search'
 import { type QStashJobMessage } from '@/app/api/worker/process-job/route'
 import { Client } from '@upstash/qstash'
@@ -15,6 +16,11 @@ export async function POST(
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = rateLimit(`retry:${user.id}`, 5, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many retry requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   // Verify ownership and current status

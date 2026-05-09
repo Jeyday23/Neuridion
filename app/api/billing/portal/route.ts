@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { stripe } from '@/lib/stripe'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(_request: Request) {
   const supabase = await createClient()
@@ -7,6 +8,11 @@ export async function POST(_request: Request) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = rateLimit(`portal:${user.id}`, 5, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   const { data: userData } = await supabase
