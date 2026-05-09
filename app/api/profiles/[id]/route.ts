@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 import type { Json, Database } from '@/types/supabase'
+import { logAuditEvent } from '@/lib/audit'
 
 const DEVICE_CLASSES = ['Class I', 'Class IIa', 'Class IIb', 'Class III'] as const
 
@@ -101,7 +102,12 @@ export async function PATCH(
     .single()
 
   if (updateError) {
-    return Response.json({ error: updateError.message }, { status: 500 })
+    console.error('[profiles/update]', updateError.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
+  }
+
+  if (Object.keys(changedFields).length > 0) {
+    await logAuditEvent(user.id, 'profile_updated', { profile_id: id, changed_fields: changedFields }, request)
   }
 
   return Response.json(updated)
@@ -139,7 +145,8 @@ export async function DELETE(
     .eq('profile_id', id)
 
   if (runsError) {
-    return Response.json({ error: runsError.message }, { status: 500 })
+    console.error('[profiles/delete]', runsError.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   if (runs && runs.length > 0) {
@@ -150,7 +157,8 @@ export async function DELETE(
       .in('search_run_id', runIds)
 
     if (unlinkError) {
-      return Response.json({ error: unlinkError.message }, { status: 500 })
+      console.error('[profiles/delete]', unlinkError.message)
+      return Response.json({ error: 'Something went wrong' }, { status: 500 })
     }
   }
 
@@ -163,8 +171,11 @@ export async function DELETE(
     .single()
 
   if (deleteError || !deleted) {
-    return Response.json({ error: deleteError?.message ?? 'Unable to delete profile' }, { status: 500 })
+    console.error('[profiles/delete]', deleteError?.message ?? 'Unable to delete profile')
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
+
+  await logAuditEvent(user.id, 'profile_deleted', { profile_id: id }, _request)
 
   return Response.json({ deleted: true })
 }

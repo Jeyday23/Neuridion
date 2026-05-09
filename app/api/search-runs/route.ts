@@ -5,6 +5,7 @@ import { type SearchJobPayload } from '@/lib/pipeline/run-search'
 import { type QStashJobMessage } from '@/app/api/worker/process-job/route'
 import { Client } from '@upstash/qstash'
 import { z } from 'zod'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 // POST enqueues to QStash and returns in <200ms — pipeline runs in process-job worker
 export const maxDuration = 30
@@ -38,6 +39,12 @@ const SearchRunBodySchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request)
+  const rl = rateLimit(`search-runs:${ip}`, 10, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
+
   const supabase = await createClient()
   const db       = createAdminClient()
 
@@ -112,7 +119,8 @@ export async function POST(request: Request) {
     .select()
     .single()
   if (runError) {
-    return Response.json({ error: runError.message }, { status: 500 })
+    console.error('[search-runs]', runError.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   const jobPayload: SearchJobPayload = {

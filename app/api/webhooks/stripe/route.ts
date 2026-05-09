@@ -27,7 +27,8 @@ export async function POST(request: Request) {
   try {
     event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET)
   } catch (err) {
-    return Response.json({ error: `Webhook signature verification failed: ${String(err)}` }, { status: 400 })
+    console.error('[stripe-webhook]', String(err))
+    return Response.json({ error: 'Invalid webhook signature' }, { status: 400 })
   }
 
   const supabase = createAdminClient()

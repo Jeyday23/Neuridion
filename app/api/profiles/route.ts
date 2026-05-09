@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { z } from 'zod'
+import { logAuditEvent } from '@/lib/audit'
 
 const CreateProfileSchema = z.object({
   device_name:  z.string().min(1).max(200),
@@ -93,6 +94,8 @@ export async function POST(request: Request) {
     console.error('[profiles:POST]', error.message)
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
+
+  await logAuditEvent(user.id, 'profile_created', { profile_id: data.id, device_name }, request)
 
   return Response.json(data, { status: 201 })
 }

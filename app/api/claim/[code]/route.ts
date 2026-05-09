@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { randomBytes } from 'crypto'
 import { logAuditEvent } from '@/lib/audit'
 import { z } from 'zod'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 const ClaimSchema = z.object({
   email: z.email({ pattern: z.regexes.html5Email }),
@@ -15,6 +16,12 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ code: string }> }
 ) {
+  const ip = getClientIp(request)
+  const rl = rateLimit(`claim:${ip}`, 5, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
+
   const { code } = await params
 
   let body: unknown

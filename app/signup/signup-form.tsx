@@ -131,6 +131,22 @@ export function SignupForm() {
         </p>
       </div>
 
+      <div className="flex items-start gap-2">
+        <input
+          id="consent"
+          name="consent"
+          type="checkbox"
+          required
+          className="mt-1 h-4 w-4 rounded border-[#E2E8F0] text-[#0D9488] focus:ring-[#0D9488]"
+        />
+        <label htmlFor="consent" className="text-xs text-[#134E4A] leading-relaxed">
+          I agree to the{' '}
+          <a href="/terms" target="_blank" className="underline hover:text-[#0F1F3D]">Terms of Service</a>
+          {' '}and{' '}
+          <a href="/privacy" target="_blank" className="underline hover:text-[#0F1F3D]">Privacy Policy</a>.
+        </label>
+      </div>
+
       {state?.error && (
         <p className="rounded bg-[rgba(220,38,38,0.06)] border border-[rgba(220,38,38,0.2)] px-3.5 py-2.5 text-sm text-[#DC2626]">
           {state.error}

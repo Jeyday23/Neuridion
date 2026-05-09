@@ -718,6 +718,41 @@ export type Database = {
         }
         Relationships: []
       }
+      reports: {
+        Row: {
+          id: string
+          run_id: string
+          user_id: string
+          pdf_storage_path: string | null
+          excel_storage_path: string | null
+          generated_at: string
+        }
+        Insert: {
+          id?: string
+          run_id: string
+          user_id: string
+          pdf_storage_path?: string | null
+          excel_storage_path?: string | null
+          generated_at?: string
+        }
+        Update: {
+          id?: string
+          run_id?: string
+          user_id?: string
+          pdf_storage_path?: string | null
+          excel_storage_path?: string | null
+          generated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "search_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           company_name: string | null
@@ -725,6 +760,7 @@ export type Database = {
           consent_privacy_at: string | null
           consent_terms_at: string | null
           created_at: string
+          current_period_end: string | null
           deleted_at: string | null
           deletion_requested_at: string | null
           email: string
@@ -732,6 +768,10 @@ export type Database = {
           id: string
           plan: string
           role: string
+          stripe_customer_id: string | null
+          stripe_price_id: string | null
+          stripe_subscription_id: string | null
+          subscription_status: string
         }
         Insert: {
           company_name?: string | null
@@ -739,6 +779,7 @@ export type Database = {
           consent_privacy_at?: string | null
           consent_terms_at?: string | null
           created_at?: string
+          current_period_end?: string | null
           deleted_at?: string | null
           deletion_requested_at?: string | null
           email: string
@@ -746,6 +787,10 @@ export type Database = {
           id: string
           plan?: string
           role?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string
         }
         Update: {
           company_name?: string | null
@@ -753,6 +798,7 @@ export type Database = {
           consent_privacy_at?: string | null
           consent_terms_at?: string | null
           created_at?: string
+          current_period_end?: string | null
           deleted_at?: string | null
           deletion_requested_at?: string | null
           email?: string
@@ -760,6 +806,10 @@ export type Database = {
           id?: string
           plan?: string
           role?: string
+          stripe_customer_id?: string | null
+          stripe_price_id?: string | null
+          stripe_subscription_id?: string | null
+          subscription_status?: string
         }
         Relationships: []
       }

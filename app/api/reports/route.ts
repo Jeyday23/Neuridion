@@ -4,6 +4,7 @@ import { z } from 'zod'
 import ExcelJS from 'exceljs'
 import { generatePdfFromHtml, canGeneratePdf, incrementPdfUsage } from '@/lib/pdfshift'
 import { logAuditEvent } from '@/lib/audit'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -376,6 +377,12 @@ function escHtml(str: string | null | undefined): string {
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request)
+  const rl = rateLimit(`reports:${ip}`, 5, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
+
   const supabase = await createClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -431,7 +438,8 @@ export async function POST(request: Request) {
     .order('fsn_date', { ascending: false })
 
   if (resultsError) {
-    return Response.json({ error: resultsError.message }, { status: 500 })
+    console.error('[reports]', resultsError.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   // Fetch filter decisions
@@ -498,8 +506,8 @@ export async function POST(request: Request) {
 
   // ── Create signed URLs (7 days) ─────────────────────────────────────────────
   const [htmlSigned, excelSigned] = await Promise.all([
-    adminStorage.storage.from('reports').createSignedUrl(htmlPath, 60 * 60 * 24 * 7),
-    adminStorage.storage.from('reports').createSignedUrl(excelPath, 60 * 60 * 24 * 7),
+    adminStorage.storage.from('reports').createSignedUrl(htmlPath, 60 * 5),
+    adminStorage.storage.from('reports').createSignedUrl(excelPath, 60 * 5),
   ])
 
   // ── Generate real PDF via PDFShift (quota-guarded) ───────────────────────────
@@ -521,7 +529,7 @@ export async function POST(request: Request) {
       if (!pdfUploadErr) {
         const { data: pdfSigned } = await adminStorage.storage
           .from('reports')
-          .createSignedUrl(pdfPath, 60 * 60 * 24 * 7)
+          .createSignedUrl(pdfPath, 60 * 5)
 
         pdfUrl = pdfSigned?.signedUrl ?? null
         pdfStatus = 'generated'

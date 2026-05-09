@@ -43,7 +43,8 @@ export async function POST(
     .single()
 
   if (updateError || !cancelled) {
-    return Response.json({ error: updateError?.message ?? 'Unable to cancel run' }, { status: 500 })
+    console.error('[search-runs/cancel]', updateError?.message ?? 'Unable to cancel run')
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   return Response.json({ run_id: cancelled.id, status: 'cancelled' })

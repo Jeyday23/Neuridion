@@ -35,8 +35,8 @@ export async function GET(
     .order('fsn_date', { ascending: false })
 
   if (resultsError) {
-    console.error(`[get-run] fsn_results error: ${resultsError.message}`)
-    return Response.json({ error: resultsError.message }, { status: 500 })
+    console.error('[search-runs/get]', resultsError.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   // Fetch filter decisions — query by search_run_id directly (reliable single-step lookup)
@@ -114,7 +114,8 @@ export async function DELETE(
     .eq('search_run_id', id)
 
   if (unlinkError) {
-    return Response.json({ error: unlinkError.message }, { status: 500 })
+    console.error('[search-runs/delete]', unlinkError.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   const { data: deleted, error: deleteError } = await db
@@ -126,7 +127,8 @@ export async function DELETE(
     .single()
 
   if (deleteError || !deleted) {
-    return Response.json({ error: deleteError?.message ?? 'Unable to delete search run' }, { status: 500 })
+    console.error('[search-runs/delete]', deleteError?.message ?? 'Unable to delete search run')
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   return Response.json({ deleted: true })

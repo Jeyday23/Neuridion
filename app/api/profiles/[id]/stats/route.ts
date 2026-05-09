@@ -32,7 +32,8 @@ export async function GET(
     .eq('profile_id', id)
 
   if (countError) {
-    return Response.json({ error: countError.message }, { status: 500 })
+    console.error('[profiles/stats]', countError.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   return Response.json({ search_run_count: count ?? 0 })

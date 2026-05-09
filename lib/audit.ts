@@ -13,6 +13,9 @@ type AuditEventType =
   | 'password_changed'
   | 'admin_action'
   | 'prrc_review_completed'
+  | 'profile_created'
+  | 'profile_updated'
+  | 'profile_deleted'
 
 export async function logAuditEvent(
   userId: string | null,

@@ -25,10 +25,10 @@ export async function GET(
 
   const [pdfSigned, excelSigned] = await Promise.all([
     report.pdf_storage_path
-      ? supabase.storage.from('reports').createSignedUrl(report.pdf_storage_path, 3600)
+      ? supabase.storage.from('reports').createSignedUrl(report.pdf_storage_path, 300)
       : Promise.resolve({ data: null }),
     report.excel_storage_path
-      ? supabase.storage.from('reports').createSignedUrl(report.excel_storage_path, 3600)
+      ? supabase.storage.from('reports').createSignedUrl(report.excel_storage_path, 300)
       : Promise.resolve({ data: null }),
   ])
 

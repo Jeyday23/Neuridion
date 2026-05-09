@@ -69,7 +69,8 @@ export async function PATCH(
     .single()
 
   if (error || !updated) {
-    return Response.json({ error: error?.message ?? 'Update failed' }, { status: 500 })
+    console.error('[search-runs/review]', error?.message ?? 'Update failed')
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   await logAuditEvent(user.id, 'prrc_review_completed', {

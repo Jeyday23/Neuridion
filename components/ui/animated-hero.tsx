@@ -55,10 +55,8 @@ function Hero() {
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl leading-relaxed text-[#134E4A] max-w-2xl text-center mx-auto font-medium">
-              Neuridion searches four regulatory databases, filters Field Safety
-              Notices against your device profiles, and generates audit-ready
-              reports — so your PRRC can focus on decisions, not data collection.
+            <p className="text-lg md:text-xl leading-relaxed text-[#134E4A] max-w-xl text-center mx-auto font-medium">
+              Search four regulatory databases, filter Field Safety Notices with AI, and export audit-ready reports — in minutes.
             </p>
           </div>
           <div className="flex flex-row gap-3">
@@ -69,16 +67,9 @@ function Hero() {
               Start 14-day free trial
               <ArrowRight className="w-4 h-4" />
             </Link>
-            <a
-              href="mailto:info.kodex.medical@gmail.com"
-              className="inline-flex items-center gap-2 px-6 py-3 border-2 border-[#0D9488] text-[#134E4A] rounded font-semibold hover:bg-[#F0FDFA] transition-colors text-sm"
-            >
-              Request a demo
-            </a>
           </div>
-          <p className="text-sm text-[#115E59] font-medium">
-            No credit card required &middot; 14-day trial on all plans &middot; Cancel
-            anytime
+          <p className="text-xs text-[#0F766E]">
+            No credit card required &middot; Cancel anytime
           </p>
         </div>
       </div>

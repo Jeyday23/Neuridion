@@ -501,17 +501,21 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   async function saveProfileAndDraft() { await saveDraft('Draft saved') }
 
   async function handleFiles(files: FileList | File[]) {
+    const sb = createClient()
+    const { data: { user: authUser } } = await sb.auth.getUser()
+    if (!authUser) { showToast('Please sign in to upload files', 'error'); return }
+
     for (const file of Array.from(files)) {
       if (file.size > 10 * 1024 * 1024) { showToast(`${file.name} exceeds 10 MB limit`, 'error'); continue }
       const key  = `${Date.now()}_${Math.random().toString(36).slice(2)}`
       const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `uploads/${key}_${safe}`
+      const path = `${authUser.id}/${key}_${safe}`
       setUploadedFiles((prev) => [...prev, { key, name: file.name, path, status: 'uploading' }])
       try {
-        const { error } = await createClient().storage.from('search-attachments').upload(path, file)
+        const { error } = await sb.storage.from('search-attachments').upload(path, file)
         setUploadedFiles((prev) => prev.map((f) => f.key === key ? { ...f, status: error ? 'error' : 'done' } : f))
         if (error) showToast(`Upload failed: ${file.name}`, 'error')
-      } catch (err) {
+      } catch {
         setUploadedFiles((prev) => prev.map((f) => f.key === key ? { ...f, status: 'error' } : f))
         showToast(`Upload failed: ${file.name}`, 'error')
       }

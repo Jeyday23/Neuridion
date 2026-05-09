@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { checkLoginRateLimit, recordLoginAttempt } from '@/lib/rate-limit'
 import { logAuditEvent } from '@/lib/audit'
 
@@ -25,9 +26,14 @@ export async function signup(
   const password    = formData.get('password') as string
   const fullName    = (formData.get('full_name') as string)?.trim()
   const companyName = (formData.get('company_name') as string)?.trim()
+  const consent     = formData.get('consent')
 
   if (!email || !password || !fullName || !companyName) {
     return { error: 'All fields are required.' }
+  }
+
+  if (!consent) {
+    return { error: 'You must agree to the Terms of Service and Privacy Policy.' }
   }
 
   const pwError = validatePassword(password)
@@ -61,7 +67,18 @@ export async function signup(
     return { error: error.message }
   }
 
-  await logAuditEvent(data.user?.id ?? null, 'signup', { email })
+  if (data.user?.id) {
+    const admin = createAdminClient()
+    await admin
+      .from('users')
+      .update({
+        consent_terms_at:   new Date().toISOString(),
+        consent_privacy_at: new Date().toISOString(),
+      })
+      .eq('id', data.user.id)
+  }
+
+  await logAuditEvent(data.user?.id ?? null, 'signup', { email, consent_given: true })
 
   // session is null when Supabase requires email confirmation
   if (!data.session) {

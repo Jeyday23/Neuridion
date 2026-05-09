@@ -31,3 +31,49 @@ export async function recordLoginAttempt(
   const admin = createAdminClient()
   await admin.from('login_attempts').insert({ ip_address: ip, email, success })
 }
+
+// ---------------------------------------------------------------------------
+// General-purpose in-memory sliding-window rate limiter for API routes
+// ---------------------------------------------------------------------------
+
+const windows = new Map<string, number[]>()
+
+const CLEANUP_INTERVAL = 60_000
+let lastCleanup = Date.now()
+
+function cleanup(now: number, windowMs: number) {
+  if (now - lastCleanup < CLEANUP_INTERVAL) return
+  lastCleanup = now
+  for (const [key, timestamps] of windows) {
+    const fresh = timestamps.filter((t) => now - t < windowMs)
+    if (fresh.length === 0) windows.delete(key)
+    else windows.set(key, fresh)
+  }
+}
+
+export function rateLimit(
+  key: string,
+  maxRequests: number,
+  windowMs: number,
+): { allowed: boolean; retryAfterMs: number } {
+  const now = Date.now()
+  cleanup(now, windowMs)
+
+  const timestamps = windows.get(key) ?? []
+  const recent = timestamps.filter((t) => now - t < windowMs)
+
+  if (recent.length >= maxRequests) {
+    const oldest = recent[0]
+    return { allowed: false, retryAfterMs: windowMs - (now - oldest) }
+  }
+
+  recent.push(now)
+  windows.set(key, recent)
+  return { allowed: true, retryAfterMs: 0 }
+}
+
+export function getClientIp(request: Request): string {
+  const forwarded = request.headers.get('x-forwarded-for')
+  if (forwarded) return forwarded.split(',')[0].trim()
+  return request.headers.get('x-real-ip') ?? '0.0.0.0'
+}

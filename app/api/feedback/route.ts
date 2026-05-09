@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendFeedbackNotification } from '@/lib/email'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 const FeedbackSchema = z.object({
   rating:           z.number().int().min(1).max(5),
@@ -12,6 +13,12 @@ const FeedbackSchema = z.object({
 })
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request)
+  const rl = rateLimit(`feedback:${ip}`, 5, 60_000)
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
+
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
