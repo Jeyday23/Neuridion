@@ -50,6 +50,15 @@ interface UploadedFile {
 
 type FilterTab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
 
+function safeHref(url: string | null | undefined): string {
+  if (!url) return '#'
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return url
+  } catch { /* malformed URL */ }
+  return '#'
+}
+
 // ─── Source label formatter ───────────────────────────────────────────────────
 
 function formatSourceLabel(src: string | null | undefined): string {
@@ -128,7 +137,7 @@ function FsnRow({
         <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full" style={{ backgroundColor: dotColor }} />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <a href={result.source_url} target="_blank" rel="noopener noreferrer"
+            <a href={safeHref(result.source_url)} target="_blank" rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="text-sm font-medium text-zinc-900 hover:text-[#0D9488] hover:underline line-clamp-2">
               {result.title}
@@ -170,7 +179,7 @@ function FsnRow({
             <div className="mt-2 flex items-center gap-4 text-xs text-zinc-500 flex-wrap">
               {d?.confidence != null && <span>Confidence: {Math.round(d.confidence * 100)}%</span>}
               {d?.model && <span>Model: {d.model}</span>}
-              <a href={result.source_url} target="_blank" rel="noopener noreferrer"
+              <a href={safeHref(result.source_url)} target="_blank" rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 className="ml-auto text-[#0D9488] hover:underline text-xs">
                 View source ↗

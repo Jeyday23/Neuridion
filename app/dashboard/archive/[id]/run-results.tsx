@@ -17,6 +17,15 @@ export interface FsnResult {
   } | null
 }
 
+function safeHref(url: string | null | undefined): string {
+  if (!url) return '#'
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return url
+  } catch { /* malformed URL */ }
+  return '#'
+}
+
 type Tab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
 
 function formatSourceLabel(src: string | null | undefined): string {
@@ -64,7 +73,7 @@ function ResultRow({ result }: { result: FsnResult }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <a
-              href={result.source_url ?? '#'}
+              href={safeHref(result.source_url)}
               target="_blank"
               rel="noopener noreferrer"
               className={clsx(
