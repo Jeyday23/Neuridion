@@ -79,6 +79,9 @@ export async function signup(
   }
 
   await logAuditEvent(data.user?.id ?? null, 'signup', { email, consent_given: true })
+  await logAuditEvent(data.user?.id ?? null, 'consent_granted', {
+    consents: ['terms', 'privacy'],
+  })
 
   // session is null when Supabase requires email confirmation
   if (!data.session) {

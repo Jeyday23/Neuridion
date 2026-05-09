@@ -10,6 +10,9 @@ interface Props {
   initialCompanyName: string
   deletionPending:    boolean
   deletionDate:       string | null
+  consentTermsAt:     string | null
+  consentPrivacyAt:   string | null
+  consentCookiesAt:   string | null
 }
 
 export function SettingsClient({
@@ -18,6 +21,9 @@ export function SettingsClient({
   initialCompanyName,
   deletionPending,
   deletionDate,
+  consentTermsAt,
+  consentPrivacyAt,
+  consentCookiesAt,
 }: Props) {
   const router = useRouter()
 
@@ -33,6 +39,11 @@ export function SettingsClient({
   const [confirmPw,  setConfirmPw]  = useState('')
   const [pwMsg,      setPwMsg]      = useState('')
   const [pwSaving,   setPwSaving]   = useState(false)
+
+  // Consent
+  const [consentMsg,       setConsentMsg]       = useState('')
+  const [consentSaving,    setConsentSaving]    = useState(false)
+  const [cookiesConsented, setCookiesConsented]  = useState(!!consentCookiesAt)
 
   // Delete
   const [deleteConfirm,  setDeleteConfirm]  = useState('')
@@ -73,6 +84,27 @@ export function SettingsClient({
       setCurrentPw(''); setNewPw(''); setConfirmPw('')
     }
     setPwSaving(false)
+  }
+
+  // ── Consent withdrawal ────────────────────────────────────────────────────────
+
+  const withdrawCookieConsent = async () => {
+    setConsentSaving(true)
+    setConsentMsg('')
+    const res = await fetch('/api/consent/manage', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ withdraw: ['consent_cookies_at'] }),
+    })
+    const json = await res.json()
+    if (res.ok) {
+      setCookiesConsented(false)
+      document.cookie = 'neuridion_cookie_consent=rejected; path=/; SameSite=Lax; max-age=31536000'
+      setConsentMsg('Cookie consent withdrawn.')
+    } else {
+      setConsentMsg(json.error ?? 'Something went wrong')
+    }
+    setConsentSaving(false)
   }
 
   // ── Data export ──────────────────────────────────────────────────────────────
@@ -223,7 +255,80 @@ export function SettingsClient({
         </button>
       </section>
 
-      {/* 4. Delete account */}
+      {/* 4. Consent management (GDPR Art. 7) */}
+      <section className="rounded-md border border-[#E2E8F0] bg-white p-6">
+        <h2 className="text-lg font-semibold text-[#0F1F3D] mb-2">Consent management</h2>
+        <p className="text-sm text-[#0F766E] mb-5">
+          Under Art. 7 GDPR, you have the right to view and withdraw your consent at any time.
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between rounded border border-[#E2E8F0] px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-[#134E4A]">Terms of Service</p>
+              <p className="text-xs text-[#0F766E]">
+                {consentTermsAt
+                  ? `Accepted on ${new Date(consentTermsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                  : 'Not recorded'}
+              </p>
+            </div>
+            <span className={`text-xs font-medium px-2 py-1 rounded ${consentTermsAt ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
+              {consentTermsAt ? 'Active' : 'None'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded border border-[#E2E8F0] px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-[#134E4A]">Privacy Policy</p>
+              <p className="text-xs text-[#0F766E]">
+                {consentPrivacyAt
+                  ? `Accepted on ${new Date(consentPrivacyAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                  : 'Not recorded'}
+              </p>
+            </div>
+            <span className={`text-xs font-medium px-2 py-1 rounded ${consentPrivacyAt ? 'bg-green-50 text-green-700' : 'bg-zinc-100 text-zinc-500'}`}>
+              {consentPrivacyAt ? 'Active' : 'None'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between rounded border border-[#E2E8F0] px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-[#134E4A]">Optional cookies</p>
+              <p className="text-xs text-[#0F766E]">
+                {consentCookiesAt && cookiesConsented
+                  ? `Accepted on ${new Date(consentCookiesAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                  : 'Not accepted'}
+              </p>
+            </div>
+            {cookiesConsented ? (
+              <button
+                onClick={withdrawCookieConsent}
+                disabled={consentSaving}
+                className="text-xs font-medium px-3 py-1.5 rounded border border-[#E2E8F0] text-[#134E4A] hover:border-red-300 hover:text-red-700 transition-colors disabled:opacity-50"
+              >
+                {consentSaving ? 'Withdrawing...' : 'Withdraw'}
+              </button>
+            ) : (
+              <span className="text-xs font-medium px-2 py-1 rounded bg-zinc-100 text-zinc-500">
+                Not active
+              </span>
+            )}
+          </div>
+
+          {consentMsg && (
+            <p className={`text-sm ${consentMsg.includes('withdrawn') ? 'text-green-700' : 'text-red-600'}`}>
+              {consentMsg}
+            </p>
+          )}
+
+          <p className="text-xs text-[#0F766E]">
+            To withdraw consent for Terms of Service or Privacy Policy, please delete your account below.
+            Withdrawing these consents means we can no longer provide the service.
+          </p>
+        </div>
+      </section>
+
+      {/* 5. Delete account */}
       <section className="rounded-md border border-[rgba(220,38,38,0.2)] bg-white p-6">
         <h2 className="text-lg font-semibold text-red-700 mb-2">Delete account</h2>
         {deletionPending ? (

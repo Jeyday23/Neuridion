@@ -13,7 +13,7 @@ export default async function SettingsPage() {
   const admin = createAdminClient()
   const { data: userData } = await admin
     .from('users')
-    .select('deletion_requested_at, deleted_at')
+    .select('deletion_requested_at, deleted_at, consent_terms_at, consent_privacy_at, consent_cookies_at')
     .eq('id', user.id)
     .single()
 
@@ -39,6 +39,9 @@ export default async function SettingsPage() {
         initialCompanyName={(user.user_metadata?.company_name as string) ?? ''}
         deletionPending={!!userData?.deletion_requested_at}
         deletionDate={userData?.deleted_at ?? null}
+        consentTermsAt={userData?.consent_terms_at ?? null}
+        consentPrivacyAt={userData?.consent_privacy_at ?? null}
+        consentCookiesAt={userData?.consent_cookies_at ?? null}
       />
     </div>
   )
