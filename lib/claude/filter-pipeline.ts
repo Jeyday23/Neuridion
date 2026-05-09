@@ -36,6 +36,26 @@ function markCreditExhausted(err: unknown): void {
     err instanceof Error ? err.message : String(err))
 }
 
+// ── PII sanitisation — strip personal data before sending to third-party AI ──
+
+const PII_PATTERNS: [RegExp, string][] = [
+  [/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '[EMAIL]'],
+  [/\b(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{3,4}\b/g, '[PHONE]'],
+  [/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN]'],
+  [/\b(?:Patient|Reported\s+by|Contact|Name|Complainant)\s*:\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}/gi, '[PII_REDACTED]'],
+  [/\b(?:DOB|Date\s+of\s+Birth)\s*:\s*\S+/gi, '[DOB_REDACTED]'],
+  [/\b(?:MRN|Medical\s+Record\s+Number|Patient\s+ID)\s*:\s*\S+/gi, '[ID_REDACTED]'],
+  [/\b\d{1,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\s+(?:St|Ave|Blvd|Dr|Rd|Ln|Way|Ct|Pl)\b\.?/g, '[ADDRESS]'],
+]
+
+function sanitizePii(text: string): string {
+  let result = text
+  for (const [pattern, replacement] of PII_PATTERNS) {
+    result = result.replace(pattern, replacement)
+  }
+  return result
+}
+
 // ── System prompt ─────────────────────────────────────────────────────────────
 // Target: ~1,200 tokens so the cache_control breakpoint clears the 1,024-token
 // minimum required for claude-sonnet-4-6 prompt caching.
@@ -275,7 +295,7 @@ async function sonnetFullFilter(
     .filter(Boolean)
     .join('\n')
 
-  const content = fsn.raw_content.slice(0, 2000)
+  const content = sanitizePii(fsn.raw_content.slice(0, 2000))
 
   const parsed = await callAnthropicWithRetry(async () => {
     const response = await anthropic.messages.create({

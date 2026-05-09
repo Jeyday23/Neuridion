@@ -772,6 +772,8 @@ export type Database = {
           stripe_price_id: string | null
           stripe_subscription_id: string | null
           subscription_status: string
+          processing_restricted: boolean
+          ai_opt_out: boolean
         }
         Insert: {
           company_name?: string | null
@@ -791,6 +793,8 @@ export type Database = {
           stripe_price_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string
+          processing_restricted?: boolean
+          ai_opt_out?: boolean
         }
         Update: {
           company_name?: string | null
@@ -810,6 +814,8 @@ export type Database = {
           stripe_price_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string
+          processing_restricted?: boolean
+          ai_opt_out?: boolean
         }
         Relationships: []
       }
@@ -829,6 +835,10 @@ export type Database = {
       increment_pdf_usage: {
         Args: { p_month: string; p_user_id: string }
         Returns: undefined
+      }
+      purge_old_login_attempts: {
+        Args: Record<string, never>
+        Returns: number
       }
       merge_coverage_for_source: {
         Args: { p_range_end: string; p_range_start: string; p_source: string }

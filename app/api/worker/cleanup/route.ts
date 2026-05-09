@@ -58,9 +58,26 @@ async function runCleanup(): Promise<{ cleaned: number; run_ids: string[] }> {
   return { cleaned: stuckIds.length, run_ids: stuckIds }
 }
 
+async function purgeLoginAttempts(): Promise<number> {
+  const db = createAdminClient()
+  const { data, error } = await db.rpc('purge_old_login_attempts')
+  if (error) {
+    console.error('[cleanup] purge_old_login_attempts failed:', error.message)
+    return 0
+  }
+  const deleted = typeof data === 'number' ? data : 0
+  if (deleted > 0) {
+    console.error('[lifecycle]', `purged ${deleted} login_attempts older than 90 days`)
+  }
+  return deleted
+}
+
 async function postHandler(_req: Request): Promise<Response> {
-  const result = await runCleanup()
-  return Response.json(result)
+  const [result, loginAttemptsPurged] = await Promise.all([
+    runCleanup(),
+    purgeLoginAttempts(),
+  ])
+  return Response.json({ ...result, login_attempts_purged: loginAttemptsPurged })
 }
 
 export async function POST(req: Request): Promise<Response> {

@@ -40,9 +40,8 @@ export async function PATCH(
 
   const { data: existing } = await db
     .from('search_runs')
-    .select('id, review_status')
+    .select('id, review_status, user_id')
     .eq('id', id)
-    .eq('user_id', user.id)
     .single()
 
   if (!existing) {
@@ -54,6 +53,18 @@ export async function PATCH(
     return Response.json(
       { error: `Cannot transition from '${existing.review_status}' to '${parsed.data.review_status}'.` },
       { status: 422 }
+    )
+  }
+
+  // MDR Art. 83 / EU AI Act Art. 14 — separation of duties:
+  // The person approving a run must differ from the person who initiated it.
+  if (
+    parsed.data.review_status === 'approved' &&
+    user.id === existing.user_id
+  ) {
+    return Response.json(
+      { error: 'The person approving a search run must differ from the person who initiated it (MDR Art. 83 separation of duties).' },
+      { status: 403 }
     )
   }
 
