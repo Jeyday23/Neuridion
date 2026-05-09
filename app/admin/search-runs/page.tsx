@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkIsAdmin } from '@/lib/admin-guard'
+import { redirect } from 'next/navigation'
 
 type RunRow = {
   id: string
@@ -76,6 +78,9 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 export default async function AdminSearchRunsPage() {
+  const caller = await checkIsAdmin()
+  if (!caller) redirect('/dashboard/search')
+
   let runs: RunRow[] = []
   let loadError: string | null = null
   try {

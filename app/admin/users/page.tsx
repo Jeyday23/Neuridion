@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkIsAdmin } from '@/lib/admin-guard'
+import { redirect } from 'next/navigation'
 import { UserActions } from './user-actions'
 
 type UserRow = {
@@ -23,6 +25,9 @@ async function getUsers(): Promise<UserRow[]> {
 }
 
 export default async function AdminUsersPage() {
+  const caller = await checkIsAdmin()
+  if (!caller) redirect('/dashboard/search')
+
   const users = await getUsers()
 
   return (

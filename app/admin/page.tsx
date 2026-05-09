@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkIsAdmin } from '@/lib/admin-guard'
+import { redirect } from 'next/navigation'
 
 async function getStats() {
   const admin = createAdminClient()
@@ -70,6 +72,9 @@ async function getStats() {
 }
 
 export default async function AdminOverviewPage() {
+  const admin = await checkIsAdmin()
+  if (!admin) redirect('/dashboard/search')
+
   const stats = await getStats()
 
   const cards = [
