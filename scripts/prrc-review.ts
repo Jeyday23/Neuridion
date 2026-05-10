@@ -416,12 +416,184 @@ async function testSearch(page: Page): Promise<void> {
     return { detail: 'Run Search button visible' }
   })
 }
-async function testReportGeneration(page: Page): Promise<void> {}
-async function testArchive(page: Page): Promise<void> {}
-async function testSettings(page: Page): Promise<void> {}
-async function testBilling(page: Page): Promise<void> {}
-async function testAdmin(page: Page): Promise<void> {}
-async function testErrorHandling(page: Page): Promise<void> {}
+async function testReportGeneration(page: Page): Promise<void> {
+  const section = 'Report Generation'
+
+  if (page.url().includes('/login')) { skip(section, 'All report tests', 'Not authenticated'); return }
+
+  await test(section, 'Generate Report button exists in archive', page, async () => {
+    await page.goto(`${BASE_URL}/dashboard/archive`, { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(1500)
+    const genBtn = page.locator('text=Generate Report')
+    const downloadBtn = page.locator('text=PDF').or(page.locator('text=Excel'))
+    const hasGen = await genBtn.first().isVisible().catch(() => false)
+    const hasDownload = await downloadBtn.first().isVisible().catch(() => false)
+    if (!hasGen && !hasDownload) throw new Error('Neither Generate Report nor download buttons found')
+    if (hasDownload) return { detail: 'Reports already generated — download links visible' }
+    return { detail: 'Generate Report button visible for completed runs' }
+  })
+
+  await test(section, 'Download links work', page, async () => {
+    await page.goto(`${BASE_URL}/dashboard/archive`, { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(1500)
+    const pdfLink = page.locator('text=PDF').first()
+    const excelLink = page.locator('text=Excel').first()
+    const hasPdf = await pdfLink.isVisible().catch(() => false)
+    const hasExcel = await excelLink.isVisible().catch(() => false)
+    if (!hasPdf && !hasExcel) {
+      return { detail: 'No download links available (no reports generated yet)', suggestion: 'Generate a report first to test downloads' }
+    }
+    return { detail: `Download links available: ${hasPdf ? 'PDF' : ''} ${hasExcel ? 'Excel' : ''}`.trim() }
+  })
+}
+async function testArchive(page: Page): Promise<void> {
+  const section = 'Archive'
+
+  await page.goto(`${BASE_URL}/dashboard/archive`, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1500)
+  if (page.url().includes('/login')) { skip(section, 'All archive tests', 'Not authenticated'); return }
+
+  await test(section, 'Archive table renders', page, async () => {
+    const table = page.locator('table').or(page.locator('[class*="archive"]'))
+    if (!(await table.first().isVisible().catch(() => false))) throw new Error('Archive table not visible')
+    return { detail: 'Archive table rendered' }
+  })
+
+  await test(section, 'Table has expected columns', page, async () => {
+    const expectedCols = ['Date', 'Profile', 'Period', 'Status', 'Results', 'Report', 'Actions']
+    const found: string[] = []
+    for (const col of expectedCols) {
+      const th = page.locator(`th:has-text("${col}")`).or(page.locator(`text=${col}`))
+      if (await th.first().isVisible().catch(() => false)) found.push(col)
+    }
+    if (found.length < 4) throw new Error(`Only found ${found.length} columns: ${found.join(', ')}`)
+    return { detail: `${found.length}/${expectedCols.length} columns: ${found.join(', ')}` }
+  })
+
+  await test(section, 'View Results link works', page, async () => {
+    const viewLink = page.locator('text=View Results').first()
+    if (!(await viewLink.isVisible().catch(() => false))) throw new Error('No View Results link found')
+    await viewLink.click()
+    await page.waitForTimeout(1500)
+    const url = page.url()
+    if (!url.includes('/dashboard/archive/')) throw new Error(`Expected archive detail URL, got: ${url}`)
+    return { detail: `Navigated to ${url}` }
+  })
+
+  await test(section, 'Archive detail page renders results', page, async () => {
+    const resultCards = page.locator('[class*="border"]').filter({ hasText: /Relevant|Excluded|Uncertain|Malfunction|Death/ })
+    const count = await resultCards.count()
+    if (count === 0) {
+      const noResults = page.locator('text=No FSN results')
+      if (await noResults.first().isVisible().catch(() => false)) return { detail: 'No results for this run (empty state)' }
+      throw new Error('Neither results nor empty state found on detail page')
+    }
+    return { detail: `${count} result cards rendered` }
+  })
+}
+async function testSettings(page: Page): Promise<void> {
+  const section = 'Settings'
+
+  await page.goto(`${BASE_URL}/dashboard/settings`, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1000)
+  if (page.url().includes('/login')) { skip(section, 'All settings tests', 'Not authenticated'); return }
+
+  await test(section, 'Settings page loads', page, async () => {
+    const heading = page.locator('text=Settings').or(page.locator('text=Account'))
+    if (!(await heading.first().isVisible().catch(() => false))) throw new Error('Settings heading not visible')
+    return { detail: 'Settings page rendered' }
+  })
+
+  await test(section, 'Password change form renders', page, async () => {
+    const pwInput = page.locator('input[type="password"]')
+    const count = await pwInput.count()
+    if (count < 2) throw new Error(`Expected 2+ password inputs, found ${count}`)
+    return { detail: `${count} password input fields rendered` }
+  })
+
+  await test(section, 'GDPR section visible', page, async () => {
+    const gdpr = page.locator('text=Export').or(page.locator('text=Delete Account')).or(page.locator('text=Data'))
+    if (!(await gdpr.first().isVisible().catch(() => false))) throw new Error('GDPR section not found')
+    return { detail: 'GDPR data export / account deletion section visible' }
+  })
+}
+async function testBilling(page: Page): Promise<void> {
+  const section = 'Billing'
+
+  await page.goto(`${BASE_URL}/dashboard/billing`, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1000)
+  if (page.url().includes('/login')) { skip(section, 'All billing tests', 'Not authenticated'); return }
+
+  await test(section, 'Billing page loads', page, async () => {
+    const heading = page.locator('text=Billing').or(page.locator('text=Subscription')).or(page.locator('text=Plan'))
+    if (!(await heading.first().isVisible().catch(() => false))) throw new Error('Billing heading not visible')
+    return { detail: 'Billing page rendered' }
+  })
+
+  await test(section, 'Current plan displayed', page, async () => {
+    const plan = page.locator('text=Free').or(page.locator('text=Trial')).or(page.locator('text=Starter')).or(page.locator('text=Pro'))
+    if (!(await plan.first().isVisible().catch(() => false))) throw new Error('Current plan label not found')
+    const text = await plan.first().textContent()
+    return { detail: `Current plan: ${text}` }
+  })
+
+  await test(section, 'Enterprise contact link', page, async () => {
+    const mailto = page.locator('a[href*="mailto:info@neuridion.eu"]')
+    if (!(await mailto.first().isVisible().catch(() => false))) throw new Error('Enterprise mailto link not found')
+    return { detail: 'Enterprise tier contact email link present' }
+  })
+}
+async function testAdmin(page: Page): Promise<void> {
+  const section = 'Admin Panel'
+
+  await page.goto(`${BASE_URL}/admin`, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1500)
+
+  if (page.url().includes('/login')) { skip(section, 'All admin tests', 'Not authenticated'); return }
+  if (page.url().includes('/dashboard')) { skip(section, 'All admin tests', 'Test account is not admin'); return }
+
+  await test(section, 'Admin overview loads', page, async () => {
+    const heading = page.locator('text=Admin').or(page.locator('text=Overview'))
+    if (!(await heading.first().isVisible().catch(() => false))) throw new Error('Admin heading not visible')
+    return { detail: 'Admin overview page rendered' }
+  })
+
+  await test(section, 'User management table', page, async () => {
+    await page.goto(`${BASE_URL}/admin/users`, { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(1000)
+    const table = page.locator('table')
+    if (!(await table.first().isVisible().catch(() => false))) throw new Error('Users table not visible')
+    return { detail: 'User management table rendered' }
+  })
+}
+async function testErrorHandling(page: Page): Promise<void> {
+  const section = 'Error Handling'
+
+  await test(section, '404 page for invalid route', page, async () => {
+    const res = await page.goto(`${BASE_URL}/this-page-does-not-exist-xyz`, { waitUntil: 'domcontentloaded' })
+    const status = res?.status() ?? 0
+    const body = await page.locator('body').textContent()
+    if (status === 404 || body?.includes('404') || body?.toLowerCase().includes('not found')) {
+      return { detail: `404 handled (HTTP ${status})` }
+    }
+    return { detail: `Returned HTTP ${status}`, suggestion: 'Consider adding a custom 404 page' }
+  })
+
+  await test(section, 'Rate limit returns 429', page, async () => {
+    const responses: number[] = []
+    for (let i = 0; i < 12; i++) {
+      const res = await page.request.post(`${BASE_URL}/api/auth/otp`, {
+        data: JSON.stringify({ action: 'send', email: 'ratelimit-test@example.com' }),
+        headers: { 'Content-Type': 'application/json' },
+      })
+      responses.push(res.status())
+      if (res.status() === 429) break
+    }
+    const got429 = responses.includes(429)
+    if (!got429) return { detail: `Sent ${responses.length} requests, no 429 received`, suggestion: 'Rate limiting may not be triggered with only 12 requests' }
+    return { detail: `Rate limit triggered after ${responses.indexOf(429) + 1} requests` }
+  })
+}
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
