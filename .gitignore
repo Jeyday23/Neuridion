@@ -64,3 +64,6 @@ next-env.d.ts
 # Claude Code local settings (may contain credentials)
 .claude/settings.json
 .claude/settings.local.json
+
+# PRRC review agent screenshots
+docs/prrc-review/screenshots/
