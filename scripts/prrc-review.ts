@@ -274,7 +274,7 @@ async function testAuth(page: Page, browser: Browser): Promise<void> {
 
   await test(section, 'Session-based login bypass', page, async () => {
     const { data: users } = await adminDb.auth.admin.listUsers()
-    const testUser = users?.users?.find((u) => u.email === TEST_EMAIL)
+    const testUser = users?.users?.find((u: { email?: string }) => u.email === TEST_EMAIL)
     if (!testUser) throw new Error(`Test user ${TEST_EMAIL} not found in Supabase`)
 
     await page.goto(`${BASE_URL}/dashboard/search`, { waitUntil: 'domcontentloaded' })
