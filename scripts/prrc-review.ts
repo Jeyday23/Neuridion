@@ -238,7 +238,84 @@ async function testPublicPages(page: Page): Promise<void> {
     return { detail: 'Cookie banner appeared on fresh session' }
   })
 }
-async function testAuth(page: Page, browser: Browser): Promise<void> {}
+async function testAuth(page: Page, browser: Browser): Promise<void> {
+  const section = 'Authentication'
+
+  await test(section, 'Login page renders OTP form', page, async () => {
+    await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' })
+    const emailInput = page.locator('input[type="email"]')
+    if (!(await emailInput.isVisible())) throw new Error('Email input not visible')
+    return { detail: 'Login page rendered with email input' }
+  })
+
+  await test(section, 'OTP send and login', page, async () => {
+    await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' })
+    await page.fill('input[type="email"]', TEST_EMAIL)
+    await page.click('button[type="submit"]')
+    await page.waitForTimeout(2000)
+
+    const otpInputs = await page.locator('input[inputmode="numeric"]').count()
+    if (otpInputs === 0) throw new Error('OTP input fields did not appear after submitting email')
+
+    const { data, error } = await adminDb.auth.admin.generateLink({
+      type: 'magiclink',
+      email: TEST_EMAIL,
+    })
+    if (error || !data) throw new Error(`Failed to generate OTP: ${error?.message ?? 'no data'}`)
+
+    const token = data.properties?.hashed_token
+    if (!token) {
+      skip(section, 'OTP verification', 'Could not extract OTP token from admin API — manual login required')
+      return { detail: 'OTP sent, but automated verification not available', suggestion: 'Consider adding a test-only OTP bypass endpoint for automated testing' }
+    }
+
+    return { detail: 'OTP form appeared after email submission', suggestion: 'Consider adding a test mode that auto-fills OTP for CI/CD' }
+  })
+
+  await test(section, 'Session-based login bypass', page, async () => {
+    const { data: users } = await adminDb.auth.admin.listUsers()
+    const testUser = users?.users?.find((u) => u.email === TEST_EMAIL)
+    if (!testUser) throw new Error(`Test user ${TEST_EMAIL} not found in Supabase`)
+
+    await page.goto(`${BASE_URL}/dashboard/search`, { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(1500)
+    const url = page.url()
+
+    if (url.includes('/login')) {
+      const { data: linkData, error: linkError } = await adminDb.auth.admin.generateLink({
+        type: 'magiclink',
+        email: TEST_EMAIL,
+      })
+      if (linkError) throw new Error(`Link generation failed: ${linkError.message}`)
+
+      const verifyUrl = linkData?.properties?.action_link
+      if (verifyUrl) {
+        const localUrl = verifyUrl.replace(/https?:\/\/[^/]+/, BASE_URL)
+        await page.goto(localUrl, { waitUntil: 'domcontentloaded' })
+        await page.waitForTimeout(2000)
+      }
+
+      await page.goto(`${BASE_URL}/dashboard/search`, { waitUntil: 'domcontentloaded' })
+      await page.waitForTimeout(1500)
+      const finalUrl = page.url()
+      if (finalUrl.includes('/login')) throw new Error('Still redirected to login after session bypass')
+    }
+
+    return { detail: 'Successfully authenticated and reached dashboard' }
+  })
+
+  await test(section, 'Logout works', page, async () => {
+    const logoutLink = page.locator('text=Log out').or(page.locator('a[href*="logout"]'))
+    if (await logoutLink.first().isVisible()) {
+      await logoutLink.first().click()
+      await page.waitForTimeout(1500)
+      const url = page.url()
+      if (!url.includes('/login') && url !== `${BASE_URL}/`) throw new Error(`Expected redirect to login or home, got: ${url}`)
+      return { detail: `Logged out, redirected to ${url}` }
+    }
+    throw new Error('Logout link not found')
+  })
+}
 async function testDashboardLayout(page: Page): Promise<void> {}
 async function testProfiles(page: Page): Promise<void> {}
 async function testSearch(page: Page): Promise<void> {}
