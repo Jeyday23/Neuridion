@@ -178,7 +178,66 @@ function generateReport(): string {
 
 // ── Test sections (added in subsequent tasks) ────────────────────────────────
 
-async function testPublicPages(page: Page): Promise<void> {}
+async function testPublicPages(page: Page): Promise<void> {
+  const section = 'Public Pages'
+
+  await test(section, 'Landing page loads', page, async () => {
+    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' })
+    const title = await page.title()
+    if (!title) throw new Error('Page title is empty')
+    const hero = await page.locator('text=Post-Market Surveillance').first()
+    if (!(await hero.isVisible())) throw new Error('Hero text not visible')
+    return { detail: `Title: "${title}", hero visible` }
+  })
+
+  await test(section, 'Pricing page renders tiers', page, async () => {
+    await page.goto(`${BASE_URL}/pricing`, { waitUntil: 'domcontentloaded' })
+    const tiers = await page.locator('[class*="border"]').filter({ hasText: /Starter|Pro|Enterprise/ }).count()
+    if (tiers < 3) throw new Error(`Expected 3+ plan tiers, found ${tiers}`)
+    return { detail: `${tiers} plan tiers rendered` }
+  })
+
+  await test(section, 'Privacy page loads', page, async () => {
+    await page.goto(`${BASE_URL}/privacy`, { waitUntil: 'domcontentloaded' })
+    const heading = await page.locator('h1, h2').first().textContent()
+    if (!heading?.toLowerCase().includes('privacy')) throw new Error('Privacy heading not found')
+    return { detail: `Heading: "${heading}"` }
+  })
+
+  await test(section, 'Terms page loads', page, async () => {
+    await page.goto(`${BASE_URL}/terms`, { waitUntil: 'domcontentloaded' })
+    const heading = await page.locator('h1, h2').first().textContent()
+    if (!heading?.toLowerCase().includes('terms')) throw new Error('Terms heading not found')
+    return { detail: `Heading: "${heading}"` }
+  })
+
+  await test(section, 'DPA page loads', page, async () => {
+    await page.goto(`${BASE_URL}/dpa`, { waitUntil: 'domcontentloaded' })
+    const heading = await page.locator('h1, h2').first().textContent()
+    if (!heading?.toLowerCase().includes('data processing')) throw new Error('DPA heading not found')
+    return { detail: `Heading: "${heading}"` }
+  })
+
+  await test(section, 'Footer has correct contact email', page, async () => {
+    await page.goto(BASE_URL, { waitUntil: 'domcontentloaded' })
+    const mailto = await page.locator('a[href*="mailto:info@neuridion.eu"]').count()
+    if (mailto === 0) throw new Error('No mailto link to info@neuridion.eu found')
+    return { detail: `Found ${mailto} mailto link(s)` }
+  })
+
+  await test(section, 'Cookie banner appears', page, async () => {
+    const ctx = await page.context().browser()!.newContext()
+    const freshPage = await ctx.newPage()
+    await freshPage.goto(BASE_URL, { waitUntil: 'domcontentloaded' })
+    await freshPage.waitForTimeout(1000)
+    const banner = freshPage.locator('text=cookie').or(freshPage.locator('text=Cookie'))
+    const visible = await banner.first().isVisible().catch(() => false)
+    await freshPage.close()
+    await ctx.close()
+    if (!visible) throw new Error('Cookie banner not visible on fresh session')
+    return { detail: 'Cookie banner appeared on fresh session' }
+  })
+}
 async function testAuth(page: Page, browser: Browser): Promise<void> {}
 async function testDashboardLayout(page: Page): Promise<void> {}
 async function testProfiles(page: Page): Promise<void> {}
