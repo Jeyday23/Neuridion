@@ -316,9 +316,106 @@ async function testAuth(page: Page, browser: Browser): Promise<void> {
     throw new Error('Logout link not found')
   })
 }
-async function testDashboardLayout(page: Page): Promise<void> {}
-async function testProfiles(page: Page): Promise<void> {}
-async function testSearch(page: Page): Promise<void> {}
+async function testDashboardLayout(page: Page): Promise<void> {
+  const section = 'Dashboard Layout'
+
+  await page.goto(`${BASE_URL}/dashboard/search`, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1500)
+  if (page.url().includes('/login')) {
+    skip(section, 'Dashboard layout', 'Not authenticated — skipping dashboard tests')
+    return
+  }
+
+  await test(section, 'Sidebar navigation links', page, async () => {
+    const navLinks = ['Search', 'Profiles', 'Archive', 'Billing', 'Settings']
+    const missing: string[] = []
+    for (const link of navLinks) {
+      const el = page.locator(`nav >> text=${link}`).or(page.locator(`aside >> text=${link}`)).or(page.locator(`a >> text=${link}`))
+      if (!(await el.first().isVisible().catch(() => false))) missing.push(link)
+    }
+    if (missing.length > 0) throw new Error(`Missing nav links: ${missing.join(', ')}`)
+    return { detail: `All ${navLinks.length} sidebar links visible` }
+  })
+
+  await test(section, 'Language selector visible', page, async () => {
+    const langSelector = page.locator('text=English').or(page.locator('text=Deutsch')).or(page.locator('[class*="language"]'))
+    const visible = await langSelector.first().isVisible().catch(() => false)
+    if (!visible) throw new Error('Language selector not found')
+    return { detail: 'Language selector visible' }
+  })
+}
+async function testProfiles(page: Page): Promise<void> {
+  const section = 'Profiles'
+
+  await page.goto(`${BASE_URL}/dashboard/profiles`, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1000)
+  if (page.url().includes('/login')) { skip(section, 'All profile tests', 'Not authenticated'); return }
+
+  await test(section, 'Profiles page loads', page, async () => {
+    const heading = page.locator('text=Profiles').or(page.locator('text=Product Profiles'))
+    if (!(await heading.first().isVisible().catch(() => false))) throw new Error('Profiles heading not visible')
+    return { detail: 'Profiles page rendered' }
+  })
+
+  await test(section, 'New profile form accessible', page, async () => {
+    await page.goto(`${BASE_URL}/dashboard/profiles/new`, { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(1000)
+    const deviceNameInput = page.locator('input[name="device_name"]').or(page.locator('label:has-text("Device") >> .. >> input'))
+    const visible = await deviceNameInput.first().isVisible().catch(() => false)
+    if (!visible) throw new Error('Device name input not found on new profile page')
+    return { detail: 'New profile form rendered with device name field' }
+  })
+
+  await test(section, 'Existing profiles listed', page, async () => {
+    await page.goto(`${BASE_URL}/dashboard/profiles`, { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(1000)
+    const profiles = await page.locator('[class*="border"], [class*="card"]').filter({ hasText: /B\. Braun|Medtronic|Infusomat|Micra/ }).count()
+    if (profiles > 0) return { detail: `Found ${profiles} existing profiles` }
+    const emptyState = page.locator('text=No profiles').or(page.locator('text=Create your first'))
+    if (await emptyState.first().isVisible().catch(() => false)) return { detail: 'Empty state displayed (no profiles yet)' }
+    throw new Error('Neither profiles nor empty state found')
+  })
+}
+async function testSearch(page: Page): Promise<void> {
+  const section = 'Search'
+
+  await page.goto(`${BASE_URL}/dashboard/search`, { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(1000)
+  if (page.url().includes('/login')) { skip(section, 'All search tests', 'Not authenticated'); return }
+
+  await test(section, 'Search panel renders', page, async () => {
+    const profileSelector = page.locator('select').or(page.locator('[class*="select"]'))
+    const visible = await profileSelector.first().isVisible().catch(() => false)
+    if (!visible) throw new Error('Profile selector not visible')
+    return { detail: 'Search panel rendered with profile selector' }
+  })
+
+  await test(section, 'Database checkboxes present', page, async () => {
+    const dbs = ['BfArM', 'FDA', 'MHRA', 'Swissmedic']
+    const found: string[] = []
+    for (const db of dbs) {
+      const label = page.locator(`text=${db}`)
+      if (await label.first().isVisible().catch(() => false)) found.push(db)
+    }
+    if (found.length === 0) throw new Error('No database checkboxes found')
+    return {
+      detail: `${found.length}/4 databases visible: ${found.join(', ')}`,
+      suggestion: found.length < 4 ? `Missing databases: ${dbs.filter(d => !found.includes(d)).join(', ')}` : undefined,
+    }
+  })
+
+  await test(section, 'Date pickers present', page, async () => {
+    const dateInputs = await page.locator('input[type="date"]').count()
+    if (dateInputs < 2) throw new Error(`Expected 2 date pickers, found ${dateInputs}`)
+    return { detail: `${dateInputs} date inputs found` }
+  })
+
+  await test(section, 'Run Search button present', page, async () => {
+    const runBtn = page.locator('button:has-text("Run Search")').or(page.locator('button:has-text("Run")'))
+    if (!(await runBtn.first().isVisible().catch(() => false))) throw new Error('Run Search button not visible')
+    return { detail: 'Run Search button visible' }
+  })
+}
 async function testReportGeneration(page: Page): Promise<void> {}
 async function testArchive(page: Page): Promise<void> {}
 async function testSettings(page: Page): Promise<void> {}
