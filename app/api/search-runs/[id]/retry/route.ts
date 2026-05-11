@@ -1,6 +1,7 @@
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { rateLimit } from '@/lib/rate-limit'
+import { z } from 'zod'
 import { type SearchJobPayload } from '@/lib/pipeline/run-search'
 import { type QStashJobMessage } from '@/app/api/worker/process-job/route'
 import { Client } from '@upstash/qstash'
@@ -10,6 +11,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: runId } = await params
+  if (!z.string().uuid().safeParse(runId).success) {
+    return Response.json({ error: 'Invalid ID' }, { status: 400 })
+  }
   const supabase = await createClient()
   const db       = createAdminClient()
 

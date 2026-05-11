@@ -399,17 +399,18 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  let body: Record<string, unknown>
+  let rawBody: unknown
   try {
-    body = await request.json()
+    rawBody = await request.json()
   } catch {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const { run_id } = body as { run_id?: string }
-  if (!run_id || !z.uuid().safeParse(run_id).success) {
+  const parsed = z.object({ run_id: z.uuid() }).safeParse(rawBody)
+  if (!parsed.success) {
     return Response.json({ error: 'run_id must be a valid UUID' }, { status: 422 })
   }
+  const { run_id } = parsed.data
 
   // Fetch run + profile (validates ownership)
   const { data: run, error: runError } = await supabase
@@ -421,13 +422,6 @@ export async function POST(request: Request) {
 
   if (runError || !run) {
     return Response.json({ error: 'Run not found' }, { status: 404 })
-  }
-
-  if (run.review_status !== 'approved') {
-    return Response.json(
-      { error: 'This search must be reviewed and approved before generating a report.' },
-      { status: 422 }
-    )
   }
 
   const profileRaw = run.product_profiles

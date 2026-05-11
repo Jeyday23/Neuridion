@@ -52,7 +52,7 @@ const tiers = [
     highlighted: false,
     cta: { loggedIn: null, loggedOut: null },
     ctaLabel: 'Contact sales',
-    ctaHref: 'mailto:info.kodex.medical@gmail.com',
+    ctaHref: 'mailto:info@neuridion.eu',
   },
 ] as const
 
@@ -202,7 +202,7 @@ export default async function PricingPage() {
             <div>
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">Company</h4>
               <ul className="space-y-2 text-sm text-[#0F766E]">
-                <li><a href="mailto:info.kodex.medical@gmail.com" className="hover:text-[#0F1F3D]">Contact</a></li>
+                <li><a href="mailto:info@neuridion.eu" className="hover:text-[#0F1F3D]">Contact</a></li>
               </ul>
             </div>
             <div>

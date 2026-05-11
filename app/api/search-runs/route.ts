@@ -68,18 +68,6 @@ export async function POST(request: Request) {
   const { data: userData } = await supabase.from('users').select('plan').eq('id', user.id).single()
   const userPlan = ((userData?.plan ?? 'free') as PlanId)
   const runLimit = PLANS[userPlan].maxSearchRuns
-  if (runLimit !== -1) {
-    const { count: runCount } = await supabase
-      .from('search_runs')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-    if ((runCount ?? 0) >= runLimit) {
-      return Response.json(
-        { error: `Your ${PLANS[userPlan].label} plan allows ${runLimit} search run${runLimit === 1 ? '' : 's'}. Upgrade to run more searches.` },
-        { status: 403 },
-      )
-    }
-  }
 
   // Profile ownership check
   const { data: profile, error: profileError } = await supabase
@@ -106,22 +94,27 @@ export async function POST(request: Request) {
     )
   }
 
-  // Create the search run in pending state — process-job transitions it to running on start
-  const { data: run, error: runError } = await db
-    .from('search_runs')
-    .insert({
-      profile_id,
-      user_id:    user.id,
-      status:     'pending',
-      period_from,
-      period_to,
-    })
-    .select()
-    .single()
+  // Atomic plan-limit check + insert (advisory lock prevents TOCTOU race)
+  const { data: rpcResult, error: runError } = await (db.rpc as Function)('check_and_insert_search_run', {
+    p_user_id:     user.id,
+    p_profile_id:  profile_id,
+    p_period_from: period_from,
+    p_period_to:   period_to,
+    p_run_limit:   runLimit,
+  })
+
   if (runError) {
-    console.error('[search-runs]', runError.message)
+    if ((runError as { message?: string }).message?.includes('PLAN_LIMIT_EXCEEDED')) {
+      return Response.json(
+        { error: `Your ${PLANS[userPlan].label} plan allows ${runLimit} search run${runLimit === 1 ? '' : 's'}. Upgrade to run more searches.` },
+        { status: 403 },
+      )
+    }
+    console.error('[search-runs]', (runError as { message?: string }).message)
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
+
+  const run = { id: rpcResult as string }
 
   const jobPayload: SearchJobPayload = {
     profile_id,

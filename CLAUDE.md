@@ -39,7 +39,7 @@ manufacturers. It automatically monitors regulatory databases for Field Safety N
 runs AI relevance filtering against user-defined device profiles, and generates compliance reports.
 
 - **GitHub:** https://github.com/Jeyday23/Kodex-4-Medical
-- **Contact:** info.kodex.medical@gmail.com
+- **Contact:** info@neuridion.eu
 - **Owner:** Jeremiah
 
 ---

@@ -1,11 +1,15 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { z } from 'zod'
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  if (!z.string().uuid().safeParse(id).success) {
+    return Response.json({ error: 'Invalid ID' }, { status: 400 })
+  }
   const supabase = await createClient()
   const db       = createAdminClient()
 
@@ -88,6 +92,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  if (!z.string().uuid().safeParse(id).success) {
+    return Response.json({ error: 'Invalid ID' }, { status: 400 })
+  }
   const supabase = await createClient()
   const db = createAdminClient()
 

@@ -1,10 +1,17 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { timingSafeEqual } from 'node:crypto'
 
 const STUCK_MINUTES = 20
 
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+}
+
 export async function GET(req: Request) {
   const secret = req.headers.get('x-worker-secret')
-  if (!secret || secret !== process.env.WORKER_API_SECRET) {
+  const expected = process.env.WORKER_API_SECRET
+  if (!secret || !expected || !safeCompare(secret, expected)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

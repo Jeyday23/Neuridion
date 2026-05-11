@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
+import { z } from 'zod'
 
 export async function DELETE(
   req: NextRequest,
@@ -11,6 +12,9 @@ export async function DELETE(
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
+  if (!z.string().uuid().safeParse(id).success) {
+    return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 })
+  }
 
   if (id === caller.id) {
     return NextResponse.json({ error: 'Cannot delete your own admin account' }, { status: 400 })

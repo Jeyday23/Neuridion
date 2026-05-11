@@ -19,6 +19,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  if (!z.string().uuid().safeParse(id).success) {
+    return Response.json({ error: 'Invalid ID' }, { status: 400 })
+  }
 
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -118,6 +121,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  if (!z.string().uuid().safeParse(id).success) {
+    return Response.json({ error: 'Invalid ID' }, { status: 400 })
+  }
 
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()

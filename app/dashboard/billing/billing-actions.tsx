@@ -22,11 +22,13 @@ export function BillingActions(props: Props) {
         })
         const data = await res.json() as { url?: string; error?: string }
         if (!res.ok || !data.url) throw new Error(data.error ?? 'Failed to start checkout')
+        if (!data.url.startsWith('https://checkout.stripe.com')) throw new Error('Invalid checkout URL')
         window.location.href = data.url
       } else {
         const res = await fetch('/api/billing/portal', { method: 'POST' })
         const data = await res.json() as { url?: string; error?: string }
         if (!res.ok || !data.url) throw new Error(data.error ?? 'Failed to open billing portal')
+        if (!data.url.startsWith('https://billing.stripe.com')) throw new Error('Invalid portal URL')
         window.location.href = data.url
       }
     } catch (err) {

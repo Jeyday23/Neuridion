@@ -44,14 +44,11 @@ export async function POST(
     .eq('code', code)
     .single()
 
-  if (codeError || !trialCode) {
-    return Response.json({ error: 'Invalid or unknown code.' }, { status: 404 })
-  }
-  if (trialCode.redeemed_at) {
-    return Response.json({ error: 'This code has already been used.' }, { status: 409 })
-  }
-  if (trialCode.expires_at && new Date(trialCode.expires_at) < new Date()) {
-    return Response.json({ error: 'This code has expired.' }, { status: 410 })
+  const codeInvalid = codeError || !trialCode || trialCode.redeemed_at ||
+    (trialCode?.expires_at && new Date(trialCode.expires_at) < new Date())
+
+  if (codeInvalid) {
+    return Response.json({ error: 'This code is invalid or has already been used.' }, { status: 400 })
   }
 
   // 2. Check email lock

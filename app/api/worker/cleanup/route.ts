@@ -81,7 +81,16 @@ async function postHandler(_req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  if (process.env.ENABLE_DEV_WORKER_BYPASS === 'true') return postHandler(req)
-  const { verifySignatureAppRouter } = await import('@upstash/qstash/nextjs')
-  return verifySignatureAppRouter(postHandler)(req)
+  if (process.env.ENABLE_DEV_WORKER_BYPASS === 'true') {
+    if (process.env.NODE_ENV === 'production') {
+      return new Response('ENABLE_DEV_WORKER_BYPASS is forbidden in production', { status: 500 })
+    }
+    return postHandler(req)
+  }
+  try {
+    const { verifySignatureAppRouter } = await import('@upstash/qstash/nextjs')
+    return await verifySignatureAppRouter(postHandler)(req)
+  } catch {
+    return new Response('Unauthorized', { status: 401 })
+  }
 }

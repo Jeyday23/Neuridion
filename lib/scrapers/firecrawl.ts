@@ -1,5 +1,6 @@
 import type { ScraperParams, ScraperResult, ScrapedFsn } from './bfarm'
 import { parsePage, BFARM_ORIGIN } from './bfarm'
+import { sanitizeContent } from './sanitize'
 
 const FIRECRAWL_API    = 'https://api.firecrawl.dev/v1'
 const POLL_INTERVAL_MS = 5_000
@@ -52,7 +53,8 @@ export async function firecrawlFallback(params: ScraperParams): Promise<ScraperR
     }
     if (!startRes.ok) {
       const body = await startRes.text().catch(() => '')
-      return { items: [], warnings: [`Firecrawl crawl start failed: HTTP ${startRes.status} — ${body.slice(0, 200)}`] }
+      console.error('[firecrawl]', `crawl start failed: HTTP ${startRes.status} — ${body.slice(0, 500)}`)
+      return { items: [], warnings: [`Firecrawl crawl start failed (HTTP ${startRes.status})`] }
     }
 
     const startData = await startRes.json() as { id?: string }
@@ -103,7 +105,7 @@ export async function firecrawlFallback(params: ScraperParams): Promise<ScraperR
         product_name: null,
         fsn_date:     item.date ? item.date.toISOString().split('T')[0] : null,
         source_url:   `${BFARM_ORIGIN}${item.href}`,
-        raw_content:  item.title,
+        raw_content:  sanitizeContent(item.title),
         source_db:    'bfarm',
       }))
 

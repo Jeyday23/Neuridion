@@ -2,7 +2,6 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { RunResults, type FsnResult } from './run-results'
-import { ReviewBanner } from './review-banner'
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -181,13 +180,6 @@ export default async function RunDetailPage({
           )}
         </div>
       </div>
-
-      {run.status === 'complete' && (
-        <ReviewBanner
-          runId={run.id}
-          initialStatus={run.review_status as 'draft' | 'reviewed' | 'approved'}
-        />
-      )}
 
       {showMhraWarning && (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

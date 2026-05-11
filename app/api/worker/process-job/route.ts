@@ -1,9 +1,21 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { runSearchPipeline, type SearchJobPayload, type ProgressUpdate } from '@/lib/pipeline/run-search'
 import type { Json } from '@/types/supabase'
+import { z } from 'zod'
 
 // Allow up to 13 minutes — long date ranges can take 10–12 min on BfArM archive
 export const maxDuration = 800
+
+const JobMessageSchema = z.object({
+  run_id:      z.string().uuid(),
+  job_id:      z.string().uuid(),
+  profile_id:  z.string().uuid(),
+  user_id:     z.string().uuid(),
+  period_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  period_to:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  selected_dbs: z.array(z.string()).min(1),
+  force_refresh: z.boolean().optional(),
+})
 
 export interface QStashJobMessage extends SearchJobPayload {
   run_id: string
@@ -12,7 +24,12 @@ export interface QStashJobMessage extends SearchJobPayload {
 
 async function handler(req: Request): Promise<Response> {
   const db  = createAdminClient()
-  const msg = await req.json() as QStashJobMessage
+  const raw = await req.json()
+  const parsed = JobMessageSchema.safeParse(raw)
+  if (!parsed.success) {
+    return new Response('Invalid job payload', { status: 400 })
+  }
+  const msg = raw as QStashJobMessage
   const { run_id, job_id, ...jobPayload } = msg
 
   console.error('[process-job]', `received run_id=${run_id} job_id=${job_id}`)
@@ -90,7 +107,16 @@ async function handler(req: Request): Promise<Response> {
 }
 
 export async function POST(req: Request): Promise<Response> {
-  if (process.env.ENABLE_DEV_WORKER_BYPASS === 'true') return handler(req)
-  const { verifySignatureAppRouter } = await import('@upstash/qstash/nextjs')
-  return verifySignatureAppRouter(handler)(req)
+  if (process.env.ENABLE_DEV_WORKER_BYPASS === 'true') {
+    if (process.env.NODE_ENV === 'production') {
+      return new Response('ENABLE_DEV_WORKER_BYPASS is forbidden in production', { status: 500 })
+    }
+    return handler(req)
+  }
+  try {
+    const { verifySignatureAppRouter } = await import('@upstash/qstash/nextjs')
+    return await verifySignatureAppRouter(handler)(req)
+  } catch {
+    return new Response('Unauthorized', { status: 401 })
+  }
 }

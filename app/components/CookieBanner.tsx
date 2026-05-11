@@ -16,7 +16,7 @@ function getConsent(): string | undefined {
 function setConsentCookie(value: 'accepted' | 'rejected') {
   const expires = new Date()
   expires.setFullYear(expires.getFullYear() + 1)
-  document.cookie = `${COOKIE_NAME}=${value}; expires=${expires.toUTCString()}; path=/; SameSite=Lax`
+  document.cookie = `${COOKIE_NAME}=${value}; expires=${expires.toUTCString()}; path=/; SameSite=Lax; Secure`
 }
 
 export function CookieBanner() {

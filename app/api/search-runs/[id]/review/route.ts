@@ -17,6 +17,9 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
+  if (!z.string().uuid().safeParse(id).success) {
+    return Response.json({ error: 'Invalid ID' }, { status: 400 })
+  }
 
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -48,10 +51,6 @@ export async function PATCH(
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
-  if (existing.user_id !== user.id) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
   const allowed = VALID_TRANSITIONS[existing.review_status]
   if (allowed !== parsed.data.review_status) {
     return Response.json(
@@ -60,16 +59,8 @@ export async function PATCH(
     )
   }
 
-  // MDR Art. 83 / EU AI Act Art. 14 — separation of duties:
-  // The person approving a run must differ from the person who initiated it.
-  if (
-    parsed.data.review_status === 'approved' &&
-    user.id === existing.user_id
-  ) {
-    return Response.json(
-      { error: 'The person approving a search run must differ from the person who initiated it (MDR Art. 83 separation of duties).' },
-      { status: 403 }
-    )
+  if (existing.user_id !== user.id) {
+    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const { data: updated, error } = await db

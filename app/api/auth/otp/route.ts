@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { checkLoginRateLimit, recordLoginAttempt } from '@/lib/rate-limit'
+import { checkLoginRateLimit, recordLoginAttempt, rateLimit, getClientIp } from '@/lib/rate-limit'
 import { logAuditEvent } from '@/lib/audit'
 import { z } from 'zod'
 
@@ -19,7 +19,7 @@ const VerifySchema = z.object({
 const RequestSchema = z.discriminatedUnion('action', [SendSchema, VerifySchema])
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() ?? 'unknown'
+  const ip = getClientIp(req)
 
   const rateCheck = await checkLoginRateLimit(ip)
   if (!rateCheck.allowed) {
@@ -39,6 +39,14 @@ export async function POST(req: NextRequest) {
   const data = parsed.data
 
   if (data.action === 'send') {
+    const emailLimit = rateLimit(`otp-send:${data.email}`, 3, 15 * 60 * 1000)
+    if (!emailLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Please wait a moment before requesting a new code.' },
+        { status: 429 },
+      )
+    }
+
     const { error } = await supabase.auth.signInWithOtp({
       email: data.email,
       options: { shouldCreateUser: false },
@@ -60,6 +68,14 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ ok: true })
+  }
+
+  const verifyLimit = rateLimit(`otp-verify:${data.email}`, 5, 15 * 60 * 1000)
+  if (!verifyLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Too many verification attempts. Try again later.' },
+      { status: 429 },
+    )
   }
 
   const { data: session, error } = await supabase.auth.verifyOtp({

@@ -70,6 +70,7 @@ export function SettingsClient({
     if (!currentPw)             { setPwMsg('Current password is required.'); return }
     if (newPw !== confirmPw)    { setPwMsg('Passwords do not match.'); return }
     if (newPw.length < 10)      { setPwMsg('Password must be at least 10 characters.'); return }
+    if (!/[a-z]/.test(newPw))   { setPwMsg('Password must contain a lowercase letter.'); return }
     if (!/[A-Z]/.test(newPw))   { setPwMsg('Password must contain an uppercase letter.'); return }
     if (!/[0-9]/.test(newPw))   { setPwMsg('Password must contain a number.'); return }
     if (!/[^A-Za-z0-9]/.test(newPw)) { setPwMsg('Password must contain a special character.'); return }
@@ -111,7 +112,7 @@ export function SettingsClient({
     const json = await res.json()
     if (res.ok) {
       setCookiesConsented(false)
-      document.cookie = 'neuridion_cookie_consent=rejected; path=/; SameSite=Lax; max-age=31536000'
+      document.cookie = 'neuridion_cookie_consent=rejected; path=/; SameSite=Lax; Secure; max-age=31536000'
       setConsentMsg('Cookie consent withdrawn.')
     } else {
       setConsentMsg(json.error ?? 'Something went wrong')

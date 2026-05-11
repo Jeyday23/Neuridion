@@ -195,7 +195,7 @@ export default async function HomePage() {
                 ))}
               </ul>
               <a
-                href="mailto:info.kodex.medical@gmail.com"
+                href="mailto:info@neuridion.eu"
                 className="block w-full text-center py-2.5 border border-[#E2E8F0] text-[#134E4A] rounded text-sm font-medium hover:border-[#CBD5E1] transition-colors"
               >
                 Contact sales
@@ -232,7 +232,7 @@ export default async function HomePage() {
             <div className="flex gap-12 text-sm text-[#134E4A]">
               <div className="space-y-2">
                 <Link href="/pricing" className="block hover:text-[#0F1F3D]">Pricing</Link>
-                <a href="mailto:info.kodex.medical@gmail.com" className="block hover:text-[#0F1F3D]">Contact</a>
+                <a href="mailto:info@neuridion.eu" className="block hover:text-[#0F1F3D]">Contact</a>
               </div>
               <div className="space-y-2">
                 <Link href="/privacy" className="block hover:text-[#0F1F3D]">Privacy</Link>

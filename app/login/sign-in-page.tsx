@@ -66,9 +66,12 @@ export function NeuridionSignIn() {
         return
       }
 
-      if (data.redirect) setRedirectPath(data.redirect)
+      const safeRedirect = typeof data.redirect === 'string' &&
+        data.redirect.startsWith('/') && !data.redirect.startsWith('//')
+        ? data.redirect : undefined
+      if (safeRedirect) setRedirectPath(safeRedirect)
       setStep('success')
-      setTimeout(() => router.push(data.redirect ?? redirectPath), 1500)
+      setTimeout(() => router.push(safeRedirect ?? redirectPath), 1500)
     } catch {
       setError('Network error. Please try again.')
       setLoading(false)

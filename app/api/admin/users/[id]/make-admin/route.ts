@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
+import { z } from 'zod'
 
 export async function POST(
   req: NextRequest,
@@ -11,6 +12,9 @@ export async function POST(
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const { id } = await params
+  if (!z.string().uuid().safeParse(id).success) {
+    return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 })
+  }
   const admin = createAdminClient()
   const { error } = await admin
     .from('users')
