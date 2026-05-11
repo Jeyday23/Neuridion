@@ -385,7 +385,7 @@ export default async function HomePage() {
               </div>
             </div>
           </div>
-          <div className="pt-6 border-t border-[#E2E8F0] text-xs text-[#0D9488]">
+          <div className="pt-6 border-t border-[#E2E8F0] text-xs text-[#0F766E]">
             &copy; 2026 Neuridion. All rights reserved.
           </div>
         </div>

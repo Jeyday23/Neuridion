@@ -1,13 +1,8 @@
-import { timingSafeEqual } from 'node:crypto'
 import type { ScraperParams, ScraperResult } from '@/lib/scrapers/bfarm'
 import { sendScraperHealthAlert, type ScraperHealthResult } from '@/lib/email'
+import { safeCompare } from '@/lib/utils/auth'
 
 const TIMEOUT_MS = 30_000
-
-function safeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
-}
 
 function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10)

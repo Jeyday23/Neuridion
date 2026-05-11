@@ -1,6 +1,4 @@
-function escHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
+import { escHtml } from '@/lib/utils/html'
 
 export async function sendFeedbackNotification(feedback: {
   rating: number
