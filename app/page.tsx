@@ -109,6 +109,7 @@ export default async function HomePage() {
       <section className="py-16 bg-white">
         <div className="max-w-5xl mx-auto px-6">
           <div className="rounded-lg border border-[#E2E8F0] shadow-lg overflow-hidden">
+            {/* Browser chrome */}
             <div className="bg-[#F1F5F9] border-b border-[#E2E8F0] px-4 py-2.5 flex items-center gap-2">
               <div className="flex gap-1.5">
                 <div className="w-3 h-3 rounded-full bg-[#E2E8F0]" />
@@ -116,14 +117,106 @@ export default async function HomePage() {
                 <div className="w-3 h-3 rounded-full bg-[#E2E8F0]" />
               </div>
               <div className="flex-1 text-center text-xs text-[#94A3B8] font-medium">
-                neuridion.eu/dashboard
+                neuridion.eu/dashboard/archive
               </div>
             </div>
-            <div className="bg-gradient-to-br from-[#F0FDFA] to-[#CCFBF1] flex items-center justify-center min-h-[400px]">
-              <div className="text-center px-8">
-                <div className="text-6xl mb-4">&#128269;</div>
-                <p className="text-[#0F1F3D] font-semibold text-lg">Dashboard Preview</p>
-                <p className="text-[#0F766E] text-sm mt-1">Product screenshot coming soon</p>
+            {/* Dashboard mockup */}
+            <div className="flex bg-white min-h-[420px]">
+              {/* Sidebar */}
+              <div className="w-48 bg-[#0F1F3D] p-4 hidden md:block">
+                <div className="text-white font-semibold text-sm mb-6 tracking-tight">Neuridion</div>
+                <nav className="space-y-1">
+                  {['Search', 'Archive', 'Profiles', 'Settings'].map((item, i) => (
+                    <div
+                      key={item}
+                      className={`px-3 py-2 rounded text-xs font-medium ${
+                        i === 1
+                          ? 'bg-white/10 text-white'
+                          : 'text-white/50'
+                      }`}
+                    >
+                      {item}
+                    </div>
+                  ))}
+                </nav>
+              </div>
+              {/* Main content */}
+              <div className="flex-1 p-5">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <div className="text-sm font-semibold text-[#0F1F3D]">CardioMonitor Pro — Search Results</div>
+                    <div className="text-xs text-[#64748B] mt-0.5">BfArM, FDA MAUDE, MHRA, Swissmedic &middot; Jan 2026 – Apr 2026</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="px-2.5 py-1 bg-[#F0FDFA] border border-[#0D9488] rounded text-xs font-medium text-[#0D9488]">Export PDF</div>
+                  </div>
+                </div>
+                {/* Stats bar */}
+                <div className="flex gap-4 mb-4">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <div className="w-2 h-2 rounded-full bg-[#10B981]" />
+                    <span className="font-semibold text-[#0F1F3D]">12</span>
+                    <span className="text-[#64748B]">relevant</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <div className="w-2 h-2 rounded-full bg-[#F59E0B]" />
+                    <span className="font-semibold text-[#0F1F3D]">3</span>
+                    <span className="text-[#64748B]">uncertain</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <div className="w-2 h-2 rounded-full bg-[#94A3B8]" />
+                    <span className="font-semibold text-[#0F1F3D]">45</span>
+                    <span className="text-[#64748B]">excluded</span>
+                  </div>
+                </div>
+                {/* Tabs */}
+                <div className="flex gap-1 mb-3 border-b border-[#E2E8F0]">
+                  {[
+                    { label: 'Relevant', count: 12, active: true },
+                    { label: 'Uncertain', count: 3, active: false },
+                    { label: 'Excluded', count: 45, active: false },
+                  ].map(({ label, count, active }) => (
+                    <div
+                      key={label}
+                      className={`px-3 py-2 text-xs font-medium ${
+                        active
+                          ? 'text-[#0F1F3D] border-b-2 border-[#0D9488]'
+                          : 'text-[#94A3B8]'
+                      }`}
+                    >
+                      {label} <span className={active ? 'text-[#0D9488]' : ''}>{count}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Results table */}
+                <div className="border border-[#E2E8F0] rounded overflow-hidden text-xs">
+                  <div className="grid grid-cols-[1fr_120px_80px_80px_90px] bg-[#F8FAFC] border-b border-[#E2E8F0] font-semibold text-[#64748B] px-3 py-2 hidden sm:grid">
+                    <div>Title</div>
+                    <div>Manufacturer</div>
+                    <div>Date</div>
+                    <div>Source</div>
+                    <div>Decision</div>
+                  </div>
+                  {[
+                    { title: 'FSN — Battery overheating in cardiac monitor', mfr: 'Medtronic', date: '12 Mar 2026', src: 'BfArM', decision: 'Relevant', conf: 94, color: 'bg-[#D1FAE5] text-[#065F46]' },
+                    { title: 'Updated IFU for patient cable assembly', mfr: 'Philips', date: '28 Feb 2026', src: 'MHRA', decision: 'Relevant', conf: 87, color: 'bg-[#D1FAE5] text-[#065F46]' },
+                    { title: 'Software update v3.2 — display calibration', mfr: 'GE Healthcare', date: '15 Feb 2026', src: 'FDA', decision: 'Relevant', conf: 82, color: 'bg-[#D1FAE5] text-[#065F46]' },
+                    { title: 'Sensor probe connector recall', mfr: 'Siemens', date: '03 Jan 2026', src: 'Swissmedic', decision: 'Relevant', conf: 79, color: 'bg-[#D1FAE5] text-[#065F46]' },
+                  ].map((row, i) => (
+                    <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_120px_80px_80px_90px] px-3 py-2.5 border-b border-[#F1F5F9] hover:bg-[#FAFBFC] items-center gap-1 sm:gap-0">
+                      <div className="font-medium text-[#0F1F3D] truncate">{row.title}</div>
+                      <div className="text-[#64748B] hidden sm:block">{row.mfr}</div>
+                      <div className="text-[#64748B] hidden sm:block">{row.date}</div>
+                      <div className="text-[#64748B] hidden sm:block">{row.src}</div>
+                      <div>
+                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold ${row.color}`}>
+                          {row.decision} {row.conf}%
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
