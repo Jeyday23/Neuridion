@@ -15,7 +15,7 @@ export async function GET() {
       admin
         .from('filter_decisions')
         .select('decision, confidence, model_used')
-        .gte('decided_at', thirtyDaysAgo),
+        .gte('created_at', thirtyDaysAgo),
       admin
         .from('filter_decision_cache')
         .select('id', { count: 'exact', head: true })
