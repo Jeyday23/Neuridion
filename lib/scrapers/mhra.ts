@@ -12,6 +12,7 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
   const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
 
   const listings: ScrapedFsn[] = []
+  const warnings: string[] = []
   let start = 0
 
   while (true) {
@@ -27,7 +28,11 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
 
     const page = await fetchJson(url.toString()) as GovUkSearchResponse | null
 
-    if (!page?.results?.length) {
+    if (page === null) {
+      warnings.push(`MHRA: fetch failed at offset ${start} — results may be incomplete.`)
+      break
+    }
+    if (!page.results?.length) {
       break
     }
 
@@ -70,7 +75,6 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
   const enriched = await enrichWithDetails(listings)
   const deduped  = dedup(enriched)
 
-  const warnings: string[] = []
   if (deduped.length === 0) {
     warnings.push('MHRA returned 0 Field Safety Notices for the selected date range. The GOV.UK search API may be temporarily unavailable or the date range contains no FSNs.')
   }
