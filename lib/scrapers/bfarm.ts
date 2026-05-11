@@ -126,8 +126,9 @@ export function parsePage(html: string): ParsedItem[] {
   return items
 }
 
-export async function scrapeBfArM(options: ScraperOptions = {}): Promise<ScrapedFsn[]> {
+export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items: ScrapedFsn[], warnings: string[] }> {
   const { fromDate, toDate } = options
+  const warnings: string[] = []
 
   try {
     const raw: ScrapedFsn[] = []
@@ -160,6 +161,10 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
       if (raw.length >= MAX_ITEMS || pageItems.length < RESULTS_PER_PAGE) break
     }
 
+    if (raw.length >= MAX_ITEMS) {
+      warnings.push(`BfArM: result set capped at ${MAX_ITEMS} items — additional FSNs may exist for this date range.`)
+    }
+
     // Belt-and-suspenders: drop items outside the requested date range.
     // Also drops items with no date — we can't verify their relevance.
     const dropped = raw.filter(item => {
@@ -188,10 +193,10 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraped
     // RSS ignores the date filter and would pollute results with out-of-range
     // items. Zero results is a valid state: BfArM does not publish daily.
     if (deduped.length === 0) {
-      return []
+      return { items: [], warnings }
     }
 
-    return deduped
+    return { items: deduped, warnings }
   } catch (err) {
     console.error('[BfArM] HTML scraper error:', err)
     // Re-throw so the search run is marked as error rather than silently
@@ -314,7 +319,7 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
   let primary: ScraperResult
   try {
     primary = total <= 90
-      ? { items: await scrapeBfArM({ fromDate: from, toDate: to }), warnings: [] }
+      ? await scrapeBfArM({ fromDate: from, toDate: to })
       : await scrapeBfarmYearShortcuts(params)
   } catch (err) {
     primary = { items: [], warnings: [`BfArM primary scraper threw: ${String(err)}`] }
