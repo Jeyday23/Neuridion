@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 import ExcelJS from 'exceljs'
-import { generatePdfFromHtml, canGeneratePdf, incrementPdfUsage } from '@/lib/pdfshift'
+import { generateReportPdf, canGeneratePdf, incrementPdfUsage } from '@/lib/pdfshift'
 import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -513,7 +513,7 @@ export async function POST(request: Request) {
     adminStorage.storage.from('reports').createSignedUrl(excelPath, 60 * 5),
   ])
 
-  // ── Generate real PDF via PDFShift (quota-guarded) ───────────────────────────
+  // ── Generate PDF via @react-pdf/renderer (quota-guarded) ────────────────────
   let pdfUrl: string | null = null
   let pdfStatus: 'generated' | 'quota_exceeded' | 'failed' = 'failed'
   let pdfPath: string | null = null
@@ -522,7 +522,12 @@ export async function POST(request: Request) {
 
   if (quotaCheck.allowed) {
     try {
-      const pdfBuffer = await generatePdfFromHtml(html)
+      const pdfBuffer = await generateReportPdf({
+        profile,
+        run: { period_from: run.period_from, period_to: run.period_to },
+        rows,
+        runId: run_id,
+      })
 
       pdfPath = `${user.id}/${run_id}/${ts}_report.pdf`
       const { error: pdfUploadErr } = await adminStorage.storage
