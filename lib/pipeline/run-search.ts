@@ -427,10 +427,12 @@ export async function runSearchPipeline(
   } catch (err) {
     if (!lifecycleComplete) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[lifecycle] run_id=${runId} pipeline error: ${msg}`)
+      // Store a generic message for the user, log the real error server-side
+      console.error('[pipeline] Run failed:', msg)
+      const safeMsg = 'The search pipeline encountered an error. Please try again or contact support if the issue persists.'
       await db.from('search_runs').update({
         status:        'error',
-        error_message: msg,
+        error_message: safeMsg,
         completed_at:  new Date().toISOString(),
         progress:      null,
       }).eq('id', runId)

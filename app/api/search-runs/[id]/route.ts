@@ -24,12 +24,8 @@ export async function GET(
     .eq('id', id)
     .single()
 
-  if (runError || !run) {
+  if (runError || !run || run.user_id !== user.id) {
     return Response.json({ error: 'Not found' }, { status: 404 })
-  }
-
-  if (run.user_id !== user.id) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   // Fetch FSN results — use admin client to bypass RLS on internal pipeline tables

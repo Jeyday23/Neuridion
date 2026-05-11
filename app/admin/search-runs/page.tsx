@@ -95,7 +95,7 @@ export default async function AdminSearchRunsPage() {
 
       {loadError && (
         <div className="mb-4 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-4 py-3 text-sm text-[#DC2626]">
-          <strong>Query error:</strong> {loadError}
+          <strong>Query error:</strong> An error occurred loading search runs. Check server logs for details.
         </div>
       )}
 

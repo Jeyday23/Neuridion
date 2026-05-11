@@ -97,8 +97,14 @@ export async function POST(
     job_id: newJob.id,
     ...payload,
   }
+  if (!process.env.QSTASH_TOKEN) {
+    await db.from('search_job_queue').delete().eq('id', newJob.id)
+    await db.from('search_runs').update({ status: 'error' }).eq('id', runId)
+    return Response.json({ error: 'Job queue not configured' }, { status: 503 })
+  }
+
   try {
-    const qstash = new Client({ token: process.env.QSTASH_TOKEN! })
+    const qstash = new Client({ token: process.env.QSTASH_TOKEN })
     await qstash.publishJSON({
       url:     `${process.env.NEXT_PUBLIC_SITE_URL}/api/worker/process-job`,
       body:    message,

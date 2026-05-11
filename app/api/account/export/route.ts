@@ -15,6 +15,10 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Too many export requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
+  if (!user.email) {
+    return Response.json({ error: 'Email address required for data export' }, { status: 400 })
+  }
+
   const admin = createAdminClient()
 
   const [
@@ -56,7 +60,7 @@ export async function GET(request: Request) {
       ? admin.from('profile_edit_history').select('*').in('profile_id', profileIds)
       : Promise.resolve({ data: [] }),
     admin.from('reports').select('*').eq('user_id', user.id),
-    admin.from('login_attempts').select('*').eq('email', user.email!).limit(1000),
+    admin.from('login_attempts').select('*').eq('email', user.email).limit(1000),
   ])
 
   const exportPayload = {

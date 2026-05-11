@@ -90,9 +90,11 @@ export async function POST(request: Request) {
     admin.from('search_drafts').delete().eq('user_id', user.id),
     admin.from('user_feedback').delete().eq('user_id', user.id),
     admin.from('pdf_usage').delete().eq('user_id', user.id),
-    admin.from('login_attempts').delete().eq('email', user.email!),
     admin.from('reports').delete().eq('user_id', user.id),
   ])
+  if (user.email) {
+    await admin.from('login_attempts').delete().eq('email', user.email)
+  }
 
   // Clean up storage files
   const { data: reportFiles } = await admin.storage

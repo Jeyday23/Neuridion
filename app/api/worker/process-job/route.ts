@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { runSearchPipeline, type SearchJobPayload, type ProgressUpdate } from '@/lib/pipeline/run-search'
 import type { Json } from '@/types/supabase'
 import { z } from 'zod'
+import { safeCompare } from '@/lib/utils/auth'
 
 // Allow up to 13 minutes — long date ranges can take 10–12 min on BfArM archive
 export const maxDuration = 800
@@ -110,6 +111,10 @@ export async function POST(req: Request): Promise<Response> {
   if (process.env.ENABLE_DEV_WORKER_BYPASS === 'true') {
     if (process.env.NODE_ENV === 'production') {
       return new Response('ENABLE_DEV_WORKER_BYPASS is forbidden in production', { status: 500 })
+    }
+    const secret = req.headers.get('x-worker-secret')
+    if (!process.env.WORKER_API_SECRET || !secret || !safeCompare(secret, process.env.WORKER_API_SECRET)) {
+      return new Response('Unauthorized', { status: 401 })
     }
     return handler(req)
   }

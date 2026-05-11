@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { safeCompare } from '@/lib/utils/auth'
 
 const STUCK_THRESHOLD_MINUTES = 20
 
@@ -84,6 +85,10 @@ export async function POST(req: Request): Promise<Response> {
   if (process.env.ENABLE_DEV_WORKER_BYPASS === 'true') {
     if (process.env.NODE_ENV === 'production') {
       return new Response('ENABLE_DEV_WORKER_BYPASS is forbidden in production', { status: 500 })
+    }
+    const secret = req.headers.get('x-worker-secret')
+    if (!process.env.WORKER_API_SECRET || !secret || !safeCompare(secret, process.env.WORKER_API_SECRET)) {
+      return new Response('Unauthorized', { status: 401 })
     }
     return postHandler(req)
   }

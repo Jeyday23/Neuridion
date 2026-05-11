@@ -101,6 +101,7 @@ export async function PATCH(
     .from('product_profiles')
     .update(updatePayload as unknown as ProfileUpdate)
     .eq('id', id)
+    .eq('user_id', user.id)
     .select()
     .single()
 
