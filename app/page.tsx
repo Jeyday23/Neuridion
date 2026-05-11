@@ -119,7 +119,7 @@ export default async function HomePage() {
                 neuridion.eu/dashboard
               </div>
             </div>
-            <div className="bg-gradient-to-br from-[#F0FDFA] to-[#CCFBF1] flex items-center justify-center" style={{ minHeight: '400px' }}>
+            <div className="bg-gradient-to-br from-[#F0FDFA] to-[#CCFBF1] flex items-center justify-center min-h-[400px]">
               <div className="text-center px-8">
                 <div className="text-6xl mb-4">&#128269;</div>
                 <p className="text-[#0F1F3D] font-semibold text-lg">Dashboard Preview</p>
@@ -261,7 +261,7 @@ export default async function HomePage() {
               </h3>
               <div className="mb-6">
                 <span className="text-3xl font-bold text-[#0F1F3D]">€199</span>
-                <span className="text-[#0D9488]">/mo</span>
+                <span className="text-[#0F766E]">/mo</span>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
                 {[
@@ -294,7 +294,7 @@ export default async function HomePage() {
               </h3>
               <div className="mb-6">
                 <span className="text-3xl font-bold text-[#0F1F3D]">€599</span>
-                <span className="text-[#0D9488]">/mo</span>
+                <span className="text-[#0F766E]">/mo</span>
               </div>
               <ul className="space-y-3 mb-8 flex-1">
                 {[

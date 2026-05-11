@@ -33,6 +33,9 @@ export function FaqAccordion() {
       {faqs.map((faq, i) => (
         <div key={i} className="border border-[#E2E8F0] rounded-md">
           <button
+            id={`faq-button-${i}`}
+            aria-expanded={open === i}
+            aria-controls={`faq-panel-${i}`}
             onClick={() => setOpen(open === i ? null : i)}
             className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-[#F0FDFA] transition-colors"
           >
@@ -42,7 +45,14 @@ export function FaqAccordion() {
             />
           </button>
           {open === i && (
-            <div className="px-6 pb-4 text-[#0F766E]">{faq.answer}</div>
+            <div
+              id={`faq-panel-${i}`}
+              role="region"
+              aria-labelledby={`faq-button-${i}`}
+              className="px-6 pb-4 text-[#0F766E]"
+            >
+              {faq.answer}
+            </div>
           )}
         </div>
       ))}
