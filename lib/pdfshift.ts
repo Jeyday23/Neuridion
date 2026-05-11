@@ -1,43 +1,28 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { chromium, type Browser } from 'playwright'
+import { renderToBuffer } from '@react-pdf/renderer'
+import React from 'react'
+import { ReportDocument, type ReportData } from '@/lib/pdf/report-document'
 
-const MONTHLY_LIMIT = 45  // global cap
-const PER_USER_LIMIT = 15 // prevents a single user from burning all quota
+const MONTHLY_LIMIT = 500
+const PER_USER_LIMIT = 50
 
-/* ── Singleton browser instance (reused across requests to avoid cold starts) ── */
+export type { ReportData }
 
-let browserPromise: Promise<Browser> | null = null
-
-function getBrowser(): Promise<Browser> {
-  if (!browserPromise) {
-    browserPromise = chromium.launch({
-      args: ['--disable-gpu', '--no-sandbox', '--disable-setuid-sandbox'],
-    })
-  }
-  return browserPromise
-}
-
-export async function generatePdfFromHtml(html: string): Promise<Buffer> {
-  const browser = await getBrowser()
-  const page = await browser.newPage()
-  try {
-    await page.setContent(html, { waitUntil: 'networkidle' })
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '20mm' },
-      printBackground: true,
-    })
-    return Buffer.from(pdfBuffer)
-  } finally {
-    await page.close()
-  }
+export async function generateReportPdf(data: ReportData): Promise<Buffer> {
+  const element = React.createElement(ReportDocument, { data })
+  // renderToBuffer expects ReactElement<DocumentProps> but our wrapper component
+  // returns a <Document> internally — the cast is safe and standard for @react-pdf.
+  const buffer = await renderToBuffer(
+    element as unknown as React.ReactElement<import('@react-pdf/renderer').DocumentProps>
+  )
+  return Buffer.from(buffer)
 }
 
 export async function canGeneratePdf(
   adminClient: SupabaseClient,
   userId: string
 ): Promise<{ allowed: boolean; reason?: string }> {
-  const month = new Date().toISOString().slice(0, 7)  // '2026-04'
+  const month = new Date().toISOString().slice(0, 7)
 
   const { data: allUsage } = await adminClient
     .from('pdf_usage')
