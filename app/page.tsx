@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Check, ArrowRight } from 'lucide-react'
+import { Check, ArrowRight, Shield, Lock, FileCheck, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { NeuridionWordmark } from '@/components/ui/neuridion-wordmark'
-import { AnimatedHero } from './components/AnimatedHero'
+import { FaqAccordion } from './components/FaqAccordion'
 import { FeatureCards } from './components/FeatureCards'
 
 export const metadata = {
@@ -55,7 +55,31 @@ export default async function HomePage() {
       </nav>
 
       {/* Hero */}
-      <AnimatedHero />
+      <section className="py-16 lg:py-20">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <span className="inline-block px-4 py-1.5 bg-[#CCFBF1] text-[#115E59] text-sm font-semibold rounded-full border border-[#0D9488] mb-6">
+            EU MDR Article 83
+          </span>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#0F1F3D] tracking-tight mb-5">
+            Your PRRC&apos;s Post-Market Surveillance — Done in Minutes
+          </h1>
+          <p className="text-lg md:text-xl leading-relaxed text-[#134E4A] max-w-2xl mx-auto font-medium mb-8">
+            Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel. AI filters every Field Safety Notice against your device profile. Export audit-ready PDF reports.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/signup"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#0F1F3D] text-white rounded font-medium hover:bg-[#1a2d52] transition-colors text-sm"
+            >
+              Start 14-day free trial
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+          <p className="text-xs text-[#0F766E] mt-3">
+            No credit card required &middot; Cancel anytime
+          </p>
+        </div>
+      </section>
 
       {/* Trust Bar */}
       <section className="border-y border-[#CCFBF1] bg-[#F0FDFA] py-8">
@@ -70,13 +94,75 @@ export default async function HomePage() {
             <div>
               <div className="text-xl font-bold text-[#0D9488]">EU MDR</div>
               <div className="text-xs text-[#134E4A] font-medium mt-1">
-                Art. 83 compliant
+                Art. 83 ready
               </div>
             </div>
             <div>
               <div className="text-xl font-bold text-[#0D9488]">GDPR</div>
               <div className="text-xs text-[#134E4A] font-medium mt-1">By design</div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Product Preview */}
+      <section className="py-16 bg-white">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="rounded-lg border border-[#E2E8F0] shadow-lg overflow-hidden">
+            <div className="bg-[#F1F5F9] border-b border-[#E2E8F0] px-4 py-2.5 flex items-center gap-2">
+              <div className="flex gap-1.5">
+                <div className="w-3 h-3 rounded-full bg-[#E2E8F0]" />
+                <div className="w-3 h-3 rounded-full bg-[#E2E8F0]" />
+                <div className="w-3 h-3 rounded-full bg-[#E2E8F0]" />
+              </div>
+              <div className="flex-1 text-center text-xs text-[#94A3B8] font-medium">
+                neuridion.eu/dashboard
+              </div>
+            </div>
+            <div className="bg-gradient-to-br from-[#F0FDFA] to-[#CCFBF1] flex items-center justify-center" style={{ minHeight: '400px' }}>
+              <div className="text-center px-8">
+                <div className="text-6xl mb-4">&#128269;</div>
+                <p className="text-[#0F1F3D] font-semibold text-lg">Dashboard Preview</p>
+                <p className="text-[#0F766E] text-sm mt-1">Product screenshot coming soon</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="py-20 bg-[#F0FDFA] border-y border-[#CCFBF1]">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-[#0F1F3D] mb-3">How it works</h2>
+            <p className="text-[#134E4A]">Three steps from device profile to audit-ready report.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            {[
+              {
+                step: '1',
+                title: 'Define your device profile',
+                desc: 'Enter your device name, manufacturer, and classification. Neuridion builds optimized search terms automatically.',
+              },
+              {
+                step: '2',
+                title: 'Run a search',
+                desc: 'Select databases and date range. Neuridion searches BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel.',
+              },
+              {
+                step: '3',
+                title: 'Review and export',
+                desc: 'AI classifies each result. Your PRRC reviews the decisions, then exports a PDF report ready for your next audit.',
+              },
+            ].map(({ step, title, desc }) => (
+              <div key={step} className="text-center">
+                <div className="w-10 h-10 rounded-full bg-[#0F1F3D] text-white flex items-center justify-center text-lg font-bold mx-auto mb-4">
+                  {step}
+                </div>
+                <h3 className="text-base font-semibold text-[#0F1F3D] mb-2">{title}</h3>
+                <p className="text-sm text-[#134E4A] leading-relaxed font-medium">{desc}</p>
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -94,6 +180,64 @@ export default async function HomePage() {
           </div>
 
           <FeatureCards />
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="py-20">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-[#0F1F3D] mb-3">
+              Frequently asked questions
+            </h2>
+          </div>
+          <FaqAccordion />
+        </div>
+      </section>
+
+      {/* Security & Compliance */}
+      <section className="py-20 bg-white border-y border-[#E2E8F0]">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-[#0F1F3D] mb-3">
+              Security &amp; compliance
+            </h2>
+            <p className="text-[#134E4A]">
+              Built for regulated industries from day one.
+            </p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-6">
+            {[
+              {
+                Icon: Shield,
+                title: 'GDPR by design',
+                desc: 'All data processed and stored in the EU. Encryption at rest and in transit.',
+              },
+              {
+                Icon: FileCheck,
+                title: 'Append-only audit trail',
+                desc: 'Every action logged immutably. Full traceability for regulatory audits.',
+              },
+              {
+                Icon: Lock,
+                title: 'Role-based access',
+                desc: 'PRRC review gate ensures no AI decision reaches your report unchecked.',
+              },
+              {
+                Icon: Trash2,
+                title: 'Data minimization',
+                desc: 'We collect only what’s needed. Account deletion with full data purge on request.',
+              },
+            ].map(({ Icon, title, desc }) => (
+              <div key={title} className="flex gap-4 p-5 rounded border border-[#E2E8F0] hover:border-[#0D9488] transition-colors">
+                <Icon className="w-6 h-6 text-[#0D9488] flex-shrink-0 mt-0.5" />
+                <div>
+                  <h3 className="text-base font-semibold text-[#0F1F3D] mb-1">{title}</h3>
+                  <p className="text-sm text-[#134E4A] leading-relaxed font-medium">{desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -209,7 +353,7 @@ export default async function HomePage() {
       <section className="py-16 bg-[#0F1F3D]">
         <div className="max-w-2xl mx-auto px-6 text-center">
           <h2 className="text-2xl font-bold text-white mb-3">
-            Ready to automate your PMS?
+            Ready to streamline your post-market surveillance?
           </h2>
           <p className="text-[#5EEAD4] mb-6">
             Start your free trial today. No credit card required.
