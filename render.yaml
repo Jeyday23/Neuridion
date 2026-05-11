@@ -2,7 +2,7 @@ services:
   - type: web
     name: neuridion-web
     env: node
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && npx playwright install --with-deps chromium && npm run build
     startCommand: npm start
     envVarGroups:
       - neuridion-env
