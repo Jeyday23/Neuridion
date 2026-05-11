@@ -106,14 +106,14 @@ const s = StyleSheet.create({
   appendixTh: { color: '#fff', fontWeight: 'bold', fontSize: 7.5, padding: '4 7' },
   appendixTd: { fontSize: 8, padding: '4 7', lineHeight: 1.3 },
   warningBanner: { backgroundColor: '#fef2f2', borderWidth: 1, borderColor: '#fecaca', padding: '6 10', fontSize: 8.5, color: '#991b1b', marginVertical: 4 },
-  appendixNote: { fontSize: 8, color: '#666', fontStyle: 'italic', marginVertical: 4 },
-  conclusion: { fontStyle: 'italic', color: '#333', lineHeight: 1.6, fontSize: 9.5 },
+  appendixNote: { fontSize: 8, color: '#666', marginVertical: 4 },
+  conclusion: { color: '#333', lineHeight: 1.6, fontSize: 9.5 },
   sigGrid: { flexDirection: 'row', gap: 20, marginTop: 10 },
   sigBox: { flex: 1, borderWidth: 1, borderColor: '#ccc', padding: '10 12', minHeight: 52 },
   sigLabel: { fontWeight: 'bold', color: '#333', fontSize: 8.5, marginBottom: 3 },
   sigLine: { fontSize: 8.5, color: '#666' },
   disclaimer: { marginTop: 40, fontSize: 7.5, color: '#666', borderTopWidth: 1, borderTopColor: '#ddd', paddingTop: 6, lineHeight: 1.5 },
-  emptyCell: { padding: '8 7', color: '#888', fontStyle: 'italic' },
+  emptyCell: { padding: '8 7', color: '#888' },
   link: { color: NAVY, textDecoration: 'none' },
 })
 
