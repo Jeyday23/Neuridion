@@ -1,36 +1,36 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { chromium, type Browser } from 'playwright'
 
-const PDFSHIFT_API_URL = 'https://api.pdfshift.io/v3/convert/pdf'
-const MONTHLY_LIMIT = 45  // global cap — stay under 50-conversion free tier
-const PER_USER_LIMIT = 15 // prevents a single user from burning all credits
+const MONTHLY_LIMIT = 45  // global cap
+const PER_USER_LIMIT = 15 // prevents a single user from burning all quota
+
+/* ── Singleton browser instance (reused across requests to avoid cold starts) ── */
+
+let browserPromise: Promise<Browser> | null = null
+
+function getBrowser(): Promise<Browser> {
+  if (!browserPromise) {
+    browserPromise = chromium.launch({
+      args: ['--disable-gpu', '--no-sandbox', '--disable-setuid-sandbox'],
+    })
+  }
+  return browserPromise
+}
 
 export async function generatePdfFromHtml(html: string): Promise<Buffer> {
-  const apiKey = process.env.PDFSHIFT_API_KEY
-  if (!apiKey) {
-    throw new Error('PDFSHIFT_API_KEY is not configured')
-  }
-
-  const response = await fetch(PDFSHIFT_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${Buffer.from(`api:${apiKey}`).toString('base64')}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      source: html,
+  const browser = await getBrowser()
+  const page = await browser.newPage()
+  try {
+    await page.setContent(html, { waitUntil: 'networkidle' })
+    const pdfBuffer = await page.pdf({
       format: 'A4',
       margin: { top: '20mm', right: '20mm', bottom: '20mm', left: '20mm' },
-      sandbox: false,
-    }),
-  })
-
-  if (!response.ok) {
-    const errText = await response.text()
-    console.error('[PDF]', `PDFShift ${response.status}: ${errText}`)
-    throw new Error('PDF generation failed')
+      printBackground: true,
+    })
+    return Buffer.from(pdfBuffer)
+  } finally {
+    await page.close()
   }
-
-  return Buffer.from(await response.arrayBuffer())
 }
 
 export async function canGeneratePdf(
