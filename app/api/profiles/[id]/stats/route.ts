@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 
 export async function GET(
@@ -17,9 +16,7 @@ export async function GET(
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const db = createAdminClient()
-
-  const { data: profile, error: profileError } = await db
+  const { data: profile, error: profileError } = await supabase
     .from('product_profiles')
     .select('id')
     .eq('id', id)
@@ -30,7 +27,7 @@ export async function GET(
     return Response.json({ error: 'Profile not found' }, { status: 404 })
   }
 
-  const { count, error: countError } = await db
+  const { count, error: countError } = await supabase
     .from('search_runs')
     .select('id', { count: 'exact', head: true })
     .eq('profile_id', id)

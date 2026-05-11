@@ -1,5 +1,4 @@
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 
 const SaveDraftSchema = z.object({
@@ -44,11 +43,10 @@ export async function POST(request: Request) {
     uploadedPaths,
   } = parsed.data
 
-  const db = createAdminClient()
   const now = new Date().toISOString()
 
   if (id) {
-    const { data: existing } = await db
+    const { data: existing } = await supabase
       .from('search_drafts')
       .select('id')
       .eq('id', id)
@@ -59,7 +57,7 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Draft not found' }, { status: 404 })
     }
 
-    const { data, error } = await db
+    const { data, error } = await supabase
       .from('search_drafts')
       .update({
         name:                  name ?? null,
@@ -83,7 +81,7 @@ export async function POST(request: Request) {
     return Response.json({ id: data.id, saved_at: data.updated_at })
   }
 
-  const { data, error } = await db
+  const { data, error } = await supabase
     .from('search_drafts')
     .insert({
       user_id:               user.id,
@@ -113,8 +111,7 @@ export async function GET() {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const db = createAdminClient()
-  const { data, error } = await db
+  const { data, error } = await supabase
     .from('search_drafts')
     .select('id, name, profile_id, search_period_from, search_period_to, updated_at')
     .eq('user_id', user.id)

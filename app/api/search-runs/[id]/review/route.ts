@@ -45,6 +45,7 @@ export async function PATCH(
     .from('search_runs')
     .select('id, review_status, user_id')
     .eq('id', id)
+    .eq('user_id', user.id)
     .single()
 
   if (!existing) {
@@ -57,10 +58,6 @@ export async function PATCH(
       { error: `Cannot transition from '${existing.review_status}' to '${parsed.data.review_status}'.` },
       { status: 422 }
     )
-  }
-
-  if (existing.user_id !== user.id) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const { data: updated, error } = await db
