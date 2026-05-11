@@ -29,6 +29,9 @@ export default async function HomePage() {
           </Link>
 
           <div className="hidden md:flex items-center gap-8 text-sm text-[#134E4A]">
+            <a href="#how-it-works" className="hover:text-[#0F1F3D] transition-colors">
+              How It Works
+            </a>
             <a href="#features" className="hover:text-[#0F1F3D] transition-colors">
               Features
             </a>
@@ -56,28 +59,81 @@ export default async function HomePage() {
 
       {/* Hero */}
       <section className="py-16 lg:py-20">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <span className="inline-block px-4 py-1.5 bg-[#CCFBF1] text-[#115E59] text-sm font-semibold rounded-full border border-[#0D9488] mb-6">
-            EU MDR Article 83
-          </span>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-[#0F1F3D] tracking-tight mb-5">
-            Your PRRC&apos;s Post-Market Surveillance — Done in Minutes
-          </h1>
-          <p className="text-lg md:text-xl leading-relaxed text-[#134E4A] max-w-2xl mx-auto font-medium mb-8">
-            Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel. AI filters every Field Safety Notice against your device profile. Export audit-ready PDF reports.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link
-              href="/signup"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#0F1F3D] text-white rounded font-medium hover:bg-[#1a2d52] transition-colors text-sm"
-            >
-              Start 14-day free trial
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid lg:grid-cols-[1fr_420px] gap-12 items-center">
+            {/* Left — copy */}
+            <div>
+              <span className="inline-block px-4 py-1.5 bg-[#CCFBF1] text-[#115E59] text-sm font-semibold rounded-full border border-[#0D9488] mb-6">
+                AI-Powered PMS Platform
+              </span>
+              <h1 className="text-4xl md:text-5xl font-bold text-[#0F1F3D] tracking-tight mb-5">
+                PMS Reports in Minutes, Not Days
+              </h1>
+              <p className="text-lg leading-relaxed text-[#134E4A] font-medium mb-8 max-w-lg">
+                Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel. AI filters every Field Safety Notice against your device profile. Export audit-ready PDF reports.
+              </p>
+              <Link
+                href="/signup"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-[#0F1F3D] text-white rounded font-medium hover:bg-[#1a2d52] transition-colors text-sm"
+              >
+                Start 14-day free trial
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+              <p className="text-xs text-[#0F766E] mt-3">
+                No credit card required &middot; Cancel anytime
+              </p>
+            </div>
+            {/* Right — mini product preview */}
+            <div className="hidden lg:block">
+              <div className="rounded-lg border border-[#E2E8F0] shadow-md overflow-hidden bg-white">
+                <div className="bg-[#F1F5F9] border-b border-[#E2E8F0] px-3 py-2 flex items-center gap-1.5">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 rounded-full bg-[#E2E8F0]" />
+                    <div className="w-2 h-2 rounded-full bg-[#E2E8F0]" />
+                    <div className="w-2 h-2 rounded-full bg-[#E2E8F0]" />
+                  </div>
+                  <div className="flex-1 text-center text-[10px] text-[#94A3B8]">neuridion.eu</div>
+                </div>
+                <div className="p-4">
+                  <div className="text-xs font-semibold text-[#0F1F3D] mb-3">Search Results</div>
+                  <div className="flex gap-3 mb-3">
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                      <span className="font-semibold text-[#0F1F3D]">12</span>
+                      <span className="text-[#64748B]">relevant</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
+                      <span className="font-semibold text-[#0F1F3D]">3</span>
+                      <span className="text-[#64748B]">uncertain</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px]">
+                      <div className="w-1.5 h-1.5 rounded-full bg-[#94A3B8]" />
+                      <span className="font-semibold text-[#0F1F3D]">45</span>
+                      <span className="text-[#64748B]">excluded</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      { title: 'Battery overheating in cardiac monitor', src: 'BfArM', conf: 94 },
+                      { title: 'Updated IFU for patient cable assembly', src: 'MHRA', conf: 87 },
+                      { title: 'Software update v3.2 — display calibration', src: 'FDA', conf: 82 },
+                    ].map((row, i) => (
+                      <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded bg-[#FAFBFC] text-[10px]">
+                        <div className="truncate text-[#0F1F3D] font-medium mr-2">{row.title}</div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-[#64748B]">{row.src}</span>
+                          <span className="px-1.5 py-0.5 rounded bg-[#D1FAE5] text-[#065F46] font-semibold text-[9px]">
+                            {row.conf}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <p className="text-xs text-[#0F766E] mt-3">
-            No credit card required &middot; Cancel anytime
-          </p>
         </div>
       </section>
 
@@ -101,6 +157,14 @@ export default async function HomePage() {
               <div className="text-xl font-bold text-[#0D9488]">GDPR</div>
               <div className="text-xs text-[#134E4A] font-medium mt-1">By design</div>
             </div>
+          </div>
+          <div className="flex flex-wrap justify-center gap-4 mt-6 pt-5 border-t border-[#CCFBF1]">
+            {['EU MDR Art. 83', 'GDPR', 'ISO 13485', 'Append-Only Audit Trail'].map((badge) => (
+              <span key={badge} className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#E2E8F0] rounded-full text-xs font-medium text-[#0F1F3D]">
+                <Shield className="w-3 h-3 text-[#0D9488]" />
+                {badge}
+              </span>
+            ))}
           </div>
         </div>
       </section>
@@ -224,7 +288,7 @@ export default async function HomePage() {
       </section>
 
       {/* How It Works */}
-      <section className="py-20 bg-[#F0FDFA] border-y border-[#CCFBF1]">
+      <section id="how-it-works" className="py-20 bg-[#F0FDFA] border-y border-[#CCFBF1]">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-[#0F1F3D] mb-3">How it works</h2>
