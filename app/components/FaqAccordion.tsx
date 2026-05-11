@@ -14,7 +14,7 @@ const faqs = [
   },
   {
     question: 'Is Neuridion MDR compliant?',
-    answer: 'Yes, Neuridion is built specifically for EU MDR Article 83 compliance. Our reports are formatted to meet regulatory requirements and include full audit trails for documentation purposes.',
+    answer: 'Neuridion is built specifically to support EU MDR Article 83 post-market surveillance requirements. Our reports are formatted for regulatory reviews and include full audit trails for documentation purposes.',
   },
   {
     question: 'Can I export reports for audits?',
