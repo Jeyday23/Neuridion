@@ -5,7 +5,7 @@
 
 ## Goal
 
-Raise NEURIDION's Kodex EU AI Act compliance score from 29% to ~70-80% by creating scanner-detectable compliance documents and an in-app AI transparency page. Technical details auto-filled from codebase; regulatory judgment calls marked with `[ROBERT: ...]` for co-founder review.
+Raise NEURIDION's Kodex EU AI Act compliance score from 29% to ~70-80% by creating scanner-detectable compliance documents and an in-app AI transparency page. Technical details auto-filled from codebase; regulatory judgment calls marked with `[REVIEW: ...]` for regulatory review.
 
 ## Problem
 
@@ -48,7 +48,7 @@ Every document follows this structure for scanner keyword detection:
 **Date:** 2026-05-11
 **Status:** DRAFT — Pending regulatory review
 **Author:** Auto-generated from codebase analysis
-**Reviewer:** [ROBERT: Assign qualified reviewer]
+**Reviewer:** [: Assign qualified reviewer]
 
 ## 1. Purpose
 [Why this document exists, which EU AI Act article it addresses]
@@ -63,7 +63,7 @@ Every document follows this structure for scanner keyword detection:
 | Role | Name | Date | Signature |
 |------|------|------|-----------|
 | Prepared by | Auto-generated | 2026-05-11 | — |
-| Reviewed by | [ROBERT: Assign] | [ROBERT: Date] | [ROBERT: Sign] |
+| Reviewed by | [: Assign] | [: Date] | [: Sign] |
 ```
 
 ### Track 2: In-App AI Transparency Page
@@ -150,7 +150,7 @@ WHERE created_at >= NOW() - INTERVAL '30 days';
 
 ### `ai-system-description.md`
 - **System name:** NEURIDION ("PMS in Seconds")
-- **Provider:** Neuridion (Jeremiah + Robert Friedrich, COPRA System GmbH)
+- **Provider:** Neuridion
 - **Purpose:** Automated post-market surveillance for medical device manufacturers under EU MDR
 - **AI component:** FSN relevance classification using Anthropic Claude models
 - **Intended users:** Qualified PRRCs at medical device companies
@@ -162,7 +162,7 @@ WHERE created_at >= NOW() - INTERVAL '30 days';
 - **Analysis scope:** EU AI Act Annex I (safety components) and Annex III (high-risk use cases)
 - **Annex I determination:** NEURIDION is not a safety component of a product. It is a compliance workflow tool.
 - **Annex III determination:** Category 5(a) (medical devices) does NOT apply — NEURIDION is not itself a medical device under MDR Article 2. It is a literature screening tool used by professionals to search publicly available databases. It does not diagnose, treat, predict, or make autonomous clinical decisions.
-- **Risk tier conclusion:** Limited-risk (Art. 50 transparency obligations apply). [ROBERT: Review and confirm this classification]
+- **Risk tier conclusion:** Limited-risk (Art. 50 transparency obligations apply). [REVIEW: Confirm this classification]
 - **Rationale:** The AI augments human PRRC judgment by triaging document relevance. All classifications are advisory and require human review before regulatory use. The system processes public regulatory notices, not patient data.
 
 ### `human-oversight.md`
@@ -184,14 +184,14 @@ WHERE created_at >= NOW() - INTERVAL '30 days';
 ### `prohibited-practices.md`
 - **Scope:** Full screening against all EU AI Act Article 5 categories
 - **Categories assessed:** (a) subliminal manipulation, (b) exploitation of vulnerabilities, (c) social scoring, (d) criminal risk assessment from profiling, (e) facial recognition database scraping, (f) emotion inference in workplace/education, (g) biometric categorization, (h) real-time remote biometric identification
-- **Determination:** None apply. The system classifies publicly available government regulatory documents. It does not interact with, profile, score, manipulate, or surveil any natural person. [ROBERT: Review and attest]
+- **Determination:** None apply. The system classifies publicly available government regulatory documents. It does not interact with, profile, score, manipulate, or surveil any natural person. [REVIEW: Attest]
 
 ### `dpia-screening.md`
 - **Processing activity:** AI classification of publicly available FSN documents against user-defined device profiles
 - **Data subjects:** None in the traditional sense — FSNs are public government notices about medical devices, not personal data about individuals. User data (email, company, device profiles) is standard B2B SaaS account data.
 - **Personal data processed by AI:** None. FSN text, manufacturer names, and device descriptions are sent to Anthropic API. No user credentials, email addresses, or personal identifiers are included in AI prompts.
 - **Sensitive data:** None. No health data, biometric data, or special category data is processed by the AI component.
-- **Screening conclusion:** [ROBERT: Based on this analysis, determine whether a full DPIA is required. Given that the AI processes only public regulatory documents and no personal/health data, a full DPIA may not be necessary. However, the user account data processing (Supabase Auth) may warrant a separate DPIA assessment under standard GDPR obligations.]
+- **Screening conclusion:** [REVIEW: Based on this analysis, determine whether a full DPIA is required. Given that the AI processes only public regulatory documents and no personal/health data, a full DPIA may not be necessary. However, the user account data processing (Supabase Auth) may warrant a separate DPIA assessment under standard GDPR obligations.]
 
 ## File Map
 
@@ -216,9 +216,9 @@ WHERE created_at >= NOW() - INTERVAL '30 days';
 - Privacy/terms pages — separate concern
 - Existing admin pages
 
-## What Robert Needs To Do After
+## Post-Implementation: Regulatory Review Required
 
-1. Review all 6 compliance docs, fill `[ROBERT: ...]` placeholders
+1. Review all 6 compliance docs, fill `[REVIEW: ...]` placeholders
 2. Confirm or adjust the limited-risk classification in `risk-assessment.md`
 3. Attest to Art. 5 prohibited practices screening in `prohibited-practices.md`
 4. Determine if full DPIA is required based on `dpia-screening.md`
