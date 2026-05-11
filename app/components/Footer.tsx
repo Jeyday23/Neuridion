@@ -13,6 +13,8 @@ export function Footer({ className = '' }: { className?: string }) {
       <span className="mx-2">·</span>
       <Link href="/dpa"      className="hover:text-zinc-600 transition-colors">DPA</Link>
       <span className="mx-2">·</span>
+      <Link href="/ai-transparency" className="hover:text-zinc-600 transition-colors">AI Transparency</Link>
+      <span className="mx-2">·</span>
       <a href="mailto:info@neuridion.eu" className="hover:text-zinc-600 transition-colors">Contact</a>
     </footer>
   )
