@@ -341,7 +341,7 @@ export async function runSearchPipeline(
     }
   }
 
-  const filterLimit = pLimit(8)
+  const filterLimit = pLimit(2)
   const filterResults = await Promise.all(
     toFilter.map((row, i) => filterLimit(async () => {
       const d = await stage1Filter(
