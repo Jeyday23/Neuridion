@@ -632,7 +632,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       setState({ phase: 'queued', runId: run_id, startedAt })
       startPolling(run_id, startedAt)
     } catch (err) {
-      setState({ phase: 'error', message: err instanceof TypeError ? 'Network error — check your connection and try again.' : String(err) })
+      setState({ phase: 'error', message: err instanceof TypeError ? 'Network error — check your connection and try again.' : 'Something went wrong. Please try again.' })
     } finally {
       submittingRef.current = false
     }
