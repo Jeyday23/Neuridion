@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useToast } from '@/app/components/ui/ToastProvider'
 
 type Props =
   | { mode: 'checkout'; priceId: string; label: string }
@@ -9,6 +10,7 @@ type Props =
 export function BillingActions(props: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   async function handleClick() {
     setLoading(true)
@@ -32,7 +34,11 @@ export function BillingActions(props: Props) {
         window.location.href = data.url
       }
     } catch (err) {
-      setError(String(err))
+      const msg = err instanceof Error && err.message.includes('429')
+        ? 'Too many requests — please wait a moment.'
+        : 'Unable to connect to billing. Please try again.'
+      toast.show(msg, 'error')
+      setError(null)
       setLoading(false)
     }
   }

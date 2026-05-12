@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/app/components/ui/ToastProvider'
 
 export function CancelRunButton({
   runId,
@@ -101,6 +102,7 @@ export function DownloadButton({
   label: string
 }) {
   const [loading, setLoading] = useState(false)
+  const toast = useToast()
 
   const handleClick = async () => {
     setLoading(true)
@@ -115,7 +117,7 @@ export function DownloadButton({
       a.click()
       document.body.removeChild(a)
     } catch {
-      alert('Download failed — try again.')
+      toast.show('Download failed — please try again.', 'error')
     } finally {
       setLoading(false)
     }

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useToast } from '@/app/components/ui/ToastProvider'
 
 interface Props {
   initialEmail:       string
@@ -26,6 +27,7 @@ export function SettingsClient({
   consentCookiesAt,
 }: Props) {
   const router = useRouter()
+  const toast = useToast()
 
   // Account info
   const [fullName,    setFullName]    = useState(initialFullName)
@@ -60,7 +62,12 @@ export function SettingsClient({
     const { error } = await supabase.auth.updateUser({
       data: { full_name: fullName, company_name: companyName },
     })
-    setInfoMsg(error ? `Error: ${error.message}` : 'Saved.')
+    if (error) {
+      toast.show('Unable to save changes. Please try again.', 'error')
+    } else {
+      toast.show('Changes saved.', 'success')
+    }
+    setInfoMsg('')
     setInfoSaving(false)
   }
 
@@ -91,9 +98,11 @@ export function SettingsClient({
 
     const { error } = await supabase.auth.updateUser({ password: newPw })
     if (error) {
-      setPwMsg(`Error: ${error.message}`)
+      toast.show('Unable to update password. Please try again.', 'error')
+      setPwMsg('')
     } else {
-      setPwMsg('Password updated.')
+      toast.show('Password updated.', 'success')
+      setPwMsg('')
       setCurrentPw(''); setNewPw(''); setConfirmPw('')
     }
     setPwSaving(false)
@@ -113,9 +122,11 @@ export function SettingsClient({
     if (res.ok) {
       setCookiesConsented(false)
       document.cookie = 'neuridion_cookie_consent=rejected; path=/; SameSite=Lax; Secure; max-age=31536000'
-      setConsentMsg('Cookie consent withdrawn.')
+      toast.show('Cookie consent withdrawn.', 'success')
+      setConsentMsg('')
     } else {
-      setConsentMsg(json.error ?? 'Something went wrong')
+      toast.show('Unable to update consent. Please try again.', 'error')
+      setConsentMsg('')
     }
     setConsentSaving(false)
   }
@@ -138,7 +149,7 @@ export function SettingsClient({
     })
     const json = await res.json()
     if (!res.ok) {
-      setDeleteMsg(json.error)
+      toast.show('Unable to process request. Please try again.', 'error')
     } else {
       setDeleteMsg(json.message)
       setTimeout(() => router.push('/login?deleted=1'), 2000)
@@ -151,7 +162,7 @@ export function SettingsClient({
     const res  = await fetch('/api/account/delete', { method: 'DELETE' })
     const json = await res.json()
     if (res.ok) router.refresh()
-    else setDeleteMsg(json.error)
+    else toast.show('Unable to process request. Please try again.', 'error')
     setCancelling(false)
   }
 

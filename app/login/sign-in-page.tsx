@@ -36,7 +36,7 @@ export function NeuridionSignIn() {
       }
       setStep('code')
     } catch {
-      setError('Network error. Please try again.')
+      setError('Unable to connect. Please check your internet and try again.')
     } finally {
       setLoading(false)
     }
@@ -61,7 +61,7 @@ export function NeuridionSignIn() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error ?? 'Verification failed.')
+        setError(data.error === 'Invalid token' ? 'Incorrect code. Please check and try again.' : data.error ?? 'Verification failed. Please try again.')
         setLoading(false)
         return
       }
@@ -73,7 +73,7 @@ export function NeuridionSignIn() {
       setStep('success')
       setTimeout(() => router.push(safeRedirect ?? redirectPath), 1500)
     } catch {
-      setError('Network error. Please try again.')
+      setError('Unable to connect. Please check your internet and try again.')
       setLoading(false)
     }
   }
