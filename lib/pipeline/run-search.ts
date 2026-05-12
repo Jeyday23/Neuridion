@@ -13,7 +13,7 @@ import pLimit from 'p-limit'
 import { upsertCanonical, getCanonicalItems, computeContentHash } from '@/lib/sync/canonical'
 import { z } from 'zod'
 
-const TermsUsedSchema = z.object({
+export const TermsUsedSchema = z.object({
   manufacturer_terms: z.array(z.string().max(100)).max(10),
   device_terms: z.array(z.string().max(100)).max(10),
   raw_manufacturer: z.string().max(500),

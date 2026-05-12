@@ -292,7 +292,7 @@ function buildReportHtml(
 
   <h2>2. Search Methodology</h2>
   <table class="meta-table">
-    <tr><td>Databases Searched</td><td>${[...new Set(rows.map(r => fmtSourceDb(r.source_db)))].join(', ')}</td></tr>
+    <tr><td>Databases Searched</td><td>${[...new Set(rows.map(r => fmtSourceDb(r.source_db)))].map(s => escHtml(s)).join(', ')}</td></tr>
     <tr><td>Search Date Range</td><td>${escHtml(run.period_from)} to ${escHtml(run.period_to)}</td></tr>
     ${termsUsed ? `
     <tr><td>Manufacturer Terms</td><td>${termsUsed.manufacturer_terms.map(t => `<code style="background:#dcfce7;padding:1px 5px;border-radius:3px;font-size:9pt;">${escHtml(t)}</code>`).join(' ') || '<em>none</em>'} <span style="color:#888;font-size:8.5pt;">(derived from &ldquo;${escHtml(termsUsed.raw_manufacturer)}&rdquo;)</span></td></tr>
@@ -387,6 +387,7 @@ function escHtml(str: string | null | undefined): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function safeHref(url: string | null | undefined): string {

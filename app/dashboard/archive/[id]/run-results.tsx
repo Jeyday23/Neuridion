@@ -191,7 +191,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
       const esc = (s: string | null) => {
         if (!s) return ''
         let escaped = s.replace(/"/g, '""')
-        if (/^[=+\-@\t\r]/.test(escaped)) escaped = "'" + escaped
+        if (/^[=+\-@\t\r|]/.test(escaped)) escaped = "'" + escaped
         return escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') ? `"${escaped}"` : escaped
       }
       return [esc(r.title), esc(r.manufacturer), esc(r.fsn_date), esc(r.source_db), esc(r.source_url)].join(',')

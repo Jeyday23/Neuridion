@@ -99,7 +99,7 @@ export default async function RunDetailPage({
   const fail = (run as { filter_failed_count?: number }).filter_failed_count ?? 0
   const tot  = run.total_results       ?? results.length
 
-  const termsUsed = (run as { terms_used?: { manufacturer_terms: string[]; device_terms: string[]; term_algorithm_version: string } | null }).terms_used ?? null
+  const termsUsed = (run as { terms_used?: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null }).terms_used ?? null
 
   return (
     <div className="p-8 max-w-5xl mx-auto">

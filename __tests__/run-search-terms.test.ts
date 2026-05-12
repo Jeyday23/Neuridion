@@ -1,15 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { z } from 'zod'
-
-const TermsUsedSchema = z.object({
-  manufacturer_terms: z.array(z.string().max(100)).max(10),
-  device_terms: z.array(z.string().max(100)).max(10),
-  raw_manufacturer: z.string().max(500),
-  raw_device_name: z.string().max(500),
-  term_algorithm_version: z.string().max(10),
-})
-
-export type TermsUsed = z.infer<typeof TermsUsedSchema>
+import { TermsUsedSchema } from '@/lib/pipeline/run-search'
 
 describe('TermsUsed schema validation', () => {
   it('accepts valid terms payload', () => {
