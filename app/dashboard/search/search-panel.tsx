@@ -9,6 +9,7 @@ import { Plus, Upload, X, CheckCircle, Loader2, ChevronDown } from 'lucide-react
 import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
 import { createClient } from '@/lib/supabase/client'
 import { FeedbackPopup } from '@/app/components/FeedbackPopup'
+import { useToast } from '@/app/components/ui/ToastProvider'
 import { daysBetween } from '@/lib/utils/date-chunks'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -189,19 +190,6 @@ function FsnRow({
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-// ─── Toast ────────────────────────────────────────────────────────────────────
-
-function Toast({ msg, type }: { msg: string; type: 'success' | 'error' }) {
-  return (
-    <div className={clsx(
-      'fixed bottom-6 right-6 z-50 rounded px-4 py-3 text-sm font-medium shadow-lg pointer-events-none',
-      type === 'success' ? 'bg-green-700 text-white' : 'bg-red-700 text-white'
-    )}>
-      {msg}
     </div>
   )
 }
@@ -387,7 +375,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const [draftSaving, setDraftSaving] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isDragging, setIsDragging]   = useState(false)
-  const [toast, setToast]             = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [selectedDbs, setSelectedDbs] = useState<Set<string>>(new Set(databases.filter(d => d.active).map(d => d.id)))
   const [hoveredDb, setHoveredDb]     = useState<string | null>(null)
 
@@ -449,10 +436,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     filter_failed: t.badges.filter_failed,
   }
 
-  function showToast(msg: string, type: 'success' | 'error' = 'success') {
-    setToast({ msg, type })
-    setTimeout(() => setToast(null), 3000)
-  }
+  const { show: showToast } = useToast()
 
   function toggleDb(id: string) {
     const db = databases.find((d) => d.id === id)
@@ -1054,7 +1038,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         </div>
       )}
 
-      {toast && <Toast msg={toast.msg} type={toast.type} />}
       {showFeedback && (
         <FeedbackPopup triggeredBy="first_search" onClose={() => setShowFeedback(false)} />
       )}

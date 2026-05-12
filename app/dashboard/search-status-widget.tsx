@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { useSearchContext } from './search-context'
 import { useLanguage } from './language-context'
 
@@ -54,7 +54,10 @@ export function SearchStatusWidget() {
         {/* ── RUNNING ── */}
         {searchState.phase === 'running' && (
           <>
-            <Loader2 className="w-4 h-4 animate-spin text-blue-500 mt-0.5 shrink-0" />
+            <span className="relative flex h-4 w-4 mt-0.5 shrink-0 items-center justify-center">
+              <span className="animate-ping absolute h-2.5 w-2.5 rounded-full bg-blue-400 opacity-75" />
+              <span className="relative h-2 w-2 rounded-full bg-blue-500" />
+            </span>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-zinc-900">{t.widget.running}</p>

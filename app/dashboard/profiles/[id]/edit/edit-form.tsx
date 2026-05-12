@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2 } from 'lucide-react'
 import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
 
 const DEVICE_CLASSES = ['Class I', 'Class IIa', 'Class IIb', 'Class III'] as const
@@ -123,7 +122,6 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
       <div className="flex items-center gap-3 pt-2">
         <button type="submit" disabled={saving}
           className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2">
-          {saving && <Loader2 className="w-4 h-4 animate-spin" />}
           {saving ? 'Saving…' : 'Save changes'}
         </button>
         <button type="button" onClick={() => router.push('/dashboard/profiles')}
