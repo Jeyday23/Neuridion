@@ -34,6 +34,7 @@ type AuditEventType =
   | 'consent_withdrawn'
   | 'consent_granted'
   | 'search_run_deleted'
+  | 'self_approval_override'
 
 export async function logAuditEvent(
   userId: string | null,

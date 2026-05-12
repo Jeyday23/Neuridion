@@ -76,10 +76,20 @@ export async function PATCH(
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
+  const isSelfApproval = parsed.data.review_status === 'approved' && existing.user_id === user.id
+
   await logAuditEvent(user.id, 'prrc_review_completed', {
     run_id:        id,
     review_status: parsed.data.review_status,
+    self_approval: isSelfApproval,
   }, request)
 
-  return Response.json(updated)
+  if (isSelfApproval) {
+    await logAuditEvent(user.id, 'self_approval_override', {
+      run_id: id,
+      justification: 'Single-user organisation — no independent reviewer available.',
+    }, request)
+  }
+
+  return Response.json({ ...updated, self_approval: isSelfApproval })
 }

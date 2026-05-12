@@ -160,8 +160,15 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
   const [reviewedAt, setReviewedAt] = useState<string | null>(null)
   const [reviewedBy, setReviewedBy] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [selfApproval, setSelfApproval] = useState(false)
+  const [confirmingSelfApproval, setConfirmingSelfApproval] = useState(false)
 
   async function handleReview(newStatus: 'reviewed' | 'approved') {
+    if (newStatus === 'approved' && !confirmingSelfApproval) {
+      setConfirmingSelfApproval(true)
+      return
+    }
+    setConfirmingSelfApproval(false)
     setReviewLoading(true)
     setReviewError(null)
     try {
@@ -175,6 +182,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         setReviewStatus(data.review_status)
         setReviewedAt(data.reviewed_at)
         setReviewedBy(data.reviewed_by ?? null)
+        if (data.self_approval) setSelfApproval(true)
       } else {
         setReviewError('Failed to update review status. Please try again.')
       }
@@ -268,7 +276,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
               {reviewLoading ? 'Saving...' : 'Mark as Reviewed'}
             </button>
           )}
-          {reviewStatus === 'reviewed' && (
+          {reviewStatus === 'reviewed' && !confirmingSelfApproval && (
             <button
               onClick={() => handleReview('approved')}
               disabled={reviewLoading}
@@ -277,6 +285,33 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
               {reviewLoading ? 'Saving...' : 'Approve'}
             </button>
           )}
+          {reviewStatus === 'approved' && selfApproval && (
+            <span className="text-xs text-zinc-400 italic">Self-approved (logged)</span>
+          )}
+        </div>
+      )}
+
+      {confirmingSelfApproval && (
+        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
+          <p className="font-medium text-amber-800">Self-approval acknowledgement</p>
+          <p className="mt-1 text-amber-700">
+            You are approving your own work. Under EU MDR Annex IX 4.5.5, independent review is required where possible. By proceeding, you confirm no independent reviewer is available and this self-approval will be documented in the audit trail.
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => setConfirmingSelfApproval(false)}
+              className="px-3 py-1.5 border border-zinc-300 rounded-lg text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => handleReview('approved')}
+              disabled={reviewLoading}
+              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              {reviewLoading ? 'Saving...' : 'Confirm Approval'}
+            </button>
+          </div>
         </div>
       )}
 
