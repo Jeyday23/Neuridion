@@ -387,7 +387,7 @@ function safeHref(url: string | null | undefined): string {
 
 export async function POST(request: Request) {
   const ip = getClientIp(request)
-  const rl = rateLimit(`reports:${ip}`, 5, 60_000)
+  const rl = await rateLimit(`reports:${ip}`, 5, 60_000)
   if (!rl.allowed) {
     return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }

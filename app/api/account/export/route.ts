@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const rl = rateLimit(`export:${user.id}`, 3, 300_000)
+  const rl = await rateLimit(`export:${user.id}`, 3, 300_000)
   if (!rl.allowed) {
     return Response.json({ error: 'Too many export requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }

@@ -14,7 +14,7 @@ const DeleteAccountSchema = z.object({
 
 export async function POST(request: Request) {
   const ip = getClientIp(request)
-  const rl = rateLimit(`account-delete:${ip}`, 3, 300_000)
+  const rl = await rateLimit(`account-delete:${ip}`, 3, 300_000)
   if (!rl.allowed) {
     return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }

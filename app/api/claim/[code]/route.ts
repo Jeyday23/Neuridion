@@ -17,7 +17,7 @@ export async function POST(
   { params }: { params: Promise<{ code: string }> }
 ) {
   const ip = getClientIp(request)
-  const rl = rateLimit(`claim:${ip}`, 5, 60_000)
+  const rl = await rateLimit(`claim:${ip}`, 5, 60_000)
   if (!rl.allowed) {
     return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }

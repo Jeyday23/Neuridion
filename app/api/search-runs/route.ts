@@ -40,7 +40,7 @@ const SearchRunBodySchema = z.object({
 
 export async function POST(request: Request) {
   const ip = getClientIp(request)
-  const rl = rateLimit(`search-runs:${ip}`, 10, 60_000)
+  const rl = await rateLimit(`search-runs:${ip}`, 10, 60_000)
   if (!rl.allowed) {
     return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }

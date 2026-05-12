@@ -22,7 +22,7 @@ export async function POST(
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const rl = rateLimit(`retry:${user.id}`, 5, 60_000)
+  const rl = await rateLimit(`retry:${user.id}`, 5, 60_000)
   if (!rl.allowed) {
     return Response.json({ error: 'Too many retry requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }

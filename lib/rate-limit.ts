@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { redis } from '@/lib/upstash'
+import { Ratelimit } from '@upstash/ratelimit'
 
 const MAX_ATTEMPTS   = 5
 const WINDOW_MINUTES = 15
@@ -33,15 +35,14 @@ export async function recordLoginAttempt(
 }
 
 // ---------------------------------------------------------------------------
-// General-purpose in-memory sliding-window rate limiter for API routes
+// Redis-backed rate limiter with in-memory fallback
 // ---------------------------------------------------------------------------
 
 const windows = new Map<string, number[]>()
-
 const CLEANUP_INTERVAL = 60_000
 let lastCleanup = Date.now()
 
-function cleanup(now: number, windowMs: number) {
+function cleanupMemory(now: number, windowMs: number) {
   if (now - lastCleanup < CLEANUP_INTERVAL) return
   lastCleanup = now
   for (const [key, timestamps] of windows) {
@@ -51,13 +52,13 @@ function cleanup(now: number, windowMs: number) {
   }
 }
 
-export function rateLimit(
+function rateLimitMemory(
   key: string,
   maxRequests: number,
   windowMs: number,
 ): { allowed: boolean; retryAfterMs: number } {
   const now = Date.now()
-  cleanup(now, windowMs)
+  cleanupMemory(now, windowMs)
 
   const timestamps = windows.get(key) ?? []
   const recent = timestamps.filter((t) => now - t < windowMs)
@@ -72,8 +73,46 @@ export function rateLimit(
   return { allowed: true, retryAfterMs: 0 }
 }
 
+const limiters = new Map<string, Ratelimit>()
+
+function getRedisLimiter(maxRequests: number, windowMs: number): Ratelimit | null {
+  if (!redis) return null
+  const cacheKey = `${maxRequests}:${windowMs}`
+  let limiter = limiters.get(cacheKey)
+  if (!limiter) {
+    limiter = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(maxRequests, `${windowMs} ms`),
+      prefix: 'rl',
+    })
+    limiters.set(cacheKey, limiter)
+  }
+  return limiter
+}
+
+export async function rateLimit(
+  key: string,
+  maxRequests: number,
+  windowMs: number,
+): Promise<{ allowed: boolean; retryAfterMs: number }> {
+  const limiter = getRedisLimiter(maxRequests, windowMs)
+  if (!limiter) {
+    return rateLimitMemory(key, maxRequests, windowMs)
+  }
+
+  try {
+    const result = await limiter.limit(key)
+    if (!result.success) {
+      const retryAfterMs = result.reset ? result.reset - Date.now() : windowMs
+      return { allowed: false, retryAfterMs: Math.max(0, retryAfterMs) }
+    }
+    return { allowed: true, retryAfterMs: 0 }
+  } catch {
+    return rateLimitMemory(key, maxRequests, windowMs)
+  }
+}
+
 export function getClientIp(request: Request): string {
-  // Prefer x-real-ip (set by trusted reverse proxy) over x-forwarded-for (client-spoofable)
   const realIp = request.headers.get('x-real-ip')
   if (realIp) return realIp.trim()
   const forwarded = request.headers.get('x-forwarded-for')

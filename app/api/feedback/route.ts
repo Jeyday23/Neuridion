@@ -14,7 +14,7 @@ const FeedbackSchema = z.object({
 
 export async function POST(request: Request) {
   const ip = getClientIp(request)
-  const rl = rateLimit(`feedback:${ip}`, 5, 60_000)
+  const rl = await rateLimit(`feedback:${ip}`, 5, 60_000)
   if (!rl.allowed) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
