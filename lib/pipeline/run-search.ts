@@ -75,6 +75,13 @@ export async function runSearchPipeline(
   if (profileError || !profile) throw new Error(`Profile ${payload.profile_id} not found`)
   const safeProfile = profile
 
+  const { data: userFlags } = await db
+    .from('users')
+    .select('ai_opt_out')
+    .eq('id', payload.user_id)
+    .single()
+  const aiOptOut = userFlags?.ai_opt_out === true
+
   const { period_from, period_to, force_refresh: forceRefresh } = payload
   const activeSources = payload.selected_dbs.filter((id) => SCRAPERS[id])
   if (activeSources.length === 0) activeSources.push('bfarm')
@@ -360,34 +367,47 @@ export async function runSearchPipeline(
     toFilter = mfrMatched
   }
 
-  // Per-run AI filter cap — prevents runaway spend on large result sets
-  const MAX_FILTER_ITEMS = Math.max(1, parseInt(process.env.MAX_FILTER_ITEMS_PER_RUN ?? '300', 10))
-  if (toFilter.length > MAX_FILTER_ITEMS) {
-    const skipped = toFilter.splice(MAX_FILTER_ITEMS)
-    console.error('[pipeline]', `item cap: ${skipped.length} items skipped (limit=${MAX_FILTER_ITEMS})`)
-    for (const row of skipped) {
+  if (aiOptOut) {
+    console.error('[pipeline]', `run_id=${runId} ai_opt_out=true — skipping AI filter, marking ${toFilter.length} items for manual review`)
+    for (const row of toFilter) {
       decisions.push({
         fsn_result_id: row.id,
         decision:      'filter_failed',
-        rationale:     `Run item limit (${MAX_FILTER_ITEMS}) reached — manual review required.`,
+        rationale:     'AI filtering disabled per user preference (GDPR Art 22).',
         confidence:    null,
         model:         null,
       })
     }
-  }
+  } else {
+    // Per-run AI filter cap — prevents runaway spend on large result sets
+    const MAX_FILTER_ITEMS = Math.max(1, parseInt(process.env.MAX_FILTER_ITEMS_PER_RUN ?? '300', 10))
+    if (toFilter.length > MAX_FILTER_ITEMS) {
+      const skipped = toFilter.splice(MAX_FILTER_ITEMS)
+      console.error('[pipeline]', `item cap: ${skipped.length} items skipped (limit=${MAX_FILTER_ITEMS})`)
+      for (const row of skipped) {
+        decisions.push({
+          fsn_result_id: row.id,
+          decision:      'filter_failed',
+          rationale:     `Run item limit (${MAX_FILTER_ITEMS}) reached — manual review required.`,
+          confidence:    null,
+          model:         null,
+        })
+      }
+    }
 
-  const filterLimit = pLimit(4)
-  const filterResults = await Promise.all(
-    toFilter.map((row, i) => filterLimit(async () => {
-      const d = await stage1Filter(
-        { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date },
-        safeProfile,
-        { skipCache: true },
-      )
-      return { ...d, fsn_result_id: row.id }
-    }))
-  )
-  decisions.push(...filterResults)
+    const filterLimit = pLimit(4)
+    const filterResults = await Promise.all(
+      toFilter.map((row, i) => filterLimit(async () => {
+        const d = await stage1Filter(
+          { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date },
+          safeProfile,
+          { skipCache: true },
+        )
+        return { ...d, fsn_result_id: row.id }
+      }))
+    )
+    decisions.push(...filterResults)
+  }
 
   // ── Step 4: Insert filter_decisions ─────────────────────────────────────────
 

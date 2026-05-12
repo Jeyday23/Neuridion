@@ -48,6 +48,12 @@ function fmtDate(iso: string | null): string {
   })
 }
 
+function safeCell(val: string | null | undefined): string {
+  if (!val) return ''
+  if (/^[=+\-@\t\r|]/.test(val)) return "'" + val
+  return val
+}
+
 // ─── Excel builder ────────────────────────────────────────────────────────────
 
 async function buildExcel(
@@ -97,12 +103,12 @@ async function buildExcel(
     for (const row of sorted) {
       const d = row.filter_decision
       const dataRow = ws.addRow({
-        title:        row.title,
-        manufacturer: row.manufacturer || '—',
+        title:        safeCell(row.title),
+        manufacturer: safeCell(row.manufacturer) || '—',
         fsn_date:     row.fsn_date ? fmtDate(row.fsn_date) : '—',
-        source_url:   row.source_url,
+        source_url:   safeCell(row.source_url),
         assessment:   d ? DECISION_LABEL[d.decision] : '—',
-        notes:        d?.rationale ?? '',
+        notes:        safeCell(d?.rationale),
         confidence:   (d && d.confidence != null) ? `${Math.round(d.confidence * 100)}%` : '—',
       })
 
@@ -413,6 +419,12 @@ export async function POST(request: Request) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  // GDPR Art 18: block data-processing operations when restricted
+  const { data: userFlags } = await supabase.from('users').select('processing_restricted').eq('id', user.id).single()
+  if (userFlags?.processing_restricted) {
+    return Response.json({ error: 'Data processing is currently restricted on your account. You can change this in Settings > Privacy.' }, { status: 403 })
   }
 
   let rawBody: unknown

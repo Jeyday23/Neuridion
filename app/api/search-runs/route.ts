@@ -64,8 +64,13 @@ export async function POST(request: Request) {
 
   const { profile_id, period_from, period_to, selected_dbs, force_refresh } = bodyResult.data
 
+  // GDPR Art 18: block data-processing operations when restricted
+  const { data: userData } = await supabase.from('users').select('plan, processing_restricted').eq('id', user.id).single()
+  if (userData?.processing_restricted) {
+    return Response.json({ error: 'Data processing is currently restricted on your account. You can change this in Settings > Privacy.' }, { status: 403 })
+  }
+
   // Plan limit check
-  const { data: userData } = await supabase.from('users').select('plan').eq('id', user.id).single()
   const userPlan = ((userData?.plan ?? 'free') as PlanId)
   const runLimit = PLANS[userPlan].maxSearchRuns
 
