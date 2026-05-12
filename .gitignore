@@ -68,3 +68,4 @@ next-env.d.ts
 
 # PRRC review agent screenshots
 docs/prrc-review/screenshots/
+.superpowers/
