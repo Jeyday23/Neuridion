@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { randomBytes } from 'crypto'
 import { logAuditEvent } from '@/lib/audit'
 import { z } from 'zod'
@@ -7,10 +8,6 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit'
 const ClaimSchema = z.object({
   email: z.email({ pattern: z.regexes.html5Email }),
 })
-
-function generateTempPassword(): string {
-  return randomBytes(12).toString('base64url').slice(0, 16)
-}
 
 export async function POST(
   request: Request,
@@ -64,11 +61,10 @@ export async function POST(
     }, { status: 409 })
   }
 
-  // 3. Create auth user (skip email confirmation)
-  const tempPassword = generateTempPassword()
+  // 3. Create auth user (internal password never exposed)
   const { data: newUser, error: createError } = await admin.auth.admin.createUser({
     email,
-    password:       tempPassword,
+    password:       randomBytes(32).toString('base64url'),
     email_confirm:  true,
     user_metadata:  { plan: 'trial', trial_code: code },
   })
@@ -85,7 +81,7 @@ export async function POST(
 
   const userId = newUser.user.id
 
-  // 4. Set plan = 'trial' on public.users (trigger creates row, we update plan)
+  // 4. Set plan = 'trial' on public.users
   await admin.from('users').upsert({ id: userId, email, plan: 'trial' }, { onConflict: 'id' })
 
   // 5. Lock email forever
@@ -101,17 +97,23 @@ export async function POST(
     redeemed_at:         new Date().toISOString(),
   }).eq('id', trialCode.id)
 
-  // 7. Audit log (best-effort)
+  // 7. Audit log
   await logAuditEvent(userId, 'signup', {
     method: 'trial_code',
     code,
     batch: trialCode.batch_name,
   }, request)
 
-  return Response.json({
-    ok:       true,
+  // 8. Send OTP code to the user's email for passwordless sign-in
+  const supabase = await createClient()
+  const { error: otpError } = await supabase.auth.signInWithOtp({
     email,
-    password: tempPassword,
-    message:  'Account created. Please save your password and change it in Settings.',
-  }, { status: 201 })
+    options: { shouldCreateUser: false },
+  })
+
+  if (otpError) {
+    console.error('[claim] OTP send failed:', otpError.message)
+  }
+
+  return Response.json({ ok: true, email }, { status: 201 })
 }
