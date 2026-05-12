@@ -108,6 +108,7 @@ export default async function PricingPage() {
           <p className="text-[#0F766E] max-w-lg mx-auto">
             All plans include a 14-day free trial. No credit card required.
           </p>
+          <p className="text-xs text-[#94A3B8] mt-2">All prices excl. VAT (zzgl. MwSt.)</p>
         </div>
       </section>
 
@@ -212,6 +213,8 @@ export default async function PricingPage() {
                 <li><Link href="/terms" className="hover:text-[#0F1F3D]">Terms</Link></li>
                 <li><Link href="/imprint" className="hover:text-[#0F1F3D]">Imprint</Link></li>
                 <li><Link href="/dpa" className="hover:text-[#0F1F3D]">DPA</Link></li>
+                <li><Link href="/ai-transparency" className="hover:text-[#0F1F3D]">AI Transparency</Link></li>
+                <li><Link href="/accessibility" className="hover:text-[#0F1F3D]">Accessibility</Link></li>
               </ul>
             </div>
             <div>

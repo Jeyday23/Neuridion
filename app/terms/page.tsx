@@ -15,7 +15,7 @@ export default function TermsPage() {
         </div>
 
         <h1 className="text-3xl font-bold text-zinc-900 mb-2">Terms of Service</h1>
-        <p className="text-sm text-zinc-500 mb-10">Last updated: [DATE — pending review]</p>
+        <p className="text-sm text-zinc-500 mb-10">Last updated: 12 May 2026</p>
 
         <div className="prose prose-zinc max-w-none space-y-10 text-zinc-700 leading-relaxed">
 
@@ -52,7 +52,11 @@ export default function TermsPage() {
               Paid plans are billed monthly or annually in advance via Stripe. Prices are listed in
               EUR and exclude VAT where applicable. We reserve the right to change pricing with 30
               days&apos; written notice. Refunds are handled on a case-by-case basis at our discretion.
-              Failed payments may result in service suspension.
+              Failed payments may result in service suspension. For consumer refund rights, see
+              our{' '}
+              <Link href="/withdrawal" className="text-[#0D9488] hover:underline">
+                Right of Withdrawal
+              </Link>.
             </p>
           </section>
 

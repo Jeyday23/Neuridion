@@ -19,7 +19,7 @@ export default function AITransparencyPage() {
         </div>
 
         <h1 className="text-3xl font-bold text-zinc-900 mb-2">AI Transparency</h1>
-        <p className="text-sm text-zinc-500 mb-10">Last updated: [DATE — pending review]</p>
+        <p className="text-sm text-zinc-500 mb-10">Last updated: 12 May 2026</p>
 
         <div className="prose prose-zinc max-w-none space-y-10 text-zinc-700 leading-relaxed">
 
@@ -204,9 +204,24 @@ export default function AITransparencyPage() {
             </p>
           </section>
 
-          {/* 8. Contact */}
+          {/* 8. EU AI Act Risk Classification */}
           <section>
-            <h2 className="text-xl font-semibold text-zinc-900 mb-3">8. Contact</h2>
+            <h2 className="text-xl font-semibold text-zinc-900 mb-3">
+              8. EU AI Act Risk Classification
+            </h2>
+            <p>
+              Under the EU AI Act (Regulation (EU) 2024/1689), NEURIDION&apos;s FSN classification
+              system is assessed as <strong>minimal risk</strong>. The system classifies publicly
+              available government-published regulatory notices — it does not process biometric data,
+              make decisions affecting natural persons&apos; rights, or fall within any Annex III
+              high-risk category. A Data Protection Impact Assessment (DPIA) screening has been
+              conducted and is available upon request.
+            </p>
+          </section>
+
+          {/* 9. Contact */}
+          <section>
+            <h2 className="text-xl font-semibold text-zinc-900 mb-3">9. Contact</h2>
             <p>
               For questions about our use of AI, data handling, or this transparency disclosure,
               contact us at{' '}

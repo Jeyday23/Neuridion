@@ -408,6 +408,7 @@ export default async function HomePage() {
             <p className="text-[#134E4A]">
               14-day free trial. No credit card required.
             </p>
+            <p className="text-xs text-[#94A3B8] mt-2">All prices excl. VAT (zzgl. MwSt.)</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -538,7 +539,11 @@ export default async function HomePage() {
               <div className="space-y-2">
                 <Link href="/privacy" className="block hover:text-[#0F1F3D]">Privacy</Link>
                 <Link href="/terms" className="block hover:text-[#0F1F3D]">Terms</Link>
+                <Link href="/withdrawal" className="block hover:text-[#0F1F3D]">Withdrawal</Link>
                 <Link href="/imprint" className="block hover:text-[#0F1F3D]">Imprint</Link>
+                <Link href="/dpa" className="block hover:text-[#0F1F3D]">DPA</Link>
+                <Link href="/ai-transparency" className="block hover:text-[#0F1F3D]">AI Transparency</Link>
+                <Link href="/accessibility" className="block hover:text-[#0F1F3D]">Accessibility</Link>
               </div>
             </div>
           </div>

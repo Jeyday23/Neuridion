@@ -15,7 +15,7 @@ export default function PrivacyPage() {
         </div>
 
         <h1 className="text-3xl font-bold text-zinc-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-zinc-500 mb-10">Last updated: [DATE — pending review]</p>
+        <p className="text-sm text-zinc-500 mb-10">Last updated: 12 May 2026</p>
 
         <div className="prose prose-zinc max-w-none space-y-10 text-zinc-700 leading-relaxed">
 
@@ -86,6 +86,7 @@ export default function PrivacyPage() {
               <li><strong>Render (US):</strong> application hosting — see Section 8</li>
               <li><strong>Stripe (US):</strong> payment processing — see Section 8</li>
               <li><strong>Resend (US):</strong> transactional email delivery</li>
+              <li><strong>Upstash (US):</strong> rate limiting infrastructure — see Section 8</li>
             </ul>
             <p className="mt-2">We do not sell your data to third parties.</p>
           </section>
@@ -141,8 +142,8 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">8. International transfers</h2>
             <p>
               Some of our sub-processors are based outside the EU/EEA. Where personal data is
-              transferred to the US (Anthropic, Render, Stripe), we rely on the EU Standard
-              Contractual Clauses (SCCs) as the transfer mechanism under Art. 46 GDPR.
+              transferred to the US (Anthropic, Render, Stripe, Resend, Upstash), we rely on the
+              EU Standard Contractual Clauses (SCCs) as the transfer mechanism under Art. 46 GDPR.
               Anthropic processes FSN text content only; no special category data is transmitted.
             </p>
           </section>
@@ -150,14 +151,96 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">9. Cookies</h2>
             <p>
-              We use one essential session cookie required to authenticate your session, and optional
-              analytics cookies (only if you consent). You can withdraw cookie consent at any time via
-              your browser settings.
+              We use essential cookies required to authenticate your session. Optional analytics cookies
+              are only set if you consent via the cookie banner. You can withdraw cookie consent at any
+              time via the &quot;Manage cookies&quot; link in the footer.
+            </p>
+            <div className="overflow-x-auto mt-4">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr className="border-b border-zinc-200">
+                    <th className="text-left py-2 pr-3 font-semibold text-zinc-900">Cookie</th>
+                    <th className="text-left py-2 pr-3 font-semibold text-zinc-900">Provider</th>
+                    <th className="text-left py-2 pr-3 font-semibold text-zinc-900">Purpose</th>
+                    <th className="text-left py-2 pr-3 font-semibold text-zinc-900">Duration</th>
+                    <th className="text-left py-2 font-semibold text-zinc-900">Type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-b border-zinc-100">
+                    <td className="py-2 pr-3 font-mono text-xs">sb-*-auth-token</td>
+                    <td className="py-2 pr-3">Supabase (1st party)</td>
+                    <td className="py-2 pr-3">Authentication session JWT</td>
+                    <td className="py-2 pr-3">Session</td>
+                    <td className="py-2">Essential</td>
+                  </tr>
+                  <tr className="border-b border-zinc-100">
+                    <td className="py-2 pr-3 font-mono text-xs">sb-*-auth-token.0/.1</td>
+                    <td className="py-2 pr-3">Supabase (1st party)</td>
+                    <td className="py-2 pr-3">Chunked auth token (large JWTs)</td>
+                    <td className="py-2 pr-3">Session</td>
+                    <td className="py-2">Essential</td>
+                  </tr>
+                  <tr className="border-b border-zinc-100">
+                    <td className="py-2 pr-3 font-mono text-xs">__stripe_mid</td>
+                    <td className="py-2 pr-3">Stripe (3rd party)</td>
+                    <td className="py-2 pr-3">Fraud prevention identifier</td>
+                    <td className="py-2 pr-3">1 year</td>
+                    <td className="py-2">Essential</td>
+                  </tr>
+                  <tr className="border-b border-zinc-100">
+                    <td className="py-2 pr-3 font-mono text-xs">__stripe_sid</td>
+                    <td className="py-2 pr-3">Stripe (3rd party)</td>
+                    <td className="py-2 pr-3">Fraud prevention session</td>
+                    <td className="py-2 pr-3">30 minutes</td>
+                    <td className="py-2">Essential</td>
+                  </tr>
+                  <tr className="border-b border-zinc-100">
+                    <td className="py-2 pr-3 font-mono text-xs">neuridion_cookie_consent</td>
+                    <td className="py-2 pr-3">Neuridion (1st party)</td>
+                    <td className="py-2 pr-3">Stores your cookie preference</td>
+                    <td className="py-2 pr-3">1 year</td>
+                    <td className="py-2">Essential</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-sm">
+              No third-party tracking, marketing, or advertising cookies are used.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold text-zinc-900 mb-3">10. Contact</h2>
+            <h2 className="text-xl font-semibold text-zinc-900 mb-3">10. Automated decision-making (Art. 22 GDPR)</h2>
+            <p>
+              Neuridion uses AI to classify Field Safety Notices as &quot;relevant&quot;,
+              &quot;uncertain&quot;, or &quot;excluded&quot; relative to your device profile. This constitutes
+              automated processing but <strong>does not produce legal or similarly significant effects</strong> on
+              individuals — it classifies publicly available regulatory notices, not personal data.
+            </p>
+            <p className="mt-2">
+              All AI classifications are advisory and require human review (PRRC sign-off) before inclusion
+              in regulatory documentation. You may opt out of AI processing entirely in{' '}
+              <Link href="/dashboard/settings" className="text-[#0D9488] hover:underline">Settings &gt; Privacy</Link>.
+              For full details on our AI system, see the{' '}
+              <Link href="/ai-transparency" className="text-[#0D9488] hover:underline">AI Transparency</Link> page.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-zinc-900 mb-3">11. Data Protection Officer</h2>
+            <p>
+              Based on our current processing activities and scale, a Data Protection Officer (DPO) has
+              not been formally appointed under Art. 37 GDPR. We keep this assessment under review as our
+              organisation grows. For all data protection inquiries, please contact us at{' '}
+              <a href="mailto:info@neuridion.eu" className="text-[#0D9488] hover:underline">
+                info@neuridion.eu
+              </a>.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-zinc-900 mb-3">12. Contact</h2>
             <p>
               Data controller: <strong>[COMPANY LEGAL NAME] — PLACEHOLDER</strong><br />
               Email:{' '}
