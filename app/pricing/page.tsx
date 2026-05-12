@@ -52,7 +52,7 @@ const tiers = [
     highlighted: false,
     cta: { loggedIn: null, loggedOut: null },
     ctaLabel: 'Contact sales',
-    ctaHref: 'mailto:info@neuridion.eu',
+    ctaHref: '/contact',
   },
 ] as const
 
@@ -202,7 +202,7 @@ export default async function PricingPage() {
             <div>
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">Company</h4>
               <ul className="space-y-2 text-sm text-[#0F766E]">
-                <li><a href="mailto:info@neuridion.eu" className="hover:text-[#0F1F3D]">Contact</a></li>
+                <li><Link href="/contact" className="hover:text-[#0F1F3D]">Contact</Link></li>
               </ul>
             </div>
             <div>

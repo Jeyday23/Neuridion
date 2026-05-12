@@ -41,6 +41,51 @@ export async function sendFeedbackNotification(feedback: {
   }
 }
 
+export async function sendContactMessage(contact: {
+  name: string
+  email: string
+  subject: string
+  message: string
+}): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) throw new Error('RESEND_API_KEY is not set')
+
+  const from = process.env.RESEND_FROM_ADDRESS ?? 'Neuridion <noreply@neuridion.eu>'
+  const subject = `[Contact] ${contact.subject}`
+  const submittedAt = new Date().toISOString()
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:system-ui,sans-serif;font-size:14px;color:#18181b;max-width:480px;margin:0 auto;padding:32px 16px">
+  <p style="margin:0 0 4px 0;font-size:18px;font-weight:700;color:#0F1F3D">Neuridion</p>
+  <hr style="border:none;border-top:1px solid #E2E8F0;margin:12px 0 20px">
+  <p style="margin:4px 0"><strong>From:</strong> ${escHtml(contact.name)} &lt;${escHtml(contact.email)}&gt;</p>
+  <p style="margin:4px 0"><strong>Subject:</strong> ${escHtml(contact.subject)}</p>
+  <p style="margin:4px 0"><strong>Submitted at:</strong> ${submittedAt}</p>
+  <hr style="border:none;border-top:1px solid #e4e4e7;margin:16px 0">
+  <p style="margin:4px 0;white-space:pre-wrap">${escHtml(contact.message)}</p>
+</body>
+</html>`
+
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from,
+      to: 'info@neuridion.eu',
+      reply_to: contact.email,
+      subject,
+      html,
+    }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText)
+    throw new Error(`Resend API error ${res.status}: ${text}`)
+  }
+}
+
 export interface SearchRunSummary {
   deviceName: string
   manufacturer: string
