@@ -159,9 +159,11 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewedAt, setReviewedAt] = useState<string | null>(null)
   const [reviewedBy, setReviewedBy] = useState<string | null>(null)
+  const [reviewError, setReviewError] = useState<string | null>(null)
 
   async function handleReview(newStatus: 'reviewed' | 'approved') {
     setReviewLoading(true)
+    setReviewError(null)
     try {
       const res = await fetch(`/api/search-runs/${runId}/review`, {
         method: 'PATCH',
@@ -173,7 +175,11 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         setReviewStatus(data.review_status)
         setReviewedAt(data.reviewed_at)
         setReviewedBy(data.reviewed_by ?? null)
+      } else {
+        setReviewError('Failed to update review status. Please try again.')
       }
+    } catch {
+      setReviewError('Network error. Please check your connection and try again.')
     } finally {
       setReviewLoading(false)
     }
@@ -184,7 +190,8 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
     const csvRows = results.map(r => {
       const esc = (s: string | null) => {
         if (!s) return ''
-        const escaped = s.replace(/"/g, '""')
+        let escaped = s.replace(/"/g, '""')
+        if (/^[=+\-@\t\r]/.test(escaped)) escaped = "'" + escaped
         return escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') ? `"${escaped}"` : escaped
       }
       return [esc(r.title), esc(r.manufacturer), esc(r.fsn_date), esc(r.source_db), esc(r.source_url)].join(',')
@@ -273,17 +280,25 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         </div>
       )}
 
+      {reviewError && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {reviewError}
+        </div>
+      )}
+
       {counts.filter_failed > 0 && (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <strong>{counts.filter_failed} item{counts.filter_failed !== 1 ? 's were' : ' was'} not reviewed</strong> — these items exceeded the AI filter cap for this run and were not assessed. Manual review required.
         </div>
       )}
 
-      {/* Tab bar */}
-      <div className="flex gap-1 border-b border-zinc-200 mb-4 flex-wrap">
+      <div role="tablist" className="flex gap-1 border-b border-zinc-200 mb-4 flex-wrap">
         {tabs.map((t) => (
           <button
             key={t.key}
+            role="tab"
+            aria-selected={tab === t.key}
+            aria-controls="results-tabpanel"
             onClick={() => setTab(t.key)}
             className={clsx(
               'px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
@@ -299,6 +314,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         ))}
       </div>
 
+      <div id="results-tabpanel" role="tabpanel">
       {tab === 'raw' ? (
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -357,6 +373,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
           {filtered.map((r) => <ResultRow key={r.id} result={r} />)}
         </div>
       )}
+      </div>
     </div>
   )
 }
