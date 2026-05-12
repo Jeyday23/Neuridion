@@ -52,7 +52,8 @@ function fmtDate(iso: string | null): string {
 
 async function buildExcel(
   rows: FsnRow[],
-  meta: { device: string; manufacturer: string; period_from: string; period_to: string }
+  meta: { device: string; manufacturer: string; period_from: string; period_to: string },
+  termsUsed: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null,
 ): Promise<Buffer> {
   const wb = new ExcelJS.Workbook()
   wb.creator = 'Neuridion'
@@ -150,6 +151,15 @@ async function buildExcel(
     addMeta('AI filter unavailable (manual review required)', String(failedCount))
   }
 
+  if (termsUsed) {
+    sumWs.addRow([])
+    addMeta('Manufacturer Search Terms', termsUsed.manufacturer_terms.join(', ') || '(none)')
+    addMeta('Device Search Terms', termsUsed.device_terms.join(', ') || '(none)')
+    addMeta('Source Manufacturer Name', termsUsed.raw_manufacturer || '—')
+    addMeta('Source Device Name', termsUsed.raw_device_name || '—')
+    addMeta('Term Algorithm Version', termsUsed.term_algorithm_version)
+  }
+
   const buf = await wb.xlsx.writeBuffer()
   return Buffer.from(buf)
 }
@@ -160,7 +170,8 @@ function buildReportHtml(
   profile: { device_name: string; manufacturer: string; device_class: string | null; emdn_code: string | null },
   run: { period_from: string; period_to: string },
   rows: FsnRow[],
-  runId: string
+  runId: string,
+  termsUsed: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null,
 ): string {
   const today = fmtDate(new Date().toISOString())
 
@@ -283,7 +294,11 @@ function buildReportHtml(
   <table class="meta-table">
     <tr><td>Databases Searched</td><td>${[...new Set(rows.map(r => fmtSourceDb(r.source_db)))].join(', ')}</td></tr>
     <tr><td>Search Date Range</td><td>${escHtml(run.period_from)} to ${escHtml(run.period_to)}</td></tr>
-    <tr><td>Search Parameters</td><td>All published FSNs within the specified period were retrieved and assessed for relevance to the device profile above.</td></tr>
+    ${termsUsed ? `
+    <tr><td>Manufacturer Terms</td><td>${termsUsed.manufacturer_terms.map(t => `<code style="background:#dcfce7;padding:1px 5px;border-radius:3px;font-size:9pt;">${escHtml(t)}</code>`).join(' ') || '<em>none</em>'} <span style="color:#888;font-size:8.5pt;">(derived from &ldquo;${escHtml(termsUsed.raw_manufacturer)}&rdquo;)</span></td></tr>
+    <tr><td>Device Terms</td><td>${termsUsed.device_terms.map(t => `<code style="background:#dcfce7;padding:1px 5px;border-radius:3px;font-size:9pt;">${escHtml(t)}</code>`).join(' ') || '<em>none</em>'} <span style="color:#888;font-size:8.5pt;">(derived from &ldquo;${escHtml(termsUsed.raw_device_name)}&rdquo;)</span></td></tr>
+    <tr><td>Term Derivation</td><td>Legal suffixes, generic words, and tokens &le;4 characters removed. Algorithm v${escHtml(termsUsed.term_algorithm_version)}.</td></tr>
+    ` : `<tr><td>Search Parameters</td><td>All published FSNs within the specified period were retrieved and assessed for relevance to the device profile above.</td></tr>`}
     <tr><td>Assessment Criteria</td><td>Each notice was evaluated for device type, manufacturer, intended use, and applicable risk.</td></tr>
   </table>
 
@@ -473,15 +488,17 @@ export async function POST(request: Request) {
   }))
 
   // ── Generate Excel ──────────────────────────────────────────────────────────
+  const termsUsed = (run as { terms_used?: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null }).terms_used ?? null
+
   const excelBuf = await buildExcel(rows, {
     device:       profile.device_name,
     manufacturer: profile.manufacturer,
     period_from:  run.period_from,
     period_to:    run.period_to,
-  })
+  }, termsUsed)
 
   // ── Generate HTML report (open in browser and print to PDF natively) ─────────
-  const html = buildReportHtml(profile, { period_from: run.period_from, period_to: run.period_to }, rows, run_id)
+  const html = buildReportHtml(profile, { period_from: run.period_from, period_to: run.period_to }, rows, run_id, termsUsed)
   const htmlBuf = Buffer.from(html, 'utf-8')
 
   // ── Upload to Supabase Storage ──────────────────────────────────────────────
