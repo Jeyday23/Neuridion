@@ -5,8 +5,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import { Search, UserCircle, Archive, CreditCard, Settings, LogOut, Shield } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from './language-context'
+import { QuotaBar } from '@/app/components/ui/QuotaBar'
 
-export function SidebarNav({ userRole }: { userRole: string | null }) {
+export function SidebarNav({ userRole, quota }: { userRole: string | null; quota: { searchesUsed: number; searchesMax: number; profilesUsed: number; profilesMax: number } }) {
   const pathname = usePathname()
   const router = useRouter()
   const { t } = useLanguage()
@@ -48,7 +49,15 @@ export function SidebarNav({ userRole }: { userRole: string | null }) {
         })}
       </ul>
 
-      <div className="border-t border-[#E2E8F0] pt-4 space-y-1">
+      <div className="mt-auto">
+        <QuotaBar
+          searchesUsed={quota.searchesUsed}
+          searchesMax={quota.searchesMax}
+          profilesUsed={quota.profilesUsed}
+          profilesMax={quota.profilesMax}
+        />
+
+        <div className="border-t border-[#E2E8F0] pt-4 space-y-1">
         {userRole === 'admin' && (
           <>
             <Link
@@ -68,6 +77,7 @@ export function SidebarNav({ userRole }: { userRole: string | null }) {
           <LogOut className="w-5 h-5" />
           <span>{t.nav.logout}</span>
         </button>
+        </div>
       </div>
     </nav>
   )

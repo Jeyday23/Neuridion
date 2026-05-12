@@ -12,10 +12,16 @@ import { ToastProvider } from '@/app/components/ui/ToastProvider'
 
 interface Props {
   userRole: string | null
+  quota: {
+    searchesUsed: number
+    searchesMax: number
+    profilesUsed: number
+    profilesMax: number
+  }
   children: React.ReactNode
 }
 
-export function DashboardClientShell({ userRole, children }: Props) {
+export function DashboardClientShell({ userRole, quota, children }: Props) {
   return (
     <LanguageProvider>
       <SearchProvider>
@@ -26,7 +32,7 @@ export function DashboardClientShell({ userRole, children }: Props) {
               <div className="p-6 border-b border-[#E2E8F0]">
                 <h1 className="text-xl font-bold text-[#0F1F3D]">Neuridion</h1>
               </div>
-              <SidebarNav userRole={userRole} />
+              <SidebarNav userRole={userRole} quota={quota} />
             </aside>
 
             {/* Main */}
