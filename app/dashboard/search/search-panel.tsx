@@ -6,6 +6,7 @@ import { useLanguage } from '../language-context'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
 import { Plus, Upload, X, CheckCircle, Loader2, ChevronDown } from 'lucide-react'
+import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
 import { createClient } from '@/lib/supabase/client'
 import { FeedbackPopup } from '@/app/components/FeedbackPopup'
 import { daysBetween } from '@/lib/utils/date-chunks'
@@ -692,6 +693,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-[#0F1F3D]">
               {t.search.databases} ({selectedDbs.size} {t.search.selected}) <span className="text-red-500">*</span>
+              <InfoTooltip text="Select which regulatory databases to search. BfArM (Germany), MHRA (UK), FDA MAUDE (USA), Swissmedic (Switzerland). Inactive databases are coming soon." />
             </h2>
             <label className="flex items-center gap-2 text-sm text-[#134E4A] cursor-pointer hover:text-[#0F1F3D]">
               <input type="checkbox" checked={allActiveSelected} onChange={toggleAll}
@@ -751,7 +753,10 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
         {/* Generic search terms */}
         <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
-          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-2">{t.search.genericTerms}</h2>
+          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-2">
+            {t.search.genericTerms}
+            <InfoTooltip text="Enter keywords to narrow the search. Use OR between synonyms and AND for required terms. Wrap exact phrases in quotes." />
+          </h2>
           <p className="text-sm text-[#0F766E] italic mb-6">{t.search.genericHint}</p>
           <div className="space-y-3">
             {genericTerms.map((term, idx) => (
@@ -770,7 +775,10 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
         {/* Manufacturer search terms */}
         <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
-          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-2">{t.search.manufacturerTerms}</h2>
+          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-2">
+            {t.search.manufacturerTerms}
+            <InfoTooltip text="Manufacturer name variants used to filter results. Include trade names, legal entity variations, and abbreviations. Auto-extracted from your profile if left blank." />
+          </h2>
           <p className="text-sm text-[#0F766E] italic mb-6">{t.search.manufacturerHint}</p>
           <div className="space-y-3">
             {manufacturerTerms.map((term, idx) => (

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
+import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
 
 const DEVICE_CLASSES = ['Class I', 'Class IIa', 'Class IIb', 'Class III'] as const
 
@@ -83,6 +84,7 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
         <div>
           <label htmlFor="emdn_code" className="block text-sm font-medium text-zinc-700 mb-1.5">
             EMDN code
+            <InfoTooltip text="European Medical Device Nomenclature — a standardised code classifying your device type (e.g. Z12030101). Find yours in the EUDAMED database." />
           </label>
           <input id="emdn_code" type="text" value={emnCode}
             onChange={(e) => setEmnCode(e.target.value)}
@@ -106,6 +108,7 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
       <div>
         <label htmlFor="intended_use" className="block text-sm font-medium text-zinc-700 mb-1.5">
           Intended use
+          <InfoTooltip text="Describe your device's intended purpose as stated in your technical documentation. Used by the AI to assess FSN relevance to your device." />
         </label>
         <textarea id="intended_use" rows={4} value={intendedUse}
           onChange={(e) => setIntendedUse(e.target.value)}
