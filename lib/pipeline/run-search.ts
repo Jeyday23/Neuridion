@@ -11,6 +11,15 @@ import { logAuditEvent } from '@/lib/audit'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
 import pLimit from 'p-limit'
 import { upsertCanonical, getCanonicalItems, computeContentHash } from '@/lib/sync/canonical'
+import { z } from 'zod'
+
+const TermsUsedSchema = z.object({
+  manufacturer_terms: z.array(z.string().max(100)).max(10),
+  device_terms: z.array(z.string().max(100)).max(10),
+  raw_manufacturer: z.string().max(500),
+  raw_device_name: z.string().max(500),
+  term_algorithm_version: z.string().max(10),
+})
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -69,6 +78,32 @@ export async function runSearchPipeline(
   const { period_from, period_to, force_refresh: forceRefresh } = payload
   const activeSources = payload.selected_dbs.filter((id) => SCRAPERS[id])
   if (activeSources.length === 0) activeSources.push('bfarm')
+
+  // ── Persist search terms for audit trail ──────────────────────────────────
+  const globalSearchTerms = buildManufacturerSearchTerms(
+    safeProfile.manufacturer ?? '',
+    safeProfile.device_name  ?? '',
+  )
+  const globalMfrTerms = extractManufacturerTerms(safeProfile.manufacturer ?? '')
+  const globalDevTerms = globalSearchTerms.filter(t => !globalMfrTerms.includes(t))
+
+  try {
+    const termsPayload = TermsUsedSchema.parse({
+      manufacturer_terms: globalMfrTerms,
+      device_terms: globalDevTerms,
+      raw_manufacturer: safeProfile.manufacturer ?? '',
+      raw_device_name: safeProfile.device_name ?? '',
+      term_algorithm_version: '1',
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: termsError } = await (db as any)
+      .from('search_runs')
+      .update({ terms_used: termsPayload })
+      .eq('id', runId)
+    if (termsError) console.error('[pipeline] Failed to persist terms_used:', termsError.message)
+  } catch (e) {
+    console.error('[pipeline] terms_used validation failed:', e)
+  }
 
   const progressState: ProgressUpdate = {
     current_source: activeSources[0] ?? null,
