@@ -1,5 +1,20 @@
+import { createHash } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { Json } from '@/types/supabase'
+
+function anonymizeIp(ip: string): string {
+  if (ip.includes(':')) return ip.replace(/:[^:]*$/, ':0')
+  return ip.replace(/\.\d+$/, '.0')
+}
+
+function hashPii(data: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...data }
+  if (typeof out.email === 'string') {
+    out.email_hash = createHash('sha256').update(out.email.toLowerCase()).digest('hex').slice(0, 16)
+    delete out.email
+  }
+  return out
+}
 
 type AuditEventType =
   | 'login'
@@ -29,11 +44,13 @@ export async function logAuditEvent(
   try {
     const admin   = createAdminClient()
     const hdrs    = req?.headers
+    const rawIp   = hdrs?.get('x-forwarded-for')?.split(',')[0].trim() ?? null
+    const safeData = eventData ? hashPii(eventData) : null
     await admin.from('audit_log').insert({
       user_id:    userId,
       event_type: eventType,
-      event_data: (eventData ?? null) as Json,
-      ip_address: hdrs?.get('x-forwarded-for')?.split(',')[0].trim() ?? null,
+      event_data: (safeData ?? null) as Json,
+      ip_address: rawIp ? anonymizeIp(rawIp) : null,
       user_agent: hdrs?.get('user-agent') ?? null,
     })
   } catch (err) {
