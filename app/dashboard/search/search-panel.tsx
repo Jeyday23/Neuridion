@@ -495,7 +495,10 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       }
       const res  = await fetch('/api/search-drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json() as { id?: string; error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Save failed')
+      if (!res.ok) {
+        if (res.status === 429) { showToast('Too many requests — please wait a moment.', 'error'); return }
+        throw new Error(data.error ?? 'Save failed')
+      }
       if (data.id) setDraftId(data.id)
       showToast(successMsg)
     } catch (err) {
@@ -536,7 +539,11 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     try {
       const res  = await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run_id: runId }) })
       const data = await res.json() as { pdf_url?: string | null; html_url?: string | null; excel_url?: string | null; pdf_status?: 'generated' | 'quota_exceeded' | 'failed'; error?: string }
-      if (!res.ok) { setReportState({ phase: 'error', message: data.error ?? 'Report generation failed.' }); return }
+      if (!res.ok) {
+        if (res.status === 429) { setReportState({ phase: 'error', message: 'Too many requests — please wait a moment.' }); return }
+        setReportState({ phase: 'error', message: data.error ?? 'Report generation failed.' })
+        return
+      }
       setReportState({ phase: 'ready', pdfUrl: data.pdf_url ?? null, htmlUrl: data.html_url ?? null, excelUrl: data.excel_url ?? null, pdfStatus: data.pdf_status ?? 'failed' })
     } catch (err) {
       setReportState({ phase: 'error', message: String(err) })
@@ -621,6 +628,10 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         // 524/504 = Cloudflare/proxy timeout — body is HTML, not JSON
         if (res.status === 524 || res.status === 504 || res.status === 408) {
           setState({ phase: 'error', message: 'The search timed out. Try a shorter date range or fewer databases.' })
+          return
+        }
+        if (res.status === 429) {
+          setState({ phase: 'error', message: 'Too many requests — please wait a moment and try again.' })
           return
         }
         let errMsg = `Search failed (HTTP ${res.status}).`

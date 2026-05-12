@@ -20,7 +20,10 @@ export function CancelRunButton({
     try {
       const res = await fetch(`/api/search-runs/${runId}/cancel`, { method: 'POST' })
       const json = await res.json().catch(() => ({})) as { error?: string }
-      if (!res.ok) throw new Error(json.error ?? 'Failed to cancel search')
+      if (!res.ok) {
+        if (res.status === 429) { onToast('Too many requests — please wait a moment.', 'error'); setState('idle'); return }
+        throw new Error(json.error ?? 'Failed to cancel search')
+      }
       onCancelled(runId)
       onToast('Search cancelled', 'success')
       setState('idle')
@@ -66,7 +69,10 @@ export function DeleteRunButton({
     try {
       const res = await fetch(`/api/search-runs/${runId}`, { method: 'DELETE' })
       const json = await res.json().catch(() => ({})) as { error?: string }
-      if (!res.ok) throw new Error(json.error ?? 'Failed to delete search run')
+      if (!res.ok) {
+        if (res.status === 429) { onToast('Too many requests — please wait a moment.', 'error'); setState('idle'); return }
+        throw new Error(json.error ?? 'Failed to delete search run')
+      }
       onDeleted(runId)
       onToast('Search run deleted', 'success')
       setState('idle')
