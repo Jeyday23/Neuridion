@@ -50,7 +50,7 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
       }
       router.push('/dashboard/profiles')
     } catch (err) {
-      setError(String(err))
+      setError('Something went wrong. Please try again.')
     } finally {
       setSaving(false)
     }

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 const CONSENT_FIELDS = ['consent_terms_at', 'consent_privacy_at', 'consent_cookies_at'] as const
@@ -11,6 +12,10 @@ const WithdrawSchema = z.object({
 })
 
 export async function GET(request: Request) {
+  const ip = getClientIp(request)
+  const rl = await rateLimit(`consent-read:${ip}`, 15, 60_000)
+  if (!rl.allowed) return Response.json({ error: 'Too many requests' }, { status: 429 })
+
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
@@ -38,6 +43,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request)
+  const rl = await rateLimit(`consent-manage:${ip}`, 5, 60_000)
+  if (!rl.allowed) return Response.json({ error: 'Too many requests' }, { status: 429 })
+
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {

@@ -487,7 +487,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       if (data.id) setDraftId(data.id)
       showToast(successMsg)
     } catch (err) {
-      showToast(String(err), 'error')
+      showToast('Unable to save draft. Please try again.', 'error')
     } finally {
       setDraftSaving(false)
     }
@@ -531,7 +531,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       }
       setReportState({ phase: 'ready', pdfUrl: data.pdf_url ?? null, htmlUrl: data.html_url ?? null, excelUrl: data.excel_url ?? null, pdfStatus: data.pdf_status ?? 'failed' })
     } catch (err) {
-      setReportState({ phase: 'error', message: String(err) })
+      setReportState({ phase: 'error', message: 'Report generation failed. Please try again.' })
     }
   }
 

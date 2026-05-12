@@ -97,7 +97,7 @@ async function handler(req: Request): Promise<Response> {
       }).eq('id', job_id),
       db.from('search_runs').update({
         status:        'error',
-        error_message: errMsg,
+        error_message: 'The search pipeline encountered an error. Please try again or contact support if the issue persists.',
         completed_at:  new Date().toISOString(),
       }).eq('id', run_id),
     ])

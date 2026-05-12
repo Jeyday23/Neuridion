@@ -236,12 +236,11 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                     <td className="px-4 py-3">
                       <span
                         className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${statusStyle}`}
-                        title={run.error_message ?? undefined}
                       >
                         {STATUS_LABELS[run.status] ?? run.status}
                       </span>
                       {run.status === 'error' && run.error_message && (
-                        <p className="mt-1 text-xs text-red-500 max-w-[180px] truncate" title={run.error_message}>
+                        <p className="mt-1 text-xs text-red-500 max-w-[180px] truncate">
                           {run.error_message}
                         </p>
                       )}
