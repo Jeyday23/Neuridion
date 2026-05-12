@@ -523,6 +523,7 @@ export type Database = {
           search_strategy: Json
           started_at: string | null
           status: string
+          terms_used: Json | null
           total_results: number
           uncertain_count: number
           user_id: string
@@ -552,6 +553,7 @@ export type Database = {
           search_strategy?: Json
           started_at?: string | null
           status?: string
+          terms_used?: Json | null
           total_results?: number
           uncertain_count?: number
           user_id: string
@@ -581,6 +583,7 @@ export type Database = {
           search_strategy?: Json
           started_at?: string | null
           status?: string
+          terms_used?: Json | null
           total_results?: number
           uncertain_count?: number
           user_id?: string

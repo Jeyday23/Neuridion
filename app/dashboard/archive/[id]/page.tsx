@@ -29,7 +29,7 @@ export default async function RunDetailPage({
       id, status, created_at, started_at, completed_at,
       search_period_from, search_period_to, period_from, period_to,
       total_results, relevant_count, uncertain_count, excluded_count, filter_failed_count,
-      dbs_searched, error_message, review_status,
+      dbs_searched, error_message, review_status, terms_used,
       report_html_path, report_pdf_path, report_excel_path, report_generated_at,
       product_profiles ( device_name, manufacturer )
     `)
@@ -99,6 +99,8 @@ export default async function RunDetailPage({
   const fail = (run as { filter_failed_count?: number }).filter_failed_count ?? 0
   const tot  = run.total_results       ?? results.length
 
+  const termsUsed = (run as { terms_used?: { manufacturer_terms: string[]; device_terms: string[]; term_algorithm_version: string } | null }).terms_used ?? null
+
   return (
     <div className="p-8 max-w-5xl mx-auto">
       {/* Back */}
@@ -151,6 +153,19 @@ export default async function RunDetailPage({
             <p className="text-zinc-300 text-xs">Not generated</p>
           )}
         </div>
+        {termsUsed && (termsUsed.manufacturer_terms.length > 0 || termsUsed.device_terms.length > 0) && (
+          <div className="col-span-2 sm:col-span-4">
+            <p className="text-xs text-zinc-400 uppercase tracking-wide mb-0.5">Search Terms</p>
+            <div className="flex flex-wrap gap-1.5">
+              {termsUsed.manufacturer_terms.map((t: string) => (
+                <code key={`m-${t}`} className="bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded text-xs">{t}</code>
+              ))}
+              {termsUsed.device_terms.map((t: string) => (
+                <code key={`d-${t}`} className="bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded text-xs">{t}</code>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Summary counts */}
@@ -195,7 +210,7 @@ export default async function RunDetailPage({
 
       {/* Results list */}
       {results.length > 0 ? (
-        <RunResults results={results} />
+        <RunResults results={results} runId={run.id} runStatus={run.status} reviewStatus={(run as { review_status?: string }).review_status ?? 'draft'} />
       ) : (
         <p className="text-sm text-zinc-400 py-8 text-center">
           {run.status === 'complete' ? 'No FSN results were found for this search.' : 'Results will appear here once the search completes.'}
