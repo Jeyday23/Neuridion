@@ -18,6 +18,7 @@ type AuditEventType =
   | 'profile_deleted'
   | 'consent_withdrawn'
   | 'consent_granted'
+  | 'search_run_deleted'
 
 export async function logAuditEvent(
   userId: string | null,

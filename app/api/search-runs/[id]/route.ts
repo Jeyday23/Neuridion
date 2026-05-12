@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAuditEvent } from '@/lib/audit'
 import { z } from 'zod'
 
 export async function GET(
@@ -133,6 +134,8 @@ export async function DELETE(
     console.error('[search-runs/delete]', deleteError?.message ?? 'Unable to delete search run')
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
+
+  await logAuditEvent(user.id, 'search_run_deleted', { run_id: id }, _request)
 
   return Response.json({ deleted: true })
 }

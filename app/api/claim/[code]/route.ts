@@ -90,12 +90,16 @@ export async function POST(
     trial_code_id: trialCode.id,
   })
 
-  // 6. Mark code redeemed
-  await admin.from('trial_codes').update({
+  // 6. Atomically mark code redeemed (prevents TOCTOU double-redemption)
+  const { data: redeemed } = await admin.from('trial_codes').update({
     redeemed_by_email:   email,
     redeemed_by_user_id: userId,
     redeemed_at:         new Date().toISOString(),
-  }).eq('id', trialCode.id)
+  }).eq('id', trialCode.id).is('redeemed_at', null).select('id').maybeSingle()
+
+  if (!redeemed) {
+    return Response.json({ error: 'This code has already been used.' }, { status: 409 })
+  }
 
   // 7. Audit log
   await logAuditEvent(userId, 'signup', {
@@ -115,5 +119,5 @@ export async function POST(
     console.error('[claim] OTP send failed:', otpError.message)
   }
 
-  return Response.json({ ok: true, email }, { status: 201 })
+  return Response.json({ ok: true }, { status: 201 })
 }
