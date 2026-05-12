@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import crypto from 'crypto'
 
 const PUBLIC_PATHS = [
   '/', '/login', '/signup', '/signup/confirm', '/admin/login',
@@ -119,6 +120,28 @@ export async function proxy(request: NextRequest) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('next', pathname)
     return NextResponse.redirect(loginUrl)
+  }
+
+  // CSP nonce — inject per-request nonce into response headers (production only)
+  if (process.env.NODE_ENV === 'production') {
+    const nonce = crypto.randomBytes(16).toString('base64')
+    supabaseResponse.headers.set('x-nonce', nonce)
+    supabaseResponse.headers.set('Content-Security-Policy', [
+      "default-src 'self'",
+      `script-src 'self' 'nonce-${nonce}' https://js.stripe.com`,
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "img-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
+      "connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.anthropic.com https://api.pdfshift.io https://api.resend.com https://api.firecrawl.dev https://fsca.swissmedic.ch https://api.fda.gov",
+      "frame-src https://js.stripe.com",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "worker-src 'none'",
+      "manifest-src 'self'",
+      "upgrade-insecure-requests",
+    ].join('; '))
   }
 
   return supabaseResponse

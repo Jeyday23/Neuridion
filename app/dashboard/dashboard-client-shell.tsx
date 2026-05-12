@@ -7,6 +7,7 @@ import { SidebarNav } from './sidebar-nav'
 import { LanguageSelector } from './language-selector'
 import { SessionGuard } from './session-guard'
 import { Footer } from '@/app/components/Footer'
+import { HelpMenu } from '@/app/components/HelpMenu'
 
 interface Props {
   userRole: string | null
@@ -29,7 +30,8 @@ export function DashboardClientShell({ userRole, children }: Props) {
           {/* Main */}
           <main className="flex-1 flex flex-col overflow-hidden">
             {/* Header — inside providers so language selector can write to context */}
-            <div className="bg-white border-b border-[#E2E8F0] px-8 py-4 flex items-center justify-end shrink-0">
+            <div className="bg-white border-b border-[#E2E8F0] px-8 py-4 flex items-center justify-end gap-2 shrink-0">
+              <HelpMenu />
               <LanguageSelector />
             </div>
             <div className="flex-1 overflow-y-auto flex flex-col">

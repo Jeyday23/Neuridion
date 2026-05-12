@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import { CookieBanner } from "./components/CookieBanner";
 import { PrototypeBanner } from "./components/PrototypeBanner";
@@ -19,17 +20,20 @@ export const metadata: Metadata = {
   description: "Neuridion automates mandatory recall database searches for medical device manufacturers under EU MDR Article 83. Run BfArM, FDA, and MHRA searches in minutes, not hours.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const hdrs = await headers()
+  const nonce = hdrs.get('x-nonce') ?? undefined
+
   return (
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full flex flex-col" nonce={nonce}>
         <PrototypeBanner />
         {children}
         <CookieBanner />

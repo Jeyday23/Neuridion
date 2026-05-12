@@ -47,7 +47,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
       setSubmitted(true)
       localStorage.setItem(
         'neuridion-feedback-dismissed-until',
-        String(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        String(Date.now() + 7 * 24 * 60 * 60 * 1000),
       )
       setTimeout(onClose, 2000)
     } catch (err) {
@@ -59,7 +59,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
   function handleSkip() {
     localStorage.setItem(
       'neuridion-feedback-dismissed-until',
-      String(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      String(Date.now() + 7 * 24 * 60 * 60 * 1000),
     )
     onClose()
   }

@@ -419,15 +419,13 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     }
   }, [state.phase])
 
-  // Feedback popup: show after first successful search
+  // Feedback popup: show after every completed search (7-day dismiss cooldown)
   useEffect(() => {
     if (state.phase !== 'done') return
     if (state.results.length === 0) return
-    const hasSearchedBefore = localStorage.getItem('neuridion-has-searched')
-    const dismissedUntil    = parseInt(localStorage.getItem('neuridion-feedback-dismissed-until') ?? '0')
-    if (!hasSearchedBefore && Date.now() > dismissedUntil) {
+    const dismissedUntil = parseInt(localStorage.getItem('neuridion-feedback-dismissed-until') ?? '0')
+    if (Date.now() > dismissedUntil) {
       setTimeout(() => setShowFeedback(true), 5000)
-      localStorage.setItem('neuridion-has-searched', 'true')
     }
   }, [state.phase])
 
