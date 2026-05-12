@@ -158,6 +158,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
   const [reviewStatus, setReviewStatus] = useState(initialReviewStatus)
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reviewedAt, setReviewedAt] = useState<string | null>(null)
+  const [reviewedBy, setReviewedBy] = useState<string | null>(null)
 
   async function handleReview(newStatus: 'reviewed' | 'approved') {
     setReviewLoading(true)
@@ -171,6 +172,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         const data = await res.json()
         setReviewStatus(data.review_status)
         setReviewedAt(data.reviewed_at)
+        setReviewedBy(data.reviewed_by ?? null)
       }
     } finally {
       setReviewLoading(false)
@@ -316,6 +318,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
                   <th className="px-4 py-2.5 text-left font-medium text-zinc-600 text-xs">Manufacturer</th>
                   <th className="px-4 py-2.5 text-left font-medium text-zinc-600 text-xs whitespace-nowrap">Date</th>
                   <th className="px-4 py-2.5 text-left font-medium text-zinc-600 text-xs">Source</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-zinc-600 text-xs">Source URL</th>
                 </tr>
               </thead>
               <tbody>
@@ -336,6 +339,11 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
                       {r.fsn_date ? new Date(r.fsn_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                     </td>
                     <td className="px-4 py-2.5 text-xs text-zinc-400">{formatSourceLabel(r.source_db)}</td>
+                    <td className="px-4 py-2.5 text-xs text-zinc-400 max-w-[200px] truncate">
+                      {r.source_url ? (
+                        <a href={safeHref(r.source_url)} target="_blank" rel="noopener noreferrer" className="hover:text-[#0D9488] hover:underline">{r.source_url}</a>
+                      ) : '—'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
