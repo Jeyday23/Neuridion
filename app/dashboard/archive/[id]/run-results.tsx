@@ -26,7 +26,7 @@ function safeHref(url: string | null | undefined): string {
   return '#'
 }
 
-type Tab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
+type Tab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed' | 'raw'
 
 function formatSourceLabel(src: string | null | undefined): string {
   if (!src) return 'BfArM'
@@ -148,8 +148,54 @@ function ResultRow({ result }: { result: FsnResult }) {
   )
 }
 
-export function RunResults({ results }: { results: FsnResult[] }) {
+export function RunResults({ results, runId, runStatus, reviewStatus: initialReviewStatus }: {
+  results: FsnResult[]
+  runId: string
+  runStatus: string
+  reviewStatus: string
+}) {
   const [tab, setTab] = useState<Tab>('all')
+  const [reviewStatus, setReviewStatus] = useState(initialReviewStatus)
+  const [reviewLoading, setReviewLoading] = useState(false)
+  const [reviewedAt, setReviewedAt] = useState<string | null>(null)
+
+  async function handleReview(newStatus: 'reviewed' | 'approved') {
+    setReviewLoading(true)
+    try {
+      const res = await fetch(`/api/search-runs/${runId}/review`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_status: newStatus }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setReviewStatus(data.review_status)
+        setReviewedAt(data.reviewed_at)
+      }
+    } finally {
+      setReviewLoading(false)
+    }
+  }
+
+  function exportRawCsv() {
+    const header = 'Title,Manufacturer,Date,Source,URL'
+    const csvRows = results.map(r => {
+      const esc = (s: string | null) => {
+        if (!s) return ''
+        const escaped = s.replace(/"/g, '""')
+        return escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') ? `"${escaped}"` : escaped
+      }
+      return [esc(r.title), esc(r.manufacturer), esc(r.fsn_date), esc(r.source_db), esc(r.source_url)].join(',')
+    })
+    const csv = [header, ...csvRows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `neuridion-raw-results-${runId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const sorted = [
     ...results.filter((r) => r.filter_decision?.decision === 'relevant'),
@@ -179,10 +225,52 @@ export function RunResults({ results }: { results: FsnResult[] }) {
     ...(counts.filter_failed > 0
       ? [{ key: 'filter_failed' as Tab, label: `Not Reviewed (${counts.filter_failed})` }]
       : []),
+    { key: 'raw',           label: `Raw Data (${counts.all})` },
   ]
 
   return (
     <div>
+      {(runStatus === 'complete' || runStatus === 'degraded') && (
+        <div className={clsx(
+          'mb-4 rounded-lg border px-4 py-3 flex items-center gap-3 text-sm',
+          reviewStatus === 'approved' ? 'bg-green-50 border-green-200' :
+          reviewStatus === 'reviewed' ? 'bg-blue-50 border-blue-200' :
+          'bg-amber-50 border-amber-200'
+        )}>
+          <span className={clsx(
+            'inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium',
+            reviewStatus === 'approved' ? 'bg-green-100 text-green-800 border-green-300' :
+            reviewStatus === 'reviewed' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+            'bg-amber-100 text-amber-800 border-amber-300'
+          )}>
+            {reviewStatus === 'approved' ? 'Approved' : reviewStatus === 'reviewed' ? 'Reviewed' : 'Draft'}
+          </span>
+          <span className="text-zinc-600 flex-1">
+            {reviewStatus === 'approved' && `Approved${reviewedAt ? ` on ${new Date(reviewedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}`}
+            {reviewStatus === 'reviewed' && `Reviewed${reviewedAt ? ` on ${new Date(reviewedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}`}
+            {reviewStatus === 'draft' && 'This run has not been reviewed yet.'}
+          </span>
+          {reviewStatus === 'draft' && (
+            <button
+              onClick={() => handleReview('reviewed')}
+              disabled={reviewLoading}
+              className="ml-auto px-3 py-1.5 bg-[#0D9488] text-white rounded-lg text-xs font-medium hover:bg-[#0B8177] disabled:opacity-50"
+            >
+              {reviewLoading ? 'Saving...' : 'Mark as Reviewed'}
+            </button>
+          )}
+          {reviewStatus === 'reviewed' && (
+            <button
+              onClick={() => handleReview('approved')}
+              disabled={reviewLoading}
+              className="ml-auto px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
+            >
+              {reviewLoading ? 'Saving...' : 'Approve'}
+            </button>
+          )}
+        </div>
+      )}
+
       {counts.filter_failed > 0 && (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <strong>{counts.filter_failed} item{counts.filter_failed !== 1 ? 's were' : ' was'} not reviewed</strong> — these items exceeded the AI filter cap for this run and were not assessed. Manual review required.
@@ -209,7 +297,52 @@ export function RunResults({ results }: { results: FsnResult[] }) {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {tab === 'raw' ? (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs text-zinc-500">{results.length} items scraped from {new Set(results.map(r => r.source_db)).size} database{new Set(results.map(r => r.source_db)).size !== 1 ? 's' : ''} — no AI filtering applied</span>
+            <button
+              onClick={exportRawCsv}
+              className="text-xs border border-zinc-300 rounded px-2.5 py-1 text-zinc-600 hover:bg-zinc-50 hover:border-zinc-400 transition-colors"
+            >
+              ↓ Export CSV
+            </button>
+          </div>
+          <div className="rounded-md border border-[#E2E8F0] bg-white overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-zinc-200 bg-zinc-50">
+                  <th className="px-4 py-2.5 text-left font-medium text-zinc-600 text-xs">Title</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-zinc-600 text-xs">Manufacturer</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-zinc-600 text-xs whitespace-nowrap">Date</th>
+                  <th className="px-4 py-2.5 text-left font-medium text-zinc-600 text-xs">Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {results.map((r) => (
+                  <tr key={r.id} className="border-b border-zinc-100 last:border-b-0">
+                    <td className="px-4 py-2.5">
+                      <a
+                        href={safeHref(r.source_url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-zinc-900 hover:text-[#0D9488] hover:underline"
+                      >
+                        {r.title}
+                      </a>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-zinc-600">{r.manufacturer || '—'}</td>
+                    <td className="px-4 py-2.5 text-xs text-zinc-500 whitespace-nowrap">
+                      {r.fsn_date ? new Date(r.fsn_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-zinc-400">{formatSourceLabel(r.source_db)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : filtered.length === 0 ? (
         <p className="text-sm text-zinc-400 py-8 text-center">No results in this category.</p>
       ) : (
         <div className="rounded-md border border-[#E2E8F0] bg-white">
