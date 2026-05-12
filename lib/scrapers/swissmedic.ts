@@ -93,7 +93,13 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
     )
   }
 
-  const deduped = dedup(items)
+  // Validate dates client-side (API may return out-of-range items)
+  const filtered = items.filter(item => {
+    if (!item.fsn_date) return true  // keep items without dates
+    return item.fsn_date >= params.fromDate && item.fsn_date <= params.toDate
+  })
+
+  const deduped = dedup(filtered)
 
   return { items: deduped, warnings }
 }

@@ -47,8 +47,8 @@ describe('Unicode punctuation normalisation in extractManufacturerTerms', () => 
     expect(extractManufacturerTerms('B–Braun')).toEqual(['braun'])
   })
 
-  it('em-dash (—) is normalised — "Braun—Medical" produces two tokens', () => {
-    expect(extractManufacturerTerms('Braun—Medical')).toEqual(['braun', 'medical'])
+  it('em-dash (—) is normalised — "Braun—Medical" filters generic "medical"', () => {
+    expect(extractManufacturerTerms('Braun—Medical')).toEqual(['braun'])
   })
 
   it('slash (/) is normalised — "B/Braun" splits correctly', () => {
@@ -79,8 +79,7 @@ describe('buildManufacturerSearchTerms with Unicode separators', () => {
     expect(buildManufacturerSearchTerms('B·Braun', 'Infusomat Space')).toEqual(['braun', 'infusomat'])
   })
 
-  it('"Dräger Medical GmbH" produces ["dräger", "medical"] — GENERIC_DEVICE_WORDS not applied to manufacturer terms', () => {
-    // extractManufacturerTerms does not filter GENERIC_DEVICE_WORDS; that set is device-only
-    expect(buildManufacturerSearchTerms('Dräger Medical GmbH', '')).toEqual(['dräger', 'medical'])
+  it('"Dräger Medical GmbH" produces ["dräger"] — generic "medical" filtered from manufacturer terms', () => {
+    expect(buildManufacturerSearchTerms('Dräger Medical GmbH', '')).toEqual(['dräger'])
   })
 })

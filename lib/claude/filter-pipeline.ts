@@ -175,9 +175,11 @@ export interface FsnContext {
 export function getProfileFingerprint(profile: ProfileContext): string {
   return createHash('sha256')
     .update(JSON.stringify({
-      device_type:    profile.device_name.toLowerCase().split(' ')[0],
+      device_name:    profile.device_name.toLowerCase().trim(),
       classification: profile.device_class,
-      manufacturer:   profile.manufacturer.toLowerCase(),
+      manufacturer:   profile.manufacturer.toLowerCase().trim(),
+      emdn_code:      profile.emdn_code ?? '',
+      intended_use:   (profile.intended_use ?? '').toLowerCase().slice(0, 100),
     }))
     .digest('hex')
     .slice(0, 16)

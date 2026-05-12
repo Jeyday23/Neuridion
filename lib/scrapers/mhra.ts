@@ -48,7 +48,8 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
 
       // GOV.UK mixes medicine recalls with device FSNs — keep only FSN-related entries
       const titleLower = (item.title ?? '').toLowerCase()
-      if (!titleLower.includes('field safety')) continue
+      const isFsn = titleLower.includes('field safety') || titleLower.includes('medical device alert') || titleLower.includes('device alert')
+      if (!isFsn) continue
 
       const linkPath = item.link ?? ''
       listings.push({
@@ -67,6 +68,9 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
 
     start += PAGE_SIZE
     const total = page.total ?? 0
+    if (start >= 2000 && start < total) {
+      warnings.push(`MHRA results capped at 2000 — ${total} total available. Results may be incomplete.`)
+    }
     if (start >= total || start >= 2000) break
 
     await jitter(150, 350)

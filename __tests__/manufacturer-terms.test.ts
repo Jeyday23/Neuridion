@@ -21,11 +21,11 @@ describe('extractManufacturerTerms', () => {
   it('"Medtronic" → ["medtronic"]', () => {
     expect(extractManufacturerTerms('Medtronic')).toEqual(['medtronic'])
   })
-  it('"Philips Medical Systems Nederland B.V." → ["philips", "medical"]', () => {
-    expect(extractManufacturerTerms('Philips Medical Systems Nederland B.V.')).toEqual(['philips', 'medical'])
+  it('"Philips Medical Systems Nederland B.V." → ["philips", "nederland"] (medical/systems are generic)', () => {
+    expect(extractManufacturerTerms('Philips Medical Systems Nederland B.V.')).toEqual(['philips', 'nederland'])
   })
-  it('"Acme Medical GmbH" → ["acme", "medical"]', () => {
-    expect(extractManufacturerTerms('Acme Medical GmbH')).toEqual(['acme', 'medical'])
+  it('"Acme Medical GmbH" → ["acme"] (medical is generic)', () => {
+    expect(extractManufacturerTerms('Acme Medical GmbH')).toEqual(['acme'])
   })
 
   // Edge cases
@@ -45,7 +45,7 @@ describe('extractManufacturerTerms', () => {
     expect(extractManufacturerTerms('Smith & Jones, Inc.')).toEqual(['smith', 'jones'])
   })
   it('single letter token filtered', () => {
-    expect(extractManufacturerTerms('A. Smith Medical')).toEqual(['smith', 'medical'])
+    expect(extractManufacturerTerms('A. Smith Medical')).toEqual(['smith'])
   })
 })
 
@@ -57,8 +57,8 @@ describe('buildManufacturerSearchTerms', () => {
     expect(buildManufacturerSearchTerms('Meso Inc', 'MesoScale Reader')).toEqual(['meso', 'mesoscale'])
   })
   it('device term already in manufacturer terms is not duplicated', () => {
-    // 'acme' is already in mfr terms; 'acme pump' has no new token >4 chars
-    expect(buildManufacturerSearchTerms('Acme Medical GmbH', 'Acme Pump')).toEqual(['acme', 'medical'])
+    // 'acme' is already in mfr terms (medical filtered as generic); 'acme pump' has no new token >4 chars
+    expect(buildManufacturerSearchTerms('Acme Medical GmbH', 'Acme Pump')).toEqual(['acme'])
   })
   it('device term ≤4 chars is ignored', () => {
     expect(buildManufacturerSearchTerms('Acme Corp', 'Pump')).toEqual(['acme'])

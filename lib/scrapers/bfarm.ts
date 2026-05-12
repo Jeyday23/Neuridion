@@ -167,13 +167,13 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items
 
     // Belt-and-suspenders: drop items outside the requested date range.
     // Also drops items with no date — we can't verify their relevance.
-    const dropped = raw.filter(item => {
-      if (!item.fsn_date) return true
-      const d = new Date(item.fsn_date)
-      if (fromDate && d < fromDate) return true
-      if (toDate   && d > toDate)   return true
-      return false
-    })
+    const noDateCount = raw.filter(item => !item.fsn_date).length
+    if (noDateCount > 0) {
+      warnings.push(`${noDateCount} item(s) dropped — date could not be parsed from BfArM HTML`)
+    }
+    if (raw.length > 0 && noDateCount > raw.length / 2) {
+      warnings.push(`BfArM HTML structure may have changed — ${noDateCount}/${raw.length} items lacked parseable dates`)
+    }
     const inRange = raw.filter(item => {
       if (!item.fsn_date) return false
       const d = new Date(item.fsn_date)
@@ -272,10 +272,10 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
   }
 
   const allParsed: ParsedItem[] = []
-  for (const shortcut of yearsToScrape) {
-    const yearItems = await scrapeYearShortcut(shortcut)
-    allParsed.push(...yearItems)
-  }
+  const yearResults = await Promise.all(yearsToScrape.map(async (shortcut) => {
+    return scrapeYearShortcut(shortcut)
+  }))
+  for (const items of yearResults) allParsed.push(...items)
 
   const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
   const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
@@ -291,6 +291,13 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
     source_db:    'bfarm',
   }))
 
+  const noDateCount = raw.filter(item => !item.fsn_date).length
+  if (noDateCount > 0) {
+    warnings.push(`${noDateCount} item(s) dropped — date could not be parsed from BfArM HTML`)
+  }
+  if (raw.length > 0 && noDateCount > raw.length / 2) {
+    warnings.push(`BfArM HTML structure may have changed — ${noDateCount}/${raw.length} items lacked parseable dates`)
+  }
   const inRange = raw.filter(item => {
     if (!item.fsn_date) return false
     const d = new Date(item.fsn_date)

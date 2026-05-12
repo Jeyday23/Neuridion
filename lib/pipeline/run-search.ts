@@ -116,7 +116,7 @@ export async function runSearchPipeline(
       })
       items.push(...result.items)
       warnings.push(...result.warnings)
-      if (result.warnings.length === 0) fetchedRanges.push(range)
+      if (result.warnings.length === 0 && result.items.length > 0) fetchedRanges.push(range)
     }
 
     const overlapFrom = overlapWindowStart(period_to)
@@ -341,7 +341,7 @@ export async function runSearchPipeline(
     }
   }
 
-  const filterLimit = pLimit(2)
+  const filterLimit = pLimit(4)
   const filterResults = await Promise.all(
     toFilter.map((row, i) => filterLimit(async () => {
       const d = await stage1Filter(

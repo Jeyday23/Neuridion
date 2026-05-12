@@ -4,6 +4,13 @@ const LEGAL_SUFFIXES = new Set([
   'srl', 'sarl', 'bvba', 'aps',
 ])
 
+// Generic words that appear in manufacturer names but are too broad to use as search tokens
+const GENERIC_MFR_WORDS = new Set([
+  'medical', 'healthcare', 'health', 'systems', 'technologies', 'technology',
+  'solutions', 'international', 'global', 'corporation', 'industries',
+  'instruments', 'devices', 'products', 'services', 'group', 'company',
+])
+
 // Generic words that appear in device names but are too broad to use as search tokens
 const GENERIC_DEVICE_WORDS = new Set([
   'swiss', 'medical', 'systems', 'system', 'device', 'devices', 'care', 'health',
@@ -34,7 +41,7 @@ export function extractManufacturerTerms(manufacturer: string): string[] {
 
   const meaningful = tokens
     .map(t => t.toLowerCase())
-    .filter(t => t.length >= 2 && !LEGAL_SUFFIXES.has(t))
+    .filter(t => t.length >= 2 && !LEGAL_SUFFIXES.has(t) && !GENERIC_MFR_WORDS.has(t))
 
   return meaningful.slice(0, 2)
 }

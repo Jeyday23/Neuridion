@@ -243,7 +243,7 @@ async function fetchPage(url: string): Promise<OpenFdaResponse | null> {
 function buildTermClause(terms?: string[]): string {
   if (!terms || terms.length === 0) return ''
   const clauses = terms
-    .map(t => t.replace(/[^a-zA-Z0-9]/g, ''))   // strip Lucene special chars
+    .map(t => t.replace(/[+&|!(){}[\]^"~*?:\\/]/g, ''))   // strip Lucene special chars (preserve hyphens, periods)
     .filter(t => t.length >= 3)                   // skip tokens too short to discriminate
     .flatMap(t => [
       `device.brand_name:${t}`,
