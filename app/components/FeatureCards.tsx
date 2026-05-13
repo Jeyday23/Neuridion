@@ -1,3 +1,5 @@
+'use client'
+
 import {
   DatabaseSearchIllustration,
   FilteringIllustration,
@@ -6,6 +8,7 @@ import {
   SpeedIllustration,
   SecurityIllustration,
 } from '@/components/ui/feature-illustrations'
+import { StaggerContainer, StaggerItem, HoverCard } from './ui/motion'
 
 const features = [
   {
@@ -42,23 +45,24 @@ const features = [
 
 export function FeatureCards() {
   return (
-    <div className="grid md:grid-cols-3 gap-6">
+    <StaggerContainer className="grid md:grid-cols-3 gap-6">
       {features.map(({ Illustration, title, desc }) => (
-        <div
-          key={title}
-          className="rounded border border-[#E2E8F0] hover:border-[#0D9488] transition-colors overflow-hidden group"
-        >
-          <div className="bg-[#F0FDFA] border-b border-[#CCFBF1] px-4 py-4 group-hover:bg-[#CCFBF1] transition-colors">
-            <Illustration />
-          </div>
-          <div className="p-5">
-            <h3 className="text-base font-semibold text-[#0F1F3D] mb-2">
-              {title}
-            </h3>
-            <p className="text-sm text-[#134E4A] leading-relaxed font-medium">{desc}</p>
-          </div>
-        </div>
+        <StaggerItem key={title}>
+          <HoverCard>
+            <div className="rounded border border-[#E2E8F0] hover:border-[#0D9488] transition-colors overflow-hidden group">
+              <div className="bg-[#F0FDFA] border-b border-[#CCFBF1] px-4 py-4 group-hover:bg-[#CCFBF1] transition-colors">
+                <Illustration />
+              </div>
+              <div className="p-5">
+                <h3 className="text-base font-semibold text-[#0F1F3D] mb-2">
+                  {title}
+                </h3>
+                <p className="text-sm text-[#134E4A] leading-relaxed font-medium">{desc}</p>
+              </div>
+            </div>
+          </HoverCard>
+        </StaggerItem>
       ))}
-    </div>
+    </StaggerContainer>
   )
 }

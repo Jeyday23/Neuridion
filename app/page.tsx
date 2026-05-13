@@ -5,6 +5,10 @@ import { createClient } from '@/lib/supabase/server'
 import { NeuridionWordmark } from '@/components/ui/neuridion-wordmark'
 import { FaqAccordion } from './components/FaqAccordion'
 import { FeatureCards } from './components/FeatureCards'
+import {
+  AnimatedHero, AnimatedTrustStat, AnimatedSection,
+  AnimatedStaggerGrid, AnimatedStaggerChild, AnimatedCard,
+} from './components/LandingAnimations'
 
 export const metadata = {
   title: 'Neuridion — Post-Market Surveillance for Medical Device Manufacturers',
@@ -62,7 +66,7 @@ export default async function HomePage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="grid lg:grid-cols-[1fr_420px] gap-12 items-center">
             {/* Left — copy */}
-            <div>
+            <AnimatedHero><div>
               <span className="inline-block px-4 py-1.5 bg-[#CCFBF1] text-[#115E59] text-sm font-semibold rounded-full border border-[#0D9488] mb-6">
                 AI-Powered PMS Platform
               </span>
@@ -82,7 +86,7 @@ export default async function HomePage() {
               <p className="text-xs text-[#0F766E] mt-3">
                 No credit card required &middot; Cancel anytime
               </p>
-            </div>
+            </div></AnimatedHero>
             {/* Right — mini product preview */}
             <div className="hidden lg:block">
               <div className="rounded-lg border border-[#E2E8F0] shadow-md overflow-hidden bg-white">
@@ -141,22 +145,9 @@ export default async function HomePage() {
       <section className="border-y border-[#CCFBF1] bg-[#F0FDFA] py-8">
         <div className="max-w-4xl mx-auto px-6">
           <div className="flex flex-wrap justify-center gap-8 md:gap-16 text-center">
-            <div>
-              <div className="text-xl font-bold text-[#0D9488]">4 databases</div>
-              <div className="text-xs text-[#134E4A] font-medium mt-1">
-                Searched in parallel
-              </div>
-            </div>
-            <div>
-              <div className="text-xl font-bold text-[#0D9488]">EU MDR</div>
-              <div className="text-xs text-[#134E4A] font-medium mt-1">
-                Art. 83 ready
-              </div>
-            </div>
-            <div>
-              <div className="text-xl font-bold text-[#0D9488]">GDPR</div>
-              <div className="text-xs text-[#134E4A] font-medium mt-1">By design</div>
-            </div>
+            <AnimatedTrustStat value="4 databases" label="Searched in parallel" />
+            <AnimatedTrustStat value="EU MDR" label="Art. 83 ready" />
+            <AnimatedTrustStat value="GDPR" label="By design" />
           </div>
           <div className="flex flex-wrap justify-center gap-4 mt-6 pt-5 border-t border-[#CCFBF1]">
             {['EU MDR Art. 83', 'GDPR', 'ISO 13485', 'Append-Only Audit Trail'].map((badge) => (
@@ -294,7 +285,7 @@ export default async function HomePage() {
             <h2 className="text-3xl font-bold text-[#0F1F3D] mb-3">How it works</h2>
             <p className="text-[#134E4A]">Three steps from device profile to audit-ready report.</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
+          <AnimatedStaggerGrid className="grid md:grid-cols-3 gap-8">
             {[
               {
                 step: '1',
@@ -312,15 +303,15 @@ export default async function HomePage() {
                 desc: 'AI classifies each result. Your PRRC reviews the decisions, then exports a PDF report ready for your next audit.',
               },
             ].map(({ step, title, desc }) => (
-              <div key={step} className="text-center">
+              <AnimatedStaggerChild key={step} className="text-center">
                 <div className="w-10 h-10 rounded-full bg-[#0F1F3D] text-white flex items-center justify-center text-lg font-bold mx-auto mb-4">
                   {step}
                 </div>
                 <h3 className="text-base font-semibold text-[#0F1F3D] mb-2">{title}</h3>
                 <p className="text-sm text-[#134E4A] leading-relaxed font-medium">{desc}</p>
-              </div>
+              </AnimatedStaggerChild>
             ))}
-          </div>
+          </AnimatedStaggerGrid>
         </div>
       </section>
 
@@ -363,7 +354,7 @@ export default async function HomePage() {
               Built for regulated industries from day one.
             </p>
           </div>
-          <div className="grid sm:grid-cols-2 gap-6">
+            <AnimatedStaggerGrid className="grid sm:grid-cols-2 gap-6">
             {[
               {
                 Icon: Shield,
@@ -383,18 +374,20 @@ export default async function HomePage() {
               {
                 Icon: Trash2,
                 title: 'Data minimization',
-                desc: 'We collect only what’s needed. Account deletion with full data purge on request.',
+                desc: "We collect only what's needed. Account deletion with full data purge on request.",
               },
             ].map(({ Icon, title, desc }) => (
-              <div key={title} className="flex gap-4 p-5 rounded border border-[#E2E8F0] hover:border-[#0D9488] transition-colors">
-                <Icon className="w-6 h-6 text-[#0D9488] flex-shrink-0 mt-0.5" />
-                <div>
-                  <h3 className="text-base font-semibold text-[#0F1F3D] mb-1">{title}</h3>
-                  <p className="text-sm text-[#134E4A] leading-relaxed font-medium">{desc}</p>
-                </div>
-              </div>
+              <AnimatedStaggerChild key={title}>
+                <AnimatedCard className="flex gap-4 p-5 rounded border border-[#E2E8F0] hover:border-[#0D9488] transition-colors">
+                  <Icon className="w-6 h-6 text-[#0D9488] flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-base font-semibold text-[#0F1F3D] mb-1">{title}</h3>
+                    <p className="text-sm text-[#134E4A] leading-relaxed font-medium">{desc}</p>
+                  </div>
+                </AnimatedCard>
+              </AnimatedStaggerChild>
             ))}
-          </div>
+            </AnimatedStaggerGrid>
         </div>
       </section>
 
@@ -509,7 +502,7 @@ export default async function HomePage() {
 
       {/* CTA */}
       <section className="py-16 bg-[#0F1F3D]">
-        <div className="max-w-2xl mx-auto px-6 text-center">
+        <AnimatedSection className="max-w-2xl mx-auto px-6 text-center">
           <h2 className="text-2xl font-bold text-white mb-3">
             Ready to streamline your post-market surveillance?
           </h2>
@@ -523,7 +516,7 @@ export default async function HomePage() {
             Start 14-day free trial
             <ArrowRight className="w-4 h-4" />
           </Link>
-        </div>
+        </AnimatedSection>
       </section>
 
       {/* Footer */}

@@ -10,6 +10,7 @@ import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
 import { createClient } from '@/lib/supabase/client'
 import { FeedbackPopup } from '@/app/components/FeedbackPopup'
 import { useToast } from '@/app/components/ui/ToastProvider'
+import { motion } from 'framer-motion'
 import { daysBetween } from '@/lib/utils/date-chunks'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1120,11 +1121,16 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                       <p className="text-sm text-zinc-400 py-8 text-center">{t.search.noCategory}</p>
                     ) : (
                       <div className="rounded-md border border-[#E2E8F0] bg-white overflow-hidden">
-                        {visible.map((result) => (
-                          <FsnRow key={result.id} result={result}
-                            expanded={expandedIds.has(result.id)}
-                            onToggle={() => toggleExpand(result.id)}
-                            badgeLabels={badgeLabels} />
+                        {visible.map((result, idx) => (
+                          <motion.div key={result.id}
+                            initial={{ opacity: 0, x: -12 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.3, delay: Math.min(idx * 0.04, 0.5), ease: 'easeOut' }}>
+                            <FsnRow result={result}
+                              expanded={expandedIds.has(result.id)}
+                              onToggle={() => toggleExpand(result.id)}
+                              badgeLabels={badgeLabels} />
+                          </motion.div>
                         ))}
                       </div>
                     )}

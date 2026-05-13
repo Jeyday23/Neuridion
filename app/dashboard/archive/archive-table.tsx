@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { DownloadButton, GenerateReportButton, CancelRunButton, DeleteRunButton } from './archive-actions'
 
 interface RunRow {
@@ -203,8 +204,11 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                 const tot  = run.total_results    ?? ((rel + unc + exc) || null)
 
                 return (
-                  <tr
+                  <motion.tr
                     key={run.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: Math.min(i * 0.04, 0.4), ease: 'easeOut' }}
                     className={i < filtered.length - 1 ? 'border-b border-zinc-100' : ''}
                   >
                     {/* Date */}
@@ -319,7 +323,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                         />
                       </div>
                     </td>
-                  </tr>
+                  </motion.tr>
                 )
               })}
             </tbody>
