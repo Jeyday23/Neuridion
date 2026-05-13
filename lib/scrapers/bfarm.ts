@@ -88,6 +88,25 @@ function stripTags(html: string): string {
   return html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 }
 
+export async function fetchBfarmDetail(sourceUrl: string): Promise<string | null> {
+  try {
+    const res = await fetch(sourceUrl, { headers: { 'User-Agent': UA } })
+    if (!res.ok) return null
+    const html = await res.text()
+
+    const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i)
+      ?? html.match(/<article[^>]*>([\s\S]*?)<\/article>/i)
+      ?? html.match(/class="c-content-stage"[^>]*>([\s\S]*?)<\/div>\s*<\/div>/i)
+    if (!mainMatch) return null
+
+    const text = stripTags(mainMatch[1])
+    if (text.length < 20) return null
+    return text.slice(0, 8000)
+  } catch {
+    return null
+  }
+}
+
 export interface ParsedItem {
   href:         string
   title:        string

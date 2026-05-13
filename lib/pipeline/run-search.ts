@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { scrapeBfarm, type ScrapedFsn, type ScraperResult, type ScraperParams } from '@/lib/scrapers/bfarm'
+import { scrapeBfarm, fetchBfarmDetail, type ScrapedFsn, type ScraperResult, type ScraperParams } from '@/lib/scrapers/bfarm'
 import { buildManufacturerSearchTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 import { scrapeMhra }       from '@/lib/scrapers/mhra'
 import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
@@ -423,6 +423,37 @@ export async function runSearchPipeline(
       }))
     )
     decisions.push(...filterResults)
+
+    // ── Step 3b: BfArM detail enrichment for uncertain items ──────────────────
+    const uncertainBfarm = filterResults.filter(
+      d => d.decision === 'uncertain' && toFilter.find(r => r.id === d.fsn_result_id)?.source_db === 'bfarm'
+    )
+    if (uncertainBfarm.length > 0) {
+      const detailLimit = pLimit(2)
+      const enriched = await Promise.all(
+        uncertainBfarm.map(d => detailLimit(async () => {
+          const row = toFilter.find(r => r.id === d.fsn_result_id)
+          if (!row) return null
+          const fsnRow = items.find(i => i.external_id === row.external_id)
+          if (!fsnRow) return null
+          const detail = await fetchBfarmDetail(fsnRow.source_url)
+          if (!detail) return null
+          const enrichedContent = `${row.title}\n\n${detail}`
+          await db.from('fsn_results').update({ raw_content: enrichedContent }).eq('id', row.id)
+          const refiltered = await stage1Filter(
+            { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: enrichedContent, fsn_date: row.fsn_date },
+            safeProfile,
+            { skipCache: true },
+          )
+          return { ...refiltered, fsn_result_id: row.id, original_id: d.fsn_result_id }
+        }))
+      )
+      for (const result of enriched) {
+        if (!result || result.decision === 'uncertain') continue
+        const idx = decisions.findIndex(d => d.fsn_result_id === result.fsn_result_id)
+        if (idx !== -1) decisions[idx] = result
+      }
+    }
   }
 
   // ── Step 4: Insert filter_decisions ─────────────────────────────────────────
