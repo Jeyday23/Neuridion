@@ -254,8 +254,17 @@ export async function runSearchPipeline(
       r.value.contentChanged.forEach((id) => allContentChanged.add(id))
       r.value.canonicalIds.forEach((cid, eid) => allCanonicalIds.set(eid, cid))
     } else {
+      const sourceLabel = activeSources[i].toUpperCase()
       console.error(`[pipeline] ${activeSources[i]} FAILED:`, r.reason)
+      allWarnings.push(
+        `${sourceLabel} database was unavailable during this search and returned no results.`
+      )
     }
+  }
+
+  const allFailed = sourceResults.every(r => r.status === 'rejected')
+  if (allFailed) {
+    throw new Error('All selected databases failed. No results could be retrieved.')
   }
 
   // ── Step 2: Insert fsn_results ───────────────────────────────────────────────
