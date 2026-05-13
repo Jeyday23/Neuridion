@@ -112,10 +112,12 @@ export async function rateLimit(
   }
 }
 
+// Render sets x-real-ip from the actual client connection. x-forwarded-for is
+// user-spoofable unless the reverse proxy strips it — treat as fallback only.
 export function getClientIp(request: Request): string {
   const realIp = request.headers.get('x-real-ip')
   if (realIp) return realIp.trim()
   const forwarded = request.headers.get('x-forwarded-for')
   if (forwarded) return forwarded.split(',')[0].trim()
-  return '0.0.0.0'
+  return '127.0.0.1'
 }

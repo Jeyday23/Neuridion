@@ -2,6 +2,8 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import crypto from 'crypto'
 
+const SESSION_HMAC_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? 'fallback-hmac-key'
+
 const PUBLIC_PATHS = [
   '/', '/login', '/signup', '/signup/confirm', '/admin/login',
   '/privacy', '/terms', '/imprint', '/dpa',
@@ -53,20 +55,26 @@ export async function proxy(request: NextRequest) {
   if (user) {
     const started = request.cookies.get(SESSION_COOKIE)?.value
     if (!started) {
-      supabaseResponse.cookies.set(SESSION_COOKIE, String(Date.now()), {
+      const ts = String(Date.now())
+      const sig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(ts).digest('hex').slice(0, 16)
+      supabaseResponse.cookies.set(SESSION_COOKIE, `${ts}.${sig}`, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         path: '/',
         maxAge: SESSION_MAX_AGE_MS / 1000,
       })
-    } else if (Date.now() - Number(started) > SESSION_MAX_AGE_MS) {
-      await supabase.auth.signOut()
-      supabaseResponse.cookies.delete(SESSION_COOKIE)
-      if (pathname.startsWith('/api/')) {
-        return NextResponse.json({ error: 'Session expired' }, { status: 401 })
+    } else {
+      const [tsStr, sig] = started.split('.')
+      const expectedSig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(tsStr).digest('hex').slice(0, 16)
+      if (sig !== expectedSig || Date.now() - Number(tsStr) > SESSION_MAX_AGE_MS) {
+        await supabase.auth.signOut()
+        supabaseResponse.cookies.delete(SESSION_COOKIE)
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json({ error: 'Session expired' }, { status: 401 })
+        }
+        return NextResponse.redirect(new URL('/login', request.url))
       }
-      return NextResponse.redirect(new URL('/login', request.url))
     }
   }
 

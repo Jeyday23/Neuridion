@@ -13,9 +13,9 @@ const CreateTrialCodesSchema = z.object({
 const ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 
 function generateCode(): string {
-  const bytes = randomBytes(10)
+  const bytes = randomBytes(14)
   let part = ''
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 12; i++) {
     part += ALPHABET[bytes[i] % ALPHABET.length]
   }
   return `KDX-${part}`

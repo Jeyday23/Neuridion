@@ -192,7 +192,7 @@ export function getProfileFingerprint(profile: ProfileContext): string {
       intended_use:   (profile.intended_use ?? '').toLowerCase().slice(0, 100),
     }))
     .digest('hex')
-    .slice(0, 16)
+    .slice(0, 32)
 }
 
 function getFsnExternalId(fsn: FsnContext): string {
