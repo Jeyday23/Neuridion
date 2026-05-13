@@ -12,7 +12,7 @@ describe('extractManufacturerTerms', () => {
   it('"Siemens Healthineers AG" → ["siemens", "healthineers"]', () => {
     expect(extractManufacturerTerms('Siemens Healthineers AG')).toEqual(['siemens', 'healthineers'])
   })
-  it('"B. Braun" → ["braun"] (B filtered by <2 char rule)', () => {
+  it('"B. Braun" → ["braun"] (B filtered by <3 char rule)', () => {
     expect(extractManufacturerTerms('B. Braun')).toEqual(['braun'])
   })
   it('"BBraun" CamelCase splits → ["braun"]', () => {
@@ -38,14 +38,29 @@ describe('extractManufacturerTerms', () => {
   it('string that is only legal suffixes → []', () => {
     expect(extractManufacturerTerms('GmbH AG Ltd')).toEqual([])
   })
-  it('caps at 2 tokens for long names', () => {
-    expect(extractManufacturerTerms('Alpha Beta Gamma Delta Epsilon Corp')).toEqual(['alpha', 'beta'])
+  it('caps at 3 tokens for long names', () => {
+    expect(extractManufacturerTerms('Alpha Beta Gamma Delta Epsilon Corp')).toEqual(['alpha', 'beta', 'gamma'])
   })
   it('strips punctuation chars', () => {
     expect(extractManufacturerTerms('Smith & Jones, Inc.')).toEqual(['smith', 'jones'])
   })
-  it('single letter token filtered', () => {
+  it('single-char and two-char tokens filtered', () => {
     expect(extractManufacturerTerms('A. Smith Medical')).toEqual(['smith'])
+  })
+  it('"3M Company" → ["3m"] (short but distinctive)', () => {
+    expect(extractManufacturerTerms('3M Company')).toEqual(['3m'])
+  })
+  it('"GE Healthcare" → ["ge"] (short but distinctive)', () => {
+    expect(extractManufacturerTerms('GE Healthcare')).toEqual(['ge'])
+  })
+  it('"BD Medical" → ["bd"] (short but distinctive)', () => {
+    expect(extractManufacturerTerms('BD Medical')).toEqual(['bd'])
+  })
+  it('"B. Braun Melsungen AG" → ["braun", "melsungen"]', () => {
+    expect(extractManufacturerTerms('B. Braun Melsungen AG')).toEqual(['braun', 'melsungen'])
+  })
+  it('2-char non-distinctive tokens are filtered', () => {
+    expect(extractManufacturerTerms('AB Medical GmbH')).toEqual([])
   })
 })
 
@@ -53,8 +68,8 @@ describe('buildManufacturerSearchTerms', () => {
   it('no device name returns manufacturer terms', () => {
     expect(buildManufacturerSearchTerms('Wernli AG')).toEqual(['wernli'])
   })
-  it('device name adds unique term >4 chars', () => {
-    expect(buildManufacturerSearchTerms('Meso Inc', 'MesoScale Reader')).toEqual(['meso', 'mesoscale'])
+  it('device name adds up to 2 unique terms >4 chars', () => {
+    expect(buildManufacturerSearchTerms('Meso Inc', 'MesoScale Reader')).toEqual(['meso', 'mesoscale', 'reader'])
   })
   it('device term already in manufacturer terms is not duplicated', () => {
     // 'acme' is already in mfr terms (medical filtered as generic); 'acme pump' has no new token >4 chars
@@ -78,5 +93,10 @@ describe('buildManufacturerSearchTerms', () => {
   })
   it('"MAGNETOM MRI Scanners" — "scanners" blocked, "mri" ≤4 chars, "magnetom" is added', () => {
     expect(buildManufacturerSearchTerms('Siemens Healthineers AG', 'MAGNETOM MRI Scanners')).toEqual(['siemens', 'healthineers', 'magnetom'])
+  })
+  it('adds up to 2 device terms instead of 1', () => {
+    expect(buildManufacturerSearchTerms('Medtronic', 'Cobalt XT CRT-D System')).toEqual(
+      ['medtronic', 'cobalt', 'crt-d']
+    )
   })
 })

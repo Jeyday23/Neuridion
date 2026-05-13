@@ -5,8 +5,10 @@ const LEGAL_SUFFIXES = new Set([
 ])
 
 // Generic words that appear in manufacturer names but are too broad to use as search tokens
+const SHORT_BUT_DISTINCTIVE = new Set(['3m', 'ge', 'bd', 'hp', 'lg'])
+
 const GENERIC_MFR_WORDS = new Set([
-  'medical', 'healthcare', 'health', 'systems', 'technologies', 'technology',
+  'medical', 'healthcare', 'health', 'care', 'systems', 'technologies', 'technology',
   'solutions', 'international', 'global', 'corporation', 'industries',
   'instruments', 'devices', 'products', 'services', 'group', 'company',
 ])
@@ -41,9 +43,13 @@ export function extractManufacturerTerms(manufacturer: string): string[] {
 
   const meaningful = tokens
     .map(t => t.toLowerCase())
-    .filter(t => t.length >= 2 && !LEGAL_SUFFIXES.has(t) && !GENERIC_MFR_WORDS.has(t))
+    .filter(t =>
+      (t.length >= 3 || SHORT_BUT_DISTINCTIVE.has(t)) &&
+      !LEGAL_SUFFIXES.has(t) &&
+      !GENERIC_MFR_WORDS.has(t),
+    )
 
-  return meaningful.slice(0, 2)
+  return meaningful.slice(0, 3)
 }
 
 export function buildManufacturerSearchTerms(
@@ -64,8 +70,9 @@ export function buildManufacturerSearchTerms(
     .map(t => t.toLowerCase())
     .filter(t => t.length > 4 && !LEGAL_SUFFIXES.has(t) && !GENERIC_DEVICE_WORDS.has(t))
 
-  const extra = deviceTokens.find(t => !mfrTerms.includes(t))
-
-  if (extra) return [...new Set([...mfrTerms, extra])]
+  const extras = deviceTokens
+    .filter(t => !mfrTerms.includes(t))
+    .slice(0, 2)
+  if (extras.length > 0) return [...new Set([...mfrTerms, ...extras])]
   return mfrTerms
 }
