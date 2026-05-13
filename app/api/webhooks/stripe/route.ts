@@ -2,12 +2,22 @@ import { headers } from 'next/headers'
 import { stripe } from '@/lib/stripe'
 import { planFromPriceId } from '@/lib/plans'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAuditEvent } from '@/lib/audit'
 import type Stripe from 'stripe'
 import type { Database } from '@/types/supabase'
 
-// Stripe billing columns (stripe_customer_id, stripe_subscription_id, etc.) exist in
-// production but are not yet tracked in the generated types. Cast to bypass type check.
 type UserUpdate = Database['public']['Tables']['users']['Update']
+
+const PROCESSED_EVENTS = new Map<string, number>()
+const EVENT_TTL_MS = 5 * 60 * 1000
+
+function cleanExpiredEvents(): void {
+  const cutoff = Date.now() - EVENT_TTL_MS
+  for (const [id, ts] of PROCESSED_EVENTS) {
+    if (ts < cutoff) PROCESSED_EVENTS.delete(id)
+    else break
+  }
+}
 
 export async function POST(request: Request) {
   const body = await request.text()
@@ -31,6 +41,12 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid webhook signature' }, { status: 400 })
   }
 
+  cleanExpiredEvents()
+  if (PROCESSED_EVENTS.has(event.id)) {
+    return Response.json({ received: true, deduplicated: true })
+  }
+  PROCESSED_EVENTS.set(event.id, Date.now())
+
   const supabase = createAdminClient()
 
   switch (event.type) {
@@ -47,7 +63,6 @@ export async function POST(request: Request) {
         break
       }
 
-      // Fetch subscription to get price ID
       const subscription = await stripe.subscriptions.retrieve(subscriptionId)
       const priceId = subscription.items.data[0]?.price.id ?? null
       const plan = planFromPriceId(priceId)
@@ -64,6 +79,13 @@ export async function POST(request: Request) {
           plan,
         } as unknown as UserUpdate)
         .eq('id', userId)
+
+      await logAuditEvent(userId, 'billing_event', {
+        stripe_event: 'checkout.session.completed',
+        stripe_event_id: event.id,
+        subscription_id: subscriptionId,
+        plan,
+      }, request)
 
       break
     }
@@ -84,6 +106,14 @@ export async function POST(request: Request) {
         } as unknown as UserUpdate)
         .eq('stripe_subscription_id' as 'id', subscription.id)
 
+      await logAuditEvent(null, 'billing_event', {
+        stripe_event: 'customer.subscription.updated',
+        stripe_event_id: event.id,
+        subscription_id: subscription.id,
+        new_status: subscription.status,
+        plan,
+      }, request)
+
       break
     }
 
@@ -100,6 +130,12 @@ export async function POST(request: Request) {
         } as unknown as UserUpdate)
         .eq('stripe_subscription_id' as 'id', subscription.id)
 
+      await logAuditEvent(null, 'billing_event', {
+        stripe_event: 'customer.subscription.deleted',
+        stripe_event_id: event.id,
+        subscription_id: subscription.id,
+      }, request)
+
       break
     }
 
@@ -112,11 +148,16 @@ export async function POST(request: Request) {
         .update({ subscription_status: 'past_due' } as unknown as UserUpdate)
         .eq('stripe_subscription_id' as 'id', invoice.subscription)
 
+      await logAuditEvent(null, 'billing_event', {
+        stripe_event: 'invoice.payment_failed',
+        stripe_event_id: event.id,
+        subscription_id: invoice.subscription,
+      }, request)
+
       break
     }
 
     default:
-      // Unhandled event type — return 200 so Stripe doesn't retry
       break
   }
 

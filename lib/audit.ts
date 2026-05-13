@@ -35,6 +35,7 @@ type AuditEventType =
   | 'consent_granted'
   | 'search_run_deleted'
   | 'self_approval_override'
+  | 'billing_event'
 
 export async function logAuditEvent(
   userId: string | null,
