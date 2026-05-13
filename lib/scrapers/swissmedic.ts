@@ -4,8 +4,8 @@ import { sanitizeContent } from './sanitize'
 
 const API_BASE   = 'https://fsca.swissmedic.ch/mep/api/publications'
 const PUBLIC_BASE = 'https://fsca.swissmedic.ch/mep'
-const MAX_PAGES  = 50
-const MAX_ITEMS  = 500
+const MAX_PAGES  = 25
+const MAX_ITEMS  = 2000
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
 type MaybeString = string | null | undefined
@@ -122,6 +122,7 @@ async function fetchPublicationPage(
   url.searchParams.set('pageNumber', String(pageNumber))
   url.searchParams.set('sortingProperty', 'PUBLICATION_DATE')
   url.searchParams.set('direction', 'DESC')
+  url.searchParams.set('size', '100')
 
   try {
     const res = await fetch(url, {
