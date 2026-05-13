@@ -78,12 +78,16 @@ function splitIntoQuarters(fromDate: string, toDate: string): Array<{ from: stri
 
 // ─── Single-quarter fetch ─────────────────────────────────────────────────────
 
+const ADAPTIVE_SPLIT_THRESHOLD = 20_000
+const MAX_SPLIT_DEPTH          = 4
+
 // Paginates through one date range up to MAX_ITEMS. Called once per quarter.
 async function fetchQuarter(
   fromDate:    string,
   toDate:      string,
   termClause:  string,
   apiKey:      string | undefined,
+  depth:       number = 0,
 ): Promise<ScraperResult> {
   const from = fromDate.replace(/-/g, '')
   const to   = toDate.replace(/-/g, '')
@@ -151,6 +155,21 @@ async function fetchQuarter(
     if (pageResults.length < RESULTS_PER_PAGE) break
 
     if (skip > MAX_SKIP) {
+      if (total > ADAPTIVE_SPLIT_THRESHOLD && depth < MAX_SPLIT_DEPTH) {
+        const midDate = midpoint(fromDate, toDate)
+        if (midDate) {
+          console.error(`[fda] Adaptive split: ${fromDate}–${toDate} (${total.toLocaleString()} total) → splitting at ${midDate} (depth=${depth + 1})`)
+          const [firstHalf, secondHalf] = await Promise.all([
+            fetchQuarter(fromDate, midDate, termClause, apiKey, depth + 1),
+            fetchQuarter(nextDay(midDate), toDate, termClause, apiKey, depth + 1),
+          ])
+          const combined = dedup([...items, ...firstHalf.items, ...secondHalf.items])
+          return {
+            items: combined.slice(0, MAX_ITEMS),
+            warnings: [...warnings, ...firstHalf.warnings, ...secondHalf.warnings],
+          }
+        }
+      }
       const gap = total - items.length
       const msg =
         `FDA MAUDE: pagination cap reached (${items.length.toLocaleString()} of ` +
@@ -280,6 +299,23 @@ async function fetchPageWithRetry(url: string, maxAttempts = 3): Promise<FetchRe
   }
 
   return { ok: false, retriable: true, error: lastError }
+}
+
+// ─── Date helpers for adaptive splitting ─────────────────────────────────────
+
+function midpoint(from: string, to: string): string | null {
+  const a = new Date(from + 'T00:00:00.000Z')
+  const b = new Date(to   + 'T00:00:00.000Z')
+  const mid = new Date(a.getTime() + (b.getTime() - a.getTime()) / 2)
+  const result = mid.toISOString().slice(0, 10)
+  if (result === from || result === to) return null
+  return result
+}
+
+function nextDay(date: string): string {
+  const d = new Date(date + 'T00:00:00.000Z')
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
 }
 
 // ─── Lucene term clause ───────────────────────────────────────────────────────
