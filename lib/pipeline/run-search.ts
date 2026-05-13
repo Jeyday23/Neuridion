@@ -11,6 +11,7 @@ import { logAuditEvent } from '@/lib/audit'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
 import pLimit from 'p-limit'
 import { upsertCanonical, getCanonicalItems, computeContentHash } from '@/lib/sync/canonical'
+import { sanitizeContent } from '@/lib/scrapers/sanitize'
 import { z } from 'zod'
 
 export const TermsUsedSchema = z.object({
@@ -438,7 +439,7 @@ export async function runSearchPipeline(
           if (!fsnRow) return null
           const detail = await fetchBfarmDetail(fsnRow.source_url)
           if (!detail) return null
-          const enrichedContent = `${row.title}\n\n${detail}`
+          const enrichedContent = sanitizeContent(`${row.title}\n\n${detail}`)
           await db.from('fsn_results').update({ raw_content: enrichedContent }).eq('id', row.id)
           const refiltered = await stage1Filter(
             { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: enrichedContent, fsn_date: row.fsn_date },
