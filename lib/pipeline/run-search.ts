@@ -272,6 +272,7 @@ export async function runSearchPipeline(
   let insertedRows: {
     id: string; external_id: string | null; title: string
     manufacturer: string | null; raw_content: string | null; fsn_date: string | null
+    source_db: string | null
   }[] = []
 
   if (items.length > 0) {
@@ -289,7 +290,7 @@ export async function runSearchPipeline(
         content_hash: computeContentHash(item),
         canonical_id: allCanonicalIds.get(item.external_id) ?? null,
       })))
-      .select('id, external_id, title, manufacturer, raw_content, fsn_date')
+      .select('id, external_id, title, manufacturer, raw_content, fsn_date, source_db')
 
     if (insertError) throw new Error(`fsn_results insert: ${insertError.message} (code=${insertError.code})`)
     insertedRows = inserted ?? []
@@ -345,11 +346,17 @@ export async function runSearchPipeline(
   const deviceTerms       = filterSearchTerms.filter((t) => !manufacturerTerms.includes(t))
   let toFilter            = needsFilter
 
+  const TRUST_SOURCE_FILTER = new Set(['fda'])
+
   if (filterSearchTerms.length > 0) {
     const mfrMatched:  typeof insertedRows = []
     const mfrExcluded: typeof insertedRows = []
 
     for (const row of needsFilter) {
+      if (row.source_db && TRUST_SOURCE_FILTER.has(row.source_db)) {
+        mfrMatched.push(row)
+        continue
+      }
       const hay = `${row.title} ${row.manufacturer} ${row.raw_content}`.toLowerCase()
       let matches: boolean
       if (deviceTerms.length === 0) {

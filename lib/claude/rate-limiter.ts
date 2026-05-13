@@ -1,6 +1,6 @@
 // ── Sonnet (claude-sonnet-4-6) ────────────────────────────────────────────────
 // Org limit: 50 RPM → 1200ms between requests.
-const SONNET_MIN_MS = 1200
+const SONNET_MIN_MS = 1000
 
 let lastSonnetAt = 0
 let sonnetQueue: Promise<void> = Promise.resolve()
