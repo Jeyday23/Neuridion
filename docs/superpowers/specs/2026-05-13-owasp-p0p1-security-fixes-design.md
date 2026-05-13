@@ -150,14 +150,14 @@ The neutralization happens before HTML-escaping because `escapeHtml` would turn 
 
 **Problem:** All major security headers are present except CSP. Without it, injected scripts (from XSS or compromised CDN) execute freely.
 
-**Fix:** Add a CSP header to the existing headers array. Moderate strictness — whitelist known domains:
+**Fix:** Add a CSP header in **report-only mode first** to validate against Next.js hydration scripts before enforcing. Moderate strictness — whitelist known domains:
 
 ```typescript
 {
-  key: 'Content-Security-Policy',
+  key: 'Content-Security-Policy-Report-Only',
   value: [
     "default-src 'self'",
-    "script-src 'self' https://js.stripe.com",
+    "script-src 'self' 'unsafe-inline' https://js.stripe.com",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
     "font-src 'self'",
@@ -173,6 +173,8 @@ The neutralization happens before HTML-escaping because `escapeHtml` would turn 
 ```
 
 **Decisions:**
+- **Report-Only first (council mandate):** All 3 council reviewers flagged that Next.js injects inline scripts for hydration. Deploying as `Content-Security-Policy` (enforcing) without validation would white-screen the app. Deploy as `Content-Security-Policy-Report-Only` first, monitor for violations in browser DevTools, then switch to enforcing once validated.
+- `script-src 'unsafe-inline'` — required for Next.js hydration scripts. Moving to nonce-based requires `experimental.strictNextHead` config and middleware nonce injection — out of scope for this sprint.
 - `style-src 'unsafe-inline'` — required for Tailwind CSS and Radix UI inline styles. Moving to nonce-based would require a custom Document and is out of scope.
 - `img-src 'self' data: https:` — allows data URIs for QR codes and any HTTPS image (report logos).
 - `connect-src` whitelist covers all external APIs the app calls (Supabase, Anthropic, Stripe, and 4 scraper domains).
@@ -317,21 +319,28 @@ type AuditEventType =
 - The Set resets on deploy, which is fine — Stripe won't retry events from before a deploy
 
 ```typescript
-const PROCESSED_EVENTS = new Set<string>()
-const MAX_PROCESSED = 10_000
+// TTL-based idempotency map — evicts entries older than 5 minutes.
+// Assumes single-process deployment (Render). Upgrade to Redis/Upstash if scaling to multiple processes.
+const PROCESSED_EVENTS = new Map<string, number>()
+const EVENT_TTL_MS = 5 * 60 * 1000
+
+function cleanExpiredEvents(): void {
+  const cutoff = Date.now() - EVENT_TTL_MS
+  for (const [id, ts] of PROCESSED_EVENTS) {
+    if (ts < cutoff) PROCESSED_EVENTS.delete(id)
+    else break // Map iterates in insertion order — once we hit a fresh entry, stop
+  }
+}
 
 // At the top of POST handler, after signature verification:
+cleanExpiredEvents()
 if (PROCESSED_EVENTS.has(event.id)) {
   return Response.json({ received: true, deduplicated: true })
 }
-if (PROCESSED_EVENTS.size >= MAX_PROCESSED) {
-  const first = PROCESSED_EVENTS.values().next().value
-  if (first) PROCESSED_EVENTS.delete(first)
-}
-PROCESSED_EVENTS.add(event.id)
+PROCESSED_EVENTS.set(event.id, Date.now())
 ```
 
-**Why not database-backed?** A DB idempotency table would survive restarts but adds latency to every webhook call and requires a new migration. The in-memory approach covers 99%+ of real-world duplicate delivery scenarios. If the app scales to multiple processes, upgrade to Redis-backed dedup (already have Upstash).
+**Why not database-backed?** A DB idempotency table would survive restarts but adds latency to every webhook call and requires a new migration. The TTL-based in-memory approach (council-improved from simple Set) covers 99%+ of real-world duplicate delivery scenarios — Stripe retries within minutes, well within the 5-minute TTL window. If the app scales to multiple processes, upgrade to Redis-backed dedup (already have Upstash).
 
 ---
 
