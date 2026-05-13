@@ -1,4 +1,5 @@
 import type { ScrapedFsn, ScraperResult, ScraperParams } from './bfarm'
+import { chunkDateRange, daysBetween } from '@/lib/utils/date-chunks'
 import { sanitizeContent } from './sanitize'
 
 const SEARCH_API      = 'https://www.gov.uk/api/search.json'
@@ -7,17 +8,15 @@ const PAGE_SIZE        = 100
 const DETAIL_CONCURRENCY = 3
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
-export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> {
-  const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
-  const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
-
+async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperResult> {
   const listings: ScrapedFsn[] = []
   const warnings: string[] = []
   let start = 0
 
   while (true) {
     const url = new URL(SEARCH_API)
-    url.searchParams.set('filter_format', 'medical_safety_alert')
+    url.searchParams.append('filter_alert_type', 'devices-field-safety-notices')
+    url.searchParams.append('filter_alert_type', 'devices-medical-device-alerts')
     url.searchParams.set('count',         String(PAGE_SIZE))
     url.searchParams.set('start',             String(start))
     url.searchParams.set('order',             '-public_timestamp')
@@ -25,6 +24,8 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
     url.searchParams.append('fields[]',        'description')
     url.searchParams.append('fields[]',        'link')
     url.searchParams.append('fields[]',        'public_timestamp')
+    url.searchParams.set('filter_public_timestamp[from]', fromDate.toISOString())
+    url.searchParams.set('filter_public_timestamp[to]', toDate.toISOString())
 
     const page = await fetchJson(url.toString()) as GovUkSearchResponse | null
 
@@ -36,20 +37,10 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
       break
     }
 
-    let hitBoundary = false
     for (const item of page.results) {
       const pubDate = item.public_timestamp ? new Date(item.public_timestamp) : null
-
-      if (pubDate && pubDate < fromDate) {
-        hitBoundary = true
-        break
-      }
       if (pubDate && pubDate > toDate) continue
-
-      // GOV.UK mixes medicine recalls with device FSNs — keep only FSN-related entries
-      const titleLower = (item.title ?? '').toLowerCase()
-      const isFsn = titleLower.includes('field safety') || titleLower.includes('medical device alert') || titleLower.includes('device alert')
-      if (!isFsn) continue
+      if (pubDate && pubDate < fromDate) continue
 
       const linkPath = item.link ?? ''
       listings.push({
@@ -64,35 +55,57 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
       })
     }
 
-    if (hitBoundary) break
-
     start += PAGE_SIZE
     const total = page.total ?? 0
-    if (start >= 2000 && start < total) {
-      warnings.push(`MHRA results capped at 2000 — ${total} total available. Results may be incomplete.`)
-    }
-    if (start >= total || start >= 2000) break
+    if (start >= total) break
 
     await jitter(150, 350)
   }
 
   const enriched = await enrichWithDetails(listings)
-  const deduped  = dedup(enriched)
+  return { items: enriched, warnings }
+}
+
+export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> {
+  const totalDays = daysBetween(params.fromDate, params.toDate)
+  const allItems: ScrapedFsn[] = []
+  const allWarnings: string[] = []
+
+  if (totalDays <= 180) {
+    const result = await scrapeMhraChunk(
+      new Date(params.fromDate + 'T00:00:00.000Z'),
+      new Date(params.toDate + 'T23:59:59.999Z'),
+    )
+    allItems.push(...result.items)
+    allWarnings.push(...result.warnings)
+  } else {
+    const chunks = chunkDateRange(params.fromDate, params.toDate, 90)
+    for (const chunk of chunks) {
+      const result = await scrapeMhraChunk(
+        new Date(chunk.from + 'T00:00:00.000Z'),
+        new Date(chunk.to + 'T23:59:59.999Z'),
+      )
+      allItems.push(...result.items)
+      allWarnings.push(...result.warnings)
+    }
+  }
+
+  const deduped = dedup(allItems)
 
   if (deduped.length === 0) {
-    warnings.push('MHRA returned 0 Field Safety Notices for the selected date range. The GOV.UK search API may be temporarily unavailable or the date range contains no FSNs.')
+    allWarnings.push('MHRA returned 0 Field Safety Notices for the selected date range.')
   }
 
   if (params.searchTerms && params.searchTerms.length > 0) {
-    const terms    = params.searchTerms.map(t => t.toLowerCase())
+    const terms = params.searchTerms.map(t => t.toLowerCase())
     const filtered = deduped.filter(item => {
       const hay = `${item.title} ${item.raw_content ?? ''}`.toLowerCase()
       return terms.some(t => hay.includes(t))
     })
-    return { items: filtered, warnings }
+    return { items: filtered, warnings: allWarnings }
   }
 
-  return { items: deduped, warnings }
+  return { items: deduped, warnings: allWarnings }
 }
 
 // ─── Detail enrichment ────────────────────────────────────────────────────────
