@@ -3,6 +3,7 @@ import { createHash } from 'crypto'
 import { z } from 'zod'
 import { callAnthropicWithRetry, callHaikuWithRetry } from './rate-limiter'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { sanitizeContent } from '@/lib/scrapers/sanitize'
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
@@ -19,9 +20,12 @@ const anthropic = new Anthropic()
 
 let creditExhausted = false
 
+function isAuthError(err: unknown): boolean {
+  return err instanceof Anthropic.AuthenticationError
+}
+
 function isCreditExhaustionError(err: unknown): boolean {
-  if (err instanceof Anthropic.AuthenticationError)  return true   // 401
-  if (err instanceof Anthropic.PermissionDeniedError) return true  // 403
+  if (err instanceof Anthropic.PermissionDeniedError) return true
   if (err instanceof Anthropic.APIError) {
     if (err.status === 402) return true
     const msg = String(err.message).toLowerCase()
@@ -32,7 +36,13 @@ function isCreditExhaustionError(err: unknown): boolean {
 
 function markCreditExhausted(err: unknown): void {
   creditExhausted = true
-  console.error('[filter] Anthropic credit exhausted — all subsequent AI calls will skip:',
+  console.error('[filter] Anthropic credit/billing exhausted — all subsequent AI calls will skip:',
+    err instanceof Error ? err.message : String(err))
+}
+
+function markAuthFailed(err: unknown): void {
+  creditExhausted = true
+  console.error('[filter] Anthropic API key invalid (401) — check ANTHROPIC_API_KEY env var:',
     err instanceof Error ? err.message : String(err))
 }
 
@@ -263,7 +273,7 @@ async function haikuPreFilter(
           content:
             `Device profile: ${profile.device_name} by ${profile.manufacturer}` +
             (profile.device_class ? `, ${profile.device_class}` : '') +
-            `\n\n<FSN_DATA>\nFSN: "${sanitizePii(fsn.title)}" by ${sanitizePii(fsn.manufacturer || 'Unknown')}\n</FSN_DATA>\n\n` +
+            `\n\n<FSN_DATA>\nFSN: "${sanitizeContent(sanitizePii(fsn.title), 500)}" by ${sanitizeContent(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}\n</FSN_DATA>\n\n` +
             'Is this FSN CLEARLY NOT relevant to the device profile? ' +
             'Only say CLEAR_EXCLUDE if the device type or clinical domain is ' +
             'obviously different. Otherwise say UNCERTAIN.',
@@ -342,10 +352,10 @@ async function sonnetFullFilter(
               type: 'text',
               text:
                 `<FSN_DATA>\n` +
-                `Title: ${sanitizePii(fsn.title)}\n` +
-                `Manufacturer: ${sanitizePii(fsn.manufacturer || 'Unknown')}\n` +
+                `Title: ${sanitizeContent(sanitizePii(fsn.title), 500)}\n` +
+                `Manufacturer: ${sanitizeContent(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}\n` +
                 `Date: ${fsn.fsn_date || 'Unknown'}\n` +
-                `Content: ${content}\n` +
+                `Content: ${sanitizeContent(content, 2000)}\n` +
                 `</FSN_DATA>`,
             },
           ],
@@ -411,9 +421,13 @@ export async function stage1Filter(
     try {
       haikuVerdict = await haikuPreFilter(fsn, profile)
     } catch (haikuErr) {
+      if (isAuthError(haikuErr)) {
+        markAuthFailed(haikuErr)
+        throw haikuErr
+      }
       if (isCreditExhaustionError(haikuErr)) {
         markCreditExhausted(haikuErr)
-        throw haikuErr  // propagates to outer catch → filter_failed, stops cascade
+        throw haikuErr
       }
       // Transient error (rate limit, timeout, overload) — fall through to Sonnet
       console.error('[filter]', 'haiku pre-filter failed, falling back to Sonnet:', haikuErr)
@@ -441,7 +455,8 @@ export async function stage1Filter(
 
     return decision
   } catch (err) {
-    if (isCreditExhaustionError(err)) markCreditExhausted(err)
+    if (isAuthError(err)) markAuthFailed(err)
+    else if (isCreditExhaustionError(err)) markCreditExhausted(err)
     const errMsg = err instanceof Error ? err.message : String(err)
     console.error('[stage1Filter] Failed after retries:', errMsg)
     return {
