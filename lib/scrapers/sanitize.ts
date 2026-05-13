@@ -7,18 +7,25 @@ const HTML_ESCAPE_MAP: Record<string, string> = {
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 }
 const HTML_CHARS = /[&<>"']/g
+const FSN_BOUNDARY = /<\/?FSN_DATA>/gi
 
 export function escapeHtml(text: string): string {
   return text.replace(HTML_CHARS, (ch) => HTML_ESCAPE_MAP[ch])
 }
 
+function neutralizeFsnBoundary(text: string): string {
+  return text.replace(FSN_BOUNDARY, '[FSN_BOUNDARY_REMOVED]')
+}
+
 export function sanitizeContent(text: string, maxLen = 3000): string {
   if (!text) return ''
   return escapeHtml(
-    text
-      .replace(COMBINING_MARKS, '')
-      .replace(FORMATTING_CONTROLS, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
+    neutralizeFsnBoundary(
+      text
+        .replace(COMBINING_MARKS, '')
+        .replace(FORMATTING_CONTROLS, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+    )
   ).slice(0, maxLen)
 }
