@@ -30,7 +30,7 @@ export async function POST(request: Request) {
 
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     console.error('STRIPE_WEBHOOK_SECRET is not set')
-    return Response.json({ error: 'Webhook secret not configured' }, { status: 500 })
+    return Response.json({ error: 'Internal server error' }, { status: 500 })
   }
 
   let event: Stripe.Event
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
   cleanExpiredEvents()
   if (PROCESSED_EVENTS.has(event.id)) {
-    return Response.json({ received: true, deduplicated: true })
+    return Response.json({ received: true })
   }
   PROCESSED_EVENTS.set(event.id, Date.now())
 

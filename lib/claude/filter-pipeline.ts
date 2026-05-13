@@ -354,7 +354,7 @@ async function sonnetFullFilter(
                 `<FSN_DATA>\n` +
                 `Title: ${sanitizeContent(sanitizePii(fsn.title), 500)}\n` +
                 `Manufacturer: ${sanitizeContent(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}\n` +
-                `Date: ${fsn.fsn_date || 'Unknown'}\n` +
+                `Date: ${sanitizeContent(fsn.fsn_date || 'Unknown', 30)}\n` +
                 `Content: ${sanitizeContent(content, 2000)}\n` +
                 `</FSN_DATA>`,
             },
