@@ -7,7 +7,7 @@ const SEARCH_BASE  = `${BFARM_ORIGIN}/SiteGlobals/Forms/Suche/Expertensuche_Form
 const RSS_URL      = `${BFARM_ORIGIN}/SiteGlobals/Functions/RSSFeed/DE/Medizinprodukte/Kundeninfo/RSSNewsfeed.xml?nn=597716`
 const RESULTS_PER_PAGE = 30
 const MAX_PAGES  = 50
-const MAX_ITEMS  = 200
+const MAX_ITEMS  = 500
 const MAX_PAGES_YEAR = 50  // 50 pages × 30 items = 1,500 max per year shortcut
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
@@ -111,8 +111,6 @@ export function parsePage(html: string): ParsedItem[] {
     const titleMatch = block.match(/class="c-icon-teaser__headline">([\s\S]*?)<\/span>/)
     if (!titleMatch) continue
     const title = stripTags(titleMatch[1])
-    if (!title.startsWith('Dringende Sicherheitsinformation')) continue
-
     const date = parseGermanDate(block)
     const idMatch = href.match(/\/(\d+-\d+)_kundeninfo/)
     const externalId = idMatch ? idMatch[1] : href
