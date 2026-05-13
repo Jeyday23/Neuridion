@@ -15,8 +15,7 @@ async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperRes
 
   while (true) {
     const url = new URL(SEARCH_API)
-    url.searchParams.append('filter_alert_type', 'devices-field-safety-notices')
-    url.searchParams.append('filter_alert_type', 'devices-medical-device-alerts')
+    url.searchParams.set('filter_format', 'medical_safety_alert')
     url.searchParams.set('count',         String(PAGE_SIZE))
     url.searchParams.set('start',             String(start))
     url.searchParams.set('order',             '-public_timestamp')
@@ -24,8 +23,7 @@ async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperRes
     url.searchParams.append('fields[]',        'description')
     url.searchParams.append('fields[]',        'link')
     url.searchParams.append('fields[]',        'public_timestamp')
-    url.searchParams.set('filter_public_timestamp[from]', fromDate.toISOString())
-    url.searchParams.set('filter_public_timestamp[to]', toDate.toISOString())
+    url.searchParams.append('fields[]',        'alert_type')
 
     const page = await fetchJson(url.toString()) as GovUkSearchResponse | null
 
@@ -37,10 +35,21 @@ async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperRes
       break
     }
 
+    let hitBoundary = false
     for (const item of page.results) {
       const pubDate = item.public_timestamp ? new Date(item.public_timestamp) : null
+
+      if (pubDate && pubDate < fromDate) {
+        hitBoundary = true
+        break
+      }
       if (pubDate && pubDate > toDate) continue
-      if (pubDate && pubDate < fromDate) continue
+
+      const alertTypes = item.alert_type ?? []
+      const isDeviceFsn = alertTypes.some(t =>
+        t === 'field-safety-notices' || t === 'device-safety-information'
+      )
+      if (!isDeviceFsn) continue
 
       const linkPath = item.link ?? ''
       listings.push({
@@ -54,6 +63,8 @@ async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperRes
         source_db:    'mhra',
       })
     }
+
+    if (hitBoundary) break
 
     start += PAGE_SIZE
     const total = page.total ?? 0
@@ -228,6 +239,7 @@ interface GovUkSearchItem {
   description?:      string
   link?:             string
   public_timestamp?: string
+  alert_type?:       string[]
 }
 
 interface GovUkContentItem {
