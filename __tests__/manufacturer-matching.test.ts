@@ -75,8 +75,8 @@ describe('CamelCase / compound manufacturer names cross-match BfArM variants', (
 })
 
 describe('buildManufacturerSearchTerms with Unicode separators', () => {
-  it('"B·Braun" with device "Infusomat Space" produces ["braun", "infusomat"]', () => {
-    expect(buildManufacturerSearchTerms('B·Braun', 'Infusomat Space')).toEqual(['braun', 'infusomat'])
+  it('"B·Braun" with device "Infusomat Space" produces ["braun", "infusomat", "space"]', () => {
+    expect(buildManufacturerSearchTerms('B·Braun', 'Infusomat Space')).toEqual(['braun', 'infusomat', 'space'])
   })
 
   it('"Dräger Medical GmbH" produces ["dräger"] — generic "medical" filtered from manufacturer terms', () => {
