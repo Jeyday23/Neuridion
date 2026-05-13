@@ -483,7 +483,8 @@ export async function runSearchPipeline(
 
   const runStatus = allWarnings.length > 0 ? 'degraded' : 'complete'
 
-  const { error: finalizeError } = await db.from('search_runs').update({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: finalizeError } = await (db as any).from('search_runs').update({
     status:              runStatus,
     error_message:       allWarnings.length > 0 ? allWarnings.join('\n') : null,
     completed_at:        new Date().toISOString(),
@@ -491,6 +492,8 @@ export async function runSearchPipeline(
     uncertain_count:     counts.uncertain,
     excluded_count:      counts.excluded,
     filter_failed_count: counts.filter_failed,
+    total_scraped:       items.length,
+    pre_filter_count:    insertedRows.length,
     progress:            null,
   }).eq('id', runId)
   if (finalizeError) throw new Error(`Failed to finalize run ${runId}: ${finalizeError.message}`)
