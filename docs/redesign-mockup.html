@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Neuridion — Redesign v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --navy: #0F1F3D;
+    --ink: #1a2236;
+    --body: #3d4a5c;
+    --muted: #7a8599;
+    --light: #c4cad4;
+    --border: #dfe3ea;
+    --surface: #f6f7f9;
+    --white: #fff;
+    --teal: #0D9488;
+    --teal-dark: #0B7C72;
+    --teal-bg: #effcfa;
+    --green: #10B981;
+    --amber: #D97706;
+    --red: #DC2626;
+  }
+
+  body {
+    font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+    color: var(--body);
+    background: var(--white);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.55;
+  }
+  code, .mono { font-family: 'IBM Plex Mono', monospace; }
+
+  /* ─── Nav ─── */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner {
+    max-width: 1080px; margin: 0 auto;
+    padding: 0 40px; height: 56px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .logo {
+    font-weight: 700; font-size: 22px; color: var(--navy);
+    letter-spacing: -0.02em;
+  }
+  .logo-mark {
+    display: inline-block;
+    width: 28px; height: 28px;
+    background: var(--navy);
+    border-radius: 6px;
+    margin-right: 10px;
+    vertical-align: middle;
+    position: relative;
+  }
+  .logo-mark::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 42%; height: 42%;
+    border: 2.5px solid var(--teal);
+    border-radius: 50%;
+  }
+  .nav-right { display: flex; align-items: center; gap: 28px; }
+  .nav-right a {
+    font-size: 13px; color: var(--muted); text-decoration: none;
+    font-weight: 500;
+  }
+  .nav-right a:hover { color: var(--navy); }
+  .nav-cta {
+    font-size: 13px; padding: 7px 18px;
+    background: var(--navy); color: var(--white); border-radius: 4px;
+    text-decoration: none; font-weight: 500;
+  }
+  .nav-cta:hover { background: #162a4d; }
+
+  /* ─── Hero ─── */
+  .hero {
+    max-width: 1080px; margin: 0 auto;
+    padding: 80px 40px 64px;
+    display: grid;
+    grid-template-columns: 1fr 460px;
+    gap: 64px;
+    align-items: center;
+  }
+  .hero-copy {}
+  .hero-copy h1 {
+    font-size: 38px; font-weight: 700;
+    color: var(--navy); line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin-bottom: 20px;
+  }
+  .hero-copy h1 span {
+    color: var(--teal);
+  }
+  .hero-copy .lead {
+    font-size: 16px; line-height: 1.65;
+    color: var(--body); margin-bottom: 32px;
+    max-width: 420px;
+  }
+  .hero-bullets {
+    list-style: none;
+    margin-bottom: 32px;
+    display: flex; flex-direction: column; gap: 10px;
+    max-width: 420px;
+  }
+  .hero-bullets li {
+    font-size: 15px; color: var(--body);
+    display: flex; align-items: baseline; gap: 10px;
+    line-height: 1.5;
+  }
+  .hero-bullets li::before {
+    content: '';
+    width: 6px; height: 6px;
+    background: var(--teal);
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: 7px;
+  }
+  .hero-cta {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 24px;
+    background: var(--navy); color: var(--white);
+    border-radius: 4px; font-size: 14px; font-weight: 600;
+    text-decoration: none;
+  }
+  .hero-cta:hover { background: #162a4d; }
+  .hero-cta svg { width: 14px; height: 14px; }
+
+  /* ─── FSN Card (hero right) ─── */
+  .fsn-card {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04);
+  }
+  .fsn-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .fsn-source {
+    font-size: 11px; font-weight: 600;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .fsn-ref {
+    font-size: 11px; color: var(--light);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .fsn-body { padding: 16px 20px; }
+  .fsn-title {
+    font-size: 14px; font-weight: 600;
+    color: var(--navy); margin-bottom: 12px;
+    line-height: 1.35;
+  }
+  .fsn-fields {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 8px 20px; margin-bottom: 0;
+  }
+  .fsn-field {}
+  .fsn-label {
+    font-size: 10px; font-weight: 600;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+  }
+  .fsn-value {
+    font-size: 13px; color: var(--ink);
+    font-weight: 500;
+  }
+  .fsn-desc {
+    font-size: 13px; color: var(--body);
+    line-height: 1.6;
+    padding: 12px;
+    background: var(--surface);
+    border-radius: 4px;
+    border-left: 3px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  /* Neuridion classification overlay */
+  .fsn-classification {
+    border-top: 1px solid var(--border);
+    padding: 16px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: #f0fdf9;
+  }
+  .fsn-class-left {
+    display: flex; align-items: center; gap: 12px;
+  }
+  .fsn-class-badge {
+    padding: 4px 10px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+  }
+  .fsn-class-badge.relevant { background: #dcfce7; color: #166534; }
+  .fsn-class-badge.uncertain { background: #fef3c7; color: #92400e; }
+  .fsn-class-badge.excluded { background: #f1f5f9; color: #64748b; }
+  .fsn-class-label {
+    font-size: 12px; color: var(--teal-dark); font-weight: 500;
+  }
+  .fsn-class-conf {
+    font-size: 11px; color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  /* ─── Regulatory bar ─── */
+  .reg-bar {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 24px 40px;
+    background: var(--surface);
+  }
+  .reg-inner {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; align-items: start; justify-content: space-between;
+  }
+  .reg-item {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    text-align: center;
+  }
+  .reg-item .db-tag {
+    font-size: 12px; font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--teal-dark);
+    padding: 3px 12px;
+    background: var(--teal-bg);
+    border-radius: 3px;
+  }
+  .reg-item .db-country {
+    font-size: 11px; color: var(--muted); font-weight: 500;
+  }
+
+  /* ─── Section: What it does ─── */
+  .what-section {
+    max-width: 1080px; margin: 0 auto;
+    padding: 96px 40px;
+  }
+  .what-section .section-eyebrow {
+    font-size: 12px; font-weight: 600;
+    color: var(--teal); text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 12px;
+  }
+  .what-section h2 {
+    font-size: 28px; font-weight: 700;
+    color: var(--navy); letter-spacing: -0.01em;
+    margin-bottom: 48px;
+  }
+  .what-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .what-cell {
+    background: var(--white);
+    padding: 32px 28px;
+  }
+  .what-cell .step-marker {
+    font-size: 11px; font-weight: 600;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--teal);
+    margin-bottom: 12px;
+  }
+  .what-cell h3 {
+    font-size: 15px; font-weight: 600;
+    color: var(--navy); margin-bottom: 8px;
+  }
+  .what-cell p {
+    font-size: 13px; line-height: 1.6;
+    color: var(--muted);
+  }
+
+  /* ─── Section: FSN Example full-width ─── */
+  .fsn-example-section {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 96px 40px;
+  }
+  .fsn-example-inner {
+    max-width: 1080px; margin: 0 auto;
+  }
+  .fsn-example-inner .section-eyebrow {
+    font-size: 12px; font-weight: 600;
+    color: var(--teal); text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 12px;
+  }
+  .fsn-example-inner h2 {
+    font-size: 28px; font-weight: 700;
+    color: var(--navy); letter-spacing: -0.01em;
+    margin-bottom: 12px;
+  }
+  .fsn-example-inner .section-desc {
+    font-size: 15px; color: var(--body);
+    margin-bottom: 40px;
+    max-width: 560px;
+  }
+  .fsn-example-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  /* Individual FSN mini card */
+  .fsn-mini {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .fsn-mini-top {
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f2f5;
+  }
+  .fsn-mini-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .fsn-mini-source {
+    font-size: 10px; font-weight: 600;
+    color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .fsn-mini-date {
+    font-size: 11px; color: var(--light);
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .fsn-mini-title {
+    font-size: 14px; font-weight: 600;
+    color: var(--navy); line-height: 1.35;
+    margin-bottom: 6px;
+  }
+  .fsn-mini-mfr {
+    font-size: 12px; color: var(--muted);
+  }
+  .fsn-mini-bottom {
+    padding: 12px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .fsn-mini-bottom.relevant-bg { background: #f0fdf9; }
+  .fsn-mini-bottom.uncertain-bg { background: #fffbeb; }
+  .fsn-mini-bottom.excluded-bg { background: #f8fafc; }
+  .fsn-mini-rationale {
+    font-size: 11px; color: var(--body); max-width: 280px;
+    line-height: 1.45;
+  }
+
+  /* ─── Pricing ─── */
+  .pricing-section {
+    max-width: 1080px; margin: 0 auto;
+    padding: 96px 40px;
+  }
+  .pricing-section .section-eyebrow {
+    font-size: 12px; font-weight: 600;
+    color: var(--teal); text-transform: uppercase;
+    letter-spacing: 0.06em; margin-bottom: 12px;
+  }
+  .pricing-section h2 {
+    font-size: 28px; font-weight: 700;
+    color: var(--navy); margin-bottom: 8px;
+  }
+  .pricing-section > p {
+    font-size: 14px; color: var(--muted); margin-bottom: 48px;
+  }
+  .pricing-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .price-card {
+    background: var(--white);
+    padding: 36px 28px;
+    display: flex; flex-direction: column;
+  }
+  .price-card.featured {
+    background: #fafffe;
+  }
+  .price-name {
+    font-size: 14px; font-weight: 600; color: var(--navy);
+    margin-bottom: 4px;
+  }
+  .price-pop {
+    display: inline-block;
+    font-size: 10px; font-weight: 600;
+    color: var(--teal-dark);
+    background: var(--teal-bg);
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-left: 8px;
+  }
+  .price-amount {
+    font-size: 32px; font-weight: 700; color: var(--navy);
+    letter-spacing: -0.02em; margin-top: 8px;
+  }
+  .price-period { font-size: 13px; color: var(--muted); font-weight: 400; }
+  .price-list {
+    list-style: none; margin: 24px 0; flex: 1;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .price-list li {
+    font-size: 13px; color: var(--body);
+    display: flex; align-items: baseline; gap: 8px;
+  }
+  .price-list li::before {
+    content: '\2713'; color: var(--teal);
+    font-weight: 700; font-size: 12px;
+    flex-shrink: 0;
+  }
+  .price-btn {
+    display: block; text-align: center;
+    padding: 10px; border-radius: 4px;
+    font-size: 13px; font-weight: 600;
+    text-decoration: none;
+  }
+  .price-btn.outline {
+    border: 1px solid var(--border); color: var(--body);
+  }
+  .price-btn.outline:hover { border-color: var(--muted); }
+  .price-btn.solid {
+    background: var(--navy); color: var(--white); border: 1px solid var(--navy);
+  }
+  .price-btn.solid:hover { background: #162a4d; }
+
+  /* ─── CTA ─── */
+  .cta {
+    padding: 80px 40px;
+    background: var(--navy);
+  }
+  .cta-inner {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .cta h2 {
+    font-size: 24px; font-weight: 700; color: var(--white);
+    margin-bottom: 6px;
+  }
+  .cta p { font-size: 14px; color: #7a8eab; }
+  .cta-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 11px 24px;
+    background: var(--white); color: var(--navy);
+    border-radius: 4px; font-size: 14px; font-weight: 600;
+    text-decoration: none; flex-shrink: 0;
+  }
+  .cta-btn:hover { background: #f1f5f9; }
+
+  /* ─── Footer ─── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 40px;
+  }
+  .footer-inner {
+    max-width: 1080px; margin: 0 auto;
+    display: flex; justify-content: space-between; align-items: start;
+  }
+  .footer-brand { font-size: 14px; font-weight: 600; color: var(--navy); }
+  .footer-copy { font-size: 11px; color: var(--light); margin-top: 6px; }
+  .footer-links { display: flex; gap: 40px; }
+  .footer-col { display: flex; flex-direction: column; gap: 6px; }
+  .footer-col a { font-size: 12px; color: var(--muted); text-decoration: none; }
+  .footer-col a:hover { color: var(--navy); }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 900px) {
+    .hero { grid-template-columns: 1fr; gap: 40px; padding: 60px 24px 48px; }
+    .what-grid { grid-template-columns: 1fr; }
+    .fsn-example-grid { grid-template-columns: 1fr; }
+    .pricing-grid { grid-template-columns: 1fr; }
+    .cta-inner { flex-direction: column; text-align: center; gap: 24px; }
+    .footer-inner { flex-direction: column; gap: 24px; }
+    .nav-inner { padding: 0 24px; }
+    .what-section, .pricing-section { padding: 64px 24px; }
+    .fsn-example-section { padding: 64px 24px; }
+    .reg-bar { padding: 16px 24px; }
+    .reg-inner { gap: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="nav-inner">
+    <div class="logo"><span class="logo-mark"></span>Neuridion</div>
+    <div class="nav-right">
+      <a href="#how">How It Works</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#">Log in</a>
+      <a href="#" class="nav-cta">Start free trial</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero: left copy + right FSN card -->
+<section class="hero">
+  <div class="hero-copy">
+    <h1>Post-market surveillance<br>for <span>medical devices</span></h1>
+    <ul class="hero-bullets">
+      <li>Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel</li>
+      <li>AI classifies every Field Safety Notice against your device profile</li>
+      <li>Your PRRC reviews every decision before export</li>
+      <li>Audit-ready PDF and Word reports in minutes</li>
+    </ul>
+    <a href="#" class="hero-cta">
+      Start 14-day free trial
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+
+  <!-- Real FSN example -->
+  <div class="fsn-card">
+    <div class="fsn-header">
+      <span class="fsn-source">BfArM &mdash; Field Safety Notice</span>
+      <span class="fsn-ref">BfArM/FSN-2026-0847</span>
+    </div>
+    <div class="fsn-body">
+      <div class="fsn-title">
+        FSCA: Potential battery overheating in patient monitoring system during extended use
+      </div>
+      <div class="fsn-fields">
+        <div class="fsn-field">
+          <div class="fsn-label">Device class</div>
+          <div class="fsn-value">Patient monitor (IIb)</div>
+        </div>
+        <div class="fsn-field">
+          <div class="fsn-label">Date issued</div>
+          <div class="fsn-value">12 Mar 2026</div>
+        </div>
+        <div class="fsn-field">
+          <div class="fsn-label">FSCA type</div>
+          <div class="fsn-value">Safety alert + IFU update</div>
+        </div>
+        <div class="fsn-field">
+          <div class="fsn-label">Risk</div>
+          <div class="fsn-value">Device shutdown during critical monitoring</div>
+        </div>
+      </div>
+    </div>
+    <div class="fsn-classification">
+      <div class="fsn-class-left">
+        <span class="fsn-class-badge relevant">Relevant</span>
+        <span class="fsn-class-label">Matches your device profile</span>
+      </div>
+      <span class="fsn-class-conf">94% confidence</span>
+    </div>
+  </div>
+</section>
+
+<!-- Regulatory databases bar -->
+<div class="reg-bar">
+  <div class="reg-inner">
+    <div class="reg-item"><span class="db-tag">BfArM</span><span class="db-country">Germany</span></div>
+    <div class="reg-item"><span class="db-tag">FDA MAUDE</span><span class="db-country">United States</span></div>
+    <div class="reg-item"><span class="db-tag">MHRA</span><span class="db-country">United Kingdom</span></div>
+    <div class="reg-item"><span class="db-tag">Swissmedic</span><span class="db-country">Switzerland</span></div>
+  </div>
+</div>
+
+<!-- How it works — structured grid -->
+<section class="what-section" id="how">
+  <div class="section-eyebrow">How it works</div>
+  <h2>Three steps to your PMS report</h2>
+  <div class="what-grid">
+    <div class="what-cell">
+      <div class="step-marker">01</div>
+      <h3>Define your device profile</h3>
+      <p>Enter device name, manufacturer, and classification. Neuridion generates optimised search terms for each regulatory database.</p>
+    </div>
+    <div class="what-cell">
+      <div class="step-marker">02</div>
+      <h3>Run a search</h3>
+      <p>Select date range and databases. All sources are queried in parallel. Results are deduplicated across databases.</p>
+    </div>
+    <div class="what-cell">
+      <div class="step-marker">03</div>
+      <h3>Review and export</h3>
+      <p>AI classifies each FSN as relevant, uncertain, or excluded. Your PRRC reviews every decision before the PDF is finalised.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FSN examples — show 4 real-looking results -->
+<section class="fsn-example-section">
+  <div class="fsn-example-inner">
+    <div class="section-eyebrow">Real classification output</div>
+    <h2>Every FSN, classified against your device</h2>
+    <p class="section-desc">
+      Each Field Safety Notice from the search is classified by AI with a rationale your PRRC can verify. Nothing reaches the report unchecked.
+    </p>
+    <div class="fsn-example-grid">
+
+      <!-- FSN 1: Relevant -->
+      <div class="fsn-mini">
+        <div class="fsn-mini-top">
+          <div class="fsn-mini-meta">
+            <span class="fsn-mini-source">BfArM</span>
+            <span class="fsn-mini-date">12 Mar 2026</span>
+          </div>
+          <div class="fsn-mini-title">FSCA: Battery overheating in patient monitoring system during extended use</div>
+          <div class="fsn-mini-mfr">Patient monitor (Class IIb)</div>
+        </div>
+        <div class="fsn-mini-bottom relevant-bg">
+          <div>
+            <span class="fsn-class-badge relevant">Relevant</span>
+            <div class="fsn-mini-rationale" style="margin-top:6px">
+              Same device class and intended use. Battery subsystem overlap with your device profile.
+            </div>
+          </div>
+          <span class="fsn-class-conf">94%</span>
+        </div>
+      </div>
+
+      <!-- FSN 2: Relevant -->
+      <div class="fsn-mini">
+        <div class="fsn-mini-top">
+          <div class="fsn-mini-meta">
+            <span class="fsn-mini-source">MHRA</span>
+            <span class="fsn-mini-date">28 Feb 2026</span>
+          </div>
+          <div class="fsn-mini-title">Medical Device Alert: Software defect in vital signs display during SpO2 monitoring</div>
+          <div class="fsn-mini-mfr">Vital signs monitor (Class IIb)</div>
+        </div>
+        <div class="fsn-mini-bottom relevant-bg">
+          <div>
+            <span class="fsn-class-badge relevant">Relevant</span>
+            <div class="fsn-mini-rationale" style="margin-top:6px">
+              Equivalent device function. SpO2 display error relevant to patient monitoring safety.
+            </div>
+          </div>
+          <span class="fsn-class-conf">87%</span>
+        </div>
+      </div>
+
+      <!-- FSN 3: Uncertain -->
+      <div class="fsn-mini">
+        <div class="fsn-mini-top">
+          <div class="fsn-mini-meta">
+            <span class="fsn-mini-source">FDA MAUDE</span>
+            <span class="fsn-mini-date">15 Feb 2026</span>
+          </div>
+          <div class="fsn-mini-title">MDR report: Intermittent network connectivity loss in wireless patient telemetry</div>
+          <div class="fsn-mini-mfr">Wireless telemetry system (Class IIa)</div>
+        </div>
+        <div class="fsn-mini-bottom uncertain-bg">
+          <div>
+            <span class="fsn-class-badge uncertain">Uncertain</span>
+            <div class="fsn-mini-rationale" style="margin-top:6px">
+              Different device class, but shared wireless protocol. PRRC review recommended.
+            </div>
+          </div>
+          <span class="fsn-class-conf">52%</span>
+        </div>
+      </div>
+
+      <!-- FSN 4: Excluded -->
+      <div class="fsn-mini">
+        <div class="fsn-mini-top">
+          <div class="fsn-mini-meta">
+            <span class="fsn-mini-source">Swissmedic</span>
+            <span class="fsn-mini-date">03 Jan 2026</span>
+          </div>
+          <div class="fsn-mini-title">FSCA: Updated labelling for single-use endoscopic stapler cartridges</div>
+          <div class="fsn-mini-mfr">Surgical stapler (Class IIb)</div>
+        </div>
+        <div class="fsn-mini-bottom excluded-bg">
+          <div>
+            <span class="fsn-class-badge excluded">Excluded</span>
+            <div class="fsn-mini-rationale" style="margin-top:6px">
+              Surgical device, unrelated device class and intended use. No overlap with patient monitoring.
+            </div>
+          </div>
+          <span class="fsn-class-conf">3%</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section class="pricing-section" id="pricing">
+  <div class="section-eyebrow">Pricing</div>
+  <h2>Plans for every team size</h2>
+  <p>14-day free trial on all plans. No credit card required. All prices excl. VAT.</p>
+  <div class="pricing-grid">
+    <div class="price-card">
+      <div class="price-name">Starter</div>
+      <div class="price-amount">€199<span class="price-period"> /mo</span></div>
+      <ul class="price-list">
+        <li>3 device profiles</li>
+        <li>15 searches per month</li>
+        <li>PDF reports</li>
+        <li>Email support</li>
+      </ul>
+      <a href="#" class="price-btn outline">Start free trial</a>
+    </div>
+    <div class="price-card featured">
+      <div class="price-name">Pro <span class="price-pop">Most popular</span></div>
+      <div class="price-amount">€599<span class="price-period"> /mo</span></div>
+      <ul class="price-list">
+        <li>10 device profiles</li>
+        <li>50 searches per month</li>
+        <li>PDF + Word reports</li>
+        <li>Priority support</li>
+      </ul>
+      <a href="#" class="price-btn solid">Start free trial</a>
+    </div>
+    <div class="price-card">
+      <div class="price-name">Enterprise</div>
+      <div class="price-amount">Custom</div>
+      <ul class="price-list">
+        <li>Unlimited profiles</li>
+        <li>Unlimited searches</li>
+        <li>SSO integration</li>
+        <li>Dedicated account manager</li>
+      </ul>
+      <a href="#" class="price-btn outline">Contact sales</a>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta">
+  <div class="cta-inner">
+    <div>
+      <h2>Ready to automate your PMS workflow?</h2>
+      <p>Start your free trial today. Set up your first device profile in two minutes.</p>
+    </div>
+    <a href="#" class="cta-btn">
+      Start free trial
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </a>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="footer-inner">
+    <div>
+      <div class="footer-brand"><span class="logo-mark" style="width:20px;height:20px"></span>Neuridion</div>
+      <div class="footer-copy">&copy; 2026 Neuridion. All rights reserved.</div>
+    </div>
+    <div class="footer-links">
+      <div class="footer-col">
+        <a href="#">Pricing</a>
+        <a href="#">Contact</a>
+        <a href="#">FAQ</a>
+      </div>
+      <div class="footer-col">
+        <a href="#">Privacy</a>
+        <a href="#">Terms</a>
+        <a href="#">Imprint</a>
+        <a href="#">DPA</a>
+        <a href="#">AI Transparency</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
