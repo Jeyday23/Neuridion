@@ -23,14 +23,11 @@ export async function POST(
     .from('search_runs')
     .select('id, user_id, status')
     .eq('id', id)
+    .eq('user_id', user.id)
     .single()
 
   if (runError || !run) {
     return Response.json({ error: 'Not found' }, { status: 404 })
-  }
-
-  if (run.user_id !== user.id) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
   }
 
   const cancellable = ['running', 'filtering', 'queued']
