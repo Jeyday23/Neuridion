@@ -27,10 +27,14 @@ export async function POST(_request: Request) {
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer:   userData.stripe_customer_id,
-    return_url: `${baseUrl}/dashboard/billing`,
-  })
-
-  return Response.json({ url: session.url })
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer:   userData.stripe_customer_id,
+      return_url: `${baseUrl}/dashboard/billing`,
+    })
+    return Response.json({ url: session.url })
+  } catch (err) {
+    console.error('[billing/portal] Stripe error:', err instanceof Error ? err.message : err)
+    return Response.json({ error: 'Unable to open billing portal. Please try again.' }, { status: 502 })
+  }
 }
