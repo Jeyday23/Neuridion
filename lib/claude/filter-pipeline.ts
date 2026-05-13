@@ -141,7 +141,7 @@ Now assess the following FSN using the record_decision tool.`.trim()
 
 const FilterDecisionSchema = z.object({
   decision:   z.enum(['relevant', 'uncertain', 'excluded']),
-  rationale:  z.string().max(2000).optional().default(''),
+  rationale:  z.string().optional().default('').transform(s => s.slice(0, 2000)),
   confidence: z.number().min(0).max(1).optional().default(0.5),
 })
 
