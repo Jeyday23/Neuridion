@@ -93,13 +93,18 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  await logAuditEvent(session.user?.id ?? null, 'login', { email: data.email, method: 'otp' })
+  const userId = session.user?.id
+  await logAuditEvent(userId ?? null, 'login', { email: data.email, method: 'otp' })
+
+  if (!userId) {
+    return NextResponse.json({ ok: true, redirect: '/dashboard/search' })
+  }
 
   const adminClient = createAdminClient()
   const { data: userRow } = await adminClient
     .from('users')
     .select('role')
-    .eq('id', session.user!.id)
+    .eq('id', userId)
     .single()
 
   const redirect = userRow?.role === 'admin' ? '/admin' : '/dashboard/search'
