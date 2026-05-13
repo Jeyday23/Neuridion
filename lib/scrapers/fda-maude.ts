@@ -103,10 +103,17 @@ async function fetchQuarter(
       apiKey ? `api_key=${apiKey}` : '',
     ].filter(Boolean).join('&')
 
-    const url  = `${BASE_URL}?${qs}`
-    const data = await fetchPage(url)
+    const url    = `${BASE_URL}?${qs}`
+    const result = await fetchPageWithRetry(url)
 
-    if (!data) break
+    if (!result.ok && result.retriable) {
+      warnings.push(
+        `FDA MAUDE: page at skip=${skip} failed after 3 retries for ${fromDate}–${toDate}. Some results may be missing.`
+      )
+      break
+    }
+
+    const data = result.ok ? result.data : result.data
 
     if (data.error) {
       if (data.error.code === 'NOT_FOUND') {
@@ -217,18 +224,62 @@ function formatFdaDate(raw: string | null): string | null {
 
 // ─── HTTP ─────────────────────────────────────────────────────────────────────
 
-async function fetchPage(url: string): Promise<OpenFdaResponse | null> {
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': UA } })
-    if (!res.ok) {
-      console.error(`[fda] HTTP ${res.status}`)
-      return null
+type FetchResult =
+  | { ok: true; data: OpenFdaResponse }
+  | { ok: false; retriable: false; data: OpenFdaResponse }
+  | { ok: false; retriable: true; error: string }
+
+async function fetchPageWithRetry(url: string, maxAttempts = 3): Promise<FetchResult> {
+  const backoffs = [1000, 3000, 9000]
+  let lastError = ''
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const res = await fetch(url, { headers: { 'User-Agent': UA } })
+
+      if (res.ok) {
+        const data = await res.json() as OpenFdaResponse
+        return { ok: true, data }
+      }
+
+      if (res.status === 404) {
+        const data = await res.json().catch(() => ({ error: { code: 'NOT_FOUND', message: 'No results' } })) as OpenFdaResponse
+        return { ok: false, retriable: false, data }
+      }
+
+      if (res.status === 429) {
+        const retryAfter = Math.min(
+          parseInt(res.headers.get('Retry-After') ?? '0', 10) * 1000 || backoffs[attempt],
+          60_000,
+        )
+        lastError = `HTTP 429 (rate limited)`
+        if (attempt < maxAttempts - 1) {
+          console.error(`[fda] 429 on attempt ${attempt + 1}/${maxAttempts}, waiting ${retryAfter}ms`)
+          await new Promise(r => setTimeout(r, retryAfter))
+          continue
+        }
+      } else if (res.status >= 500) {
+        lastError = `HTTP ${res.status}`
+        if (attempt < maxAttempts - 1) {
+          console.error(`[fda] ${res.status} on attempt ${attempt + 1}/${maxAttempts}, retrying in ${backoffs[attempt]}ms`)
+          await new Promise(r => setTimeout(r, backoffs[attempt]))
+          continue
+        }
+      } else {
+        lastError = `HTTP ${res.status}`
+        return { ok: false, retriable: false, data: { error: { code: String(res.status), message: lastError } } }
+      }
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : 'Network error'
+      if (attempt < maxAttempts - 1) {
+        console.error(`[fda] Fetch error on attempt ${attempt + 1}/${maxAttempts}, retrying in ${backoffs[attempt]}ms`)
+        await new Promise(r => setTimeout(r, backoffs[attempt]))
+        continue
+      }
     }
-    return res.json() as Promise<OpenFdaResponse>
-  } catch (err) {
-    console.error('[fda] Fetch error:', err)
-    return null
   }
+
+  return { ok: false, retriable: true, error: lastError }
 }
 
 // ─── Lucene term clause ───────────────────────────────────────────────────────
