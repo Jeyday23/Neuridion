@@ -379,6 +379,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const [hoveredDb, setHoveredDb]     = useState<string | null>(null)
 
   const [showFeedback, setShowFeedback] = useState(false)
+  const [previewPhase, setPreviewPhase] = useState<'idle' | 'loading' | 'done'>('idle')
+  const [previewCount, setPreviewCount] = useState<number | null>(null)
 
   const totalDays = useMemo(
     () => (fromDate && toDate ? daysBetween(fromDate, toDate) : 0),
@@ -437,6 +439,61 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   }
 
   const { show: showToast } = useToast()
+
+  const costEstimate = useMemo(() => {
+    if (selectedDbs.size === 0 || totalDays <= 0) return null
+    const months = Math.max(totalDays / 30, 1)
+    const ITEMS_PER_DB_PER_MONTH: Record<string, number> = {
+      bfarm: 80, fda: 200, mhra: 30, swissmedic: 40,
+    }
+    let totalItems = 0
+    for (const db of selectedDbs) {
+      totalItems += (ITEMS_PER_DB_PER_MONTH[db] ?? 50) * months
+    }
+    totalItems = Math.round(totalItems)
+    const haikuCost = totalItems * (200 * 0.8 + 16 * 4) / 1_000_000
+    const sonnetPassRate = 0.35
+    const sonnetItems = totalItems * sonnetPassRate
+    const sonnetCost = sonnetItems * (500 * 0.3 + 1000 * 3 + 300 * 15) / 1_000_000
+    const totalCost = haikuCost + sonnetCost
+    const low = Math.max(totalCost * 0.5, 0.01)
+    const high = totalCost * 1.5
+    return {
+      items: totalItems,
+      low: low < 0.10 ? low.toFixed(3) : low.toFixed(2),
+      high: high < 0.10 ? high.toFixed(3) : high.toFixed(2),
+    }
+  }, [selectedDbs, totalDays])
+
+  async function runPreview() {
+    if (!profileId || previewPhase === 'loading') return
+    setPreviewPhase('loading')
+    setPreviewCount(null)
+    try {
+      const res = await fetch('/api/search-runs/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile_id: profileId,
+          period_from: fromDate,
+          period_to: toDate,
+          selected_dbs: [...selectedDbs],
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Preview failed' })) as { error?: string }
+        showToast(data.error ?? 'Preview failed', 'error')
+        setPreviewPhase('idle')
+        return
+      }
+      const data = await res.json() as { estimated_items: number }
+      setPreviewCount(data.estimated_items)
+      setPreviewPhase('done')
+    } catch {
+      showToast('Network error — check your connection.', 'error')
+      setPreviewPhase('idle')
+    }
+  }
 
   function toggleDb(id: string) {
     const db = databases.find((d) => d.id === id)
@@ -843,6 +900,24 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           </div>
         )}
 
+        {/* Cost estimate */}
+        {costEstimate && state.phase !== 'running' && state.phase !== 'queued' && (
+          <div className="rounded border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="text-sm text-zinc-600">
+                <span className="font-medium text-zinc-700">Estimated AI cost: </span>
+                €{costEstimate.low} – €{costEstimate.high}
+                <span className="text-xs text-zinc-400 ml-2">(~{costEstimate.items} items × Haiku + Sonnet)</span>
+              </div>
+              {previewPhase === 'done' && previewCount != null && (
+                <span className="text-sm font-medium text-[#0D9488]">
+                  {previewCount} items found in preview
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Action bar */}
         <div className="flex items-center justify-between pt-6 border-t border-[#E2E8F0] flex-wrap gap-3">
           <button type="button" onClick={() => saveDraft()} disabled={draftSaving}
@@ -851,6 +926,14 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             {t.search.saveDraft}
           </button>
           <div className="flex items-center gap-3 flex-wrap">
+            <button type="button" onClick={runPreview}
+              disabled={noProfiles || previewPhase === 'loading' || state.phase === 'running' || state.phase === 'queued' || isOverLimit}
+              className="px-6 py-3 border border-[#E2E8F0] text-[#134E4A] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+              {previewPhase === 'loading'
+                ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.previewing}</>
+                : <>{t.search.previewItems}</>
+              }
+            </button>
             <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || state.phase === 'queued' || isOverLimit}
               className="px-8 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
               {(state.phase === 'running' || state.phase === 'queued')
