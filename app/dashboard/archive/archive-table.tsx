@@ -18,6 +18,8 @@ interface RunRow {
   uncertain_count: number | null
   excluded_count: number | null
   dbs_searched: unknown
+  total_scraped: number | null
+  pre_filter_count: number | null
   error_message: string | null
   report_html_path: string | null
   report_pdf_path: string | null
@@ -248,13 +250,22 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
 
                     {/* Results */}
                     <td className="px-4 py-3 text-xs text-zinc-600">
-                      {run.status === 'complete' && tot != null ? (
-                        <span>
-                          {tot}{' '}
-                          <span className="text-zinc-400">
-                            ({rel} rel · {unc} unc · {exc} exc)
+                      {(run.status === 'complete' || run.status === 'degraded') && tot != null ? (
+                        <div className="space-y-0.5">
+                          <span>
+                            {tot}{' '}
+                            <span className="text-zinc-400">
+                              ({rel} rel · {unc} unc · {exc} exc)
+                            </span>
                           </span>
-                        </span>
+                          {run.total_scraped != null && (
+                            <p className="text-[10px] text-zinc-400">
+                              {run.total_scraped} scraped
+                              {run.pre_filter_count != null && ` → ${run.pre_filter_count} filtered`}
+                              {` → ${tot} classified`}
+                            </p>
+                          )}
+                        </div>
                       ) : '—'}
                     </td>
 

@@ -74,13 +74,15 @@ export async function GET(
   }))
 
   return Response.json({
-    status:          run.status,
-    progress:        (run as { progress?: unknown }).progress ?? null,
-    error_message:   (run as { error_message?: string }).error_message ?? null,
-    relevant_count:  (run as { relevant_count?: number }).relevant_count  ?? 0,
-    uncertain_count: (run as { uncertain_count?: number }).uncertain_count ?? 0,
-    excluded_count:  (run as { excluded_count?: number }).excluded_count  ?? 0,
-    results:         enriched,
+    status:           run.status,
+    progress:         (run as { progress?: unknown }).progress ?? null,
+    error_message:    (run as { error_message?: string }).error_message ?? null,
+    relevant_count:   (run as { relevant_count?: number }).relevant_count  ?? 0,
+    uncertain_count:  (run as { uncertain_count?: number }).uncertain_count ?? 0,
+    excluded_count:   (run as { excluded_count?: number }).excluded_count  ?? 0,
+    total_scraped:    (run as { total_scraped?: number }).total_scraped ?? null,
+    pre_filter_count: (run as { pre_filter_count?: number }).pre_filter_count ?? null,
+    results:          enriched,
   })
 }
 

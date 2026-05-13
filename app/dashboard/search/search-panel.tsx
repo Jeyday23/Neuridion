@@ -553,25 +553,29 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           return
         }
         const data = await res.json() as {
-          status:          string
-          progress:        SearchProgress | null
-          results:         FsnResult[]
-          relevant_count:  number
-          uncertain_count: number
-          excluded_count:  number
-          error_message:   string | null
+          status:           string
+          progress:         SearchProgress | null
+          results:          FsnResult[]
+          relevant_count:   number
+          uncertain_count:  number
+          excluded_count:   number
+          total_scraped:    number | null
+          pre_filter_count: number | null
+          error_message:    string | null
         }
         if (data.status === 'pending' || data.status === 'running') {
           setState({ phase: 'running', runId, startedAt, progress: data.progress ?? null })
         } else if (data.status === 'complete' || data.status === 'degraded') {
           stopPolling()
           setState({
-            phase:    'done',
+            phase:          'done',
             runId,
-            results:  data.results,
-            counts:   { relevant: data.relevant_count, uncertain: data.uncertain_count, excluded: data.excluded_count },
+            results:        data.results,
+            counts:         { relevant: data.relevant_count, uncertain: data.uncertain_count, excluded: data.excluded_count },
+            totalScraped:   data.total_scraped,
+            preFilterCount: data.pre_filter_count,
             startedAt,
-            degraded: data.status === 'degraded',
+            degraded:       data.status === 'degraded',
           })
         } else {
           stopPolling()
@@ -942,6 +946,13 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                           </span>
                         )}
                       </div>
+                      {state.totalScraped != null && (
+                        <span className="text-xs text-zinc-400">
+                          {state.totalScraped} scraped
+                          {state.preFilterCount != null && ` → ${state.preFilterCount} filtered`}
+                          {` → ${counts.all} classified`}
+                        </span>
+                      )}
                       <span className="text-xs text-zinc-400 ml-auto">AI-filtered · {MODEL_LABEL}</span>
                     </div>
 
