@@ -14,8 +14,9 @@ const PreviewBodySchema = z.object({
   selected_dbs: z.array(z.enum(KNOWN_SOURCES)).min(1).max(KNOWN_SOURCES.length),
 })
 
+// Averages per DB per day, post manufacturer-term filtering
 const ITEMS_PER_DB_PER_DAY: Record<string, number> = {
-  bfarm: 2.7, fda: 6.7, mhra: 1.0, swissmedic: 1.3,
+  bfarm: 0.8, fda: 1.3, mhra: 0.3, swissmedic: 0.5,
 }
 
 export async function POST(request: Request) {

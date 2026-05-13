@@ -443,21 +443,25 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const costEstimate = useMemo(() => {
     if (selectedDbs.size === 0 || totalDays <= 0) return null
     const months = Math.max(totalDays / 30, 1)
+    // Conservative averages per DB per month, post manufacturer-term filtering
     const ITEMS_PER_DB_PER_MONTH: Record<string, number> = {
-      bfarm: 80, fda: 200, mhra: 30, swissmedic: 40,
+      bfarm: 25, fda: 40, mhra: 10, swissmedic: 15,
     }
     let totalItems = 0
     for (const db of selectedDbs) {
       totalItems += (ITEMS_PER_DB_PER_MONTH[db] ?? 50) * months
     }
     totalItems = Math.round(totalItems)
-    const haikuCost = totalItems * (200 * 0.8 + 16 * 4) / 1_000_000
+    // Haiku pre-filter: ~130 input tokens + ~5 output tokens per item
+    const haikuCostPerItem = (130 * 0.80 + 5 * 4.00) / 1_000_000
+    // Sonnet full filter: ~1200 cached input + ~300 fresh input + ~150 output
+    // ~35% of items pass Haiku and go to Sonnet
     const sonnetPassRate = 0.35
-    const sonnetItems = totalItems * sonnetPassRate
-    const sonnetCost = sonnetItems * (500 * 0.3 + 1000 * 3 + 300 * 15) / 1_000_000
-    const totalCost = haikuCost + sonnetCost
-    const low = Math.max(totalCost * 0.5, 0.01)
-    const high = totalCost * 1.5
+    const sonnetCostPerItem = (1200 * 0.30 + 300 * 3.00 + 150 * 15.00) / 1_000_000
+    const usdCost = totalItems * haikuCostPerItem + totalItems * sonnetPassRate * sonnetCostPerItem
+    const eurCost = usdCost * 0.92
+    const low = Math.max(eurCost * 0.5, 0.01)
+    const high = eurCost * 1.5
     return {
       items: totalItems,
       low: low < 0.10 ? low.toFixed(3) : low.toFixed(2),
