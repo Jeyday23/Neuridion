@@ -25,6 +25,23 @@ const nextConfig: NextConfig = {
           { key: 'X-DNS-Prefetch-Control', value: 'off' },
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          {
+            key: 'Content-Security-Policy-Report-Only',
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' https://js.stripe.com",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: https:",
+              "font-src 'self'",
+              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.stripe.com https://fsca.swissmedic.ch https://api.fda.gov https://www.gov.uk https://www.bfarm.de",
+              "frame-src https://js.stripe.com",
+              "object-src 'none'",
+              "base-uri 'self'",
+              "form-action 'self'",
+              "frame-ancestors 'none'",
+              "upgrade-insecure-requests",
+            ].join('; '),
+          },
         ],
       },
     ]
