@@ -64,7 +64,7 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">4. Intellectual property</h2>
             <p>
               Neuridion and its underlying technology are owned by{' '}
-              <strong>[COMPANY LEGAL NAME] — PLACEHOLDER</strong>. You retain ownership of the device
+              <strong>Neuridion</strong>. You retain ownership of the device
               profile data and documents you upload. You grant us a limited licence to process that
               data solely for the purpose of providing the service.
             </p>
@@ -98,7 +98,7 @@ export default function TermsPage() {
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">7. Governing law &amp; dispute resolution</h2>
             <p>
               These terms are governed by the laws of the Federal Republic of Germany, excluding
-              conflict-of-law provisions. The courts of <strong>[CITY — PLACEHOLDER]</strong>, Germany
+              conflict-of-law provisions. The courts of <strong>[TO BE ADDED]</strong>, Germany
               have exclusive jurisdiction.
             </p>
             <p className="mt-2">

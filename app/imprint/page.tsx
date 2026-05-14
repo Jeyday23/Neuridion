@@ -26,19 +26,19 @@ export default function ImprintPage() {
             <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-5 space-y-2 text-sm">
               <div>
                 <span className="font-medium text-zinc-500">Company name:</span>{' '}
-                <span className="text-red-600 font-medium">[COMPANY LEGAL NAME — REQUIRED]</span>
+                <span className="text-[#1E293B]">Neuridion</span>
               </div>
               <div>
                 <span className="font-medium text-zinc-500">Legal form:</span>{' '}
-                <span className="text-red-600 font-medium">[e.g. GmbH, UG — REQUIRED]</span>
+                <span className="text-amber-600 font-medium">[TO BE ADDED]</span>
               </div>
               <div>
                 <span className="font-medium text-zinc-500">Street address:</span>{' '}
-                <span className="text-red-600 font-medium">[STREET + NUMBER — REQUIRED]</span>
+                <span className="text-amber-600 font-medium">[TO BE ADDED]</span>
               </div>
               <div>
                 <span className="font-medium text-zinc-500">City / postcode:</span>{' '}
-                <span className="text-red-600 font-medium">[POSTCODE CITY — REQUIRED]</span>
+                <span className="text-amber-600 font-medium">[TO BE ADDED]</span>
               </div>
               <div>
                 <span className="font-medium text-zinc-500">Country:</span>{' '}
@@ -52,11 +52,11 @@ export default function ImprintPage() {
             <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-5 space-y-2 text-sm">
               <div>
                 <span className="font-medium text-zinc-500">Email:</span>{' '}
-                <span className="text-red-600 font-medium">[EMAIL — REQUIRED]</span>
+                <span className="text-[#1E293B]">info@neuridion.eu</span>
               </div>
               <div>
                 <span className="font-medium text-zinc-500">Phone:</span>{' '}
-                <span className="text-red-600 font-medium">[PHONE — REQUIRED (§5 TMG)]</span>
+                <span className="text-amber-600 font-medium">[TO BE ADDED]</span>
               </div>
             </div>
           </section>
@@ -66,7 +66,7 @@ export default function ImprintPage() {
             <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-5 space-y-2 text-sm">
               <div>
                 <span className="font-medium text-zinc-500">Managing director (Geschäftsführer):</span>{' '}
-                <span className="text-red-600 font-medium">[FULL NAME — REQUIRED]</span>
+                <span className="text-amber-600 font-medium">[TO BE ADDED]</span>
               </div>
             </div>
           </section>
@@ -76,11 +76,11 @@ export default function ImprintPage() {
             <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-5 space-y-2 text-sm">
               <div>
                 <span className="font-medium text-zinc-500">Commercial register (Handelsregister):</span>{' '}
-                <span className="text-red-600 font-medium">[REGISTER COURT + NUMBER — REQUIRED]</span>
+                <span className="text-amber-600 font-medium">[TO BE ADDED]</span>
               </div>
               <div>
                 <span className="font-medium text-zinc-500">VAT ID (Umsatzsteuer-ID §27a UStG):</span>{' '}
-                <span className="text-red-600 font-medium">[DE + 9 DIGITS — REQUIRED]</span>
+                <span className="text-amber-600 font-medium">[TO BE ADDED]</span>
               </div>
             </div>
           </section>
@@ -88,7 +88,7 @@ export default function ImprintPage() {
           <section>
             <h2 className="text-lg font-semibold text-zinc-900 mb-3">Responsible for content (§55 Abs. 2 RStV)</h2>
             <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-5 text-sm">
-              <span className="text-red-600 font-medium">[FULL NAME + ADDRESS — REQUIRED]</span>
+              <span className="text-amber-600 font-medium">[TO BE ADDED]</span>
             </div>
           </section>
 
@@ -100,7 +100,7 @@ export default function ImprintPage() {
                 href="https://ec.europa.eu/consumers/odr"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
+                className="text-[#0D9488] hover:underline"
               >
                 ec.europa.eu/consumers/odr
               </a>
@@ -112,9 +112,9 @@ export default function ImprintPage() {
         </div>
 
         <div className="mt-10 pt-8 border-t border-zinc-200 flex gap-4 text-sm">
-          <Link href="/"        className="text-blue-600 hover:underline">← Home</Link>
-          <Link href="/privacy" className="text-blue-600 hover:underline">Privacy</Link>
-          <Link href="/terms"   className="text-blue-600 hover:underline">Terms</Link>
+          <Link href="/"        className="text-[#0D9488] hover:underline">← Home</Link>
+          <Link href="/privacy" className="text-[#0D9488] hover:underline">Privacy</Link>
+          <Link href="/terms"   className="text-[#0D9488] hover:underline">Terms</Link>
         </div>
       </div>
     </div>

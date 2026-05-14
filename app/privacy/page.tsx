@@ -23,8 +23,8 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">1. Who we are</h2>
             <p>
               Neuridion (&quot;we&quot;, &quot;us&quot;) is operated by{' '}
-              <strong>[COMPANY LEGAL NAME] — PLACEHOLDER</strong>, registered at{' '}
-              <strong>[COMPANY ADDRESS] — PLACEHOLDER</strong>, Germany.
+              <strong>Neuridion</strong>, registered at{' '}
+              <strong>[TO BE ADDED]</strong>, Germany.
               We provide an automated PMS recall search platform for medical device manufacturers
               operating under EU MDR.
             </p>
@@ -242,13 +242,13 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">12. Contact</h2>
             <p>
-              Data controller: <strong>[COMPANY LEGAL NAME] — PLACEHOLDER</strong><br />
+              Data controller: <strong>Neuridion</strong><br />
               Email:{' '}
               <a href="mailto:info@neuridion.eu" className="text-[#0D9488] hover:underline">
                 info@neuridion.eu
               </a>
               <br />
-              Address: <strong>[ADDRESS — PLACEHOLDER]</strong>
+              Address: <strong>[TO BE ADDED]</strong>
             </p>
           </section>
 
