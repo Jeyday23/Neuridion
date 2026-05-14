@@ -2,7 +2,13 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import crypto from 'crypto'
 
-const SESSION_HMAC_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? 'fallback-hmac-key'
+function getSessionHmacKey(): string {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required — session HMAC cannot use a fallback')
+  return key
+}
+
+const SESSION_HMAC_KEY = getSessionHmacKey()
 
 const PUBLIC_PATHS = [
   '/', '/login', '/signup', '/signup/confirm', '/admin/login',
