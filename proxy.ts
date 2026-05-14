@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import crypto from 'crypto'
+import { buildCspHeader } from '@/lib/security/csp'
 
 function getSessionHmacKey(): string {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -140,22 +141,7 @@ export async function proxy(request: NextRequest) {
   if (process.env.NODE_ENV === 'production') {
     const nonce = crypto.randomBytes(16).toString('base64')
     supabaseResponse.headers.set('x-nonce', nonce)
-    supabaseResponse.headers.set('Content-Security-Policy', [
-      "default-src 'self'",
-      `script-src 'self' 'nonce-${nonce}' https://js.stripe.com`,
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data:",
-      "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://*.supabase.co https://api.stripe.com https://api.anthropic.com https://api.pdfshift.io https://api.resend.com https://api.firecrawl.dev https://fsca.swissmedic.ch https://api.fda.gov",
-      "frame-src https://js.stripe.com",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'",
-      "worker-src 'none'",
-      "manifest-src 'self'",
-      "upgrade-insecure-requests",
-    ].join('; '))
+    supabaseResponse.headers.set('Content-Security-Policy', buildCspHeader(nonce))
   }
 
   return supabaseResponse
