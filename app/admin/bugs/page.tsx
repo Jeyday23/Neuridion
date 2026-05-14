@@ -32,8 +32,7 @@ export default async function AdminBugsPage() {
   if (!admin_user) redirect('/dashboard/search')
 
   const admin = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await (admin as any)
+  const { data } = await admin
     .from('bug_reports')
     .select('*')
     .order('created_at', { ascending: false })

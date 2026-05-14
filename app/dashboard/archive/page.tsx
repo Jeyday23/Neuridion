@@ -13,8 +13,7 @@ export default async function ArchivePage() {
   // Data: use admin client to bypass RLS — reads are scoped to the user's id below
   const adminClient = createAdminClient()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- total_scraped/pre_filter_count from migration 053, types not yet regenerated
-  const { data: runs, error } = await (adminClient as any)
+  const { data: runs, error } = await adminClient
     .from('search_runs')
     .select(`
       id, status, started_at, completed_at, created_at,

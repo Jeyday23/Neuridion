@@ -44,6 +44,42 @@ export type Database = {
         }
         Relationships: []
       }
+      bug_reports: {
+        Row: {
+          admin_notes: string | null
+          category: string
+          created_at: string
+          description: string
+          id: string
+          page_url: string | null
+          status: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          category: string
+          created_at?: string
+          description: string
+          id?: string
+          page_url?: string | null
+          status?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          page_url?: string | null
+          status?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       filter_decision_cache: {
         Row: {
           confidence: string | null
@@ -508,6 +544,7 @@ export type Database = {
           id: string
           period_from: string | null
           period_to: string | null
+          pre_filter_count: number | null
           profile_id: string
           progress: Json | null
           relevant_count: number
@@ -525,6 +562,7 @@ export type Database = {
           status: string
           terms_used: Json | null
           total_results: number
+          total_scraped: number | null
           uncertain_count: number
           user_id: string
         }
@@ -538,6 +576,7 @@ export type Database = {
           id?: string
           period_from?: string | null
           period_to?: string | null
+          pre_filter_count?: number | null
           profile_id: string
           progress?: Json | null
           relevant_count?: number
@@ -555,6 +594,7 @@ export type Database = {
           status?: string
           terms_used?: Json | null
           total_results?: number
+          total_scraped?: number | null
           uncertain_count?: number
           user_id: string
         }
@@ -568,6 +608,7 @@ export type Database = {
           id?: string
           period_from?: string | null
           period_to?: string | null
+          pre_filter_count?: number | null
           profile_id?: string
           progress?: Json | null
           relevant_count?: number
@@ -585,6 +626,7 @@ export type Database = {
           status?: string
           terms_used?: Json | null
           total_results?: number
+          total_scraped?: number | null
           uncertain_count?: number
           user_id?: string
         }

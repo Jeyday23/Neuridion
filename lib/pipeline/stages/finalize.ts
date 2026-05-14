@@ -16,8 +16,7 @@ export async function finalizeStage(ctx: PipelineContext): Promise<void> {
 
   const runStatus = computeRunStatus(ctx.warnings, ctx.items.length)
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error: finalizeError } = await (ctx.db as any).from('search_runs').update({
+  const { error: finalizeError } = await ctx.db.from('search_runs').update({
     status:              runStatus,
     error_message:       ctx.warnings.length > 0 ? ctx.warnings.join('\n') : null,
     completed_at:        new Date().toISOString(),

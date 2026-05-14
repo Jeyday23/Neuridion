@@ -58,8 +58,7 @@ export async function runSearchPipeline(
       raw_device_name: profile.device_name ?? '',
       term_algorithm_version: '1',
     })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error: termsError } = await (db as any)
+    const { error: termsError } = await db
       .from('search_runs')
       .update({ terms_used: termsPayload })
       .eq('id', runId)

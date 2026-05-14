@@ -30,8 +30,7 @@ export async function POST(request: Request) {
   }
 
   const admin = createAdminClient()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { error } = await (admin as any).from('bug_reports').insert({
+  const { error } = await admin.from('bug_reports').insert({
     user_id:     user.id,
     category:    parsed.data.category,
     description: parsed.data.description,
