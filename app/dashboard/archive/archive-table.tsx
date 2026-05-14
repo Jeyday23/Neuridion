@@ -160,6 +160,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
         >
           <option value="all">All statuses</option>
           <option value="complete">Completed</option>
+          <option value="degraded">Partial results</option>
           <option value="running">Running</option>
           <option value="error">Failed</option>
           <option value="cancelled">Cancelled</option>
