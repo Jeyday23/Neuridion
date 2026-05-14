@@ -6,43 +6,6 @@ export const metadata = { title: 'Billing — Neuridion' }
 
 const UPGRADE_PLANS: PlanId[] = ['starter', 'pro', 'enterprise']
 
-const PLAN_FEATURES: Record<PlanId, string[]> = {
-  trial: [
-    '1 free search run',
-    '1 product profile',
-    'BfArM database',
-    'PDF & Excel reports',
-  ],
-  free: [
-    '1 search run',
-    '1 product profile',
-    'BfArM database',
-    'PDF & Excel reports',
-  ],
-  starter: [
-    'Unlimited search runs',
-    '1 product profile',
-    'All P1 databases (BfArM, FDA, MHRA)',
-    'PDF & Excel reports',
-    'Email notifications',
-  ],
-  pro: [
-    'Unlimited search runs',
-    '5 product profiles',
-    'All databases',
-    'PDF & Excel reports',
-    'Email notifications',
-    'Priority support',
-  ],
-  enterprise: [
-    'Unlimited everything',
-    'Custom database integrations',
-    'Dedicated account manager',
-    'SLA agreement',
-    'Custom onboarding',
-  ],
-}
-
 export default async function BillingPage({
   searchParams,
 }: {
@@ -120,7 +83,7 @@ export default async function BillingPage({
         </div>
 
         <ul className="mt-4 flex flex-wrap gap-x-6 gap-y-1.5">
-          {PLAN_FEATURES[currentPlan].map((f) => (
+          {PLANS[currentPlan].features.map((f) => (
             <li key={f} className="flex items-center gap-1.5 text-sm text-zinc-600">
               <svg className="h-4 w-4 shrink-0 text-green-500" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
@@ -162,7 +125,7 @@ export default async function BillingPage({
                   </p>
 
                   <ul className="mt-4 flex-1 space-y-2">
-                    {PLAN_FEATURES[planId].map((f) => (
+                    {PLANS[planId].features.map((f) => (
                       <li key={f} className="flex items-start gap-1.5 text-xs text-zinc-600">
                         <svg className="mt-0.5 h-3.5 w-3.5 shrink-0 text-green-500" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
