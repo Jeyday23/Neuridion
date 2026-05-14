@@ -120,7 +120,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
         }
         canonicalPersisted = true
       } catch (err) {
-        console.error(`[pipeline] ${sourceId}: canonical upsert failed:`, err)
+        console.error(`[pipeline] ${sourceId}: canonical upsert failed:`, err instanceof Error ? err.message : String(err))
       }
     }
 

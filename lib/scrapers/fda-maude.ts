@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto'
 import type { ScrapedFsn, ScraperResult } from './bfarm'
 import { sanitizeContent } from './sanitize'
 
@@ -224,7 +225,7 @@ function mapMaudeRecord(r: MaudeRecord): ScrapedFsn {
   const fsn_date = formatFdaDate(r.date_received ?? r.date_of_event ?? null)
 
   return {
-    external_id:  reportNumber || `maude-${r.mdr_report_key ?? Math.random()}`,
+    external_id:  reportNumber || `maude-${r.mdr_report_key ?? randomUUID()}`,
     title:        `${deviceLabel} — ${eventType}`,
     manufacturer,
     product_name: brandName || genericName || null,

@@ -56,7 +56,7 @@ export async function logAuditEvent(
       user_agent: hdrs?.get('user-agent') ?? null,
     })
   } catch (err) {
-    console.error('[audit] failed:', err)
+    console.error('[audit] failed:', err instanceof Error ? err.message : String(err))
     // Never throw — audit failure must not block user action
   }
 }

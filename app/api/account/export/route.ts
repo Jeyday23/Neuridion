@@ -27,9 +27,9 @@ export async function GET(request: Request) {
     searchRunsRes,
     auditLogRes,
   ] = await Promise.all([
-    admin.from('users').select('*').eq('id', user.id).single(),
-    admin.from('product_profiles').select('*').eq('user_id', user.id),
-    admin.from('search_runs').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+    admin.from('users').select('id, email, full_name, company_name, plan, role, subscription_status, current_period_end, consent_cookies_at, consent_terms_at, consent_privacy_at, deletion_requested_at, created_at').eq('id', user.id).single(),
+    admin.from('product_profiles').select('id, device_name, manufacturer, intended_use, emdn_code, device_class, created_at').eq('user_id', user.id),
+    admin.from('search_runs').select('id, profile_id, status, period_from, period_to, started_at, completed_at, relevant_count, uncertain_count, excluded_count, created_at').eq('user_id', user.id).order('created_at', { ascending: false }),
     admin.from('audit_log').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
   ])
 
@@ -48,10 +48,10 @@ export async function GET(request: Request) {
     loginAttemptsRes,
   ] = await Promise.all([
     runIds.length > 0
-      ? admin.from('fsn_results').select('*').in('run_id', runIds).limit(10000)
+      ? admin.from('fsn_results').select('id, run_id, external_id, title, manufacturer, fsn_date, source_url, source_db, created_at').in('run_id', runIds).limit(10000)
       : Promise.resolve({ data: [] }),
     runIds.length > 0
-      ? admin.from('filter_decisions').select('*').in('search_run_id', runIds).limit(10000)
+      ? admin.from('filter_decisions').select('id, fsn_result_id, search_run_id, decision, rationale, confidence, created_at').in('search_run_id', runIds).limit(10000)
       : Promise.resolve({ data: [] }),
     admin.from('pdf_usage').select('*').eq('user_id', user.id),
     admin.from('search_drafts').select('*').eq('user_id', user.id),

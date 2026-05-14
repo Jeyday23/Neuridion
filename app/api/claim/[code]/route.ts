@@ -21,6 +21,10 @@ export async function POST(
 
   const { code } = await params
 
+  if (!/^[A-Za-z0-9_-]{4,64}$/.test(code)) {
+    return Response.json({ error: 'Invalid code format' }, { status: 400 })
+  }
+
   let body: unknown
   try { body = await request.json() } catch {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 })

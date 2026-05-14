@@ -145,7 +145,7 @@ async function fetchPublicationPage(
 
     return await res.json() as SwissmedicPage
   } catch (err) {
-    console.error(`[swissmedic] Fetch error ${url}:`, err)
+    console.error(`[swissmedic] Fetch error ${url}:`, err instanceof Error ? err.message : String(err))
     return null
   }
 }

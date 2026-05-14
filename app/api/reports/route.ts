@@ -576,7 +576,7 @@ export async function POST(request: Request) {
         console.error('[PDF] Upload failed:', pdfUploadErr.message)
       }
     } catch (err) {
-      console.error('[PDF] Generation failed:', err)
+      console.error('[PDF] Generation failed:', err instanceof Error ? err.message : String(err))
       pdfStatus = 'failed'
     }
   } else {

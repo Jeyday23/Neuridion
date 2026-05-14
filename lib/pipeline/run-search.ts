@@ -89,7 +89,7 @@ export async function runSearchPipeline(
   try {
     await finalizeStage(ctx)
   } catch (err) {
-    console.error('[pipeline] finalize failed:', err)
+    console.error('[pipeline] finalize failed:', err instanceof Error ? err.message : String(err))
     await db.from('search_runs').update({
       status: 'error',
       error_message: 'The search pipeline encountered an error. Please try again or contact support.',

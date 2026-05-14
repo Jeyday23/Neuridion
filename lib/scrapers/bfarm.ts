@@ -215,7 +215,7 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items
 
     return { items: deduped, warnings }
   } catch (err) {
-    console.error('[BfArM] HTML scraper error:', err)
+    console.error('[BfArM] HTML scraper error:', err instanceof Error ? err.message : String(err))
     // Re-throw so the search run is marked as error rather than silently
     // returning stale RSS data that ignores the user's date filter.
     throw err

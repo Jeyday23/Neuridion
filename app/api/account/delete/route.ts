@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     try {
       await stripe.subscriptions.cancel(userData.stripe_subscription_id)
     } catch (err) {
-      console.error('[account:delete] Stripe cancel failed:', err)
+      console.error('[account:delete] Stripe cancel failed:', err instanceof Error ? err.message : String(err))
     }
   }
 

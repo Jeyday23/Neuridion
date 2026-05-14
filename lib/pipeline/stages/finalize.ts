@@ -54,6 +54,6 @@ export async function finalizeStage(ctx: PipelineContext): Promise<void> {
       uncertainCount: counts.uncertain,
       excludedCount:  counts.excluded,
       runId:          ctx.runId,
-    }).catch((err) => console.error('[pipeline] Email notification failed:', err))
+    }).catch((err) => console.error('[pipeline] Email notification failed:', err instanceof Error ? err.message : String(err)))
   }
 }

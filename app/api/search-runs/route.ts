@@ -164,7 +164,7 @@ export async function POST(request: Request) {
       timeout: 900,
     })
   } catch (err) {
-    console.error(`[search-runs] QStash publish failed for run_id=${run.id}:`, err)
+    console.error(`[search-runs] QStash publish failed for run_id=${run.id}:`, err instanceof Error ? err.message : String(err))
     await db.from('search_job_queue').delete().eq('id', newJob.id)
     await db.from('search_runs').delete().eq('id', run.id)
     return Response.json({ error: 'Failed to enqueue search job' }, { status: 500 })

@@ -161,7 +161,7 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn> {
       raw_content: sanitizeContent(rawParts.join('\n\n')),
     }
   } catch (err) {
-    console.error('[mhra]', `Detail fetch failed for ${linkPath}:`, err)
+    console.error('[mhra]', `Detail fetch failed for ${linkPath}:`, err instanceof Error ? err.message : String(err))
     return item
   }
 }
@@ -179,7 +179,7 @@ async function fetchJson(url: string): Promise<unknown | null> {
     }
     return res.json()
   } catch (err) {
-    console.error(`[mhra] Fetch failed: ${url}:`, err)
+    console.error(`[mhra] Fetch failed: ${url}:`, err instanceof Error ? err.message : String(err))
     return null
   }
 }

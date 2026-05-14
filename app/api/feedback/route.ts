@@ -7,7 +7,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 const FeedbackSchema = z.object({
   rating:           z.number().int().min(1).max(5),
-  most_useful:      z.array(z.string()).default([]),
+  most_useful:      z.array(z.string().max(200)).max(20).default([]),
   missing_features: z.string().nullable().optional(),
   triggered_by:     z.enum(['first_search', 'third_report']),
 })

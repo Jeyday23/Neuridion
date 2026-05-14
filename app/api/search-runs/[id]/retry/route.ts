@@ -112,7 +112,7 @@ export async function POST(
       timeout: 900,
     })
   } catch (err) {
-    console.error('[retry] QStash publish failed:', err)
+    console.error('[retry] QStash publish failed:', err instanceof Error ? err.message : String(err))
     // Roll back both changes so the run stays retryable
     await db.from('search_job_queue').delete().eq('id', newJob.id)
     await db.from('search_runs').update({ status: 'error' }).eq('id', runId)

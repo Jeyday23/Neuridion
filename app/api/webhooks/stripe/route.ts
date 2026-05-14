@@ -104,7 +104,7 @@ export async function POST(request: Request) {
           current_period_end:  periodEnd,
           plan: subscription.status === 'active' || subscription.status === 'trialing' ? plan : 'free',
         } as unknown as UserUpdate)
-        .eq('stripe_subscription_id' as 'id', subscription.id)
+        .eq('stripe_subscription_id' as any, subscription.id)
 
       await logAuditEvent(null, 'billing_event', {
         stripe_event: 'customer.subscription.updated',
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
           current_period_end:     null,
           plan:                   'free',
         } as unknown as UserUpdate)
-        .eq('stripe_subscription_id' as 'id', subscription.id)
+        .eq('stripe_subscription_id' as any, subscription.id)
 
       await logAuditEvent(null, 'billing_event', {
         stripe_event: 'customer.subscription.deleted',
@@ -146,7 +146,7 @@ export async function POST(request: Request) {
       await supabase
         .from('users')
         .update({ subscription_status: 'past_due' } as unknown as UserUpdate)
-        .eq('stripe_subscription_id' as 'id', invoice.subscription)
+        .eq('stripe_subscription_id' as any, invoice.subscription)
 
       await logAuditEvent(null, 'billing_event', {
         stripe_event: 'invoice.payment_failed',

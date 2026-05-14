@@ -2,11 +2,12 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import crypto from 'crypto'
 import { buildCspHeader } from '@/lib/security/csp'
+import { safeCompare } from '@/lib/utils/auth'
 
 function getSessionHmacKey(): string {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required — session HMAC cannot use a fallback')
-  return key
+  return crypto.createHmac('sha256', key).update('neuridion-session-v1').digest('hex')
 }
 
 const SESSION_HMAC_KEY = getSessionHmacKey()
@@ -63,7 +64,7 @@ export async function proxy(request: NextRequest) {
     const started = request.cookies.get(SESSION_COOKIE)?.value
     if (!started) {
       const ts = String(Date.now())
-      const sig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(ts).digest('hex').slice(0, 16)
+      const sig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(ts).digest('hex').slice(0, 32)
       supabaseResponse.cookies.set(SESSION_COOKIE, `${ts}.${sig}`, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -73,8 +74,8 @@ export async function proxy(request: NextRequest) {
       })
     } else {
       const [tsStr, sig] = started.split('.')
-      const expectedSig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(tsStr).digest('hex').slice(0, 16)
-      if (sig !== expectedSig || Date.now() - Number(tsStr) > SESSION_MAX_AGE_MS) {
+      const expectedSig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(tsStr).digest('hex').slice(0, 32)
+      if (!safeCompare(sig, expectedSig) || Date.now() - Number(tsStr) > SESSION_MAX_AGE_MS) {
         await supabase.auth.signOut()
         supabaseResponse.cookies.delete(SESSION_COOKIE)
         if (pathname.startsWith('/api/')) {
