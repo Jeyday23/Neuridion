@@ -120,6 +120,10 @@ Accessories and consumables: Integral accessories (electrode pads, pump tubing, 
 
 Platform devices: An FSN for a software module or algorithm that executes on a platform device is relevant to that platform.
 
+RATIONALE RULES
+
+NEVER claim "manufacturer mismatch" unless the FSN manufacturer and profile manufacturer are genuinely different corporate entities. Different legal name forms of the same company (e.g. "B. Braun" vs "B. Braun Melsungen AG", "Medtronic" vs "Medtronic Ireland") are the SAME manufacturer. When excluding an FSN, you MUST identify which specific exclusion criterion applies and cite concrete evidence from both the FSN and the device profile. Begin every rationale by stating: "FSN manufacturer: [name]. Profile manufacturer: [name]."
+
 EXAMPLES
 
 EXAMPLE 1 — CLEARLY RELEVANT
@@ -273,10 +277,11 @@ async function haikuPreFilter(
           content:
             `Device profile: ${profile.device_name} by ${profile.manufacturer}` +
             (profile.device_class ? `, ${profile.device_class}` : '') +
-            `\n\n<FSN_DATA>\nFSN: "${sanitizeContent(sanitizePii(fsn.title), 500)}" by ${sanitizeContent(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}\n</FSN_DATA>\n\n` +
+            `\nFSN manufacturer: ${sanitizeContent(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}` +
+            `\n\n<FSN_DATA>\nFSN: "${sanitizeContent(sanitizePii(fsn.title), 500)}"\n</FSN_DATA>\n\n` +
             'Is this FSN CLEARLY NOT relevant to the device profile? ' +
-            'Only say CLEAR_EXCLUDE if the device type or clinical domain is ' +
-            'obviously different. Otherwise say UNCERTAIN.',
+            'Only say CLEAR_EXCLUDE if BOTH the device type/clinical domain AND the manufacturer ' +
+            'are clearly unrelated. If the manufacturers are the same company (even under different legal names), say UNCERTAIN.',
         },
       ],
     })
@@ -331,7 +336,12 @@ async function sonnetFullFilter(
             type: 'object' as const,
             properties: {
               decision:   { type: 'string', enum: ['relevant', 'uncertain', 'excluded'] },
-              rationale:  { type: 'string' },
+              rationale:  {
+                type: 'string',
+                description:
+                  'Explain your decision. You MUST begin by stating: "FSN manufacturer: [X]. Profile manufacturer: [Y]." ' +
+                  'Then explain whether these are the same entity and whether the device type/technology overlaps.',
+              },
               confidence: { type: 'number', minimum: 0, maximum: 1 },
             },
             required: ['decision', 'rationale', 'confidence'],
