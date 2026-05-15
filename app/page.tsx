@@ -78,20 +78,20 @@ export default async function HomePage() {
       </nav>
 
       {/* Hero: centered headline + CTA + icon bullets */}
-      <section className="max-w-[1080px] mx-auto px-10 pt-20 pb-10 lg:pt-28 lg:pb-14">
+      <section className="max-w-[1080px] mx-auto px-10 pt-20 pb-10 lg:pt-28 lg:pb-16">
         <AnimatedHero>
           <div className="flex flex-col items-center text-center">
-            <h1 className="text-[48px] lg:text-[64px] font-bold text-[#0F1F3D] leading-[1.08] tracking-tight mb-8 max-w-3xl">
+            <h1 className="text-[48px] lg:text-[64px] font-bold text-[#0F1F3D] leading-[1.08] tracking-tight mb-10 max-w-3xl">
               Post-market surveillance<br />for <span className="text-[#0D9488]">medical devices</span>
             </h1>
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2.5 px-8 py-3.5 bg-[#0F1F3D] text-white rounded-full font-semibold text-[15px] hover:bg-[#162a4d] transition-colors mb-10"
+              className="inline-flex items-center gap-2.5 px-8 py-3.5 bg-[#0F1F3D] text-white rounded-full font-semibold text-[15px] hover:bg-[#162a4d] transition-colors mb-12"
             >
               Start 14-day free trial
               <ArrowRight className="w-4 h-4" />
             </Link>
-            <ul className="flex flex-col items-start gap-3.5 mb-10">
+            <ul className="flex flex-col items-start gap-3.5">
               {([
                 { icon: Search, text: 'Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel' },
                 { icon: Brain, text: 'AI classifies every Field Safety Notice against your device profile' },
@@ -111,8 +111,10 @@ export default async function HomePage() {
       </section>
 
       {/* Product showcase — 1 large left + 2 smaller overlapping right */}
-      <section className="max-w-[1200px] mx-auto px-10 pb-20">
-        <div className="hidden lg:grid grid-cols-[1fr_60px_1fr] items-start">
+      <section className="relative py-20 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#effcfa]/60 via-[#e6faf6]/40 to-white pointer-events-none" />
+        <div className="relative max-w-[1080px] mx-auto px-10">
+        <div className="hidden lg:grid grid-cols-[1fr_40px_1fr] items-start">
           {/* Left: large FSN card */}
           <div className="relative z-10">
             <div className="bg-white border border-[#dfe3ea] rounded-lg overflow-hidden shadow-sm">
@@ -191,6 +193,7 @@ export default async function HomePage() {
         {/* Mobile fallback: single card */}
         <div className="lg:hidden flex justify-center">
           <HeroFsnCard />
+        </div>
         </div>
       </section>
 
