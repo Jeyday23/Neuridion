@@ -10,12 +10,29 @@ import type { Database } from '@/types/supabase'
 type UserUpdate = Database['public']['Tables']['users']['Update']
 
 async function checkAndMarkProcessed(eventId: string): Promise<boolean> {
-  if (!redis) return false // fallback: allow processing (no Redis configured)
+  if (!redis) return false
   const key = `stripe-event:${eventId}`
   const exists = await redis.exists(key)
   if (exists) return true
   await redis.set(key, 1, { ex: 259200 }) // 72 hours = Stripe max retry window
   return false
+}
+
+function subscriptionPeriodEnd(sub: Stripe.Subscription): string | null {
+  const periodEnd = sub.items.data[0]?.current_period_end
+  if (!periodEnd) return null
+  return new Date(periodEnd * 1000).toISOString()
+}
+
+async function updateUserBySubscription(
+  subscriptionId: string,
+  fields: UserUpdate,
+) {
+  const supabase = createAdminClient()
+  await supabase
+    .from('users')
+    .update(fields)
+    .eq('stripe_subscription_id', subscriptionId)
 }
 
 export async function POST(request: Request) {
@@ -64,7 +81,6 @@ export async function POST(request: Request) {
       const subscription = await stripe.subscriptions.retrieve(subscriptionId)
       const priceId = subscription.items.data[0]?.price.id ?? null
       const plan = planFromPriceId(priceId)
-      const periodEnd = new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000).toISOString()
 
       await supabase
         .from('users')
@@ -73,9 +89,9 @@ export async function POST(request: Request) {
           stripe_subscription_id: subscriptionId,
           stripe_price_id:        priceId,
           subscription_status:    subscription.status,
-          current_period_end:     periodEnd,
+          current_period_end:     subscriptionPeriodEnd(subscription),
           plan,
-        } as unknown as UserUpdate)
+        })
         .eq('id', userId)
 
       await logAuditEvent(userId, 'billing_event', {
@@ -92,17 +108,13 @@ export async function POST(request: Request) {
       const subscription = event.data.object as Stripe.Subscription
       const priceId = subscription.items.data[0]?.price.id ?? null
       const plan = planFromPriceId(priceId)
-      const periodEnd = new Date((subscription as unknown as { current_period_end: number }).current_period_end * 1000).toISOString()
 
-      await supabase
-        .from('users')
-        .update({
-          stripe_price_id:     priceId,
-          subscription_status: subscription.status,
-          current_period_end:  periodEnd,
-          plan: subscription.status === 'active' || subscription.status === 'trialing' ? plan : 'free',
-        } as unknown as UserUpdate)
-        .eq('stripe_subscription_id' as any, subscription.id)
+      await updateUserBySubscription(subscription.id, {
+        stripe_price_id:     priceId,
+        subscription_status: subscription.status,
+        current_period_end:  subscriptionPeriodEnd(subscription),
+        plan: subscription.status === 'active' || subscription.status === 'trialing' ? plan : 'free',
+      })
 
       await logAuditEvent(null, 'billing_event', {
         stripe_event: 'customer.subscription.updated',
@@ -118,15 +130,12 @@ export async function POST(request: Request) {
     case 'customer.subscription.deleted': {
       const subscription = event.data.object as Stripe.Subscription
 
-      await supabase
-        .from('users')
-        .update({
-          stripe_price_id:        null,
-          subscription_status:    'canceled',
-          current_period_end:     null,
-          plan:                   'free',
-        } as unknown as UserUpdate)
-        .eq('stripe_subscription_id' as any, subscription.id)
+      await updateUserBySubscription(subscription.id, {
+        stripe_price_id:        null,
+        subscription_status:    'canceled',
+        current_period_end:     null,
+        plan:                   'free',
+      })
 
       await logAuditEvent(null, 'billing_event', {
         stripe_event: 'customer.subscription.deleted',
@@ -141,10 +150,9 @@ export async function POST(request: Request) {
       const invoice = event.data.object as Stripe.Invoice & { subscription?: string }
       if (!invoice.subscription) break
 
-      await supabase
-        .from('users')
-        .update({ subscription_status: 'past_due' } as unknown as UserUpdate)
-        .eq('stripe_subscription_id' as any, invoice.subscription)
+      await updateUserBySubscription(invoice.subscription, {
+        subscription_status: 'past_due',
+      })
 
       await logAuditEvent(null, 'billing_event', {
         stripe_event: 'invoice.payment_failed',

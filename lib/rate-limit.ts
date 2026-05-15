@@ -111,7 +111,8 @@ export async function rateLimit(
       return { allowed: false, retryAfterMs: Math.max(0, retryAfterMs) }
     }
     return { allowed: true, retryAfterMs: 0 }
-  } catch {
+  } catch (err) {
+    console.error('[rate-limit] Redis error, falling back to in-memory:', err instanceof Error ? err.message : err)
     return rateLimitMemory(key, maxRequests, windowMs)
   }
 }
