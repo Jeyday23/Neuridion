@@ -77,8 +77,10 @@ export default async function HomePage() {
         </div>
       </nav>
 
-      {/* Hero: centered headline + CTA + icon bullets */}
-      <section className="max-w-[1080px] mx-auto px-10 pt-20 pb-10 lg:pt-28 lg:pb-16">
+      {/* Hero + product showcase — full-height gradient white → teal */}
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-b from-white via-white to-[#e6faf6] pointer-events-none" />
+      <section className="relative max-w-[1080px] mx-auto px-10 pt-20 pb-6 lg:pt-28 lg:pb-8">
         <AnimatedHero>
           <div className="flex flex-col items-center text-center">
             <h1 className="text-[48px] lg:text-[64px] font-bold text-[#0F1F3D] leading-[1.08] tracking-tight mb-10 max-w-3xl">
@@ -91,7 +93,7 @@ export default async function HomePage() {
               Start 14-day free trial
               <ArrowRight className="w-4 h-4" />
             </Link>
-            <ul className="flex flex-col items-start gap-3.5">
+            <ul className="flex flex-col items-start gap-5">
               {([
                 { icon: Search, text: 'Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel' },
                 { icon: Brain, text: 'AI classifies every Field Safety Notice against your device profile' },
@@ -111,9 +113,7 @@ export default async function HomePage() {
       </section>
 
       {/* Product showcase — 1 large left + 2 smaller overlapping right */}
-      <section className="relative py-20 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#effcfa]/60 via-[#e6faf6]/40 to-white pointer-events-none" />
-        <div className="relative max-w-[1080px] mx-auto px-10">
+      <section className="relative max-w-[1080px] mx-auto px-10 pb-20">
         <div className="hidden lg:grid grid-cols-[1fr_40px_1fr] items-start">
           {/* Left: large FSN card */}
           <div className="relative z-10">
@@ -194,8 +194,8 @@ export default async function HomePage() {
         <div className="lg:hidden flex justify-center">
           <HeroFsnCard />
         </div>
-        </div>
       </section>
+      </div>
 
       {/* Regulatory databases bar */}
       <section className="border-y border-[#dfe3ea] bg-[#f6f7f9] py-6">
