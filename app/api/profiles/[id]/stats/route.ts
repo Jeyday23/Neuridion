@@ -30,7 +30,7 @@ export async function GET(
     .single()
 
   if (profileError || !profile) {
-    return Response.json({ error: 'Profile not found' }, { status: 404 })
+    return Response.json({ search_run_count: 0 })
   }
 
   const { count, error: countError } = await supabase
