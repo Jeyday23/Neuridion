@@ -5,7 +5,7 @@ import { useSearchContext, type SearchProgress } from '../search-context'
 import { useLanguage } from '../language-context'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
-import { Plus, Upload, X, CheckCircle, Loader2, ChevronDown } from 'lucide-react'
+import { Upload, X, CheckCircle, Loader2, ChevronDown } from 'lucide-react'
 import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
 import { createClient } from '@/lib/supabase/client'
 import { FeedbackPopup } from '@/app/components/FeedbackPopup'
@@ -195,27 +195,6 @@ function FsnRow({
   )
 }
 
-// ─── Search term row ──────────────────────────────────────────────────────────
-
-function TermRow({ value, onChange, onRemove, placeholder, showRemove }: {
-  value: string; onChange: (v: string) => void; onRemove?: () => void
-  placeholder: string; showRemove: boolean
-}) {
-  return (
-    <div className="relative">
-      <textarea rows={4} value={value} onChange={(e) => onChange(e.target.value)}
-        className="w-full px-4 py-3 border border-[#E2E8F0] rounded font-mono text-sm focus:ring-2 focus:ring-[#0D9488] focus:border-transparent pr-10"
-        placeholder={placeholder} />
-      {showRemove && onRemove && (
-        <button type="button" onClick={onRemove}
-          className="absolute top-2 right-2 text-zinc-400 hover:text-red-500 transition-colors" aria-label="Remove">
-          <X className="w-4 h-4" />
-        </button>
-      )}
-    </div>
-  )
-}
-
 // ─── Progress tips ────────────────────────────────────────────────────────────
 
 const PROGRESS_TIPS = [
@@ -368,8 +347,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const [fromDate, setFromDate]       = useState(yearAgo)
   const [toDate, setToDate]           = useState(today)
   const [reportState, setReportState] = useState<ReportState>({ phase: 'idle' })
-  const [genericTerms, setGenericTerms]           = useState<string[]>([''])
-  const [manufacturerTerms, setManufacturerTerms] = useState<string[]>([''])
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filterTab, setFilterTab]     = useState<FilterTab>('all')
   const [draftId, setDraftId]         = useState<string | null>(null)
@@ -380,9 +357,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const [hoveredDb, setHoveredDb]     = useState<string | null>(null)
 
   const [showFeedback, setShowFeedback] = useState(false)
-  const [previewPhase, setPreviewPhase] = useState<'idle' | 'loading' | 'done'>('idle')
-  const [previewCount, setPreviewCount] = useState<number | null>(null)
-
   const totalDays = useMemo(
     () => (fromDate && toDate ? daysBetween(fromDate, toDate) : 0),
     [fromDate, toDate],
@@ -441,65 +415,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
   const { show: showToast } = useToast()
 
-  const costEstimate = useMemo(() => {
-    if (selectedDbs.size === 0 || totalDays <= 0) return null
-    const months = Math.max(totalDays / 30, 1)
-    // Conservative averages per DB per month, post manufacturer-term filtering
-    const ITEMS_PER_DB_PER_MONTH: Record<string, number> = {
-      bfarm: 25, fda: 40, mhra: 10, swissmedic: 15,
-    }
-    let totalItems = 0
-    for (const db of selectedDbs) {
-      totalItems += (ITEMS_PER_DB_PER_MONTH[db] ?? 50) * months
-    }
-    totalItems = Math.round(totalItems)
-    // Haiku pre-filter: ~130 input tokens + ~5 output tokens per item
-    const haikuCostPerItem = (130 * 0.80 + 5 * 4.00) / 1_000_000
-    // Sonnet full filter: ~1200 cached input + ~300 fresh input + ~150 output
-    // ~35% of items pass Haiku and go to Sonnet
-    const sonnetPassRate = 0.35
-    const sonnetCostPerItem = (1200 * 0.30 + 300 * 3.00 + 150 * 15.00) / 1_000_000
-    const usdCost = totalItems * haikuCostPerItem + totalItems * sonnetPassRate * sonnetCostPerItem
-    const eurCost = usdCost * 0.92
-    const low = Math.max(eurCost * 0.5, 0.01)
-    const high = eurCost * 1.5
-    return {
-      items: totalItems,
-      low: low < 0.10 ? low.toFixed(3) : low.toFixed(2),
-      high: high < 0.10 ? high.toFixed(3) : high.toFixed(2),
-    }
-  }, [selectedDbs, totalDays])
-
-  async function runPreview() {
-    if (!profileId || previewPhase === 'loading') return
-    setPreviewPhase('loading')
-    setPreviewCount(null)
-    try {
-      const res = await fetch('/api/search-runs/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profile_id: profileId,
-          period_from: fromDate,
-          period_to: toDate,
-          selected_dbs: [...selectedDbs],
-        }),
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({ error: 'Preview failed' })) as { error?: string }
-        showToast(data.error ?? 'Preview failed', 'error')
-        setPreviewPhase('idle')
-        return
-      }
-      const data = await res.json() as { estimated_items: number }
-      setPreviewCount(data.estimated_items)
-      setPreviewPhase('done')
-    } catch {
-      showToast('Network error — check your connection.', 'error')
-      setPreviewPhase('idle')
-    }
-  }
-
   function toggleDb(id: string) {
     const db = databases.find((d) => d.id === id)
     if (!db?.active) return
@@ -536,8 +451,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         profile_id: profileId || null,
         from: fromDate, to: toDate,
         dbs: [...selectedDbs],
-        genericTerms: genericTerms.filter((t) => t.trim()),
-        manufacturerTerms: manufacturerTerms.filter((t) => t.trim()),
         uploadedPaths: uploadedFiles.filter((f) => f.status === 'done').map((f) => f.path),
       }
       const res  = await fetch('/api/search-drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -801,50 +714,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           </div>
         </section>
 
-        {/* Generic search terms */}
-        <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
-          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-2">
-            {t.search.genericTerms}
-            <InfoTooltip text="Enter keywords to narrow the search. Use OR between synonyms and AND for required terms. Wrap exact phrases in quotes." />
-          </h2>
-          <p className="text-sm text-[#0F766E] italic mb-6">{t.search.genericHint}</p>
-          <div className="space-y-3">
-            {genericTerms.map((term, idx) => (
-              <TermRow key={idx} value={term}
-                onChange={(v) => setGenericTerms((prev) => prev.map((x, i) => i === idx ? v : x))}
-                onRemove={() => setGenericTerms((prev) => prev.filter((_, i) => i !== idx))}
-                showRemove={idx > 0}
-                placeholder='"infusion pump" OR (infusion AND pump AND volumetric)' />
-            ))}
-          </div>
-          <button type="button" onClick={() => setGenericTerms((prev) => [...prev, ''])}
-            className="mt-4 flex items-center gap-2 text-[#0D9488] hover:text-[#0F766E] font-medium text-sm">
-            <Plus className="w-4 h-4" />{t.search.addCombination}
-          </button>
-        </section>
-
-        {/* Manufacturer search terms */}
-        <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
-          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-2">
-            {t.search.manufacturerTerms}
-            <InfoTooltip text="Manufacturer name variants used to filter results. Include trade names, legal entity variations, and abbreviations. Auto-extracted from your profile if left blank." />
-          </h2>
-          <p className="text-sm text-[#0F766E] italic mb-6">{t.search.manufacturerHint}</p>
-          <div className="space-y-3">
-            {manufacturerTerms.map((term, idx) => (
-              <TermRow key={idx} value={term}
-                onChange={(v) => setManufacturerTerms((prev) => prev.map((x, i) => i === idx ? v : x))}
-                onRemove={() => setManufacturerTerms((prev) => prev.filter((_, i) => i !== idx))}
-                showRemove={idx > 0}
-                placeholder='"B. Braun" OR "BBraun" OR "Infusomat Space"' />
-            ))}
-          </div>
-          <button type="button" onClick={() => setManufacturerTerms((prev) => [...prev, ''])}
-            className="mt-4 flex items-center gap-2 text-[#0D9488] hover:text-[#0F766E] font-medium text-sm">
-            <Plus className="w-4 h-4" />{t.search.addCombination}
-          </button>
-        </section>
-
         {/* File upload */}
         <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
           <h2 className="text-xl font-semibold text-[#0F1F3D] mb-6">{t.search.strategyDocs}</h2>
@@ -905,24 +774,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           </div>
         )}
 
-        {/* Cost estimate */}
-        {costEstimate && state.phase !== 'running' && state.phase !== 'queued' && (
-          <div className="rounded border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <div className="text-sm text-zinc-600">
-                <span className="font-medium text-zinc-700">Estimated AI cost: </span>
-                €{costEstimate.low} – €{costEstimate.high}
-                <span className="text-xs text-zinc-400 ml-2">(~{costEstimate.items} items × Haiku + Sonnet)</span>
-              </div>
-              {previewPhase === 'done' && previewCount != null && (
-                <span className="text-sm font-medium text-[#0D9488]">
-                  {previewCount} items found in preview
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Action bar */}
         <div className="flex items-center justify-between pt-6 border-t border-[#E2E8F0] flex-wrap gap-3">
           <button type="button" onClick={() => saveDraft()} disabled={draftSaving}
@@ -930,23 +781,13 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             {draftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
             {t.search.saveDraft}
           </button>
-          <div className="flex items-center gap-3 flex-wrap">
-            <button type="button" onClick={runPreview}
-              disabled={noProfiles || previewPhase === 'loading' || state.phase === 'running' || state.phase === 'queued' || isOverLimit}
-              className="px-6 py-3 border border-[#E2E8F0] text-[#134E4A] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
-              {previewPhase === 'loading'
-                ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.previewing}</>
-                : <>{t.search.previewItems}</>
-              }
-            </button>
-            <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || state.phase === 'queued' || isOverLimit}
-              className="px-8 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
-              {(state.phase === 'running' || state.phase === 'queued')
-                ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.searching}</>
-                : <>{t.search.runSearch} <span>→</span></>
-              }
-            </button>
-          </div>
+          <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || state.phase === 'queued' || isOverLimit}
+            className="px-8 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+            {(state.phase === 'running' || state.phase === 'queued')
+              ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.searching}</>
+              : <>{t.search.runSearch} <span>→</span></>
+            }
+          </button>
         </div>
       </div>
 
