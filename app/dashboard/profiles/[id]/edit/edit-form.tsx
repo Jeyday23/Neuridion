@@ -6,6 +6,11 @@ import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
 
 const DEVICE_CLASSES = ['Class I', 'Class IIa', 'Class IIb', 'Class III'] as const
 
+interface CompetitorEntry {
+  name: string
+  manufacturer: string
+}
+
 interface Profile {
   id: string
   device_name: string
@@ -13,6 +18,7 @@ interface Profile {
   emdn_code: string | null
   device_class: string | null
   intended_use: string | null
+  search_strategy: { competitor_terms?: CompetitorEntry[] } | null
 }
 
 export function EditProfileForm({ profile }: { profile: Profile }) {
@@ -25,6 +31,25 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
   const [intendedUse,  setIntendedUse]  = useState(profile.intended_use ?? '')
   const [saving,       setSaving]       = useState(false)
   const [error,        setError]        = useState<string | null>(null)
+  const [competitors, setCompetitors] = useState<CompetitorEntry[]>(
+    () => (profile.search_strategy?.competitor_terms ?? []).map(e => ({
+      name: e.name ?? '',
+      manufacturer: e.manufacturer ?? '',
+    }))
+  )
+
+  function addCompetitor() {
+    if (competitors.length >= 20) return
+    setCompetitors(prev => [...prev, { name: '', manufacturer: '' }])
+  }
+
+  function removeCompetitor(idx: number) {
+    setCompetitors(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  function updateCompetitor(idx: number, field: 'name' | 'manufacturer', value: string) {
+    setCompetitors(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e))
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -36,11 +61,12 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          device_name:   deviceName.trim(),
-          manufacturer:  manufacturer.trim(),
-          emdn_code:     emnCode.trim()     || null,
-          device_class:  deviceClass        || null,
-          intended_use:  intendedUse.trim() || null,
+          device_name:      deviceName.trim(),
+          manufacturer:     manufacturer.trim(),
+          emdn_code:        emnCode.trim()     || null,
+          device_class:     deviceClass        || null,
+          intended_use:     intendedUse.trim() || null,
+          competitor_terms: competitors.filter(e => e.name.trim()),
         }),
       })
       const data = await res.json() as { error?: string }
@@ -113,6 +139,57 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
           onChange={(e) => setIntendedUse(e.target.value)}
           placeholder="Describe the device's intended purpose, target patient population, and clinical setting…"
           className={`${inputClass} resize-none`} />
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="block text-sm font-medium text-zinc-700">
+            Competitor products
+            <InfoTooltip text="Add competitor devices to monitor. Their FSNs will be included in your search results, helping you track the competitive landscape and similar device incidents." />
+          </label>
+          {competitors.length > 0 && (
+            <span className="text-xs text-zinc-400">{competitors.length}/20</span>
+          )}
+        </div>
+
+        {competitors.length === 0 ? (
+          <button type="button" onClick={addCompetitor}
+            className="w-full rounded border border-dashed border-zinc-300 px-4 py-3 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-600 transition-colors">
+            + Add a competitor product
+          </button>
+        ) : (
+          <div className="space-y-2">
+            {competitors.map((entry, idx) => (
+              <div key={idx} className="flex items-start gap-2">
+                <input
+                  type="text"
+                  value={entry.name}
+                  onChange={(e) => updateCompetitor(idx, 'name', e.target.value)}
+                  placeholder="Product name"
+                  className={`${inputClass} flex-1`}
+                />
+                <input
+                  type="text"
+                  value={entry.manufacturer}
+                  onChange={(e) => updateCompetitor(idx, 'manufacturer', e.target.value)}
+                  placeholder="Manufacturer (optional)"
+                  className={`${inputClass} flex-1`}
+                />
+                <button type="button" onClick={() => removeCompetitor(idx)}
+                  className="mt-2 text-zinc-400 hover:text-red-500 transition-colors shrink-0"
+                  aria-label="Remove competitor">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
+              </div>
+            ))}
+            {competitors.length < 20 && (
+              <button type="button" onClick={addCompetitor}
+                className="text-sm text-zinc-500 hover:text-zinc-700 transition-colors">
+                + Add another
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (

@@ -26,7 +26,7 @@ export default async function EditProfilePage({
 
   const { data: profile } = await db
     .from('product_profiles')
-    .select('id, user_id, device_name, manufacturer, emdn_code, device_class, intended_use')
+    .select('id, user_id, device_name, manufacturer, emdn_code, device_class, intended_use, search_strategy')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
@@ -68,7 +68,10 @@ export default async function EditProfilePage({
       </div>
 
       <div className="rounded-md border border-[#E2E8F0] bg-white px-8 py-8 mb-8">
-        <EditProfileForm profile={profile} />
+        <EditProfileForm profile={{
+          ...profile,
+          search_strategy: profile.search_strategy as { competitor_terms?: { name: string; manufacturer: string }[] } | null,
+        }} />
       </div>
 
       {history.length > 0 && (
