@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Check, ArrowRight } from 'lucide-react'
+import { Check, ArrowRight, Globe, Shield, Server, BadgeCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { NeuridionWordmark } from '@/components/ui/neuridion-wordmark'
 import { HeroFsnCard } from './components/HeroFsnCard'
@@ -77,43 +77,43 @@ export default async function HomePage() {
         </div>
       </nav>
 
-      {/* Hero: left copy + right FSN card */}
-      <section className="max-w-[1080px] mx-auto px-10 py-16 lg:py-20">
-        <div className="grid lg:grid-cols-[1fr_460px] gap-16 items-center">
-          <AnimatedHero>
-            <div>
-              <h1 className="text-[38px] font-bold text-[#0F1F3D] leading-[1.15] tracking-tight mb-5">
-                Post-market surveillance<br />for <span className="text-[#0D9488]">medical devices</span>
-              </h1>
-              <ul className="flex flex-col gap-2.5 mb-8">
-                {[
-                  'Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel',
-                  'AI classifies every Field Safety Notice against your device profile',
-                  'Your PRRC reviews every decision before export',
-                  'Audit-ready PDF and Word reports in minutes',
-                ].map((item) => (
-                  <li key={item} className="flex items-baseline gap-2.5 text-[15px] text-[#3d4a5c] leading-normal">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#0D9488] flex-shrink-0 mt-[7px]" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="/signup"
-                className="inline-flex items-center gap-2 px-6 py-[11px] bg-[#0F1F3D] text-white rounded font-semibold text-sm hover:bg-[#162a4d] transition-colors"
-              >
-                Start 14-day free trial
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+      {/* Hero: centered headline + CTA + trust badges + product card */}
+      <section className="max-w-[1080px] mx-auto px-10 pt-20 pb-10 lg:pt-28 lg:pb-14">
+        <AnimatedHero>
+          <div className="flex flex-col items-center text-center">
+            <h1 className="text-[42px] lg:text-[56px] font-bold text-[#0F1F3D] leading-[1.1] tracking-tight mb-6 max-w-3xl">
+              Post-market surveillance<br />for <span className="text-[#0D9488]">medical devices</span>
+            </h1>
+            <p className="text-[17px] text-[#3d4a5c] leading-relaxed mb-8 max-w-xl">
+              Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel. AI classifies every FSN against your device profile. Audit-ready reports in minutes.
+            </p>
+            <Link
+              href="/signup"
+              className="inline-flex items-center gap-2.5 px-8 py-3.5 bg-[#0F1F3D] text-white rounded-lg font-semibold text-[15px] hover:bg-[#162a4d] transition-colors mb-8"
+            >
+              Start 14-day free trial
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[13px] text-[#5a6577]">
+              <span className="flex items-center gap-1.5"><Globe className="w-4 h-4 text-[#0D9488]" />EU Data Residency</span>
+              <span className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-[#0D9488]" />GDPR Compliant</span>
+              <span className="flex items-center gap-1.5"><Server className="w-4 h-4 text-[#0D9488]" />Hosted in Germany</span>
+              <span className="flex items-center gap-1.5"><BadgeCheck className="w-4 h-4 text-[#0D9488]" />Validated Platform</span>
             </div>
-          </AnimatedHero>
+          </div>
+        </AnimatedHero>
+      </section>
+
+      {/* Product showcase */}
+      <section className="max-w-[900px] mx-auto px-10 pb-16">
+        <div className="flex justify-center">
           <HeroFsnCard />
         </div>
       </section>
 
       {/* Regulatory databases bar */}
       <section className="border-y border-[#dfe3ea] bg-[#f6f7f9] py-6">
-        <div className="max-w-[1080px] mx-auto px-10 flex items-start justify-between flex-wrap gap-6">
+        <div className="max-w-[1080px] mx-auto px-10 flex items-center justify-center flex-wrap gap-10">
           {DATABASES.map(({ tag, country }) => (
             <div key={tag} className="flex flex-col items-center gap-1 text-center">
               <span className="text-xs font-semibold font-mono text-[#0B7C72] px-3 py-0.5 bg-[#effcfa] rounded">
