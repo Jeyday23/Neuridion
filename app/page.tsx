@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { Check, ArrowRight, Globe, Shield, Server, BadgeCheck } from 'lucide-react'
+import { Check, ArrowRight, Globe, Shield, Server, BadgeCheck, Search, Brain, UserCheck, FileText } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
 import { NeuridionWordmark } from '@/components/ui/neuridion-wordmark'
 import { HeroFsnCard } from './components/HeroFsnCard'
@@ -77,37 +77,93 @@ export default async function HomePage() {
         </div>
       </nav>
 
-      {/* Hero: centered headline + CTA + trust badges + product card */}
+      {/* Hero: centered headline + CTA + icon bullets */}
       <section className="max-w-[1080px] mx-auto px-10 pt-20 pb-10 lg:pt-28 lg:pb-14">
         <AnimatedHero>
           <div className="flex flex-col items-center text-center">
-            <h1 className="text-[42px] lg:text-[56px] font-bold text-[#0F1F3D] leading-[1.1] tracking-tight mb-6 max-w-3xl">
+            <h1 className="text-[42px] lg:text-[56px] font-bold text-[#0F1F3D] leading-[1.1] tracking-tight mb-8 max-w-3xl">
               Post-market surveillance<br />for <span className="text-[#0D9488]">medical devices</span>
             </h1>
-            <p className="text-[17px] text-[#3d4a5c] leading-relaxed mb-8 max-w-xl">
-              Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel. AI classifies every FSN against your device profile. Audit-ready reports in minutes.
-            </p>
             <Link
               href="/signup"
-              className="inline-flex items-center gap-2.5 px-8 py-3.5 bg-[#0F1F3D] text-white rounded-lg font-semibold text-[15px] hover:bg-[#162a4d] transition-colors mb-8"
+              className="inline-flex items-center gap-2.5 px-8 py-3.5 bg-[#0F1F3D] text-white rounded-full font-semibold text-[15px] hover:bg-[#162a4d] transition-colors mb-10"
             >
               Start 14-day free trial
               <ArrowRight className="w-4 h-4" />
             </Link>
-            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-[13px] text-[#5a6577]">
-              <span className="flex items-center gap-1.5"><Globe className="w-4 h-4 text-[#0D9488]" />EU Data Residency</span>
-              <span className="flex items-center gap-1.5"><Shield className="w-4 h-4 text-[#0D9488]" />GDPR Compliant</span>
-              <span className="flex items-center gap-1.5"><Server className="w-4 h-4 text-[#0D9488]" />Hosted in Germany</span>
-              <span className="flex items-center gap-1.5"><BadgeCheck className="w-4 h-4 text-[#0D9488]" />Validated Platform</span>
-            </div>
+            <ul className="flex flex-col items-start gap-3.5 mb-10">
+              {([
+                { icon: Search, text: 'Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel' },
+                { icon: Brain, text: 'AI classifies every Field Safety Notice against your device profile' },
+                { icon: UserCheck, text: 'Your PRRC reviews every decision before export' },
+                { icon: FileText, text: 'Audit-ready PDF and Word reports in minutes' },
+              ] as const).map(({ icon: Icon, text }) => (
+                <li key={text} className="flex items-center gap-3 text-[15px] text-[#3d4a5c]">
+                  <span className="flex items-center justify-center w-7 h-7 rounded-full bg-[#effcfa] flex-shrink-0">
+                    <Icon className="w-3.5 h-3.5 text-[#0D9488]" />
+                  </span>
+                  {text}
+                </li>
+              ))}
+            </ul>
           </div>
         </AnimatedHero>
       </section>
 
-      {/* Product showcase */}
-      <section className="max-w-[900px] mx-auto px-10 pb-16">
-        <div className="flex justify-center">
-          <HeroFsnCard />
+      {/* Product showcase — 3 overlapping FSN cards */}
+      <section className="max-w-[1100px] mx-auto px-10 pb-20 overflow-hidden">
+        <div className="relative flex items-start justify-center gap-0 h-[380px]">
+          <div className="relative z-10 w-[480px] flex-shrink-0 -mr-12 mt-8">
+            <HeroFsnCard />
+          </div>
+          <div className="relative z-20 w-[340px] flex-shrink-0 hidden lg:block -mr-8">
+            <div className="bg-white border border-[#dfe3ea] rounded-md overflow-hidden shadow-md">
+              <div className="bg-[#f6f7f9] border-b border-[#dfe3ea] px-4 py-2.5 flex items-center justify-between">
+                <span className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider">BfArM &mdash; Field Safety Notice</span>
+                <span className="text-[10px] text-[#c4cad4] font-mono">BfArM/FSN-2026-0847</span>
+              </div>
+              <div className="px-4 py-3">
+                <div className="text-xs font-semibold text-[#0F1F3D] leading-snug mb-2">FSCA: Potential battery overheating in patient monitoring system during extended use</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Device class</div><div className="text-[11px] text-[#1a2236] font-medium">Patient monitor (IIb)</div></div>
+                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Date issued</div><div className="text-[11px] text-[#1a2236] font-medium">12 Mar 2026</div></div>
+                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">FSCA type</div><div className="text-[11px] text-[#1a2236] font-medium">Safety alert + IFU update</div></div>
+                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Risk</div><div className="text-[11px] text-[#1a2236] font-medium">Device shutdown during critical monitoring</div></div>
+                </div>
+              </div>
+              <div className="border-t border-[#dfe3ea] px-4 py-2.5 flex items-center justify-between bg-[#f0fdf9]">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-[#dcfce7] text-[#166534]">Relevant</span>
+                  <span className="text-[10px] text-[#0B7C72] font-medium">Matches your device profile</span>
+                </div>
+                <span className="text-[10px] text-[#7a8599] font-mono">94% confidence</span>
+              </div>
+            </div>
+          </div>
+          <div className="relative z-30 w-[300px] flex-shrink-0 hidden lg:block mt-12">
+            <div className="bg-white border border-[#dfe3ea] rounded-md overflow-hidden shadow-lg">
+              <div className="bg-[#f6f7f9] border-b border-[#dfe3ea] px-3.5 py-2 flex items-center justify-between">
+                <span className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider">BfArM &mdash; Field Safety Notice</span>
+                <span className="text-[9px] text-[#c4cad4] font-mono">BfArM/FSN-2026-0847</span>
+              </div>
+              <div className="px-3.5 py-2.5">
+                <div className="text-[11px] font-semibold text-[#0F1F3D] leading-snug mb-1.5">FSCA: Potential battery overheating in patient monitoring system during extended use</div>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                  <div><div className="text-[8px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Device class</div><div className="text-[10px] text-[#1a2236] font-medium">Patient monitor (IIb)</div></div>
+                  <div><div className="text-[8px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Date issued</div><div className="text-[10px] text-[#1a2236] font-medium">12 Mar 2026</div></div>
+                  <div><div className="text-[8px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">FSCA type</div><div className="text-[10px] text-[#1a2236] font-medium">Safety alert + IFU update</div></div>
+                  <div><div className="text-[8px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Risk</div><div className="text-[10px] text-[#1a2236] font-medium">Device shutdown during critical monitoring</div></div>
+                </div>
+              </div>
+              <div className="border-t border-[#dfe3ea] px-3.5 py-2 flex items-center justify-between bg-[#f0fdf9]">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block px-2 py-0.5 rounded text-[9px] font-semibold bg-[#dcfce7] text-[#166534]">Relevant</span>
+                  <span className="text-[9px] text-[#0B7C72] font-medium">Matches your device profile</span>
+                </div>
+                <span className="text-[9px] text-[#7a8599] font-mono">94% confidence</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
