@@ -3,7 +3,7 @@ import { createHash } from 'crypto'
 import { z } from 'zod'
 import { callAnthropicWithRetry, callHaikuWithRetry } from './rate-limiter'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sanitizeContent } from '@/lib/scrapers/sanitize'
+import { sanitizeForLlm } from '@/lib/scrapers/sanitize'
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
@@ -277,8 +277,8 @@ async function haikuPreFilter(
           content:
             `Device profile: ${profile.device_name} by ${profile.manufacturer}` +
             (profile.device_class ? `, ${profile.device_class}` : '') +
-            `\nFSN manufacturer: ${sanitizeContent(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}` +
-            `\n\n<FSN_DATA>\nFSN: "${sanitizeContent(sanitizePii(fsn.title), 500)}"\n</FSN_DATA>\n\n` +
+            `\nFSN manufacturer: ${sanitizeForLlm(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}` +
+            `\n\n<FSN_DATA>\nFSN: "${sanitizeForLlm(sanitizePii(fsn.title), 500)}"\n</FSN_DATA>\n\n` +
             'Is this FSN CLEARLY NOT relevant to the device profile? ' +
             'Only say CLEAR_EXCLUDE if BOTH the device type/clinical domain AND the manufacturer ' +
             'are clearly unrelated. If the manufacturers are the same company (even under different legal names), say UNCERTAIN.',
@@ -362,10 +362,10 @@ async function sonnetFullFilter(
               type: 'text',
               text:
                 `<FSN_DATA>\n` +
-                `Title: ${sanitizeContent(sanitizePii(fsn.title), 500)}\n` +
-                `Manufacturer: ${sanitizeContent(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}\n` +
-                `Date: ${sanitizeContent(fsn.fsn_date || 'Unknown', 30)}\n` +
-                `Content: ${sanitizeContent(content, 2000)}\n` +
+                `Title: ${sanitizeForLlm(sanitizePii(fsn.title), 500)}\n` +
+                `Manufacturer: ${sanitizeForLlm(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}\n` +
+                `Date: ${sanitizeForLlm(fsn.fsn_date || 'Unknown', 30)}\n` +
+                `Content: ${sanitizeForLlm(content, 2000)}\n` +
                 `</FSN_DATA>`,
             },
           ],

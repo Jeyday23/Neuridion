@@ -3,7 +3,7 @@ import pLimit from 'p-limit'
 import { stage1Filter, getProfileFingerprint } from '@/lib/claude/filter-pipeline'
 import { buildManufacturerSearchTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 import { fetchBfarmDetail } from '@/lib/scrapers/bfarm'
-import { sanitizeContent } from '@/lib/scrapers/sanitize'
+import { sanitizeForLlm } from '@/lib/scrapers/sanitize'
 import type { PipelineContext, InsertedFsnRow } from '../types'
 
 const TRUST_SOURCE_FILTER = new Set(['fda'])
@@ -152,7 +152,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
         if (!fsnRow) return null
         const detail = await fetchBfarmDetail(fsnRow.source_url)
         if (!detail) return null
-        const enrichedContent = sanitizeContent(`${row.title}\n\n${detail}`)
+        const enrichedContent = sanitizeForLlm(`${row.title}\n\n${detail}`)
         await db.from('fsn_results').update({ raw_content: enrichedContent }).eq('id', row.id)
         const refiltered = await stage1Filter(
           { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: enrichedContent, fsn_date: row.fsn_date },

@@ -29,3 +29,14 @@ export function sanitizeContent(text: string, maxLen = 3000): string {
     )
   ).slice(0, maxLen)
 }
+
+export function sanitizeForLlm(text: string, maxLen = 3000): string {
+  if (!text) return ''
+  return neutralizeFsnBoundary(
+    text
+      .replace(COMBINING_MARKS, '')
+      .replace(FORMATTING_CONTROLS, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  ).slice(0, maxLen)
+}
