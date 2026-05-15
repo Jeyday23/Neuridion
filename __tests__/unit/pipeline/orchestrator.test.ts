@@ -22,7 +22,7 @@ describe('runSearchPipeline orchestrator', () => {
     vi.doMock('../../../lib/supabase/admin', () => ({
       createAdminClient: () => ({
         from: () => ({
-          select: () => ({ eq: () => ({ single: () => ({ data: { device_name: 'Test', manufacturer: 'Test', intended_use: null, emdn_code: null, device_class: null }, error: null }) }) }),
+          select: () => ({ eq: () => ({ single: () => ({ data: { device_name: 'Test', manufacturer: 'Test', intended_use: null, emdn_code: null, device_class: null, search_strategy: null }, error: null }) }) }),
           update: () => ({ eq: () => ({ error: null }) }),
         }),
       }),
@@ -30,6 +30,7 @@ describe('runSearchPipeline orchestrator', () => {
     vi.doMock('../../../lib/search/manufacturer-terms', () => ({
       buildManufacturerSearchTerms: () => [],
       extractManufacturerTerms: () => [],
+      extractCompetitorTokens: () => [],
     }))
 
     const { runSearchPipeline } = await import('../../../lib/pipeline/run-search')

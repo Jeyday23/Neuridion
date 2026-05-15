@@ -20,11 +20,14 @@ export interface ProgressUpdate {
 }
 
 export interface ProfileRow {
-  device_name:   string
-  manufacturer:  string
-  intended_use:  string | null
-  emdn_code:     string | null
-  device_class:  string | null
+  device_name:    string
+  manufacturer:   string
+  intended_use:   string | null
+  emdn_code:      string | null
+  device_class:   string | null
+  search_strategy: {
+    competitor_terms?: Array<{ name: string; manufacturer?: string }>
+  } | null
 }
 
 export interface InsertedFsnRow {
@@ -48,6 +51,7 @@ export interface PipelineContext {
   profile:         ProfileRow
   aiOptOut:        boolean
   searchTerms:     string[]
+  competitorTerms: string[]
   activeSources:   string[]
 
   items:           ScrapedFsn[]
