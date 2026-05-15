@@ -80,7 +80,7 @@ export default async function HomePage() {
       {/* Hero + product showcase — full-height gradient white → teal */}
       <div className="relative">
         <div className="absolute inset-0 bg-gradient-to-b from-white via-white to-[#e6faf6] pointer-events-none" />
-      <section className="relative max-w-[1080px] mx-auto px-10 pt-20 pb-6 lg:pt-28 lg:pb-8">
+      <section className="relative max-w-[1080px] mx-auto px-10 pt-20 pb-10 lg:pt-28 lg:pb-14">
         <AnimatedHero>
           <div className="flex flex-col items-center text-center">
             <h1 className="text-[48px] lg:text-[64px] font-bold text-[#0F1F3D] leading-[1.08] tracking-tight mb-10 max-w-3xl">
@@ -197,24 +197,28 @@ export default async function HomePage() {
       </section>
       </div>
 
-      {/* Regulatory databases bar */}
-      <section className="border-y border-[#dfe3ea] bg-[#f6f7f9] py-6">
-        <div className="max-w-[1080px] mx-auto px-10 flex items-center justify-center flex-wrap gap-10">
-          {DATABASES.map(({ tag, country }) => (
-            <div key={tag} className="flex flex-col items-center gap-1 text-center">
-              <span className="text-xs font-semibold font-mono text-[#0B7C72] px-3 py-0.5 bg-[#effcfa] rounded">
-                {tag}
-              </span>
-              <span className="text-[11px] text-[#7a8599] font-medium">{country}</span>
-            </div>
-          ))}
+      {/* Unified Access — regulatory databases */}
+      <section className="border-y border-[#dfe3ea] bg-[#f6f7f9] py-24">
+        <div className="max-w-[1080px] mx-auto px-10">
+          <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3 text-center">Unified Access</p>
+          <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight text-center mb-8">Four supported databases in one interface</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-5 max-w-[720px] mx-auto">
+            {DATABASES.map(({ tag, country }) => (
+              <div key={tag} className="flex flex-col items-center justify-center gap-1.5 text-center bg-white border border-[#dfe3ea] rounded-lg py-5 shadow-sm">
+                <span className="text-base font-bold font-mono text-[#0B7C72]">
+                  {tag}
+                </span>
+                <span className="text-[11px] text-[#7a8599] font-medium">{country}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* How it works */}
       <section id="how-it-works" className="max-w-[1080px] mx-auto px-10 py-24">
-        <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3">How it works</p>
-        <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-12">Three steps to your PMS report</h2>
+        <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3 text-center">How it works</p>
+        <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-12 text-center">Three steps to your PMS report</h2>
         <AnimatedStaggerGrid className="grid md:grid-cols-3 border border-[#dfe3ea] rounded-md overflow-hidden divide-x divide-[#dfe3ea]">
           {STEPS.map(({ num, title, desc }) => (
             <AnimatedStaggerChild key={num} className="p-7 bg-white">
@@ -229,9 +233,9 @@ export default async function HomePage() {
       {/* FSN classification examples */}
       <section className="bg-[#f6f7f9] border-y border-[#dfe3ea] py-24">
         <div className="max-w-[1080px] mx-auto px-10">
-          <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3">Real classification output</p>
-          <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-3">Every FSN, classified against your device</h2>
-          <p className="text-[15px] text-[#3d4a5c] mb-10 max-w-xl">
+          <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3 text-center">Real classification output</p>
+          <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-3 text-center">Every FSN, classified against your device</h2>
+          <p className="text-[15px] text-[#3d4a5c] mb-10 max-w-xl mx-auto text-center">
             Each Field Safety Notice from the search is classified by AI with a rationale your PRRC can verify. Nothing reaches the report unchecked.
           </p>
           <FsnExamples />
@@ -240,9 +244,9 @@ export default async function HomePage() {
 
       {/* Pricing */}
       <section className="max-w-[1080px] mx-auto px-10 py-24">
-        <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3">Pricing</p>
-        <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-2">Plans for every team size</h2>
-        <p className="text-sm text-[#7a8599] mb-12">14-day free trial on all plans. All prices excl. VAT.</p>
+        <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3 text-center">Pricing</p>
+        <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-2 text-center">Plans for every team size</h2>
+        <p className="text-sm text-[#7a8599] mb-12 text-center">14-day free trial on all plans. All prices excl. VAT.</p>
         <div className="grid md:grid-cols-3 border border-[#dfe3ea] rounded-md overflow-hidden divide-x divide-[#dfe3ea]">
           {/* Starter */}
           <div className="bg-white p-8 flex flex-col">
@@ -321,7 +325,7 @@ export default async function HomePage() {
 
       {/* CTA */}
       <section className="bg-[#0F1F3D] py-20">
-        <AnimatedSection className="max-w-[1080px] mx-auto px-10 flex flex-col md:flex-row items-center justify-between gap-8">
+        <AnimatedSection className="max-w-[1080px] mx-auto px-10 flex flex-col items-center text-center gap-6">
           <div>
             <h2 className="text-2xl font-bold text-white mb-1.5">
               Ready to automate your PMS workflow?
