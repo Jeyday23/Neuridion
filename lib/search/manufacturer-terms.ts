@@ -76,3 +76,43 @@ export function buildManufacturerSearchTerms(
   if (extras.length > 0) return [...new Set([...mfrTerms, ...extras])]
   return mfrTerms
 }
+
+export function extractCompetitorTokens(
+  entries: Array<{ name: string; manufacturer?: string }>,
+): string[] {
+  const tokens = new Set<string>()
+
+  for (const entry of entries) {
+    if (entry.name?.trim()) {
+      const nameTokens = entry.name
+        .replace(/[^\p{L}\p{N}\s.\-]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(t => t.toLowerCase())
+        .filter(t => t.length >= 2 && !LEGAL_SUFFIXES.has(t))
+
+      for (const t of nameTokens) tokens.add(t)
+    }
+
+    if (entry.manufacturer?.trim()) {
+      const mfrTokens = entry.manufacturer
+        .replace(/[^\p{L}\p{N}\s.\-]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(t => t.toLowerCase())
+        .filter(t =>
+          t.length >= 2 &&
+          !LEGAL_SUFFIXES.has(t) &&
+          !GENERIC_MFR_WORDS.has(t),
+        )
+
+      for (const t of mfrTokens) tokens.add(t)
+    }
+  }
+
+  return [...tokens]
+}
