@@ -6,12 +6,18 @@ import { logAuditEvent } from '@/lib/audit'
 
 const DEVICE_CLASSES = ['Class I', 'Class IIa', 'Class IIb', 'Class III'] as const
 
+const CompetitorTermSchema = z.object({
+  name:         z.string().min(1).max(100),
+  manufacturer: z.string().max(100).optional(),
+})
+
 const UpdateSchema = z.object({
-  device_name:   z.string().min(1).optional(),
-  manufacturer:  z.string().min(1).optional(),
-  device_class:  z.enum(DEVICE_CLASSES).nullable().optional(),
-  emdn_code:     z.string().nullable().optional(),
-  intended_use:  z.string().nullable().optional(),
+  device_name:      z.string().min(1).optional(),
+  manufacturer:     z.string().min(1).optional(),
+  device_class:     z.enum(DEVICE_CLASSES).nullable().optional(),
+  emdn_code:        z.string().nullable().optional(),
+  intended_use:     z.string().nullable().optional(),
+  competitor_terms: z.array(CompetitorTermSchema).max(20).optional(),
 })
 
 export async function PATCH(
@@ -48,7 +54,7 @@ export async function PATCH(
   // Fetch existing profile (verify ownership)
   const { data: existing, error: fetchError } = await db
     .from('product_profiles')
-    .select('id, user_id, device_name, manufacturer, device_class, emdn_code, intended_use')
+    .select('id, user_id, device_name, manufacturer, device_class, emdn_code, intended_use, search_strategy')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
@@ -73,6 +79,15 @@ export async function PATCH(
     }
   }
 
+  if (updates.competitor_terms !== undefined) {
+    const prevStrategy = (existing as Record<string, unknown>).search_strategy
+    const prev = (prevStrategy as Record<string, unknown> | null)?.competitor_terms ?? []
+    if (JSON.stringify(prev) !== JSON.stringify(updates.competitor_terms)) {
+      changedFields['competitor_terms'] = updates.competitor_terms
+      previousValues['competitor_terms'] = prev
+    }
+  }
+
   const now = new Date().toISOString()
 
   // Insert history row if anything changed
@@ -94,6 +109,10 @@ export async function PATCH(
     if (field in updates && updates[field] !== undefined) {
       updatePayload[field] = updates[field] ?? null
     }
+  }
+
+  if (updates.competitor_terms !== undefined) {
+    updatePayload.search_strategy = { competitor_terms: updates.competitor_terms } as unknown as Json
   }
 
   type ProfileUpdate = Database['public']['Tables']['product_profiles']['Update']

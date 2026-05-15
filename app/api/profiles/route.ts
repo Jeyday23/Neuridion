@@ -2,13 +2,20 @@ import { createClient } from '@/lib/supabase/server'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { z } from 'zod'
 import { logAuditEvent } from '@/lib/audit'
+import type { Json } from '@/types/supabase'
+
+const CompetitorTermSchema = z.object({
+  name:         z.string().min(1).max(100),
+  manufacturer: z.string().max(100).optional(),
+})
 
 const CreateProfileSchema = z.object({
-  device_name:  z.string().min(1).max(200),
-  manufacturer: z.string().min(1).max(200),
-  device_class: z.enum(['Class I', 'Class IIa', 'Class IIb', 'Class III']).optional(),
-  emdn_code:    z.string().max(20).optional(),
-  intended_use: z.string().max(2000).optional(),
+  device_name:      z.string().min(1).max(200),
+  manufacturer:     z.string().min(1).max(200),
+  device_class:     z.enum(['Class I', 'Class IIa', 'Class IIb', 'Class III']).optional(),
+  emdn_code:        z.string().max(20).optional(),
+  intended_use:     z.string().max(2000).optional(),
+  competitor_terms: z.array(CompetitorTermSchema).max(20).default([]),
 })
 
 export async function GET() {
@@ -51,7 +58,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 })
   }
-  const { device_name, manufacturer, emdn_code, device_class, intended_use } = parsed.data
+  const { device_name, manufacturer, emdn_code, device_class, intended_use, competitor_terms } = parsed.data
 
   // Enforce plan profile limit
   const { data: userData } = await supabase
@@ -83,9 +90,10 @@ export async function POST(request: Request) {
       user_id: user.id,
       device_name,
       manufacturer,
-      emdn_code:    emdn_code    ?? null,
-      device_class: device_class ?? null,
-      intended_use: intended_use ?? null,
+      emdn_code:       emdn_code    ?? null,
+      device_class:    device_class ?? null,
+      intended_use:    intended_use ?? null,
+      search_strategy: { competitor_terms } as unknown as Json,
     })
     .select()
     .single()
