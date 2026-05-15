@@ -25,7 +25,7 @@ function prevDay(date: string): string {
 }
 
 export async function scrapeStage(ctx: PipelineContext): Promise<void> {
-  const { payload, profile, searchTerms, activeSources } = ctx
+  const { payload, profile, searchTerms, competitorTerms, activeSources } = ctx
   const { period_from, period_to, force_refresh: forceRefresh } = payload
 
   const progressState: ProgressUpdate = {
@@ -44,10 +44,11 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     const canonicalIds:   Map<string, string> = new Map()
     const fetchedRanges:  { from: string; to: string }[] = []
 
-    const localSearchTerms = buildManufacturerSearchTerms(
+    const ownTerms = buildManufacturerSearchTerms(
       profile.manufacturer ?? '',
       profile.device_name  ?? '',
     )
+    const localSearchTerms = [...new Set([...ownTerms, ...competitorTerms])]
     const hasManufacturerTerms = shouldBypassCoverageCache(localSearchTerms)
 
     async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
@@ -83,7 +84,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       }
 
       const mfrTerms = extractManufacturerTerms(profile.manufacturer ?? '')
-      const devTerms = localSearchTerms.filter((t) => !mfrTerms.includes(t))
+      const devTerms = ownTerms.filter((t) => !mfrTerms.includes(t))
       const coveredInWindow = covered.filter(
         (c) => c.to >= period_from && c.from <= (overlapFrom > period_from ? prevDay(overlapFrom) : period_from),
       )
@@ -94,6 +95,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
         const cached    = await getCanonicalItems(sourceId, canonFrom, canonTo)
         const filtered  = localSearchTerms.length === 0 ? cached : cached.filter((item) => {
           const hay = `${item.title} ${item.manufacturer ?? ''} ${item.raw_content ?? ''}`.toLowerCase()
+          if (competitorTerms.some((t) => hay.includes(t.toLowerCase()))) return true
           if (devTerms.length === 0) return mfrTerms.some((t) => hay.includes(t.toLowerCase()))
           const mfrMatch = mfrTerms.length === 0 || mfrTerms.some((t) => hay.includes(t.toLowerCase()))
           const devMatch = devTerms.some((t) => hay.includes(t.toLowerCase()))
