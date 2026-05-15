@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redis } from '@/lib/upstash'
 import { Ratelimit } from '@upstash/ratelimit'
@@ -5,17 +6,24 @@ import { Ratelimit } from '@upstash/ratelimit'
 const MAX_ATTEMPTS   = 5
 const WINDOW_MINUTES = 15
 
+function anonymizeIp(ip: string): string {
+  if (ip.includes(':')) return ip.replace(/:[^:]*$/, ':0')
+  return ip.replace(/\.\d+$/, '.0')
+}
+
 export async function checkLoginRateLimit(ip: string): Promise<{
   allowed: boolean
   remainingAttempts: number
 }> {
   const admin       = createAdminClient()
   const windowStart = new Date(Date.now() - WINDOW_MINUTES * 60 * 1000).toISOString()
+  const anonIp = anonymizeIp(ip)
 
   const { count } = await admin
     .from('login_attempts')
     .select('*', { count: 'exact', head: true })
-    .eq('ip_address', ip)
+    .eq('ip_address', anonIp)
+    .eq('success', false)
     .gte('attempted_at', windowStart)
 
   const attempts = count ?? 0
@@ -31,7 +39,9 @@ export async function recordLoginAttempt(
   success: boolean,
 ): Promise<void> {
   const admin = createAdminClient()
-  await admin.from('login_attempts').insert({ ip_address: ip, email, success })
+  const anonIp = anonymizeIp(ip)
+  const emailHash = createHash('sha256').update(email.toLowerCase()).digest('hex').slice(0, 32)
+  await admin.from('login_attempts').insert({ ip_address: anonIp, email: emailHash, success })
 }
 
 // ---------------------------------------------------------------------------

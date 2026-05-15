@@ -1,4 +1,4 @@
-import { createHash } from 'crypto'
+import { createHmac } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkSecurityAlert } from '@/lib/security-alerts'
 import type { Json } from '@/types/supabase'
@@ -8,10 +8,15 @@ function anonymizeIp(ip: string): string {
   return ip.replace(/\.\d+$/, '.0')
 }
 
+const AUDIT_HMAC_KEY = process.env.AUDIT_HMAC_KEY || 'neuridion-default-audit-key'
+
 function hashPii(data: Record<string, unknown>): Record<string, unknown> {
   const out = { ...data }
   if (typeof out.email === 'string') {
-    out.email_hash = createHash('sha256').update(out.email.toLowerCase()).digest('hex').slice(0, 16)
+    out.email_hash = createHmac('sha256', AUDIT_HMAC_KEY)
+      .update(out.email.toLowerCase())
+      .digest('hex')
+      .slice(0, 32)
     delete out.email
   }
   return out
@@ -37,6 +42,9 @@ type AuditEventType =
   | 'search_run_deleted'
   | 'self_approval_override'
   | 'billing_event'
+  | 'account_deletion_cancelled'
+  | 'preference_changed'
+  | 'search_run_cancelled'
 
 export async function logAuditEvent(
   userId: string | null,

@@ -3,6 +3,7 @@ import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { randomBytes } from 'crypto'
 import { z } from 'zod'
+import { rateLimit } from '@/lib/rate-limit'
 
 const CreateTrialCodesSchema = z.object({
   batch_name: z.string().min(1).max(100).default('Unnamed'),
@@ -24,6 +25,11 @@ function generateCode(): string {
 export async function POST(request: Request) {
   const adminUser = await checkIsAdmin()
   if (!adminUser) return Response.json({ error: 'Forbidden' }, { status: 403 })
+
+  const rl = await rateLimit(`trial-codes:${adminUser.id}`, 10, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
 
   let body: unknown
   try { body = await request.json() } catch {
@@ -59,6 +65,11 @@ export async function POST(request: Request) {
 export async function GET() {
   const adminUser = await checkIsAdmin()
   if (!adminUser) return Response.json({ error: 'Forbidden' }, { status: 403 })
+
+  const rl = await rateLimit(`trial-codes:${adminUser.id}`, 10, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
 
   const admin = createAdminClient()
   const { data, error } = await admin

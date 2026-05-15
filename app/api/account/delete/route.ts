@@ -130,13 +130,18 @@ export async function DELETE(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const rl = await rateLimit(`cancel-delete:${user.id}`, 5, 300_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
+
   const admin = createAdminClient()
   await admin
     .from('users')
     .update({ deletion_requested_at: null, deleted_at: null })
     .eq('id', user.id)
 
-  await logAuditEvent(user.id, 'admin_action', { action: 'cancel_deletion' }, request)
+  await logAuditEvent(user.id, 'account_deletion_cancelled', {}, request)
 
   return Response.json({ ok: true, message: 'Account deletion cancelled.' })
 }

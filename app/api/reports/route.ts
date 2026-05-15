@@ -584,7 +584,7 @@ export async function POST(request: Request) {
     console.error('[PDF]', `Quota exceeded for user ${user.id}: ${quotaCheck.reason}`)
   }
 
-  // Persist storage paths so the archive page can regenerate signed URLs on demand
+  // Ownership verified via session-scoped query above — admin client needed for report_* columns not in RLS
   await adminStorage
     .from('search_runs')
     .update({

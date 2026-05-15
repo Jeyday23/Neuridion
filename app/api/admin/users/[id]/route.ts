@@ -3,6 +3,7 @@ import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { z } from 'zod'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function DELETE(
   req: NextRequest,
@@ -10,6 +11,11 @@ export async function DELETE(
 ) {
   const caller = await checkIsAdmin()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const rl = await rateLimit(`admin-users:${caller.id}`, 30, 60_000)
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
 
   const { id } = await params
   if (!z.string().uuid().safeParse(id).success) {

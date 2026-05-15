@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAuditEvent } from '@/lib/audit'
 import { z } from 'zod'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params
@@ -15,6 +17,11 @@ export async function POST(
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = await rateLimit(`cancel-run:${user.id}`, 10, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   const db = createAdminClient()
@@ -47,6 +54,8 @@ export async function POST(
     console.error('[search-runs/cancel]', updateError?.message ?? 'Unable to cancel run')
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
+
+  await logAuditEvent(user.id, 'search_run_cancelled', { run_id: id }, request)
 
   return Response.json({ run_id: cancelled.id, status: 'cancelled' })
 }

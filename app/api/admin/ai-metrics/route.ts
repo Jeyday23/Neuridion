@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server'
 import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function GET() {
   const caller = await checkIsAdmin()
   if (!caller) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const rl = await rateLimit(`ai-metrics:${caller.id}`, 30, 60_000)
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
 
   const admin = createAdminClient()
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()

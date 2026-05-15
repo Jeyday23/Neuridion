@@ -2,12 +2,19 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { z } from 'zod'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
 const CookieConsentSchema = z.object({
   accepted: z.boolean().optional(),
 }).strict()
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request)
+  const rl = await rateLimit(`consent-cookies:${ip}`, 10, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
+
   let body: unknown = {}
   try {
     body = await request.json()

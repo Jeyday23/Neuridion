@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { z } from 'zod'
 import type { TablesUpdate } from '@/types/supabase'
+import { rateLimit } from '@/lib/rate-limit'
 
 /**
  * GET /api/account/preferences
@@ -13,6 +14,11 @@ export async function GET(request: Request) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = await rateLimit(`prefs-read:${user.id}`, 30, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   const admin = createAdminClient()
@@ -62,6 +68,11 @@ export async function PATCH(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const rl = await rateLimit(`prefs-write:${user.id}`, 10, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
+
   let body: unknown
   try {
     body = await request.json()
@@ -100,16 +111,16 @@ export async function PATCH(request: Request) {
   if (parsed.data.processing_restricted !== undefined) {
     await logAuditEvent(
       user.id,
-      'admin_action',
-      { action: 'processing_restricted', restricted: parsed.data.processing_restricted },
+      'preference_changed',
+      { field: 'processing_restricted', value: parsed.data.processing_restricted },
       request,
     )
   }
   if (parsed.data.ai_opt_out !== undefined) {
     await logAuditEvent(
       user.id,
-      'admin_action',
-      { action: 'ai_opt_out_changed', ai_opt_out: parsed.data.ai_opt_out },
+      'preference_changed',
+      { field: 'ai_opt_out', value: parsed.data.ai_opt_out },
       request,
     )
   }

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 import type { Json, Database } from '@/types/supabase'
 import { logAuditEvent } from '@/lib/audit'
+import { rateLimit } from '@/lib/rate-limit'
 
 const DEVICE_CLASSES = ['Class I', 'Class IIa', 'Class IIb', 'Class III'] as const
 
@@ -33,6 +34,11 @@ export async function PATCH(
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = await rateLimit(`profiles-update:${user.id}`, 10, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   let body: unknown
@@ -121,7 +127,7 @@ export async function PATCH(
     .update(updatePayload as unknown as ProfileUpdate)
     .eq('id', id)
     .eq('user_id', user.id)
-    .select()
+    .select('id, user_id, device_name, manufacturer, emdn_code, device_class, intended_use, search_strategy, last_modified_at, last_modified_by')
     .single()
 
   if (updateError) {
@@ -149,6 +155,11 @@ export async function DELETE(
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = await rateLimit(`profiles-delete:${user.id}`, 5, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   const db = createAdminClient()

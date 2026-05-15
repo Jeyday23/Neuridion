@@ -277,8 +277,8 @@ async function haikuPreFilter(
           content:
             `Device profile: ${profile.device_name} by ${profile.manufacturer}` +
             (profile.device_class ? `, ${profile.device_class}` : '') +
-            `\nFSN manufacturer: ${sanitizeForLlm(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}` +
-            `\n\n<FSN_DATA>\nFSN: "${sanitizeForLlm(sanitizePii(fsn.title), 500)}"\n</FSN_DATA>\n\n` +
+            `\n\n<FSN_DATA>\nFSN manufacturer: ${sanitizeForLlm(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}` +
+            `\nFSN: "${sanitizeForLlm(sanitizePii(fsn.title), 500)}"\n</FSN_DATA>\n\n` +
             'Is this FSN CLEARLY NOT relevant to the device profile? ' +
             'Only say CLEAR_EXCLUDE if BOTH the device type/clinical domain AND the manufacturer ' +
             'are clearly unrelated. If the manufacturers are the same company (even under different legal names), say UNCERTAIN.',

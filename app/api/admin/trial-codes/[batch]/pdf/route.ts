@@ -1,6 +1,7 @@
 import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import QRCode from 'qrcode'
+import { rateLimit } from '@/lib/rate-limit'
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -18,6 +19,11 @@ export async function GET(
 ) {
   const adminUser = await checkIsAdmin()
   if (!adminUser) return new Response('Forbidden', { status: 403 })
+
+  const rl = await rateLimit(`trial-codes-pdf:${adminUser.id}`, 10, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
 
   const { batch } = await params
   const batchName = decodeURIComponent(batch)

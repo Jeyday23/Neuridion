@@ -8,6 +8,8 @@ const HTML_ESCAPE_MAP: Record<string, string> = {
 }
 const HTML_CHARS = /[&<>"']/g
 const FSN_BOUNDARY = /<\/?FSN_DATA>/gi
+const ROLE_MARKERS = /<\|(?:system|user|assistant|im_start|im_end)\|>/gi
+const XML_INSTRUCTIONS = /<\/?(?:instructions|system|tool_use|function_call|tool_result|thinking|answer)[^>]*>/gi
 
 export function escapeHtml(text: string): string {
   return text.replace(HTML_CHARS, (ch) => HTML_ESCAPE_MAP[ch])
@@ -36,6 +38,8 @@ export function sanitizeForLlm(text: string, maxLen = 3000): string {
     text
       .replace(COMBINING_MARKS, '')
       .replace(FORMATTING_CONTROLS, ' ')
+      .replace(ROLE_MARKERS, '[MARKER_REMOVED]')
+      .replace(XML_INSTRUCTIONS, '[TAG_REMOVED]')
       .replace(/\s+/g, ' ')
       .trim()
   ).slice(0, maxLen)

@@ -3,6 +3,7 @@ import { PLANS, type PlanId } from '@/lib/plans'
 import { z } from 'zod'
 import { logAuditEvent } from '@/lib/audit'
 import type { Json } from '@/types/supabase'
+import { rateLimit } from '@/lib/rate-limit'
 
 const CompetitorTermSchema = z.object({
   name:         z.string().min(1).max(100),
@@ -26,6 +27,11 @@ export async function GET() {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const rl = await rateLimit(`profiles-list:${user.id}`, 30, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
+
   const { data, error } = await supabase
     .from('product_profiles')
     .select('id, user_id, device_name, manufacturer, intended_use, emdn_code, device_class, default_dbs, search_strategy, created_at, last_modified_at')
@@ -45,6 +51,11 @@ export async function POST(request: Request) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = await rateLimit(`profiles-create:${user.id}`, 10, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   let body: Record<string, unknown>
@@ -95,7 +106,7 @@ export async function POST(request: Request) {
       intended_use:    intended_use ?? null,
       search_strategy: { competitor_terms } as unknown as Json,
     })
-    .select()
+    .select('id, user_id, device_name, manufacturer, emdn_code, device_class, intended_use, search_strategy, created_at, last_modified_at')
     .single()
 
   if (error) {
