@@ -25,6 +25,15 @@ const PUBLIC_API_ROUTES = [
   '/api/worker/',
 ]
 
+// Routes exempt from CSRF content-type check (webhooks use non-JSON payloads,
+// auth and claim routes may be called from HTML forms)
+const CSRF_EXEMPT_ROUTES = [
+  '/api/webhooks/stripe',
+  '/api/auth/',
+  '/api/claim/',
+  '/api/consent/cookies',
+]
+
 const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000
 const SESSION_COOKIE     = 'session_started_at'
 
@@ -86,6 +95,23 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // CSRF protection: mutating requests to /api/ must include Content-Type: application/json
+  // or X-Requested-With header. This blocks cross-origin HTML form submissions.
+  if (pathname.startsWith('/api/')) {
+    const method = request.method.toUpperCase()
+    if (method === 'POST' || method === 'PATCH' || method === 'DELETE') {
+      const isExempt = CSRF_EXEMPT_ROUTES.some((r) => pathname.startsWith(r))
+      if (!isExempt) {
+        const contentType = request.headers.get('content-type') ?? ''
+        const hasJsonContent = contentType.includes('application/json')
+        const hasXhr = request.headers.has('x-requested-with')
+        if (!hasJsonContent && !hasXhr) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+        }
+      }
+    }
+  }
+
   // API routes: protect non-public endpoints, then return with refreshed cookies
   if (pathname.startsWith('/api/')) {
     if (!user) {
@@ -94,7 +120,7 @@ export async function proxy(request: NextRequest) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
     }
-    return supabaseResponse
+    return addSecurityHeaders(supabaseResponse)
   }
 
   const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/claim/') || pathname.startsWith('/auth/')
@@ -145,7 +171,19 @@ export async function proxy(request: NextRequest) {
     supabaseResponse.headers.set('Content-Security-Policy', buildCspHeader(nonce))
   }
 
-  return supabaseResponse
+  return addSecurityHeaders(supabaseResponse)
+}
+
+/**
+ * Adds defense-in-depth security headers to every response.
+ * HSTS and CSP are handled separately (next.config.ts / buildCspHeader).
+ */
+function addSecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+  return response
 }
 
 export const config = {

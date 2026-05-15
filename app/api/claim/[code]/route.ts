@@ -52,7 +52,17 @@ export async function POST(
     return Response.json({ error: 'This code is invalid or has already been used.' }, { status: 400 })
   }
 
-  // 2. Check email lock
+  // 2. Atomically claim the code FIRST (prevents TOCTOU double-redemption)
+  const { data: redeemed } = await admin.from('trial_codes').update({
+    redeemed_by_email: email,
+    redeemed_at:       new Date().toISOString(),
+  }).eq('id', trialCode.id).is('redeemed_at', null).select('id').maybeSingle()
+
+  if (!redeemed) {
+    return Response.json({ error: 'This code could not be redeemed. Please check the code and try again.' }, { status: 409 })
+  }
+
+  // 3. Check email lock
   const { data: usedEmail } = await admin
     .from('used_trial_emails')
     .select('email')
@@ -60,12 +70,18 @@ export async function POST(
     .maybeSingle()
 
   if (usedEmail) {
+    // Unredeemed the code since we cannot proceed
+    console.error('[claim] Email already used a trial code:', email)
+    await admin.from('trial_codes').update({
+      redeemed_by_email: null,
+      redeemed_at:       null,
+    }).eq('id', trialCode.id)
     return Response.json({
-      error: 'This email has already used a trial code. Please sign up with a different email or use paid signup.',
+      error: 'This code could not be redeemed. Please check the code and try again.',
     }, { status: 409 })
   }
 
-  // 3. Create auth user (internal password never exposed)
+  // 4. Create auth user (internal password never exposed)
   const { data: newUser, error: createError } = await admin.auth.admin.createUser({
     email,
     password:       randomBytes(32).toString('base64url'),
@@ -74,45 +90,44 @@ export async function POST(
   })
 
   if (createError) {
+    // Unredeemed the code since user creation failed
+    console.error('[claim] User creation failed:', createError.message)
+    await admin.from('trial_codes').update({
+      redeemed_by_email: null,
+      redeemed_at:       null,
+    }).eq('id', trialCode.id)
     if (createError.message.toLowerCase().includes('already')) {
       return Response.json({
-        error: 'An account with this email already exists. Please sign in instead.',
+        error: 'This code could not be redeemed. Please check the code and try again.',
       }, { status: 409 })
     }
-    console.error('[claim]', createError.message)
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
   const userId = newUser.user.id
 
-  // 4. Set plan = 'trial' on public.users
+  // 5. Finalize code redemption with user ID
+  await admin.from('trial_codes').update({
+    redeemed_by_user_id: userId,
+  }).eq('id', trialCode.id)
+
+  // 6. Set plan = 'trial' on public.users
   await admin.from('users').upsert({ id: userId, email, plan: 'trial' }, { onConflict: 'id' })
 
-  // 5. Lock email forever
+  // 7. Lock email forever
   await admin.from('used_trial_emails').insert({
     email,
     trial_code_id: trialCode.id,
   })
 
-  // 6. Atomically mark code redeemed (prevents TOCTOU double-redemption)
-  const { data: redeemed } = await admin.from('trial_codes').update({
-    redeemed_by_email:   email,
-    redeemed_by_user_id: userId,
-    redeemed_at:         new Date().toISOString(),
-  }).eq('id', trialCode.id).is('redeemed_at', null).select('id').maybeSingle()
-
-  if (!redeemed) {
-    return Response.json({ error: 'This code has already been used.' }, { status: 409 })
-  }
-
-  // 7. Audit log
+  // 8. Audit log
   await logAuditEvent(userId, 'signup', {
     method: 'trial_code',
     code,
     batch: trialCode.batch_name,
   }, request)
 
-  // 8. Send OTP code to the user's email for passwordless sign-in
+  // 9. Send OTP code to the user's email for passwordless sign-in
   const supabase = await createClient()
   const { error: otpError } = await supabase.auth.signInWithOtp({
     email,

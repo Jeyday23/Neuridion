@@ -8,7 +8,12 @@ function anonymizeIp(ip: string): string {
   return ip.replace(/\.\d+$/, '.0')
 }
 
-const AUDIT_HMAC_KEY = process.env.AUDIT_HMAC_KEY || 'neuridion-default-audit-key'
+function getAuditHmacKey(): string {
+  const key = process.env.AUDIT_HMAC_KEY
+  if (!key) throw new Error('AUDIT_HMAC_KEY environment variable must be set')
+  return key
+}
+const AUDIT_HMAC_KEY = getAuditHmacKey()
 
 function hashPii(data: Record<string, unknown>): Record<string, unknown> {
   const out = { ...data }

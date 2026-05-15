@@ -36,13 +36,13 @@ function isCreditExhaustionError(err: unknown): boolean {
 
 function markCreditExhausted(err: unknown): void {
   creditExhausted = true
-  console.error('[filter] Anthropic credit/billing exhausted — all subsequent AI calls will skip:',
+  console.error('[filter] AI service credit/billing exhausted — all subsequent AI calls will skip:',
     err instanceof Error ? err.message : String(err))
 }
 
 function markAuthFailed(err: unknown): void {
   creditExhausted = true
-  console.error('[filter] Anthropic API key invalid (401) — check ANTHROPIC_API_KEY env var:',
+  console.error('[filter] AI service authentication failed (401) — all subsequent AI calls will skip:',
     err instanceof Error ? err.message : String(err))
 }
 

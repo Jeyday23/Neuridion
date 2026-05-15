@@ -1,5 +1,6 @@
 import { createClient }      from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { logAuditEvent } from '@/lib/audit'
 import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { type SearchJobPayload } from '@/lib/pipeline/run-search'
@@ -118,6 +119,8 @@ export async function POST(
     await db.from('search_runs').update({ status: 'error' }).eq('id', runId)
     return Response.json({ error: 'Failed to enqueue retry job' }, { status: 500 })
   }
+
+  await logAuditEvent(user.id, 'search_run_cancelled', { run_id: runId, action: 'retry' }, _request)
 
   return Response.json({ run_id: runId, status: 'pending' }, { status: 200 })
 }

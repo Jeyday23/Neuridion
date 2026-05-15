@@ -332,7 +332,10 @@ function buildTermClause(terms?: string[]): string {
   if (!terms || terms.length === 0) return ''
   const clauses = terms
     .map(t => t.replace(/[+&|!(){}[\]^"~*?:\\/]/g, ''))   // strip Lucene special chars (preserve hyphens, periods)
-    .filter(t => t.length >= 3)                   // skip tokens too short to discriminate
+    .map(t => t.replace(/^-+|-+$/g, ''))                   // strip leading/trailing hyphens
+    .map(t => t.replace(/[[\]{}]/g, ''))                   // extra safety for Lucene range syntax
+    .filter(t => t.length >= 3)                             // skip tokens too short to discriminate
+    .filter(t => /[a-zA-Z0-9]/.test(t))                    // reject tokens that are purely non-alphanumeric
     .flatMap(t => [
       `device.brand_name:${t}`,
       `device.generic_name:${t}`,

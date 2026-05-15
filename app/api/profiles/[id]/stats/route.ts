@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 export async function GET(
@@ -14,6 +15,11 @@ export async function GET(
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = await rateLimit(`profile-stats:${user.id}`, 30, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   const { data: profile, error: profileError } = await supabase

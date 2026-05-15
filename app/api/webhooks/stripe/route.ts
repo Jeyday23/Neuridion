@@ -3,20 +3,19 @@ import { stripe } from '@/lib/stripe'
 import { planFromPriceId } from '@/lib/plans'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
+import { redis } from '@/lib/upstash'
 import type Stripe from 'stripe'
 import type { Database } from '@/types/supabase'
 
 type UserUpdate = Database['public']['Tables']['users']['Update']
 
-const PROCESSED_EVENTS = new Map<string, number>()
-const EVENT_TTL_MS = 5 * 60 * 1000
-
-function cleanExpiredEvents(): void {
-  const cutoff = Date.now() - EVENT_TTL_MS
-  for (const [id, ts] of PROCESSED_EVENTS) {
-    if (ts < cutoff) PROCESSED_EVENTS.delete(id)
-    else break
-  }
+async function checkAndMarkProcessed(eventId: string): Promise<boolean> {
+  if (!redis) return false // fallback: allow processing (no Redis configured)
+  const key = `stripe-event:${eventId}`
+  const exists = await redis.exists(key)
+  if (exists) return true
+  await redis.set(key, 1, { ex: 259200 }) // 72 hours = Stripe max retry window
+  return false
 }
 
 export async function POST(request: Request) {
@@ -41,11 +40,10 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid webhook signature' }, { status: 400 })
   }
 
-  cleanExpiredEvents()
-  if (PROCESSED_EVENTS.has(event.id)) {
+  const alreadyProcessed = await checkAndMarkProcessed(event.id)
+  if (alreadyProcessed) {
     return Response.json({ received: true })
   }
-  PROCESSED_EVENTS.set(event.id, Date.now())
 
   const supabase = createAdminClient()
 

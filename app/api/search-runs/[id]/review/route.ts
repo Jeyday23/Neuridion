@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
+import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 const ReviewSchema = z.object({
@@ -25,6 +26,11 @@ export async function PATCH(
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = await rateLimit(`review:${user.id}`, 10, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   let body: unknown
@@ -68,6 +74,7 @@ export async function PATCH(
       reviewed_at:   new Date().toISOString(),
     })
     .eq('id', id)
+    .eq('user_id', user.id)
     .select('id, review_status, reviewed_by, reviewed_at')
     .single()
 
@@ -87,6 +94,7 @@ export async function PATCH(
   if (isSelfApproval) {
     await logAuditEvent(user.id, 'self_approval_override', {
       run_id: id,
+      warning: 'self_approval',
       justification: 'Single-user organisation — no independent reviewer available.',
     }, request)
   }

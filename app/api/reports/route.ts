@@ -236,12 +236,9 @@ function buildReportHtml(
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 10.5pt; color: #1a1a1a; background: #fff; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #1a1a1a; background: #fff; padding: 0; }
   .page { padding: 2.2cm 2cm 2.5cm 2cm; max-width: 210mm; }
   .doc-header { border-bottom: 2.5px solid #1a1a2e; padding-bottom: 10px; margin-bottom: 18px; }
   .org-line { font-size: 8pt; color: #666; letter-spacing: 0.3px; text-transform: uppercase; margin-bottom: 4px; }
@@ -464,7 +461,7 @@ export async function POST(request: Request) {
   // Fetch FSN results
   const { data: rawResults, error: resultsError } = await supabase
     .from('fsn_results')
-    .select('*')
+    .select('id, title, manufacturer, fsn_date, source_url, source_db, raw_content')
     .eq('run_id', run_id)
     .order('fsn_date', { ascending: false })
 
@@ -537,10 +534,11 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Report generation failed' }, { status: 500 })
   }
 
-  // ── Create signed URLs (7 days) ─────────────────────────────────────────────
+  // ── Create signed URLs ──────────────────────────────────────────────────────
+  // Signed URLs bypass application-layer audit logging — keep TTL short
   const [htmlSigned, excelSigned] = await Promise.all([
-    adminStorage.storage.from('reports').createSignedUrl(htmlPath, 60 * 5),
-    adminStorage.storage.from('reports').createSignedUrl(excelPath, 60 * 5),
+    adminStorage.storage.from('reports').createSignedUrl(htmlPath, 60),
+    adminStorage.storage.from('reports').createSignedUrl(excelPath, 60),
   ])
 
   // ── Generate PDF via @react-pdf/renderer (quota-guarded) ────────────────────
@@ -565,9 +563,10 @@ export async function POST(request: Request) {
         .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true })
 
       if (!pdfUploadErr) {
+        // Signed URLs bypass application-layer audit logging — keep TTL short
         const { data: pdfSigned } = await adminStorage.storage
           .from('reports')
-          .createSignedUrl(pdfPath, 60 * 5)
+          .createSignedUrl(pdfPath, 60)
 
         pdfUrl = pdfSigned?.signedUrl ?? null
         pdfStatus = 'generated'

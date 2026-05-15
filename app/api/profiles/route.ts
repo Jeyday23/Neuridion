@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
   const parsed = CreateProfileSchema.safeParse(body)
   if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 })
+    return Response.json({ error: 'Validation failed. Check your input and try again.' }, { status: 422 })
   }
   const { device_name, manufacturer, emdn_code, device_class, intended_use, competitor_terms } = parsed.data
 

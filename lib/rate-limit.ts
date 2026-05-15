@@ -15,21 +15,12 @@ export async function checkLoginRateLimit(ip: string): Promise<{
   allowed: boolean
   remainingAttempts: number
 }> {
-  const admin       = createAdminClient()
-  const windowStart = new Date(Date.now() - WINDOW_MINUTES * 60 * 1000).toISOString()
-  const anonIp = anonymizeIp(ip)
-
-  const { count } = await admin
-    .from('login_attempts')
-    .select('*', { count: 'exact', head: true })
-    .eq('ip_address', anonIp)
-    .eq('success', false)
-    .gte('attempted_at', windowStart)
-
-  const attempts = count ?? 0
+  // Use the FULL IP for rate limiting (ephemeral Redis/memory counter — not persisted, no GDPR concern).
+  // The anonymized IP is only used when recording attempts to the database (see recordLoginAttempt).
+  const rl = await rateLimit(`login:${ip}`, MAX_ATTEMPTS, WINDOW_MINUTES * 60 * 1000)
   return {
-    allowed:           attempts < MAX_ATTEMPTS,
-    remainingAttempts: Math.max(0, MAX_ATTEMPTS - attempts),
+    allowed:           rl.allowed,
+    remainingAttempts: rl.allowed ? MAX_ATTEMPTS - 1 : 0,
   }
 }
 
@@ -107,6 +98,9 @@ export async function rateLimit(
 ): Promise<{ allowed: boolean; retryAfterMs: number }> {
   const limiter = getRedisLimiter(maxRequests, windowMs)
   if (!limiter) {
+    if (process.env.NODE_ENV === 'production' && !redis) {
+      console.error('[rate-limit] Redis not configured in production — rate limiting ineffective')
+    }
     return rateLimitMemory(key, maxRequests, windowMs)
   }
 

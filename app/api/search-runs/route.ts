@@ -10,6 +10,11 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit'
 // POST enqueues to QStash and returns in <200ms — pipeline runs in process-job worker
 export const maxDuration = 30
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL
+if (SITE_URL && !/^https?:\/\//.test(SITE_URL)) {
+  console.error('[search-runs] NEXT_PUBLIC_SITE_URL must start with http:// or https://')
+}
+
 const KNOWN_SOURCES  = ['bfarm', 'mhra', 'fda', 'swissmedic'] as const
 const ISO_DATE       = /^\d{4}-\d{2}-\d{2}$/
 const MAX_SPAN_YEARS = 5

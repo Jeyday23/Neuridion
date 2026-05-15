@@ -109,14 +109,18 @@ async function handler(req: Request): Promise<Response> {
 
 export async function POST(req: Request): Promise<Response> {
   if (process.env.ENABLE_DEV_WORKER_BYPASS === 'true') {
-    if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[SECURITY] ENABLE_DEV_WORKER_BYPASS is set in production — ignoring')
+      // Fall through to normal QStash verification
+    } else if (process.env.NODE_ENV !== 'development' && process.env.NODE_ENV !== 'test') {
       return new Response('ENABLE_DEV_WORKER_BYPASS is only allowed in development/test', { status: 500 })
+    } else {
+      const secret = req.headers.get('x-worker-secret')
+      if (!process.env.WORKER_API_SECRET || !secret || !safeCompare(secret, process.env.WORKER_API_SECRET)) {
+        return new Response('Unauthorized', { status: 401 })
+      }
+      return handler(req)
     }
-    const secret = req.headers.get('x-worker-secret')
-    if (!process.env.WORKER_API_SECRET || !secret || !safeCompare(secret, process.env.WORKER_API_SECRET)) {
-      return new Response('Unauthorized', { status: 401 })
-    }
-    return handler(req)
   }
   try {
     const { verifySignatureAppRouter } = await import('@upstash/qstash/nextjs')

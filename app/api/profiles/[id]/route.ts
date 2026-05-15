@@ -50,8 +50,7 @@ export async function PATCH(
 
   const parsed = UpdateSchema.safeParse(body)
   if (!parsed.success) {
-    const msg = parsed.error.issues.map((i) => i.message).join(', ')
-    return Response.json({ error: msg }, { status: 422 })
+    return Response.json({ error: 'Validation failed. Check your input and try again.' }, { status: 422 })
   }
   const updates = parsed.data
 

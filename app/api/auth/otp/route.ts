@@ -22,6 +22,25 @@ const RequestSchema = z.discriminatedUnion('action', [SendSchema, VerifySchema])
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req)
 
+  const body = await req.json().catch(() => null)
+  const parsed = RequestSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+  }
+
+  const data = parsed.data
+
+  // For verify action, check per-email rate limit BEFORE per-IP rate limit
+  if (data.action === 'verify') {
+    const emailRl = await rateLimit(`otp-verify-email:${data.email}`, 5, 900_000) // 5 attempts per 15 min per email
+    if (!emailRl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Try again in 15 minutes.' },
+        { status: 429 },
+      )
+    }
+  }
+
   const rateCheck = await checkLoginRateLimit(ip)
   if (!rateCheck.allowed) {
     return NextResponse.json(
@@ -30,14 +49,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const body = await req.json().catch(() => null)
-  const parsed = RequestSchema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
-  }
-
   const supabase = await createClient()
-  const data = parsed.data
 
   if (data.action === 'send') {
     const emailLimit = await rateLimit(`otp-send:${data.email}`, 3, 15 * 60 * 1000)
@@ -72,7 +84,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
-  const verifyLimit = await rateLimit(`otp-verify:${data.email}`, 5, 15 * 60 * 1000)
+  // Per-IP rate limit for verify (in addition to the per-email check above)
+  const verifyLimit = await rateLimit(`otp-verify:${ip}`, 10, 15 * 60 * 1000)
   if (!verifyLimit.allowed) {
     return NextResponse.json(
       { error: 'Too many verification attempts. Try again later.' },

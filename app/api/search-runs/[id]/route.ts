@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
+import { rateLimit } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 export async function GET(
@@ -19,9 +20,14 @@ export async function GET(
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const rl = await rateLimit(`search-run-get:${user.id}`, 30, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
+
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('*')
+    .select('id, user_id, status, progress, error_message, relevant_count, uncertain_count, excluded_count, total_scraped, pre_filter_count')
     .eq('id', id)
     .single()
 
@@ -31,7 +37,7 @@ export async function GET(
 
   // Fetch FSN results — use admin client to bypass RLS on internal pipeline tables
   const { data: results, error: resultsError } = await db.from('fsn_results')
-    .select('*')
+    .select('id, title, manufacturer, fsn_date, source_url, source_db')
     .eq('run_id', id)
     .order('fsn_date', { ascending: false })
 
@@ -100,6 +106,11 @@ export async function DELETE(
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = await rateLimit(`search-run-delete:${user.id}`, 5, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }
 
   const { data: run, error: runError } = await db
