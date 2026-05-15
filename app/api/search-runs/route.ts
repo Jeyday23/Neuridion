@@ -116,7 +116,7 @@ export async function POST(request: Request) {
   if (runError) {
     if ((runError as { message?: string }).message?.includes('PLAN_LIMIT_EXCEEDED')) {
       return Response.json(
-        { error: `Your ${PLANS[userPlan].label} plan allows ${runLimit} search run${runLimit === 1 ? '' : 's'}. Upgrade to run more searches.` },
+        { error: 'Search run limit reached. Upgrade your plan to run more searches.' },
         { status: 403 },
       )
     }

@@ -34,7 +34,7 @@ export async function POST(_request: Request) {
     })
     return Response.json({ url: session.url })
   } catch (err) {
-    console.error('[billing/portal] Stripe error:', err instanceof Error ? err.message : err)
+    console.error('[billing/portal] Stripe error:', err instanceof Error ? err.message : String(err))
     return Response.json({ error: 'Unable to open billing portal. Please try again.' }, { status: 502 })
   }
 }

@@ -88,7 +88,7 @@ export async function GET() {
       cacheEntries: cacheCountRes.count ?? 0,
     })
   } catch (err) {
-    console.error('[admin:ai-metrics]', err instanceof Error ? err.message : err)
+    console.error('[admin:ai-metrics]', err instanceof Error ? err.message : String(err))
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
   }
 }

@@ -71,7 +71,7 @@ export async function POST(
 
   if (usedEmail) {
     // Unredeemed the code since we cannot proceed
-    console.error('[claim] Email already used a trial code:', email)
+    console.error('[claim] Email already used a trial code')
     await admin.from('trial_codes').update({
       redeemed_by_email: null,
       redeemed_at:       null,

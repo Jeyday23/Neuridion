@@ -96,7 +96,7 @@ export async function GET(req: Request) {
     } catch (emailErr) {
       console.error(
         '[scraper-health] Failed to send alert email:',
-        emailErr instanceof Error ? emailErr.message : emailErr,
+        emailErr instanceof Error ? emailErr.message : String(emailErr),
       )
     }
   }

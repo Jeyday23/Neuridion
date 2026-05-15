@@ -89,7 +89,7 @@ export async function POST(request: Request) {
 
     if ((count ?? 0) >= limit) {
       return Response.json(
-        { error: `Your ${PLANS[plan].label} plan allows up to ${limit} product profile${limit === 1 ? '' : 's'}. Upgrade to add more.` },
+        { error: 'Profile limit reached. Upgrade your plan to add more.' },
         { status: 403 }
       )
     }

@@ -47,7 +47,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     await sendContactMessage({ name, email, subject, message })
   } catch (err) {
-    console.error('[contact]', err instanceof Error ? err.message : err)
+    console.error('[contact]', err instanceof Error ? err.message : String(err))
     return Response.json({ error: 'Failed to send message. Please try again.' }, { status: 500 })
   }
 

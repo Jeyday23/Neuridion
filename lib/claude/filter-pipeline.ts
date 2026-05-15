@@ -306,11 +306,11 @@ async function sonnetFullFilter(
   profile: ProfileContext,
 ): Promise<FilterDecision> {
   const profileLines = [
-    `Device: ${profile.device_name}`,
-    `Manufacturer: ${profile.manufacturer}`,
-    profile.emdn_code    ? `EMDN Code: ${profile.emdn_code}`       : null,
-    profile.device_class ? `Device Class: ${profile.device_class}` : null,
-    profile.intended_use ? `Intended Use: ${sanitizePii(profile.intended_use)}` : null,
+    `Device: ${sanitizeForLlm(profile.device_name, 200)}`,
+    `Manufacturer: ${sanitizeForLlm(profile.manufacturer, 200)}`,
+    profile.emdn_code    ? `EMDN Code: ${sanitizeForLlm(profile.emdn_code, 50)}`       : null,
+    profile.device_class ? `Device Class: ${sanitizeForLlm(profile.device_class, 50)}` : null,
+    profile.intended_use ? `Intended Use: ${sanitizeForLlm(sanitizePii(profile.intended_use), 500)}` : null,
   ]
     .filter(Boolean)
     .join('\n')
@@ -440,7 +440,7 @@ export async function stage1Filter(
         throw haikuErr
       }
       // Transient error (rate limit, timeout, overload) — fall through to Sonnet
-      console.error('[filter]', 'haiku pre-filter failed, falling back to Sonnet:', haikuErr)
+      console.error('[filter]', 'haiku pre-filter failed, falling back to Sonnet:', haikuErr instanceof Error ? haikuErr.message : String(haikuErr))
     }
 
     let decision: FilterDecision

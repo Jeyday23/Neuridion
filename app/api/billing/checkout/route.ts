@@ -81,7 +81,7 @@ export async function POST(request: Request) {
     const session = await stripe.checkout.sessions.create(sessionParams)
     return Response.json({ url: session.url })
   } catch (err) {
-    console.error('[billing/checkout] Stripe error:', err instanceof Error ? err.message : err)
+    console.error('[billing/checkout] Stripe error:', err instanceof Error ? err.message : String(err))
     return Response.json({ error: 'Unable to create checkout session. Please try again.' }, { status: 502 })
   }
 }

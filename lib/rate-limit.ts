@@ -29,10 +29,11 @@ export async function recordLoginAttempt(
   email: string,
   success: boolean,
 ): Promise<void> {
+  if (success) return
   const admin = createAdminClient()
   const anonIp = anonymizeIp(ip)
   const emailHash = createHash('sha256').update(email.toLowerCase()).digest('hex').slice(0, 32)
-  await admin.from('login_attempts').insert({ ip_address: anonIp, email: emailHash, success })
+  await admin.from('login_attempts').insert({ ip_address: anonIp, email: emailHash, success: false })
 }
 
 // ---------------------------------------------------------------------------

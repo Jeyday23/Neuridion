@@ -580,7 +580,7 @@ export async function POST(request: Request) {
     }
   } else {
     pdfStatus = 'quota_exceeded'
-    console.error('[PDF]', `Quota exceeded for user ${user.id}: ${quotaCheck.reason}`)
+    console.error('[PDF] Quota exceeded for user', user.id)
   }
 
   // Ownership verified via session-scoped query above — admin client needed for report_* columns not in RLS
