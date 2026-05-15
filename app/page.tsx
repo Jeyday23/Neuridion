@@ -81,7 +81,7 @@ export default async function HomePage() {
       <section className="max-w-[1080px] mx-auto px-10 pt-20 pb-10 lg:pt-28 lg:pb-14">
         <AnimatedHero>
           <div className="flex flex-col items-center text-center">
-            <h1 className="text-[42px] lg:text-[56px] font-bold text-[#0F1F3D] leading-[1.1] tracking-tight mb-8 max-w-3xl">
+            <h1 className="text-[48px] lg:text-[64px] font-bold text-[#0F1F3D] leading-[1.08] tracking-tight mb-8 max-w-3xl">
               Post-market surveillance<br />for <span className="text-[#0D9488]">medical devices</span>
             </h1>
             <Link
@@ -110,60 +110,87 @@ export default async function HomePage() {
         </AnimatedHero>
       </section>
 
-      {/* Product showcase — 3 overlapping FSN cards */}
-      <section className="max-w-[1100px] mx-auto px-10 pb-20 overflow-hidden">
-        <div className="relative flex items-start justify-center gap-0 h-[380px]">
-          <div className="relative z-10 w-[480px] flex-shrink-0 -mr-12 mt-8">
-            <HeroFsnCard />
+      {/* Product showcase — 1 large left + 2 smaller overlapping right */}
+      <section className="max-w-[1200px] mx-auto px-10 pb-20">
+        <div className="hidden lg:grid grid-cols-[1fr_60px_1fr] items-start">
+          {/* Left: large FSN card */}
+          <div className="relative z-10">
+            <div className="bg-white border border-[#dfe3ea] rounded-lg overflow-hidden shadow-sm">
+              <div className="bg-[#f6f7f9] border-b border-[#dfe3ea] px-6 py-3.5 flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-[#7a8599] uppercase tracking-wider">BfArM &mdash; Field Safety Notice</span>
+                <span className="text-[11px] text-[#c4cad4] font-mono">BfArM/FSN-2026-0847</span>
+              </div>
+              <div className="px-6 py-5">
+                <div className="text-sm font-semibold text-[#0F1F3D] leading-snug mb-4">FSCA: Potential battery overheating in patient monitoring system during extended use</div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  <div><div className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Device class</div><div className="text-[13px] text-[#1a2236] font-medium">Patient monitor (IIb)</div></div>
+                  <div><div className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Date issued</div><div className="text-[13px] text-[#1a2236] font-medium">12 Mar 2026</div></div>
+                  <div><div className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">FSCA type</div><div className="text-[13px] text-[#1a2236] font-medium">Safety alert + IFU update</div></div>
+                  <div><div className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Risk</div><div className="text-[13px] text-[#1a2236] font-medium">Device shutdown during critical monitoring</div></div>
+                </div>
+              </div>
+              <div className="border-t border-[#dfe3ea] px-6 py-3.5 flex items-center justify-between bg-[#f0fdf9]">
+                <div className="flex items-center gap-3">
+                  <span className="inline-block px-2.5 py-0.5 rounded text-[11px] font-semibold bg-[#dcfce7] text-[#166534]">Relevant</span>
+                  <span className="text-xs text-[#0B7C72] font-medium">Matches your device profile</span>
+                </div>
+                <span className="text-[11px] text-[#7a8599] font-mono">94% confidence</span>
+              </div>
+            </div>
           </div>
-          <div className="relative z-20 w-[340px] flex-shrink-0 hidden lg:block -mr-8">
-            <div className="bg-white border border-[#dfe3ea] rounded-md overflow-hidden shadow-md">
+
+          {/* Spacer */}
+          <div />
+
+          {/* Right: 2 smaller cards, overlapping vertically */}
+          <div className="relative mt-2">
+            <div className="relative z-10 bg-white border border-[#dfe3ea] rounded-lg overflow-hidden shadow-sm">
               <div className="bg-[#f6f7f9] border-b border-[#dfe3ea] px-4 py-2.5 flex items-center justify-between">
-                <span className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider">BfArM &mdash; Field Safety Notice</span>
-                <span className="text-[10px] text-[#c4cad4] font-mono">BfArM/FSN-2026-0847</span>
+                <span className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider">MHRA &mdash; Medical Device Alert</span>
+                <span className="text-[10px] text-[#c4cad4] font-mono">MHRA/MDA-2026-014</span>
               </div>
               <div className="px-4 py-3">
-                <div className="text-xs font-semibold text-[#0F1F3D] leading-snug mb-2">FSCA: Potential battery overheating in patient monitoring system during extended use</div>
+                <div className="text-xs font-semibold text-[#0F1F3D] leading-snug mb-2">Infusion pump software update: risk of incorrect dose delivery in paediatric mode</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Device class</div><div className="text-[11px] text-[#1a2236] font-medium">Patient monitor (IIb)</div></div>
-                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Date issued</div><div className="text-[11px] text-[#1a2236] font-medium">12 Mar 2026</div></div>
-                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">FSCA type</div><div className="text-[11px] text-[#1a2236] font-medium">Safety alert + IFU update</div></div>
-                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Risk</div><div className="text-[11px] text-[#1a2236] font-medium">Device shutdown during critical monitoring</div></div>
+                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Device class</div><div className="text-[11px] text-[#1a2236] font-medium">Infusion pump (IIb)</div></div>
+                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Date issued</div><div className="text-[11px] text-[#1a2236] font-medium">28 Feb 2026</div></div>
                 </div>
               </div>
-              <div className="border-t border-[#dfe3ea] px-4 py-2.5 flex items-center justify-between bg-[#f0fdf9]">
+              <div className="border-t border-[#dfe3ea] px-4 py-2.5 flex items-center justify-between bg-[#fffbeb]">
                 <div className="flex items-center gap-2">
-                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-[#dcfce7] text-[#166534]">Relevant</span>
-                  <span className="text-[10px] text-[#0B7C72] font-medium">Matches your device profile</span>
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-[#fef3c7] text-[#92400e]">Uncertain</span>
+                  <span className="text-[10px] text-[#b45309] font-medium">Requires further review</span>
                 </div>
-                <span className="text-[10px] text-[#7a8599] font-mono">94% confidence</span>
+                <span className="text-[10px] text-[#7a8599] font-mono">62% confidence</span>
+              </div>
+            </div>
+
+            <div className="relative z-20 -mt-4 ml-6 bg-white border border-[#dfe3ea] rounded-lg overflow-hidden shadow-md">
+              <div className="bg-[#f6f7f9] border-b border-[#dfe3ea] px-4 py-2.5 flex items-center justify-between">
+                <span className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider">FDA MAUDE &mdash; Adverse Event</span>
+                <span className="text-[10px] text-[#c4cad4] font-mono">FDA/MW-10284751</span>
+              </div>
+              <div className="px-4 py-3">
+                <div className="text-xs font-semibold text-[#0F1F3D] leading-snug mb-2">Dental implant abutment fracture reported during routine follow-up examination</div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Device class</div><div className="text-[11px] text-[#1a2236] font-medium">Dental implant (III)</div></div>
+                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Date issued</div><div className="text-[11px] text-[#1a2236] font-medium">5 Jan 2026</div></div>
+                </div>
+              </div>
+              <div className="border-t border-[#dfe3ea] px-4 py-2.5 flex items-center justify-between bg-[#fef2f2]">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-[#fee2e2] text-[#991b1b]">Not Relevant</span>
+                  <span className="text-[10px] text-[#dc2626] font-medium">Different device category</span>
+                </div>
+                <span className="text-[10px] text-[#7a8599] font-mono">97% confidence</span>
               </div>
             </div>
           </div>
-          <div className="relative z-30 w-[300px] flex-shrink-0 hidden lg:block mt-12">
-            <div className="bg-white border border-[#dfe3ea] rounded-md overflow-hidden shadow-lg">
-              <div className="bg-[#f6f7f9] border-b border-[#dfe3ea] px-3.5 py-2 flex items-center justify-between">
-                <span className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider">BfArM &mdash; Field Safety Notice</span>
-                <span className="text-[9px] text-[#c4cad4] font-mono">BfArM/FSN-2026-0847</span>
-              </div>
-              <div className="px-3.5 py-2.5">
-                <div className="text-[11px] font-semibold text-[#0F1F3D] leading-snug mb-1.5">FSCA: Potential battery overheating in patient monitoring system during extended use</div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                  <div><div className="text-[8px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Device class</div><div className="text-[10px] text-[#1a2236] font-medium">Patient monitor (IIb)</div></div>
-                  <div><div className="text-[8px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Date issued</div><div className="text-[10px] text-[#1a2236] font-medium">12 Mar 2026</div></div>
-                  <div><div className="text-[8px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">FSCA type</div><div className="text-[10px] text-[#1a2236] font-medium">Safety alert + IFU update</div></div>
-                  <div><div className="text-[8px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Risk</div><div className="text-[10px] text-[#1a2236] font-medium">Device shutdown during critical monitoring</div></div>
-                </div>
-              </div>
-              <div className="border-t border-[#dfe3ea] px-3.5 py-2 flex items-center justify-between bg-[#f0fdf9]">
-                <div className="flex items-center gap-2">
-                  <span className="inline-block px-2 py-0.5 rounded text-[9px] font-semibold bg-[#dcfce7] text-[#166534]">Relevant</span>
-                  <span className="text-[9px] text-[#0B7C72] font-medium">Matches your device profile</span>
-                </div>
-                <span className="text-[9px] text-[#7a8599] font-mono">94% confidence</span>
-              </div>
-            </div>
-          </div>
+        </div>
+
+        {/* Mobile fallback: single card */}
+        <div className="lg:hidden flex justify-center">
+          <HeroFsnCard />
         </div>
       </section>
 
