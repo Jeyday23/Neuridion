@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { checkLoginRateLimit, recordLoginAttempt, rateLimit, getClientIp } from '@/lib/rate-limit'
 import { logAuditEvent } from '@/lib/audit'
+import { checkFailedLoginAlert } from '@/lib/security-alerts'
 import { z } from 'zod'
 
 const SendSchema = z.object({
@@ -13,7 +14,7 @@ const SendSchema = z.object({
 const VerifySchema = z.object({
   action: z.literal('verify'),
   email: z.string().email(),
-  code: z.string().length(8),
+  code: z.string().min(6).max(8),
 })
 
 const RequestSchema = z.discriminatedUnion('action', [SendSchema, VerifySchema])
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
     })
 
     await recordLoginAttempt(ip, data.email, !error)
+    if (error) checkFailedLoginAlert(ip).catch(() => {})
 
     if (error) {
       if (error.status === 429 || error.message?.includes('security purposes')) {
@@ -85,6 +87,7 @@ export async function POST(req: NextRequest) {
   })
 
   await recordLoginAttempt(ip, data.email, !error)
+  if (error) checkFailedLoginAlert(ip).catch(() => {})
 
   if (error) {
     return NextResponse.json(
