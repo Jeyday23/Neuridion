@@ -1,5 +1,6 @@
 import { createHash } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkSecurityAlert } from '@/lib/security-alerts'
 import type { Json } from '@/types/supabase'
 
 function anonymizeIp(ip: string): string {
@@ -55,6 +56,8 @@ export async function logAuditEvent(
       ip_address: rawIp ? anonymizeIp(rawIp) : null,
       user_agent: hdrs?.get('user-agent') ?? null,
     })
+    const alertIp = rawIp ? anonymizeIp(rawIp) : null
+    checkSecurityAlert(eventType, safeData ?? null, alertIp).catch(() => {})
   } catch (err) {
     console.error('[audit] failed:', err instanceof Error ? err.message : String(err))
     // Never throw — audit failure must not block user action
