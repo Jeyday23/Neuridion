@@ -54,9 +54,11 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   }
 
   // 2. Manufacturer pre-filter
-  const filterSearchTerms = buildManufacturerSearchTerms(profile.manufacturer ?? '', profile.device_name ?? '')
+  const ownFilterTerms    = buildManufacturerSearchTerms(profile.manufacturer ?? '', profile.device_name ?? '')
   const manufacturerTerms = extractManufacturerTerms(profile.manufacturer ?? '')
-  const deviceTerms       = filterSearchTerms.filter((t) => !manufacturerTerms.includes(t))
+  const deviceTerms       = ownFilterTerms.filter((t) => !manufacturerTerms.includes(t))
+  const { competitorTerms } = ctx
+  const filterSearchTerms = [...new Set([...ownFilterTerms, ...competitorTerms])]
   let toFilter            = needsFilter
 
   if (filterSearchTerms.length > 0) {
@@ -70,7 +72,9 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
       }
       const hay = `${row.title} ${row.manufacturer} ${row.raw_content}`.toLowerCase()
       let matches: boolean
-      if (deviceTerms.length === 0) {
+      if (competitorTerms.some((t) => hay.includes(t.toLowerCase()))) {
+        matches = true
+      } else if (deviceTerms.length === 0) {
         matches = manufacturerTerms.some((t) => hay.includes(t.toLowerCase()))
       } else {
         const mfrMatch = manufacturerTerms.length === 0 || manufacturerTerms.some((t) => hay.includes(t.toLowerCase()))
