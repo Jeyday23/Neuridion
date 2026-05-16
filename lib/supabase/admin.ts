@@ -7,6 +7,10 @@ import type { Database } from '@/types/supabase'
  * Never expose to the browser.
  */
 export function createAdminClient() {
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[ADMIN_CLIENT] created from:', new Error().stack?.split('\n')[2]?.trim())
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 

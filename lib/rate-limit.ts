@@ -15,13 +15,24 @@ export async function checkLoginRateLimit(ip: string): Promise<{
   allowed: boolean
   remainingAttempts: number
 }> {
+  const MINIMUM_RESPONSE_MS = 200
+  const start = Date.now()
+
   // Use the FULL IP for rate limiting (ephemeral Redis/memory counter — not persisted, no GDPR concern).
   // The anonymized IP is only used when recording attempts to the database (see recordLoginAttempt).
   const rl = await rateLimit(`login:${ip}`, MAX_ATTEMPTS, WINDOW_MINUTES * 60 * 1000)
-  return {
+  const result = {
     allowed:           rl.allowed,
     remainingAttempts: rl.allowed ? MAX_ATTEMPTS - 1 : 0,
   }
+
+  // Constant-time floor: prevent timing side-channels that reveal valid vs invalid emails.
+  const elapsed = Date.now() - start
+  if (elapsed < MINIMUM_RESPONSE_MS) {
+    await new Promise(resolve => setTimeout(resolve, MINIMUM_RESPONSE_MS - elapsed))
+  }
+
+  return result
 }
 
 export async function recordLoginAttempt(

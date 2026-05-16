@@ -65,7 +65,7 @@ export async function PATCH(
     .single()
 
   if (fetchError || !existing) {
-    return Response.json({ error: 'Profile not found' }, { status: 404 })
+    return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
   // Compute which fields changed
@@ -171,7 +171,7 @@ export async function DELETE(
     .single()
 
   if (fetchError || !profile) {
-    return Response.json({ error: 'Profile not found' }, { status: 404 })
+    return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
   // NULL out legacy search_run_id FK on fsn_results for all runs under this profile

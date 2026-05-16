@@ -275,8 +275,8 @@ async function haikuPreFilter(
         {
           role: 'user',
           content:
-            `Device profile: ${profile.device_name} by ${profile.manufacturer}` +
-            (profile.device_class ? `, ${profile.device_class}` : '') +
+            `Device profile: ${sanitizeForLlm(profile.device_name, 200)} by ${sanitizeForLlm(profile.manufacturer, 200)}` +
+            (profile.device_class ? `, ${sanitizeForLlm(profile.device_class, 50)}` : '') +
             `\n\n<FSN_DATA>\nFSN manufacturer: ${sanitizeForLlm(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}` +
             `\nFSN: "${sanitizeForLlm(sanitizePii(fsn.title), 500)}"\n</FSN_DATA>\n\n` +
             'Is this FSN CLEARLY NOT relevant to the device profile? ' +

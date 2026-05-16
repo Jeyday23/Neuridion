@@ -154,7 +154,17 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items
       const url = buildUrl(page, fromDate, toDate)
       const res = await fetch(url, { headers: { 'User-Agent': UA } })
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching page ${page}`)
+
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('text/html')) {
+        warnings.push(`BfArM: unexpected content type on page ${page}: ${contentType}`)
+        return { items: [], warnings }
+      }
       const html = await res.text()
+      if (html.length > 5 * 1024 * 1024) {
+        warnings.push(`BfArM: response too large on page ${page}: ${html.length} bytes`)
+        return { items: [], warnings }
+      }
 
       const pageItems = parsePage(html)
 
@@ -249,7 +259,18 @@ async function scrapeYearShortcut(shortcut: string): Promise<ParsedItem[]> {
       console.error('[bfarm]', `${shortcut} page ${pageNum}: HTTP ${res.status}, stopping`)
       break
     }
-    const html      = await res.text()
+
+    const contentType = res.headers.get('content-type') || ''
+    if (!contentType.includes('text/html')) {
+      console.error('[bfarm]', `${shortcut} page ${pageNum}: unexpected content type: ${contentType}, stopping`)
+      break
+    }
+    const html = await res.text()
+    if (html.length > 5 * 1024 * 1024) {
+      console.error('[bfarm]', `${shortcut} page ${pageNum}: response too large (${html.length} bytes), stopping`)
+      break
+    }
+
     const pageItems = parsePage(html)
 
     if (pageItems.length === 0) break

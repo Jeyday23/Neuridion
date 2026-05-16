@@ -45,6 +45,9 @@ export async function middleware(request: NextRequest) {
 
   if (!pathname.startsWith('/api/')) return NextResponse.next()
 
+  // Generate a unique request ID for correlation in logs and downstream handlers.
+  const requestId = crypto.randomUUID()
+
   // Global per-IP rate limit (120 req/min across all API routes)
   const limiter = getGlobalLimiter()
   if (limiter) {
@@ -54,7 +57,7 @@ export async function middleware(request: NextRequest) {
       const retryAfter = result.reset ? Math.ceil((result.reset - Date.now()) / 1000) : 60
       return NextResponse.json(
         { error: 'Too many requests' },
-        { status: 429, headers: { 'Retry-After': String(retryAfter) } },
+        { status: 429, headers: { 'Retry-After': String(retryAfter), 'x-request-id': requestId } },
       )
     }
   }
@@ -69,13 +72,15 @@ export async function middleware(request: NextRequest) {
       if (origin !== allowed) {
         return NextResponse.json(
           { error: 'Forbidden' },
-          { status: 403 },
+          { status: 403, headers: { 'x-request-id': requestId } },
         )
       }
     }
   }
 
-  return NextResponse.next()
+  const response = NextResponse.next()
+  response.headers.set('x-request-id', requestId)
+  return response
 }
 
 export const config = {

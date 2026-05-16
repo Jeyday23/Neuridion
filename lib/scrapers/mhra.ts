@@ -177,7 +177,18 @@ async function fetchJson(url: string): Promise<unknown | null> {
       console.error(`[mhra] HTTP ${res.status} ${url}`)
       return null
     }
-    return res.json()
+
+    const contentType = res.headers.get('content-type') || ''
+    if (!contentType.includes('json')) {
+      console.error(`[mhra] Unexpected content type from ${url}: ${contentType}`)
+      return null
+    }
+    const text = await res.text()
+    if (text.length > 5 * 1024 * 1024) {
+      console.error(`[mhra] Response too large from ${url}: ${text.length} bytes`)
+      return null
+    }
+    return JSON.parse(text)
   } catch (err) {
     console.error(`[mhra] Fetch failed: ${url}:`, err instanceof Error ? err.message : String(err))
     return null
