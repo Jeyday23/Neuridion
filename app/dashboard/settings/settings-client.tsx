@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useToast } from '@/app/components/ui/ToastProvider'
+import { apiFetch } from '@/lib/fetch'
 
 interface Props {
   initialEmail:       string

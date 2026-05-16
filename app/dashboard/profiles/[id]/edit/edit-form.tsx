@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
+import { apiFetch } from '@/lib/fetch'
 
 const DEVICE_CLASSES = ['Class I', 'Class IIa', 'Class IIb', 'Class III'] as const
 
@@ -57,9 +58,9 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
     setError(null)
 
     try {
-      const res = await fetch(`/api/profiles/${profile.id}`, {
+      const res = await apiFetch(`/api/profiles/${profile.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-csrf-protection': '1' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           device_name:      deviceName.trim(),
           manufacturer:     manufacturer.trim(),

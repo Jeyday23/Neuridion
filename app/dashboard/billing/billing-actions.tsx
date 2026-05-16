@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useToast } from '@/app/components/ui/ToastProvider'
+import { apiFetch } from '@/lib/fetch'
 
 type Props =
   | { mode: 'checkout'; priceId: string; label: string }
@@ -17,9 +18,9 @@ export function BillingActions(props: Props) {
     setError(null)
     try {
       if (props.mode === 'checkout') {
-        const res = await fetch('/api/billing/checkout', {
+        const res = await apiFetch('/api/billing/checkout', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-csrf-protection': '1' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ price_id: props.priceId }),
         })
         const data = await res.json() as { url?: string; error?: string }
@@ -27,7 +28,7 @@ export function BillingActions(props: Props) {
         if (!data.url.startsWith('https://checkout.stripe.com')) throw new Error('Invalid checkout URL')
         window.location.href = data.url
       } else {
-        const res = await fetch('/api/billing/portal', { method: 'POST', headers: { 'x-csrf-protection': '1' } })
+        const res = await apiFetch('/api/billing/portal', { method: 'POST' })
         const data = await res.json() as { url?: string; error?: string }
         if (!res.ok || !data.url) throw new Error(data.error ?? 'Failed to open billing portal')
         if (!data.url.startsWith('https://billing.stripe.com')) throw new Error('Invalid portal URL')

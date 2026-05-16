@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import crypto from 'crypto'
+import { Ratelimit } from '@upstash/ratelimit'
+import { Redis } from '@upstash/redis'
 import { buildCspHeader } from '@/lib/security/csp'
 import { safeCompare } from '@/lib/utils/auth'
 
@@ -11,6 +13,30 @@ function getSessionHmacKey(): string {
 }
 
 const SESSION_HMAC_KEY = getSessionHmacKey()
+
+// ── Global per-IP rate limiting (120 req/min) ────────────────────────────────
+
+let globalLimiter: Ratelimit | null = null
+function getGlobalLimiter(): Ratelimit | null {
+  if (globalLimiter) return globalLimiter
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
+  if (!url || !token) return null
+  globalLimiter = new Ratelimit({
+    redis: new Redis({ url, token }),
+    limiter: Ratelimit.slidingWindow(120, '60 s'),
+    prefix: 'rl:global',
+  })
+  return globalLimiter
+}
+
+function getIp(request: NextRequest): string {
+  return request.headers.get('x-real-ip')
+    ?? request.headers.get('x-forwarded-for')?.split(',')[0].trim()
+    ?? '127.0.0.1'
+}
+
+const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE'])
 
 const PUBLIC_PATHS = [
   '/', '/login', '/signup', '/signup/confirm', '/admin/login',
@@ -39,6 +65,23 @@ const SESSION_COOKIE     = 'session_started_at'
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const requestId = crypto.randomUUID()
+
+  // Global per-IP rate limit (120 req/min across all API routes)
+  if (pathname.startsWith('/api/')) {
+    const limiter = getGlobalLimiter()
+    if (limiter) {
+      const ip = getIp(request)
+      const result = await limiter.limit(ip)
+      if (!result.success) {
+        const retryAfter = result.reset ? Math.ceil((result.reset - Date.now()) / 1000) : 60
+        return NextResponse.json(
+          { error: 'Too many requests' },
+          { status: 429, headers: { 'Retry-After': String(retryAfter), 'x-request-id': requestId } },
+        )
+      }
+    }
+  }
 
   let supabaseResponse = NextResponse.next({ request })
 
@@ -95,18 +138,29 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // CSRF protection: mutating requests to /api/ must include Content-Type: application/json
-  // or X-Requested-With header. This blocks cross-origin HTML form submissions.
-  if (pathname.startsWith('/api/')) {
-    const method = request.method.toUpperCase()
-    if (method === 'POST' || method === 'PATCH' || method === 'DELETE') {
-      const isExempt = CSRF_EXEMPT_ROUTES.some((r) => pathname.startsWith(r))
-      if (!isExempt) {
-        const contentType = request.headers.get('content-type') ?? ''
-        const hasJsonContent = contentType.includes('application/json')
-        const hasXhr = request.headers.has('x-requested-with')
-        if (!hasJsonContent && !hasXhr) {
-          return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  // CSRF protection on mutating API routes (two layers):
+  // 1. Custom header check — browser SOP prevents cross-origin JS from setting
+  //    custom headers, so x-csrf-protection proves the request is from our SPA.
+  // 2. Origin check — defense-in-depth against misconfigured CORS.
+  if (pathname.startsWith('/api/') && MUTATING_METHODS.has(request.method)) {
+    const isExempt = CSRF_EXEMPT_ROUTES.some((r) => pathname.startsWith(r))
+    if (!isExempt) {
+      if (!request.headers.has('x-csrf-protection')) {
+        return NextResponse.json(
+          { error: 'Forbidden' },
+          { status: 403, headers: { 'x-request-id': requestId } },
+        )
+      }
+
+      const origin = request.headers.get('origin')
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+      if (origin && siteUrl) {
+        const allowed = new URL(siteUrl).origin
+        if (origin !== allowed) {
+          return NextResponse.json(
+            { error: 'Forbidden' },
+            { status: 403, headers: { 'x-request-id': requestId } },
+          )
         }
       }
     }
@@ -117,9 +171,10 @@ export async function proxy(request: NextRequest) {
     if (!user) {
       const isPublicApi = PUBLIC_API_ROUTES.some((r) => pathname.startsWith(r))
       if (!isPublicApi) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'x-request-id': requestId } })
       }
     }
+    supabaseResponse.headers.set('x-request-id', requestId)
     return addSecurityHeaders(supabaseResponse)
   }
 
@@ -171,6 +226,7 @@ export async function proxy(request: NextRequest) {
     supabaseResponse.headers.set('Content-Security-Policy', buildCspHeader(nonce))
   }
 
+  supabaseResponse.headers.set('x-request-id', requestId)
   return addSecurityHeaders(supabaseResponse)
 }
 

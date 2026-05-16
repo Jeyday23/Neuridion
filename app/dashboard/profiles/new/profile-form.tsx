@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
+import { apiFetch } from '@/lib/fetch'
 
 const DEVICE_CLASSES = ['Class I', 'Class IIa', 'Class IIb', 'Class III']
 
@@ -38,9 +39,9 @@ export function ProfileForm() {
     const fd = new FormData(e.currentTarget)
 
     try {
-      const res = await fetch('/api/profiles', {
+      const res = await apiFetch('/api/profiles', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-csrf-protection': '1' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           device_name:      (fd.get('device_name') as string)?.trim(),
           manufacturer:     (fd.get('manufacturer') as string)?.trim(),

@@ -578,9 +578,9 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     const startedAt = Date.now()
 
     try {
-      const res = await fetch('/api/search-runs', {
+      const res = await apiFetch('/api/search-runs', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'x-csrf-protection': '1' },
+        headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           profile_id:   profileId,
           period_from:  fromDate,
