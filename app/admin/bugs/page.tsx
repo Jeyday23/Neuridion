@@ -34,7 +34,7 @@ export default async function AdminBugsPage() {
   const admin = createAdminClient()
   const { data } = await admin
     .from('bug_reports')
-    .select('*')
+    .select('id, user_id, category, description, page_url, user_agent, status, admin_notes, created_at')
     .order('created_at', { ascending: false })
     .limit(100)
 

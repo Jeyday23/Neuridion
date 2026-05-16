@@ -174,6 +174,16 @@ export async function DELETE(
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
+  // Clean up IFU document storage files
+  const { data: ifuFiles } = await db.storage
+    .from('ifu-documents')
+    .list(id)
+
+  if (ifuFiles && ifuFiles.length > 0) {
+    const ifuPaths = ifuFiles.map((f) => `${id}/${f.name}`)
+    await db.storage.from('ifu-documents').remove(ifuPaths)
+  }
+
   // NULL out legacy search_run_id FK on fsn_results for all runs under this profile
   const { data: runs, error: runsError } = await db
     .from('search_runs')

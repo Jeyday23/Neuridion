@@ -84,6 +84,27 @@ export async function POST(request: Request) {
     await admin.from('fsn_results').delete().in('run_id', runIds)
   }
 
+  // Clean up storage files from all buckets before data deletion
+  const { data: userProfiles } = await admin
+    .from('product_profiles')
+    .select('id')
+    .eq('user_id', user.id)
+
+  for (const p of userProfiles ?? []) {
+    const { data: ifuFiles } = await admin.storage.from('ifu-documents').list(p.id)
+    if (ifuFiles && ifuFiles.length > 0) {
+      await admin.storage.from('ifu-documents').remove(ifuFiles.map((f) => `${p.id}/${f.name}`))
+    }
+  }
+
+  const { data: attachFiles } = await admin.storage
+    .from('search-attachments')
+    .list(user.id)
+
+  if (attachFiles && attachFiles.length > 0) {
+    await admin.storage.from('search-attachments').remove(attachFiles.map((f) => `${user.id}/${f.name}`))
+  }
+
   await Promise.all([
     admin.from('search_runs').delete().eq('user_id', user.id),
     admin.from('product_profiles').delete().eq('user_id', user.id),

@@ -125,6 +125,21 @@ export async function DELETE(
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
+  // Clean up report storage files before cascade delete
+  const { data: reports } = await db
+    .from('reports')
+    .select('pdf_storage_path, excel_storage_path')
+    .eq('run_id', id)
+
+  if (reports && reports.length > 0) {
+    const paths = reports
+      .flatMap((r) => [r.pdf_storage_path, r.excel_storage_path])
+      .filter((p): p is string => !!p)
+    if (paths.length > 0) {
+      await db.storage.from('reports').remove(paths)
+    }
+  }
+
   // NULL out the legacy search_run_id FK (NO ACTION constraint) before deleting
   const { error: unlinkError } = await db
     .from('fsn_results')

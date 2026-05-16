@@ -14,10 +14,10 @@ async function getStats() {
     { count: totalRuns },
     { count: totalFsn },
   ] = await Promise.all([
-    admin.from('users').select('*', { count: 'exact', head: true }),
-    admin.from('users').select('*', { count: 'exact', head: true }).gte('created_at', weekAgo),
-    admin.from('search_runs').select('*', { count: 'exact', head: true }),
-    admin.from('fsn_results').select('*', { count: 'exact', head: true }),
+    admin.from('users').select('id', { count: 'exact', head: true }),
+    admin.from('users').select('id', { count: 'exact', head: true }).gte('created_at', weekAgo),
+    admin.from('search_runs').select('id', { count: 'exact', head: true }),
+    admin.from('fsn_results').select('id', { count: 'exact', head: true }),
   ])
 
   // Trial stats — table may not exist yet; handle gracefully
@@ -31,9 +31,9 @@ async function getStats() {
       { count: redeemed },
       { count: active },
     ] = await Promise.all([
-      admin.from('trial_codes').select('*', { count: 'exact', head: true }).gte('created_at', monthAgo),
-      admin.from('trial_codes').select('*', { count: 'exact', head: true }).gte('redeemed_at', monthAgo),
-      admin.from('users').select('*', { count: 'exact', head: true }).eq('plan', 'trial'),
+      admin.from('trial_codes').select('id', { count: 'exact', head: true }).gte('created_at', monthAgo),
+      admin.from('trial_codes').select('id', { count: 'exact', head: true }).gte('redeemed_at', monthAgo),
+      admin.from('users').select('id', { count: 'exact', head: true }).eq('plan', 'trial'),
     ])
     codesIssuedMonth   = issued   ?? 0
     codesRedeemedMonth = redeemed ?? 0
@@ -50,7 +50,7 @@ async function getStats() {
     if (userIds.length > 0) {
       const { count } = await admin
         .from('users')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .in('id', userIds)
         .not('plan', 'in', '("free","trial")')
       trialsConverted = count ?? 0

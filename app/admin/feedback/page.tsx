@@ -9,7 +9,7 @@ export default async function AdminFeedbackPage() {
   const admin = createAdminClient()
   const { data: feedback } = await admin
     .from('user_feedback')
-    .select('*')
+    .select('id, rating, user_id, triggered_by, submitted_at, most_useful, missing_features')
     .order('submitted_at', { ascending: false })
     .limit(100)
 

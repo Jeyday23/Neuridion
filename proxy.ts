@@ -219,11 +219,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // CSP nonce — inject per-request nonce into response headers (production only)
+  // CSP nonce — inject per-request nonce into response headers (all environments)
+  const nonce = crypto.randomBytes(16).toString('base64')
+  supabaseResponse.headers.set('x-nonce', nonce)
   if (process.env.NODE_ENV === 'production') {
-    const nonce = crypto.randomBytes(16).toString('base64')
-    supabaseResponse.headers.set('x-nonce', nonce)
     supabaseResponse.headers.set('Content-Security-Policy', buildCspHeader(nonce))
+  } else {
+    supabaseResponse.headers.set('Content-Security-Policy', buildCspHeader(nonce).replace(
+      "script-src 'self'",
+      "script-src 'self' 'unsafe-eval'"
+    ))
   }
 
   supabaseResponse.headers.set('x-request-id', requestId)

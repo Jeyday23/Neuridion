@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { stripe } from '@/lib/stripe'
 import { rateLimit } from '@/lib/rate-limit'
+import { logAuditEvent } from '@/lib/audit'
 import { z } from 'zod'
 
 // Derived at startup from env — same source of truth as planFromPriceId() in lib/plans.ts.
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
 
   try {
     const session = await stripe.checkout.sessions.create(sessionParams)
+    await logAuditEvent(user.id, 'billing_event', { action: 'checkout_created', price_id }, request)
     return Response.json({ url: session.url })
   } catch (err) {
     console.error('[billing/checkout] Stripe error:', err instanceof Error ? err.message : String(err))

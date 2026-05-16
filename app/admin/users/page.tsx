@@ -19,6 +19,7 @@ async function getUsers(): Promise<UserRow[]> {
     .from('users')
     .select('id, email, full_name, company_name, plan, role, created_at')
     .order('created_at', { ascending: false })
+    .limit(500)
 
   if (error) throw new Error(error.message)
   return (data ?? []) as UserRow[]

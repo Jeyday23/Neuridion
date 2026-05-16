@@ -440,7 +440,7 @@ export async function POST(request: Request) {
   // Fetch run + profile (validates ownership)
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('*, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
+    .select('id, profile_id, user_id, status, period_from, period_to, relevant_count, uncertain_count, excluded_count, dbs_selected, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
     .eq('id', run_id)
     .eq('user_id', user.id)
     .single()

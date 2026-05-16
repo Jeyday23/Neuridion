@@ -148,6 +148,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   )
   if (uncertainBfarm.length > 0) {
     const detailLimit = pLimit(2)
+    const pendingUpdates: { id: string; content: string }[] = []
     const enriched = await Promise.all(
       uncertainBfarm.map(d => detailLimit(async () => {
         const row = toFilter.find(r => r.id === d.fsn_result_id)
@@ -157,7 +158,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
         const detail = await fetchBfarmDetail(fsnRow.source_url)
         if (!detail) return null
         const enrichedContent = sanitizeForLlm(`${row.title}\n\n${detail}`)
-        await db.from('fsn_results').update({ raw_content: enrichedContent }).eq('id', row.id)
+        pendingUpdates.push({ id: row.id, content: enrichedContent })
         const refiltered = await stage1Filter(
           { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: enrichedContent, fsn_date: row.fsn_date },
           profile,
@@ -166,6 +167,14 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
         return { ...refiltered, fsn_result_id: row.id }
       }))
     )
+
+    // Batch all content updates
+    if (pendingUpdates.length > 0) {
+      await Promise.all(
+        pendingUpdates.map((u) => db.from('fsn_results').update({ raw_content: u.content }).eq('id', u.id))
+      )
+    }
+
     for (const result of enriched) {
       if (!result || result.decision === 'uncertain') continue
       const idx = ctx.decisions.findIndex(d => d.fsn_result_id === result.fsn_result_id)

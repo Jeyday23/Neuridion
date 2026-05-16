@@ -127,7 +127,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     }
 
     if (canonicalPersisted && !hasManufacturerTerms) {
-      for (const range of fetchedRanges) await mergeCoverage(sourceId, range)
+      await Promise.all(fetchedRanges.map((range) => mergeCoverage(sourceId, range)))
     }
 
     progressState.sources_done.push(sourceId)

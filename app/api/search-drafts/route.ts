@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { logAuditEvent } from '@/lib/audit'
 import { z } from 'zod'
 
 const SaveDraftSchema = z.object({
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
       console.error('[search-drafts:POST:upsert]', error.message)
       return Response.json({ error: 'Something went wrong' }, { status: 500 })
     }
+    await logAuditEvent(user.id, 'preference_changed', { action: 'draft_updated', draft_id: data.id }, request)
     return Response.json({ id: data.id, saved_at: data.updated_at })
   }
 
@@ -106,6 +108,7 @@ export async function POST(request: Request) {
     console.error('[search-drafts:POST:insert]', error.message)
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
+  await logAuditEvent(user.id, 'preference_changed', { action: 'draft_created', draft_id: data.id }, request)
   return Response.json({ id: data.id, saved_at: data.created_at }, { status: 201 })
 }
 

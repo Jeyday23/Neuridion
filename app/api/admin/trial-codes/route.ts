@@ -90,6 +90,7 @@ export async function GET() {
     .from('trial_codes')
     .select('id, code, batch_name, redeemed_by_email, redeemed_at, created_by, created_at, expires_at')
     .order('created_at', { ascending: false })
+    .limit(500)
 
   if (error) {
     console.error('[trial-codes:GET]', error.message)
