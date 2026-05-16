@@ -7,7 +7,7 @@ export async function sendFeedbackNotification(feedback: {
   triggered_by: string
 }): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) throw new Error('RESEND_API_KEY is not set')
+  if (!apiKey) return
 
   const from = process.env.RESEND_FROM_ADDRESS ?? 'Neuridion <noreply@neuridion.eu>'
   const subject = `New Feedback — ${feedback.rating}/5 stars`
@@ -48,7 +48,7 @@ export async function sendContactMessage(contact: {
   message: string
 }): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY
-  if (!apiKey) throw new Error('RESEND_API_KEY is not set')
+  if (!apiKey) return
 
   const from = process.env.RESEND_FROM_ADDRESS ?? 'Neuridion <noreply@neuridion.eu>'
   const subject = `[Contact] ${contact.subject}`
@@ -104,9 +104,7 @@ export async function sendSearchRunNotification(
   const apiKey = process.env.RESEND_API_KEY
   const from = process.env.RESEND_FROM_ADDRESS ?? 'Neuridion <noreply@neuridion.eu>'
 
-  if (!apiKey) {
-    throw new Error('RESEND_API_KEY is not set')
-  }
+  if (!apiKey) return
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const archiveUrl = `${appUrl}/dashboard/archive`

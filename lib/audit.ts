@@ -8,19 +8,16 @@ function anonymizeIp(ip: string): string {
   return ip.replace(/\.\d+$/, '.0')
 }
 
-function getAuditHmacKey(): string {
-  const key = process.env.AUDIT_HMAC_KEY
-  if (!key) throw new Error('AUDIT_HMAC_KEY environment variable is required')
-  return key
-}
-
 function hashPii(data: Record<string, unknown>): Record<string, unknown> {
   const out = { ...data }
   if (typeof out.email === 'string') {
-    out.email_hash = createHmac('sha256', getAuditHmacKey())
-      .update(out.email.toLowerCase())
-      .digest('hex')
-      .slice(0, 32)
+    const key = process.env.AUDIT_HMAC_KEY
+    if (key) {
+      out.email_hash = createHmac('sha256', key)
+        .update(out.email.toLowerCase())
+        .digest('hex')
+        .slice(0, 32)
+    }
     delete out.email
   }
   return out
