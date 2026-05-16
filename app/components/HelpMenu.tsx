@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { CircleHelp, Bug, MessageSquare, X } from 'lucide-react'
+import { apiFetch } from '@/lib/fetch'
 import { FeedbackPopup as FeedbackPopupInline } from '@/app/components/FeedbackPopup'
 
 export function HelpMenu() {
@@ -79,7 +80,7 @@ function ReportModal({ onClose }: { onClose: () => void }) {
     setSubmitting(true)
     setError('')
 
-    const res = await fetch('/api/bugs', {
+    const res = await apiFetch('/api/bugs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

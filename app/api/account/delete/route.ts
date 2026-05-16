@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { stripe } from '@/lib/stripe'
 import { z } from 'zod'
-import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { rateLimit, rateLimitWithIp, getClientIp } from '@/lib/rate-limit'
 
 const CONFIRMATION_PHRASE = 'DELETE MY ACCOUNT'
 const GRACE_PERIOD_DAYS   = 30
@@ -14,7 +14,7 @@ const DeleteAccountSchema = z.object({
 
 export async function POST(request: Request) {
   const ip = getClientIp(request)
-  const rl = await rateLimit(`account-delete:${ip}`, 3, 300_000)
+  const rl = await rateLimitWithIp(`account-delete:${ip}`, 3, 300_000, ip)
   if (!rl.allowed) {
     return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }

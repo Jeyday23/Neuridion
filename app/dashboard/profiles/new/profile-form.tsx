@@ -40,7 +40,7 @@ export function ProfileForm() {
     try {
       const res = await fetch('/api/profiles', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-csrf-protection': '1' },
         body: JSON.stringify({
           device_name:      (fd.get('device_name') as string)?.trim(),
           manufacturer:     (fd.get('manufacturer') as string)?.trim(),

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { apiFetch } from '@/lib/fetch'
 import Link from 'next/link'
 import { ArrowLeft, Send, CheckCircle } from 'lucide-react'
 import { NeuridionWordmark } from '@/components/ui/neuridion-wordmark'
@@ -23,7 +24,7 @@ export default function ContactPage() {
     const honeypot = (form.elements.namedItem('website') as HTMLInputElement)?.value ?? ''
 
     try {
-      const res = await fetch('/api/contact', {
+      const res = await apiFetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -3,7 +3,7 @@ import { PLANS, type PlanId } from '@/lib/plans'
 import { z } from 'zod'
 import { logAuditEvent } from '@/lib/audit'
 import type { Json } from '@/types/supabase'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimit, rateLimitWithIp, getClientIp } from '@/lib/rate-limit'
 
 const CompetitorTermSchema = z.object({
   name:         z.string().min(1).max(100),
@@ -53,7 +53,8 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const rl = await rateLimit(`profiles-create:${user.id}`, 10, 60_000)
+  const ip = getClientIp(request)
+  const rl = await rateLimitWithIp(`profiles-create:${user.id}`, 10, 60_000, ip)
   if (!rl.allowed) {
     return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }

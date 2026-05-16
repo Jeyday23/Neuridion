@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { apiFetch } from '@/lib/fetch'
 
 export function DeleteProfileButton({
   profileId,
@@ -16,7 +17,7 @@ export function DeleteProfileButton({
   const handleDelete = async () => {
     setState('loading')
     try {
-      const statsRes = await fetch(`/api/profiles/${profileId}/stats`)
+      const statsRes = await apiFetch(`/api/profiles/${profileId}/stats`)
       const stats = await statsRes.json().catch(() => ({})) as { search_run_count?: number; error?: string }
       if (!statsRes.ok) throw new Error(stats.error ?? 'Failed to fetch profile stats')
 
@@ -28,7 +29,7 @@ export function DeleteProfileButton({
         return
       }
 
-      const res = await fetch(`/api/profiles/${profileId}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/profiles/${profileId}`, { method: 'DELETE' })
       const json = await res.json().catch(() => ({})) as { error?: string }
       if (!res.ok) throw new Error(json.error ?? 'Failed to delete profile')
       router.refresh()

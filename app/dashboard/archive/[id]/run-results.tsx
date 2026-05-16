@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { clsx } from 'clsx'
+import { apiFetch } from '@/lib/fetch'
 
 export interface FsnResult {
   id: string
@@ -172,7 +173,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
     setReviewLoading(true)
     setReviewError(null)
     try {
-      const res = await fetch(`/api/search-runs/${runId}/review`, {
+      const res = await apiFetch(`/api/search-runs/${runId}/review`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ review_status: newStatus }),

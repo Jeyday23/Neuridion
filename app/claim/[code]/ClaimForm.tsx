@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { apiFetch } from '@/lib/fetch'
 
 interface Props { code: string }
 
@@ -19,7 +20,7 @@ export function ClaimForm({ code }: Props) {
     setStep('loading')
     setMessage('')
 
-    const res  = await fetch(`/api/claim/${code}`, {
+    const res  = await apiFetch(`/api/claim/${code}`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ email: email.trim().toLowerCase() }),
@@ -39,7 +40,7 @@ export function ClaimForm({ code }: Props) {
     setStep('verifying')
     setMessage('')
 
-    const res = await fetch('/api/auth/otp', {
+    const res = await apiFetch('/api/auth/otp', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ action: 'verify', email: email.trim().toLowerCase(), code: otpCode.trim() }),
@@ -57,7 +58,7 @@ export function ClaimForm({ code }: Props) {
 
   const resendOtp = async () => {
     setMessage('')
-    const res = await fetch('/api/auth/otp', {
+    const res = await apiFetch('/api/auth/otp', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ action: 'send', email: email.trim().toLowerCase() }),

@@ -4,6 +4,22 @@ import { Redis } from '@upstash/redis'
 
 const CSRF_EXEMPT = new Set(['/api/webhooks/stripe'])
 
+/** Prefix-based CSRF exemptions for routes that receive external callbacks
+ *  or fire before client JS has loaded. These routes must validate requests
+ *  through their own mechanisms (Stripe signature, OTP token, etc.). */
+const CSRF_EXEMPT_PREFIXES = [
+  '/api/webhooks/',    // Stripe webhook — has its own signature verification
+  '/api/worker/',      // Internal worker routes (external triggers)
+  '/api/claim/',       // QR code redemption — may be triggered before JS loads
+  '/api/auth/',        // Auth flow routes (OTP send/verify, logout)
+  '/api/consent/',     // Cookie consent — may fire before JS fully loads
+]
+
+function isCsrfExempt(pathname: string): boolean {
+  if (CSRF_EXEMPT.has(pathname)) return true
+  return CSRF_EXEMPT_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+}
+
 const PUBLIC_API_ROUTES = new Set([
   '/api/webhooks/stripe',
   '/api/auth/logout',
@@ -62,8 +78,21 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // CSRF check on all mutating routes (including public ones like consent)
-  if (MUTATING_METHODS.has(request.method) && !CSRF_EXEMPT.has(pathname)) {
+  // CSRF protection on all mutating API routes.
+  // Two layers: (1) custom-header check, (2) origin check.
+  // The custom header is the primary defence — the browser's Same-Origin
+  // Policy prevents cross-origin JS from setting custom headers, so its
+  // presence proves the request originated from our own SPA code.
+  if (MUTATING_METHODS.has(request.method) && !isCsrfExempt(pathname)) {
+    // Layer 1: Require x-csrf-protection header (value is irrelevant)
+    if (!request.headers.has('x-csrf-protection')) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403, headers: { 'x-request-id': requestId } },
+      )
+    }
+
+    // Layer 2: Origin check (defence-in-depth)
     const origin = request.headers.get('origin')
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { apiFetch } from '@/lib/fetch'
 
 const COOKIE_NAME = 'neuridion_cookie_consent'
 
@@ -30,7 +31,7 @@ export function CookieBanner() {
     setConsentCookie('accepted')
     setVisible(false)
     try {
-      await fetch('/api/consent/cookies', { method: 'POST' })
+      await apiFetch('/api/consent/cookies', { method: 'POST' })
     } catch {
       // best-effort — consent is recorded locally regardless
     }

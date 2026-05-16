@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
-import { rateLimit } from '@/lib/rate-limit'
+import { rateLimit, rateLimitWithIp, getClientIp } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 export async function GET(
@@ -108,7 +108,8 @@ export async function DELETE(
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const rl = await rateLimit(`search-run-delete:${user.id}`, 5, 60_000)
+  const ip = getClientIp(_request)
+  const rl = await rateLimitWithIp(`search-run-delete:${user.id}`, 5, 60_000, ip)
   if (!rl.allowed) {
     return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
   }

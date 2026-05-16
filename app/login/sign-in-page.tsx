@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { apiFetch } from '@/lib/fetch'
 import { ArrowRight, Mail, CheckCircle } from 'lucide-react'
 import { NeuridionWordmark } from '@/components/ui/neuridion-wordmark'
 
@@ -23,7 +24,7 @@ export function NeuridionSignIn() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/auth/otp', {
+      const res = await apiFetch('/api/auth/otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'send', email }),
@@ -53,7 +54,7 @@ export function NeuridionSignIn() {
     setLoading(true)
 
     try {
-      const res = await fetch('/api/auth/otp', {
+      const res = await apiFetch('/api/auth/otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'verify', email, code: fullCode }),

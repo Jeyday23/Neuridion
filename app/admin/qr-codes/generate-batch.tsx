@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { apiFetch } from '@/lib/fetch'
 
 export function GenerateBatch() {
   const router = useRouter()
@@ -16,7 +17,7 @@ export function GenerateBatch() {
     if (!batchName.trim()) { setMessage('Batch name is required.'); return }
     setLoading(true)
     setMessage('')
-    const res  = await fetch('/api/admin/trial-codes', {
+    const res  = await apiFetch('/api/admin/trial-codes', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({

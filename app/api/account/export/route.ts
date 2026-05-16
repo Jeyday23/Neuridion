@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     auditLogRes,
   ] = await Promise.all([
     admin.from('users').select('id, email, full_name, company_name, plan, role, subscription_status, current_period_end, consent_cookies_at, consent_terms_at, consent_privacy_at, deletion_requested_at, created_at').eq('id', user.id).single(),
-    admin.from('product_profiles').select('id, device_name, manufacturer, intended_use, emdn_code, device_class, created_at').eq('user_id', user.id),
+    admin.from('product_profiles').select('id, device_name, manufacturer, intended_use, emdn_code, device_class, created_at').eq('user_id', user.id),  // search_strategy excluded: system-generated algorithm config, not user personal data
     admin.from('search_runs').select('id, profile_id, status, period_from, period_to, started_at, completed_at, relevant_count, uncertain_count, excluded_count, created_at').eq('user_id', user.id).order('created_at', { ascending: false }),
     admin.from('audit_log').select('id, user_id, event_type, event_data, created_at').eq('user_id', user.id).order('created_at', { ascending: false }),
   ])
@@ -51,10 +51,10 @@ export async function GET(request: Request) {
       ? admin.from('fsn_results').select('id, run_id, external_id, title, manufacturer, fsn_date, source_url, source_db, created_at').in('run_id', runIds).limit(10000)
       : Promise.resolve({ data: [] }),
     runIds.length > 0
-      ? admin.from('filter_decisions').select('id, fsn_result_id, search_run_id, decision, rationale, confidence, created_at').in('search_run_id', runIds).limit(10000)
+      ? admin.from('filter_decisions').select('id, fsn_result_id, search_run_id, decision, rationale, created_at').in('search_run_id', runIds).limit(10000)  // model + confidence excluded: system-generated internals, not user personal data
       : Promise.resolve({ data: [] }),
     admin.from('pdf_usage').select('id, user_id, month, count').eq('user_id', user.id),
-    admin.from('search_drafts').select('id, user_id, profile_id, name, search_period_from, search_period_to, dbs_selected, created_at').eq('user_id', user.id),
+    admin.from('search_drafts').select('id, user_id, profile_id, name, search_period_from, search_period_to, dbs_selected, created_at').eq('user_id', user.id),  // generic_terms + manufacturer_terms excluded: system-generated search intelligence, not user personal data
     admin.from('user_feedback').select('id, user_id, rating, most_useful, missing_features, triggered_by, created_at').eq('user_id', user.id),
     profileIds.length > 0
       ? admin.from('profile_edit_history').select('id, profile_id, edited_by, edited_at, changed_fields, previous_values').in('profile_id', profileIds)

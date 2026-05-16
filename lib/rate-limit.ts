@@ -129,6 +129,29 @@ export async function rateLimit(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Composite rate limiter: checks BOTH user-level AND IP-level limits.
+// The IP-level limit is 3x the user limit to catch distributed abuse from a
+// single IP across multiple accounts without being too strict for shared IPs.
+// ---------------------------------------------------------------------------
+const IP_LIMIT_MULTIPLIER = 3
+
+export async function rateLimitWithIp(
+  key: string,
+  maxRequests: number,
+  windowMs: number,
+  ip: string,
+): Promise<{ allowed: boolean; retryAfterMs: number }> {
+  const [userResult, ipResult] = await Promise.all([
+    rateLimit(key, maxRequests, windowMs),
+    rateLimit(`ip:${ip}`, maxRequests * IP_LIMIT_MULTIPLIER, windowMs),
+  ])
+
+  if (!userResult.allowed) return userResult
+  if (!ipResult.allowed) return ipResult
+  return { allowed: true, retryAfterMs: 0 }
+}
+
 // Render sets x-real-ip from the actual client connection. x-forwarded-for is
 // user-spoofable unless the reverse proxy strips it — treat as fallback only.
 export function getClientIp(request: Request): string {

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/app/components/ui/ToastProvider'
+import { apiFetch } from '@/lib/fetch'
 
 export function CancelRunButton({
   runId,
@@ -18,7 +19,7 @@ export function CancelRunButton({
   const handleClick = async () => {
     setState('loading')
     try {
-      const res = await fetch(`/api/search-runs/${runId}/cancel`, { method: 'POST' })
+      const res = await apiFetch(`/api/search-runs/${runId}/cancel`, { method: 'POST' })
       const json = await res.json().catch(() => ({})) as { error?: string }
       if (!res.ok) {
         if (res.status === 429) { onToast('Too many requests — please wait a moment.', 'error'); setState('idle'); return }
@@ -67,7 +68,7 @@ export function DeleteRunButton({
 
     setState('loading')
     try {
-      const res = await fetch(`/api/search-runs/${runId}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/search-runs/${runId}`, { method: 'DELETE' })
       const json = await res.json().catch(() => ({})) as { error?: string }
       if (!res.ok) {
         if (res.status === 429) { onToast('Too many requests — please wait a moment.', 'error'); setState('idle'); return }
@@ -113,7 +114,7 @@ export function DownloadButton({
   const handleClick = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/reports/${runId}/download?format=${format}`)
+      const res = await apiFetch(`/api/reports/${runId}/download?format=${format}`)
       if (!res.ok) throw new Error('Failed')
       const { url, filename } = await res.json() as { url: string; filename: string }
       const a = document.createElement('a')
@@ -147,7 +148,7 @@ export function GenerateReportButton({ runId }: { runId: string }) {
   const handleClick = async () => {
     setState('loading')
     try {
-      const res = await fetch('/api/reports', {
+      const res = await apiFetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ run_id: runId }),

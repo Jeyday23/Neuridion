@@ -113,7 +113,7 @@ export function SettingsClient({
   const withdrawCookieConsent = async () => {
     setConsentSaving(true)
     setConsentMsg('')
-    const res = await fetch('/api/consent/manage', {
+    const res = await apiFetch('/api/consent/manage', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ withdraw: ['consent_cookies_at'] }),
@@ -142,7 +142,7 @@ export function SettingsClient({
   const deleteAccount = async () => {
     setDeleting(true)
     setDeleteMsg('')
-    const res  = await fetch('/api/account/delete', {
+    const res  = await apiFetch('/api/account/delete', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ confirmation: deleteConfirm }),
@@ -159,7 +159,7 @@ export function SettingsClient({
 
   const cancelDeletion = async () => {
     setCancelling(true)
-    const res  = await fetch('/api/account/delete', { method: 'DELETE' })
+    const res  = await apiFetch('/api/account/delete', { method: 'DELETE' })
     const json = await res.json()
     if (res.ok) router.refresh()
     else toast.show('Unable to process request. Please try again.', 'error')

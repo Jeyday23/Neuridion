@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { apiFetch } from '@/lib/fetch'
 
 export function UserActions({
   userId,
@@ -16,7 +17,7 @@ export function UserActions({
   async function makeAdmin() {
     if (!confirm('Make this user an admin?')) return
     setBusy(true)
-    await fetch(`/api/admin/users/${userId}/make-admin`, { method: 'POST' })
+    await apiFetch(`/api/admin/users/${userId}/make-admin`, { method: 'POST' })
     setBusy(false)
     router.refresh()
   }
@@ -24,7 +25,7 @@ export function UserActions({
   async function deleteUser() {
     if (!confirm('Permanently delete this user? This cannot be undone.')) return
     setBusy(true)
-    await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' })
+    await apiFetch(`/api/admin/users/${userId}`, { method: 'DELETE' })
     setBusy(false)
     router.refresh()
   }

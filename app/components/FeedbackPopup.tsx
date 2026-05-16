@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X, Star } from 'lucide-react'
+import { apiFetch } from '@/lib/fetch'
 
 interface FeedbackPopupProps {
   triggeredBy: 'first_search' | 'third_report'
@@ -34,7 +35,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
     if (rating === 0) return
     setSubmitting(true)
     try {
-      await fetch('/api/feedback', {
+      await apiFetch('/api/feedback', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

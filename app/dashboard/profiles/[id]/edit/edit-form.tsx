@@ -59,7 +59,7 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
     try {
       const res = await fetch(`/api/profiles/${profile.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-csrf-protection': '1' },
         body: JSON.stringify({
           device_name:      deviceName.trim(),
           manufacturer:     manufacturer.trim(),

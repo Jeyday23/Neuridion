@@ -10,6 +10,7 @@ import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
 import { createClient } from '@/lib/supabase/client'
 import { FeedbackPopup } from '@/app/components/FeedbackPopup'
 import { useToast } from '@/app/components/ui/ToastProvider'
+import { apiFetch } from '@/lib/fetch'
 import { motion } from 'framer-motion'
 import { daysBetween } from '@/lib/utils/date-chunks'
 
@@ -453,7 +454,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         dbs: [...selectedDbs],
         uploadedPaths: uploadedFiles.filter((f) => f.status === 'done').map((f) => f.path),
       }
-      const res  = await fetch('/api/search-drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const res  = await apiFetch('/api/search-drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json() as { id?: string; error?: string }
       if (!res.ok) {
         if (res.status === 429) { showToast('Too many requests — please wait a moment.', 'error'); return }
@@ -497,7 +498,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   async function generateReport(runId: string) {
     setReportState({ phase: 'generating' })
     try {
-      const res  = await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run_id: runId }) })
+      const res  = await apiFetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run_id: runId }) })
       const data = await res.json() as { pdf_url?: string | null; html_url?: string | null; excel_url?: string | null; pdf_status?: 'generated' | 'quota_exceeded' | 'failed'; error?: string }
       if (!res.ok) {
         if (res.status === 429) { setReportState({ phase: 'error', message: 'Too many requests — please wait a moment.' }); return }
@@ -518,7 +519,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   function startPolling(runId: string, startedAt: number) {
     intervalRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`/api/search-runs/${runId}`)
+        const res = await apiFetch(`/api/search-runs/${runId}`)
         if (!res.ok) {
           stopPolling()
           const msg =
@@ -579,7 +580,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     try {
       const res = await fetch('/api/search-runs', {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-csrf-protection': '1' },
         body:    JSON.stringify({
           profile_id:   profileId,
           period_from:  fromDate,
