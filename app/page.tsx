@@ -360,6 +360,8 @@ export default async function HomePage() {
             <div className="flex gap-10 text-xs text-[#7a8599]">
               <div className="flex flex-col gap-1.5">
                 <Link href="/pricing" className="hover:text-[#0F1F3D] transition-colors">Pricing</Link>
+                <Link href="/sample-report" className="hover:text-[#0F1F3D] transition-colors">Sample Report</Link>
+                <Link href="/faq" className="hover:text-[#0F1F3D] transition-colors">FAQ</Link>
                 <Link href="/contact" className="hover:text-[#0F1F3D] transition-colors">Contact</Link>
               </div>
               <div className="flex flex-col gap-1.5">

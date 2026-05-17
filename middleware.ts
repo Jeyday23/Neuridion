@@ -15,6 +15,7 @@ const PUBLIC_ROUTES = new Set([
   '/accessibility',
   '/imprint',
   '/sample-report',
+  '/faq',
 ])
 
 const PUBLIC_API_PREFIXES = [

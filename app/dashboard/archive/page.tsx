@@ -1,17 +1,31 @@
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { ArchiveTable } from './archive-table'
 
 export const metadata = { title: 'Archive — Neuridion' }
 
-export default async function ArchivePage() {
-  // Auth: use server client (cookie-based session) to get the user identity
+const PAGE_SIZE = 25
+
+export default async function ArchivePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>
+}) {
+  const { page: pageStr } = await searchParams
+  const page = Math.max(1, parseInt(pageStr ?? '1', 10) || 1)
+  const offset = (page - 1) * PAGE_SIZE
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null // middleware handles redirect
+  if (!user) return null
 
-  // Data: use admin client to bypass RLS — reads are scoped to the user's id below
   const adminClient = createAdminClient()
+
+  const { count: totalCount } = await adminClient
+    .from('search_runs')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', user.id)
 
   const { data: runs, error } = await adminClient
     .from('search_runs')
@@ -26,7 +40,10 @@ export default async function ArchivePage() {
     `)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
-    .limit(100)
+    .range(offset, offset + PAGE_SIZE - 1)
+
+  const total = totalCount ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
   return (
     <div className="p-8">
@@ -42,6 +59,32 @@ export default async function ArchivePage() {
       )}
 
       <ArchiveTable runs={runs ?? []} />
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-between text-sm">
+          <span className="text-zinc-400">
+            Showing {offset + 1}–{Math.min(offset + PAGE_SIZE, total)} of {total} runs
+          </span>
+          <div className="flex gap-2">
+            {page > 1 && (
+              <Link
+                href={`/dashboard/archive?page=${page - 1}`}
+                className="px-3 py-1 rounded border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+              >
+                Previous
+              </Link>
+            )}
+            {page < totalPages && (
+              <Link
+                href={`/dashboard/archive?page=${page + 1}`}
+                className="px-3 py-1 rounded border border-zinc-200 text-zinc-600 hover:bg-zinc-50 transition-colors"
+              >
+                Next
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

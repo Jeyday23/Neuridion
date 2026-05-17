@@ -109,6 +109,7 @@ export default async function PricingPage() {
             All plans include a 14-day free trial. No credit card required.
           </p>
           <p className="text-xs text-[#94A3B8] mt-2">All prices excl. VAT (zzgl. MwSt.)</p>
+          <p className="text-xs text-[#94A3B8] mt-1">1 search = all selected databases for one device profile and date range</p>
         </div>
       </section>
 
@@ -198,6 +199,8 @@ export default async function PricingPage() {
               <ul className="space-y-2 text-sm text-[#0F766E]">
                 <li><Link href="/" className="hover:text-[#0F1F3D]">Features</Link></li>
                 <li><Link href="/pricing" className="hover:text-[#0F1F3D]">Pricing</Link></li>
+                <li><Link href="/sample-report" className="hover:text-[#0F1F3D]">Sample Report</Link></li>
+                <li><Link href="/faq" className="hover:text-[#0F1F3D]">FAQ</Link></li>
               </ul>
             </div>
             <div>
