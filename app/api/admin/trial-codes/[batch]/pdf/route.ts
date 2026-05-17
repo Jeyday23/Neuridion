@@ -7,11 +7,13 @@ function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-const BASE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ??
-  process.env.NEXT_PUBLIC_APP_URL ??
-  'https://kodex-4-medical.onrender.com'
-).replace(/\/$/, '')
+function getBaseUrl(): string {
+  const url = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL
+  if (!url) throw new Error('NEXT_PUBLIC_SITE_URL or NEXT_PUBLIC_APP_URL must be set')
+  return url.replace(/\/$/, '')
+}
+
+const BASE_URL = getBaseUrl()
 
 export async function GET(
   _request: Request,

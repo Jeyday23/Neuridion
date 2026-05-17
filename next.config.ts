@@ -26,14 +26,13 @@ const nextConfig: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
           {
-            // Static CSP fallback — the proxy overwrites this with a nonce-based
-            // policy in production.  'strict-dynamic' causes nonce/hash-aware
-            // browsers to ignore 'unsafe-inline', so it only takes effect in
-            // older browsers that don't support 'strict-dynamic'.
+            // Static CSP fallback — proxy.ts overwrites with a nonce-based
+            // policy per request. This fallback applies only if the proxy
+            // does not execute (e.g., static assets served directly).
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'strict-dynamic' https://js.stripe.com",
+              "script-src 'self' 'strict-dynamic' https://js.stripe.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self'",

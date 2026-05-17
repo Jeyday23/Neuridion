@@ -126,6 +126,11 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
+  // Clear stale session cookie when no authenticated user exists
+  if (!user && request.cookies.has(SESSION_COOKIE)) {
+    supabaseResponse.cookies.delete(SESSION_COOKIE)
+  }
+
   // Server-side absolute session expiry (8 hours)
   if (user) {
     const started = request.cookies.get(SESSION_COOKIE)?.value
