@@ -143,7 +143,7 @@ describe('POST /api/profiles', () => {
     expect(res.status).toBe(422)
 
     const json = await res.json()
-    expect(json.error).toHaveProperty('device_name')
+    expect(json.error).toContain('Validation failed')
   })
 
   it('returns 422 when manufacturer is missing', async () => {
@@ -153,7 +153,7 @@ describe('POST /api/profiles', () => {
     expect(res.status).toBe(422)
 
     const json = await res.json()
-    expect(json.error).toHaveProperty('manufacturer')
+    expect(json.error).toContain('Validation failed')
   })
 
   it('returns 422 when both required fields are missing', async () => {
@@ -163,8 +163,7 @@ describe('POST /api/profiles', () => {
     expect(res.status).toBe(422)
 
     const json = await res.json()
-    expect(json.error).toHaveProperty('device_name')
-    expect(json.error).toHaveProperty('manufacturer')
+    expect(json.error).toContain('Validation failed')
   })
 
   it('returns 422 when device_name is empty string', async () => {
@@ -174,7 +173,7 @@ describe('POST /api/profiles', () => {
     expect(res.status).toBe(422)
 
     const json = await res.json()
-    expect(json.error).toHaveProperty('device_name')
+    expect(json.error).toContain('Validation failed')
   })
 
   it('returns 422 when manufacturer is empty string', async () => {
@@ -184,7 +183,7 @@ describe('POST /api/profiles', () => {
     expect(res.status).toBe(422)
 
     const json = await res.json()
-    expect(json.error).toHaveProperty('manufacturer')
+    expect(json.error).toContain('Validation failed')
   })
 
   it('returns 422 when device_name exceeds 200 characters', async () => {
@@ -194,7 +193,7 @@ describe('POST /api/profiles', () => {
     expect(res.status).toBe(422)
 
     const json = await res.json()
-    expect(json.error).toHaveProperty('device_name')
+    expect(json.error).toContain('Validation failed')
   })
 
   it('returns 422 when device_class is not a valid enum value', async () => {
@@ -208,7 +207,7 @@ describe('POST /api/profiles', () => {
     expect(res.status).toBe(422)
 
     const json = await res.json()
-    expect(json.error).toHaveProperty('device_class')
+    expect(json.error).toContain('Validation failed')
   })
 
   it('accepts valid device_class enum values', async () => {

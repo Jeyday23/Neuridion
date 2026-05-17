@@ -20,8 +20,8 @@ describe('Bug 2 — MODEL_LABEL reflects two-stage pipeline', () => {
   it('does not show sonnet-only label', () => {
     expect(panel).not.toContain("MODEL_LABEL = 'claude-sonnet-4-6'")
   })
-  it('shows Haiku in the label', () => {
-    expect(panel).toContain('Haiku')
+  it('shows AI-assisted in the label', () => {
+    expect(panel).toContain('AI-assisted')
   })
 })
 
