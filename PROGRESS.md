@@ -210,6 +210,22 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] P2: Stale session cookie cleanup in proxy.ts (clear when user is null)
 - [x] P2: Migration 056 — filter_decisions UPDATE rule → BEFORE UPDATE trigger (explicit error)
 
+## Backend Audit (May 17)
+- [x] Over-fetch P0: Drop raw_content from report FSN query (saves megabytes per report)
+- [x] Over-fetch P0: select('*') → select('id') on active run count check
+- [x] Over-fetch P1: Narrow reports run fetch (12 → 5 columns)
+- [x] Over-fetch P1: Drop unused default_dbs from search-runs profile fetch
+- [x] Over-fetch P2: Drop leaked user_id, last_modified_by, model_used, created_by from responses
+- [x] N+1: Archive detail .in(fsn_result_id) → .eq(search_run_id) — eliminates URL-length risk
+- [x] N+1: Archive list count+data merged into single query
+- [x] N+1: Account delete IFU cleanup parallelized (sequential loop → Promise.all)
+- [x] Storage: Run delete queries search_runs for report paths (was querying wrong table)
+- [x] Storage: GDPR delete queries search_runs for report paths (was listing top-level only)
+- [x] Storage: Profile delete uses ifu_storage_path from record (was listing wrong directory)
+- [x] Reliability: creditExhausted flag gets 10-minute TTL reset
+- [x] DB connections: audited clean — all HTTP/PostgREST, no persistent connections
+- [x] Background jobs: audited clean — no hidden connection holders
+
 ## Backlog (Open)
 - [ ] MHRA attachment-aware hashing (content_hash misses PDF updates)
 - [ ] FDA MAUDE bulk-download ingestion (bypass 26k record API cap)
