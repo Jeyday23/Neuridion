@@ -135,10 +135,10 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] P1: Feedback: bounded most_useful array (20 items, 200 chars)
 - [x] P1: Stripe webhook: fixed misleading 'as id' type cast
 - [x] P2: AI prompt injection tagging on device names
-- [ ] P2: selected_dbs enum validation
-- [ ] P2: CSP unsafe-inline removal
-- [ ] P2: Missing audit log on cancel/retry routes
-- [ ] P2: In-memory rate limiter cold-start bypass
+- [x] P2: selected_dbs enum validation (already done via Zod z.enum)
+- [ ] P2: CSP header application via middleware (buildCspHeader exists but not wired)
+- [x] P2: Audit log on retry route (fixed wrong event type: cancelled → retried)
+- [x] P2: Rate limiter cold-start bypass (fail-closed in production without Redis)
 
 ## OWASP Hardening (May 17)
 - [x] P1: Centralized auth middleware (middleware.ts — defense-in-depth)
