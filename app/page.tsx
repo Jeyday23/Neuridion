@@ -37,7 +37,7 @@ const STEPS = [
   {
     num: '03',
     title: 'Review and export',
-    desc: 'AI classifies each FSN as relevant, uncertain, or excluded. Your PRRC reviews every decision before the report is finalised.',
+    desc: 'AI assesses each FSN as relevant, uncertain, or excluded. Your PRRC reviews every decision before the report is finalised.',
   },
 ]
 
@@ -96,7 +96,7 @@ export default async function HomePage() {
             <ul className="flex flex-col items-start gap-5">
               {([
                 { icon: Search, text: 'Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel' },
-                { icon: Brain, text: 'AI classifies every Field Safety Notice against your device profile' },
+                { icon: Brain, text: 'AI assesses every Field Safety Notice against your device profile' },
                 { icon: UserCheck, text: 'Your PRRC reviews every decision before export' },
                 { icon: FileText, text: 'Audit-ready PDF and Word reports in minutes' },
               ] as const).map(({ icon: Icon, text }) => (
@@ -125,10 +125,10 @@ export default async function HomePage() {
               <div className="px-6 py-5">
                 <div className="text-sm font-semibold text-[#0F1F3D] leading-snug mb-4">FSCA: Potential battery overheating in patient monitoring system during extended use</div>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                  <div><div className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Manufacturer</div><div className="text-[13px] text-[#1a2236] font-medium">Dr&auml;gerwerk AG</div></div>
                   <div><div className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Device class</div><div className="text-[13px] text-[#1a2236] font-medium">Patient monitor (IIb)</div></div>
                   <div><div className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Date issued</div><div className="text-[13px] text-[#1a2236] font-medium">12 Mar 2026</div></div>
                   <div><div className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">FSCA type</div><div className="text-[13px] text-[#1a2236] font-medium">Safety alert + IFU update</div></div>
-                  <div><div className="text-[10px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Risk</div><div className="text-[13px] text-[#1a2236] font-medium">Device shutdown during critical monitoring</div></div>
                 </div>
               </div>
               <div className="border-t border-[#dfe3ea] px-6 py-3.5 flex items-center justify-between bg-[#f0fdf9]">
@@ -154,8 +154,8 @@ export default async function HomePage() {
               <div className="px-4 py-3">
                 <div className="text-xs font-semibold text-[#0F1F3D] leading-snug mb-2">Infusion pump software update: risk of incorrect dose delivery in paediatric mode</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Manufacturer</div><div className="text-[11px] text-[#1a2236] font-medium">B. Braun Melsungen AG</div></div>
                   <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Device class</div><div className="text-[11px] text-[#1a2236] font-medium">Infusion pump (IIb)</div></div>
-                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Date issued</div><div className="text-[11px] text-[#1a2236] font-medium">28 Feb 2026</div></div>
                 </div>
               </div>
               <div className="border-t border-[#dfe3ea] px-4 py-2.5 flex items-center justify-between bg-[#fffbeb]">
@@ -175,8 +175,8 @@ export default async function HomePage() {
               <div className="px-4 py-3">
                 <div className="text-xs font-semibold text-[#0F1F3D] leading-snug mb-2">Dental implant abutment fracture reported during routine follow-up examination</div>
                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Manufacturer</div><div className="text-[11px] text-[#1a2236] font-medium">Nobel Biocare (Envista)</div></div>
                   <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Device class</div><div className="text-[11px] text-[#1a2236] font-medium">Dental implant (III)</div></div>
-                  <div><div className="text-[9px] font-semibold text-[#7a8599] uppercase tracking-wider mb-0.5">Date issued</div><div className="text-[11px] text-[#1a2236] font-medium">5 Jan 2026</div></div>
                 </div>
               </div>
               <div className="border-t border-[#dfe3ea] px-4 py-2.5 flex items-center justify-between bg-[#fef2f2]">

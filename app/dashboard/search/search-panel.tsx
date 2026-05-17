@@ -182,7 +182,7 @@ function FsnRow({
             )}
             <div className="mt-2 flex items-center gap-4 text-xs text-zinc-500 flex-wrap">
               {d?.confidence != null && <span>Confidence: {Math.round(d.confidence * 100)}%</span>}
-              {d?.model && <span>Model: {d.model}</span>}
+              {d?.model && <span>AI-assisted</span>}
               <a href={safeHref(result.source_url)} target="_blank" rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 className="ml-auto text-[#0D9488] hover:underline text-xs">
@@ -880,7 +880,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                         <span className="text-xs text-zinc-400">
                           {state.totalScraped} scraped
                           {state.preFilterCount != null && ` → ${state.preFilterCount} filtered`}
-                          {` → ${counts.all} classified`}
+                          {` → ${counts.all} assessed`}
                         </span>
                       )}
                       <span className="text-xs text-zinc-400 ml-auto">AI-filtered · {MODEL_LABEL}</span>
@@ -991,4 +991,4 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   )
 }
 
-const MODEL_LABEL = 'Haiku + Sonnet'
+const MODEL_LABEL = 'AI-assisted'

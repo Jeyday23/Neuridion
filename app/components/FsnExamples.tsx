@@ -7,6 +7,7 @@ const FSN_EXAMPLES = [
     source: 'BfArM',
     date: '12 Mar 2026',
     title: 'FSCA: Battery overheating in patient monitoring system during extended use',
+    manufacturer: 'Drägerwerk AG',
     deviceClass: 'Patient monitor (Class IIb)',
     decision: 'relevant' as const,
     rationale: 'Same device class and intended use. Battery subsystem overlap with your device profile.',
@@ -16,6 +17,7 @@ const FSN_EXAMPLES = [
     source: 'MHRA',
     date: '28 Feb 2026',
     title: 'Medical Device Alert: Software defect in vital signs display during SpO2 monitoring',
+    manufacturer: 'Philips Healthcare',
     deviceClass: 'Vital signs monitor (Class IIb)',
     decision: 'relevant' as const,
     rationale: 'Equivalent device function. SpO2 display error relevant to patient monitoring safety.',
@@ -24,7 +26,8 @@ const FSN_EXAMPLES = [
   {
     source: 'FDA MAUDE',
     date: '15 Feb 2026',
-    title: 'MDR report: Intermittent network connectivity loss in wireless patient telemetry',
+    title: 'Adverse event report: Intermittent network connectivity loss in wireless patient telemetry',
+    manufacturer: 'GE HealthCare',
     deviceClass: 'Wireless telemetry system (Class IIa)',
     decision: 'uncertain' as const,
     rationale: 'Different device class, but shared wireless protocol. PRRC review recommended.',
@@ -34,6 +37,7 @@ const FSN_EXAMPLES = [
     source: 'Swissmedic',
     date: '03 Jan 2026',
     title: 'FSCA: Updated labelling for single-use endoscopic stapler cartridges',
+    manufacturer: 'Ethicon (Johnson & Johnson)',
     deviceClass: 'Surgical stapler (Class IIb)',
     decision: 'excluded' as const,
     rationale: 'Surgical device, unrelated device class and intended use. No overlap with patient monitoring.',
@@ -67,7 +71,7 @@ export function FsnExamples() {
                 <div className="text-sm font-semibold text-[#0F1F3D] leading-snug mb-1.5">
                   {fsn.title}
                 </div>
-                <div className="text-xs text-[#7a8599]">{fsn.deviceClass}</div>
+                <div className="text-xs text-[#7a8599]">{fsn.manufacturer} · {fsn.deviceClass}</div>
               </div>
               <div className={`px-5 py-3 flex items-center justify-between ${style.bg}`}>
                 <div>
@@ -78,7 +82,7 @@ export function FsnExamples() {
                     {fsn.rationale}
                   </p>
                 </div>
-                <span className="text-[11px] text-[#7a8599] font-mono flex-shrink-0 ml-3">
+                <span className="text-[11px] text-[#7a8599] font-mono flex-shrink-0 ml-3" title="Confidence in this assessment">
                   {fsn.confidence}%
                 </span>
               </div>

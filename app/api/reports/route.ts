@@ -442,13 +442,20 @@ export async function POST(request: Request) {
   // Fetch run + profile (validates ownership)
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('id, profile_id, user_id, status, period_from, period_to, relevant_count, uncertain_count, excluded_count, dbs_selected, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
+    .select('id, profile_id, user_id, status, review_status, period_from, period_to, relevant_count, uncertain_count, excluded_count, dbs_searched, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
     .eq('id', run_id)
     .eq('user_id', user.id)
     .single()
 
   if (runError || !run) {
     return Response.json({ error: 'Run not found' }, { status: 404 })
+  }
+
+  if (!run.review_status || run.review_status === 'draft') {
+    return Response.json(
+      { error: 'Results must be reviewed before generating a report. Open the run and mark your review as complete.' },
+      { status: 422 },
+    )
   }
 
   const profileRaw = run.product_profiles

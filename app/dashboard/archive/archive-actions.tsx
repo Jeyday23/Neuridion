@@ -144,24 +144,30 @@ export function DownloadButton({
 export function GenerateReportButton({ runId }: { runId: string }) {
   const router = useRouter()
   const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [errorMsg, setErrorMsg] = useState('')
 
   const handleClick = async () => {
     setState('loading')
+    setErrorMsg('')
     try {
       const res = await apiFetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ run_id: runId }),
       })
-      if (!res.ok) throw new Error('Failed')
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error ?? 'Failed to generate report')
+      }
       router.refresh()
-    } catch {
+    } catch (err) {
+      setErrorMsg(err instanceof Error ? err.message : 'Failed to generate report')
       setState('error')
     }
   }
 
   if (state === 'error') {
-    return <span className="text-xs text-red-500">Failed — try again</span>
+    return <span className="text-xs text-red-500 max-w-[200px]">{errorMsg}</span>
   }
 
   return (

@@ -54,6 +54,7 @@ export async function signup(
     email,
     password,
     options: {
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/login`,
       data: {
         full_name:    fullName,
         company_name: companyName,

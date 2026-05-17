@@ -269,7 +269,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                             <p className="text-[10px] text-zinc-400">
                               {run.total_scraped} scraped
                               {run.pre_filter_count != null && ` → ${run.pre_filter_count} filtered`}
-                              {` → ${tot} classified`}
+                              {` → ${tot} assessed`}
                             </p>
                           )}
                         </div>

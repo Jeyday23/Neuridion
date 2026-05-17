@@ -103,7 +103,7 @@ export default function PrivacyPage() {
                 subject to the retention period above
               </li>
               <li>
-                <strong>Audit logs:</strong> retained for 5 years after creation
+                <strong>Audit logs:</strong> retained for 10 years after creation (EU MDR Art. 10(8))
               </li>
               <li>
                 <strong>Marketing communications:</strong> until consent is withdrawn
@@ -220,8 +220,9 @@ export default function PrivacyPage() {
             </p>
             <p className="mt-2">
               All AI classifications are advisory and require human review (PRRC sign-off) before inclusion
-              in regulatory documentation. You may opt out of AI processing entirely in{' '}
-              <Link href="/dashboard/settings" className="text-[#0D9488] hover:underline">Settings &gt; Privacy</Link>.
+              in regulatory documentation. If you wish to disable AI-assisted filtering for your account,
+              contact us at{' '}
+              <a href="mailto:info@neuridion.eu" className="text-[#0D9488] hover:underline">info@neuridion.eu</a>.
               For full details on our AI system, see the{' '}
               <Link href="/ai-transparency" className="text-[#0D9488] hover:underline">AI Transparency</Link> page.
             </p>

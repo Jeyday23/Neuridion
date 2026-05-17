@@ -51,7 +51,7 @@ const DECISION_LABELS: Record<string, string> = {
   relevant:      'Relevant',
   uncertain:     'Uncertain',
   excluded:      'Excluded',
-  filter_failed: 'Not Reviewed',
+  filter_failed: 'Unprocessed',
 }
 
 function DecisionBadge({ decision }: { decision: string }) {
@@ -126,7 +126,7 @@ function ResultRow({ result }: { result: FsnResult }) {
                 <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                 </svg>
-                Not reviewed — manual review required
+                AI assessment unavailable — manual review required
               </p>
               <p className="mt-0.5 text-xs text-amber-600">This item exceeded the AI filter cap for this run and was not assessed.</p>
             </div>
@@ -241,7 +241,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
     { key: 'uncertain',     label: `Uncertain (${counts.uncertain})` },
     { key: 'excluded',      label: `Excluded (${counts.excluded})` },
     ...(counts.filter_failed > 0
-      ? [{ key: 'filter_failed' as Tab, label: `Not Reviewed (${counts.filter_failed})` }]
+      ? [{ key: 'filter_failed' as Tab, label: `Unprocessed (${counts.filter_failed})` }]
       : []),
     { key: 'raw',           label: `Raw Data (${counts.all})` },
   ]
@@ -324,7 +324,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
 
       {counts.filter_failed > 0 && (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <strong>{counts.filter_failed} item{counts.filter_failed !== 1 ? 's were' : ' was'} not reviewed</strong> — these items exceeded the AI filter cap for this run and were not assessed. Manual review required.
+          <strong>{counts.filter_failed} item{counts.filter_failed !== 1 ? 's were' : ' was'} not processed by AI</strong> — these items exceeded the AI filter cap for this run. Manual review required.
         </div>
       )}
 

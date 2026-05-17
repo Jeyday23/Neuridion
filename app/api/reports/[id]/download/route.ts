@@ -25,7 +25,7 @@ export async function GET(
   const { data: run, error: runError } = await adminClient
     .from('search_runs')
     .select(`
-      id, user_id,
+      id, user_id, review_status,
       report_html_path, report_pdf_path, report_excel_path, report_docx_path,
       period_from, period_to,
       product_profiles ( device_name )
@@ -36,6 +36,13 @@ export async function GET(
 
   if (runError || !run) {
     return Response.json({ error: 'Run not found' }, { status: 404 })
+  }
+
+  if (!run.review_status || run.review_status === 'draft') {
+    return Response.json(
+      { error: 'Results must be reviewed before downloading a report.' },
+      { status: 422 },
+    )
   }
 
   const profileRaw = run.product_profiles

@@ -126,11 +126,17 @@ export async function POST(request: Request) {
 
   const run = { id: rpcResult as string }
 
+  const dbsToSearch = selected_dbs ?? ['bfarm']
+  await db
+    .from('search_runs')
+    .update({ dbs_searched: dbsToSearch })
+    .eq('id', run.id)
+
   const jobPayload: SearchJobPayload = {
     profile_id,
     period_from,
     period_to,
-    selected_dbs:  selected_dbs ?? ['bfarm'],
+    selected_dbs:  dbsToSearch,
     user_id:       user.id,
     force_refresh: force_refresh ?? false,
   }
