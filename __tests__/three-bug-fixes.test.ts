@@ -29,7 +29,7 @@ describe('Bug 3 — QStash double delivery prevention', () => {
   it('process-job has idempotency check for non-pending status', () => {
     expect(worker).toContain("status !== 'pending'")
   })
-  it('QStash publishJSON uses retries: 0', () => {
-    expect(postRun).toContain('retries: 0')
+  it('QStash publishJSON uses limited retries for deploy resilience', () => {
+    expect(postRun).toContain('retries: 2')
   })
 })
