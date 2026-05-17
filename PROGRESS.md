@@ -136,12 +136,12 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] P1: Stripe webhook: fixed misleading 'as id' type cast
 - [x] P2: AI prompt injection tagging on device names
 - [x] P2: selected_dbs enum validation (already done via Zod z.enum)
-- [ ] P2: CSP header application via middleware (buildCspHeader exists but not wired)
+- [x] P2: CSP nonce-based header via proxy.ts (buildCspHeader now active)
 - [x] P2: Audit log on retry route (fixed wrong event type: cancelled → retried)
 - [x] P2: Rate limiter cold-start bypass (fail-closed in production without Redis)
 
 ## OWASP Hardening (May 17)
-- [x] P1: Centralized auth middleware (middleware.ts — defense-in-depth)
+- [x] P1: Centralized auth proxy (proxy.ts — defense-in-depth, replaced middleware.ts)
 - [x] P1: LLM prompt injection fix (sanitizeProfileField + tag stripping)
 - [x] P1: Server-side 8-hour absolute session timeout enforcement
 - [x] P2: Meta CSP on HTML reports (prevent script execution in Storage domain)
@@ -183,6 +183,15 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] /faq and /sample-report added to public routes in middleware
 - [x] L9: Removed misleading step "1" badge from search panel header
 - [x] L8: Added InfoTooltip to strategy documents upload section
+
+## Critical Fix (May 17)
+- [x] Crash loop: middleware.ts + proxy.ts conflict — Next.js 16 rejects both files
+- [x] Deleted middleware.ts, consolidated all logic into proxy.ts
+- [x] Merged 9 missing public routes into proxy.ts
+- [x] CSP nonce-based headers now active (was listed as open P2)
+- [x] CSRF protection now active on all mutating API routes
+- [x] HMAC-signed session cookies now active (was plain cookie in middleware.ts)
+- [x] Global rate limiting (120 req/min) now active via proxy.ts
 
 ## Backlog (Open)
 - [ ] MHRA attachment-aware hashing (content_hash misses PDF updates)
