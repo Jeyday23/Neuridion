@@ -28,14 +28,14 @@ export const PLANS: Record<PlanId, PlanLimits> = {
     priceMonthly: '€199',
     maxSearchRuns: 15,
     maxProfiles: 3,
-    features: ['3 device profiles', '15 searches per month', 'All P1 databases (BfArM, FDA, MHRA)', 'PDF & Excel reports', 'Email notifications'],
+    features: ['3 device profiles', '15 searches per month', 'All P1 databases (BfArM, FDA, MHRA)', 'PDF, Word & Excel reports', 'Email notifications'],
   },
   pro: {
     label: 'Pro',
     priceMonthly: '€599',
     maxSearchRuns: 50,
     maxProfiles: 10,
-    features: ['10 device profiles', '50 searches per month', 'All databases', 'PDF & Excel reports', 'Email notifications', 'Priority support'],
+    features: ['10 device profiles', '50 searches per month', 'All databases', 'PDF, Word & Excel reports', 'Email notifications', 'Priority support'],
   },
   enterprise: {
     label: 'Enterprise',

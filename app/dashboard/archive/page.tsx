@@ -21,7 +21,7 @@ export default async function ArchivePage() {
       period_from, period_to,
       total_results, relevant_count, uncertain_count, excluded_count,
       dbs_searched, error_message, total_scraped, pre_filter_count,
-      report_html_path, report_pdf_path, report_excel_path, report_generated_at,
+      report_html_path, report_pdf_path, report_excel_path, report_docx_path, report_generated_at,
       product_profiles ( device_name, manufacturer )
     `)
     .eq('user_id', user.id)

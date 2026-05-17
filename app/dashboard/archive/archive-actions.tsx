@@ -105,7 +105,7 @@ export function DownloadButton({
   label,
 }: {
   runId: string
-  format: 'pdf' | 'html' | 'excel'
+  format: 'pdf' | 'html' | 'excel' | 'docx'
   label: string
 }) {
   const [loading, setLoading] = useState(false)

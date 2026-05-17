@@ -548,6 +548,7 @@ export type Database = {
           profile_id: string
           progress: Json | null
           relevant_count: number
+          report_docx_path: string | null
           report_excel_path: string | null
           report_generated_at: string | null
           report_html_path: string | null
@@ -580,6 +581,7 @@ export type Database = {
           profile_id: string
           progress?: Json | null
           relevant_count?: number
+          report_docx_path?: string | null
           report_excel_path?: string | null
           report_generated_at?: string | null
           report_html_path?: string | null
@@ -612,6 +614,7 @@ export type Database = {
           profile_id?: string
           progress?: Json | null
           relevant_count?: number
+          report_docx_path?: string | null
           report_excel_path?: string | null
           report_generated_at?: string | null
           report_html_path?: string | null

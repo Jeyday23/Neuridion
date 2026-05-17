@@ -25,6 +25,7 @@ interface RunRow {
   report_html_path: string | null
   report_pdf_path: string | null
   report_excel_path: string | null
+  report_docx_path: string | null
   report_generated_at: string | null
   product_profiles:
     | { device_name: string; manufacturer: string }
@@ -198,6 +199,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                 const hasPdf     = !!run.report_pdf_path
                 const hasHtml    = !!run.report_html_path
                 const hasExcel   = !!run.report_excel_path
+                const hasDocx    = !!run.report_docx_path
 
                 const rel  = run.relevant_count  ?? 0
                 const unc  = run.uncertain_count  ?? 0
@@ -302,6 +304,9 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                         )}
                         {hasExcel && (
                           <DownloadButton runId={run.id} format="excel" label="↓ Excel" />
+                        )}
+                        {hasDocx && (
+                          <DownloadButton runId={run.id} format="docx" label="↓ Word" />
                         )}
                         {!hasReport && run.status === 'complete' && (
                           <GenerateReportButton runId={run.id} />

@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { z } from 'zod'
 import ExcelJS from 'exceljs'
 import { generateReportPdf, canGeneratePdf, incrementPdfUsage } from '@/lib/pdfshift'
+import { buildDocx } from '@/lib/docx-report'
 import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -419,7 +420,7 @@ export async function POST(request: Request) {
   }
 
   // GDPR Art 18: block data-processing operations when restricted
-  const { data: userFlags } = await supabase.from('users').select('processing_restricted').eq('id', user.id).single()
+  const { data: userFlags } = await supabase.from('users').select('processing_restricted, plan').eq('id', user.id).single()
   if (userFlags?.processing_restricted) {
     return Response.json({ error: 'Data processing is currently restricted on your account. You can change this in Settings > Privacy.' }, { status: 403 })
   }
@@ -507,6 +508,22 @@ export async function POST(request: Request) {
     period_to:    run.period_to,
   }, termsUsed)
 
+  // ── Generate Word (.docx) — Starter+ only ───────────────────────────────────
+  let docxBuf: Buffer | null = null
+  const userPlan = userFlags?.plan ?? 'free'
+  const paidPlans = ['starter', 'pro', 'enterprise']
+  if (paidPlans.includes(userPlan)) {
+    docxBuf = await buildDocx(rows, {
+      device:       profile.device_name,
+      manufacturer: profile.manufacturer,
+      period_from:  run.period_from,
+      period_to:    run.period_to,
+      emdn_code:    profile.emdn_code,
+      device_class: profile.device_class,
+      runId:        run_id,
+    })
+  }
+
   // ── Generate HTML report (open in browser and print to PDF natively) ─────────
   const html = buildReportHtml(profile, { period_from: run.period_from, period_to: run.period_to }, rows, run_id, termsUsed)
   const htmlBuf = Buffer.from(html, 'utf-8')
@@ -516,14 +533,24 @@ export async function POST(request: Request) {
   const ts = Date.now()
   const htmlPath  = `${user.id}/${run_id}/${ts}_report.html`
   const excelPath = `${user.id}/${run_id}/${ts}_report.xlsx`
+  const docxPath  = docxBuf ? `${user.id}/${run_id}/${ts}_report.docx` : null
 
-  const [htmlUpload, excelUpload] = await Promise.all([
+  const uploadPromises = [
     adminStorage.storage.from('reports').upload(htmlPath, htmlBuf, { contentType: 'text/html', upsert: true }),
     adminStorage.storage.from('reports').upload(excelPath, excelBuf, {
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       upsert: true,
     }),
-  ])
+  ]
+  if (docxBuf && docxPath) {
+    uploadPromises.push(
+      adminStorage.storage.from('reports').upload(docxPath, docxBuf, {
+        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        upsert: true,
+      })
+    )
+  }
+  const [htmlUpload, excelUpload] = await Promise.all(uploadPromises)
 
   if (htmlUpload.error) {
     console.error('[reports:html-upload]', htmlUpload.error.message)
@@ -540,6 +567,10 @@ export async function POST(request: Request) {
     adminStorage.storage.from('reports').createSignedUrl(htmlPath, 60),
     adminStorage.storage.from('reports').createSignedUrl(excelPath, 60),
   ])
+
+  const docxSigned = docxPath
+    ? await adminStorage.storage.from('reports').createSignedUrl(docxPath, 60)
+    : null
 
   // ── Generate PDF via @react-pdf/renderer (quota-guarded) ────────────────────
   let pdfUrl: string | null = null
@@ -590,6 +621,7 @@ export async function POST(request: Request) {
       report_html_path:     htmlPath,
       report_pdf_path:      pdfPath,
       report_excel_path:    excelPath,
+      report_docx_path:     docxPath,
       report_generated_at:  new Date().toISOString(),
     })
     .eq('id', run_id)
@@ -599,6 +631,7 @@ export async function POST(request: Request) {
   return Response.json({
     html_url:   htmlSigned.data?.signedUrl ?? null,
     excel_url:  excelSigned.data?.signedUrl ?? null,
+    docx_url:   docxSigned?.data?.signedUrl ?? null,
     pdf_url:    pdfUrl,
     pdf_status: pdfStatus,
   }, { status: 201 })

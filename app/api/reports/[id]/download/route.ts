@@ -26,7 +26,7 @@ export async function GET(
     .from('search_runs')
     .select(`
       id, user_id,
-      report_html_path, report_pdf_path, report_excel_path,
+      report_html_path, report_pdf_path, report_excel_path, report_docx_path,
       period_from, period_to,
       product_profiles ( device_name )
     `)
@@ -58,6 +58,9 @@ export async function GET(
   if (format === 'excel') {
     storagePath = run.report_excel_path
     ext = 'xlsx'
+  } else if (format === 'docx') {
+    storagePath = run.report_docx_path
+    ext = 'docx'
   } else if (format === 'pdf') {
     storagePath = run.report_pdf_path ?? run.report_html_path
     ext = run.report_pdf_path ? 'pdf' : 'html'
