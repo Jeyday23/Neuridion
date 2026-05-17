@@ -175,6 +175,13 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] S20: Haiku pre-filter rationale now includes FSN title + device name
 - [x] R3: Confidence score tooltips in search panel and archive results
 
+## PRRC Council Round 3 (May 17)
+- [x] S15: Public /faq page — 19 Q&A across 5 sections (Product, AI, Privacy, Regulatory, Billing)
+- [x] S12: Search counting clarification on pricing page ("1 search = all DBs for 1 profile")
+- [x] L3: Archive pagination — .limit(100) → URL-based pagination (25 per page)
+- [x] Footer: Sample Report + FAQ links added to pricing and homepage footers
+- [x] /faq and /sample-report added to public routes in middleware
+
 ## Backlog (Open)
 - [ ] MHRA attachment-aware hashing (content_hash misses PDF updates)
 - [ ] FDA MAUDE bulk-download ingestion (bypass 26k record API cap)
