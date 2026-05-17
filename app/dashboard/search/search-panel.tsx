@@ -624,11 +624,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     <div className="max-w-6xl mx-auto p-8">
       {/* Page header */}
       <div className="mb-8">
-        <div className="flex items-center gap-4 mb-3">
-          <div className="w-10 h-10 bg-[#0D9488] text-white rounded-md flex items-center justify-center font-medium text-lg">1</div>
-          <h1 className="text-xl font-bold text-[#0F1F3D]">{t.search.pageTitle}</h1>
-        </div>
-        <p className="text-[#134E4A] ml-14">{t.search.pageSubtitle}</p>
+        <h1 className="text-xl font-bold text-[#0F1F3D] mb-2">{t.search.pageTitle}</h1>
+        <p className="text-[#134E4A]">{t.search.pageSubtitle}</p>
       </div>
 
       <div className="space-y-8">
@@ -717,7 +714,10 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
         {/* File upload */}
         <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
-          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-6">{t.search.strategyDocs}</h2>
+          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-6">
+            {t.search.strategyDocs}
+            <InfoTooltip text="Upload your search strategy or PMS plan documents for reference. These files are stored with your search run for traceability but are not read by the AI during classification." />
+          </h2>
           <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg" className="hidden"
             onChange={(e) => e.target.files && handleFiles(e.target.files)} />
           <div className={clsx('border-2 border-dashed rounded p-12 text-center transition-colors cursor-pointer',
