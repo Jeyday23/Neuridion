@@ -165,6 +165,16 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] Audit log retention aligned to 10 years (MDR Art. 10(8)), was 5 years
 - [x] Privacy policy: removed false AI opt-out toggle promise, replaced with email contact
 
+## PRRC Council Round 2 (May 17)
+- [x] S22: Profile snapshot stored as JSONB on search_runs at execution time
+- [x] S22: Archive detail page prefers snapshot over live FK join
+- [x] L13: Migration 055 — consent timestamp backfill from created_at (GDPR Art. 7)
+- [x] S5: Public /sample-report page with realistic mock PMS report
+- [x] S5: "See a sample report" link added to homepage CTA
+- [x] L10: EMDN code nudge on profile create and edit forms
+- [x] S20: Haiku pre-filter rationale now includes FSN title + device name
+- [x] R3: Confidence score tooltips in search panel and archive results
+
 ## Backlog (Open)
 - [ ] MHRA attachment-aware hashing (content_hash misses PDF updates)
 - [ ] FDA MAUDE bulk-download ingestion (bypass 26k record API cap)
