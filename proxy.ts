@@ -38,16 +38,32 @@ function getIp(request: NextRequest): string {
 
 const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE'])
 
-const PUBLIC_PATHS = [
-  '/', '/login', '/signup', '/signup/confirm', '/admin/login',
-  '/privacy', '/terms', '/imprint', '/dpa',
-]
+const PUBLIC_PATHS = new Set([
+  '/',
+  '/login',
+  '/signup',
+  '/signup/confirm',
+  '/admin/login',
+  '/pricing',
+  '/contact',
+  '/privacy',
+  '/terms',
+  '/dpa',
+  '/ai-transparency',
+  '/withdrawal',
+  '/accessibility',
+  '/imprint',
+  '/sample-report',
+  '/faq',
+])
 
 const PUBLIC_API_ROUTES = [
   '/api/auth/',
   '/api/claim/',
   '/api/webhooks/',
   '/api/consent/',
+  '/api/contact',
+  '/api/bugs',
   '/api/worker/',
 ]
 
@@ -178,7 +194,7 @@ export async function proxy(request: NextRequest) {
     return addSecurityHeaders(supabaseResponse)
   }
 
-  const isPublic = PUBLIC_PATHS.includes(pathname) || pathname.startsWith('/claim/') || pathname.startsWith('/auth/')
+  const isPublic = PUBLIC_PATHS.has(pathname) || pathname.startsWith('/claim/') || pathname.startsWith('/auth/')
 
   // Authenticated user on dashboard routes — check for pending hard deletion
   if (user && pathname.startsWith('/dashboard')) {
@@ -249,6 +265,6 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
