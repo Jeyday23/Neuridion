@@ -37,6 +37,7 @@ export async function GET(
     .from('search_runs')
     .select('id', { count: 'exact', head: true })
     .eq('profile_id', id)
+    .eq('user_id', user.id)
 
   if (countError) {
     console.error('[profiles/stats]', countError.message)

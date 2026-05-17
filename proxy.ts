@@ -61,9 +61,8 @@ const PUBLIC_API_ROUTES = [
   '/api/auth/',
   '/api/claim/',
   '/api/webhooks/',
-  '/api/consent/',
+  '/api/consent/cookies',
   '/api/contact',
-  '/api/bugs',
   '/api/worker/',
 ]
 

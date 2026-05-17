@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     if (ts && (!lastActivity || ts > lastActivity)) lastActivity = ts
   }
 
-  const stuckRuns = runs.filter((r) => {
+  const stuckCount = runs.filter((r) => {
     if (r.status === 'running') {
       const anchor = r.started_at ?? r.created_at
       return anchor < stuckCutoff
@@ -44,14 +44,13 @@ export async function GET(req: Request) {
       return r.created_at < stuckCutoff
     }
     return false
-  })
+  }).length
 
   return Response.json({
     window:        '24h',
     total:         runs.length,
     by_status:     byStatus,
-    stuck_count:   stuckRuns.length,
-    stuck_run_ids: stuckRuns.map((r) => r.id),
+    stuck_count:   stuckCount,
     last_activity: lastActivity,
   })
 }
