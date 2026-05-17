@@ -38,7 +38,7 @@ export function PrototypeBanner() {
               NEURIDION
             </span>
             <span className="px-2 py-0.5 rounded border border-[#0D9488]/60 bg-[#0D9488]/10 text-[#0D9488] text-[10px] font-mono font-medium tracking-[0.2em] uppercase leading-none">
-              PROTOTYPE
+              EARLY ACCESS
             </span>
           </div>
 
@@ -47,9 +47,9 @@ export function PrototypeBanner() {
 
           {/* Message */}
           <p className="text-[#0F766E] text-sm leading-snug">
-            You&apos;re previewing an early build —&nbsp;
+            You&apos;re using an early-access build —&nbsp;
             <span className="text-white font-medium">
-              full launch&nbsp;<span className="text-[#0D9488]">June&nbsp;2026</span>
+              public launch&nbsp;<span className="text-[#0D9488]">June&nbsp;2026</span>
             </span>
             . Features may change.
           </p>

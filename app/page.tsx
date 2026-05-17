@@ -218,7 +218,7 @@ export default async function HomePage() {
       {/* How it works */}
       <section id="how-it-works" className="max-w-[1080px] mx-auto px-10 py-24">
         <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3 text-center">How it works</p>
-        <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-12 text-center">Three steps to your PMS report</h2>
+        <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-12 text-center">Three steps to your surveillance report</h2>
         <AnimatedStaggerGrid className="grid md:grid-cols-3 border border-[#dfe3ea] rounded-md overflow-hidden divide-x divide-[#dfe3ea]">
           {STEPS.map(({ num, title, desc }) => (
             <AnimatedStaggerChild key={num} className="p-7 bg-white">
@@ -328,7 +328,7 @@ export default async function HomePage() {
         <AnimatedSection className="max-w-[1080px] mx-auto px-10 flex flex-col items-center text-center gap-6">
           <div>
             <h2 className="text-2xl font-bold text-white mb-1.5">
-              Ready to automate your PMS workflow?
+              Ready to automate your post-market surveillance?
             </h2>
             <p className="text-sm text-[#7a8eab]">
               Start your free trial today. Set up your first device profile in two minutes.

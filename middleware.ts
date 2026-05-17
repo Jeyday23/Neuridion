@@ -13,7 +13,7 @@ const PUBLIC_ROUTES = new Set([
   '/ai-transparency',
   '/withdrawal',
   '/accessibility',
-  '/impressum',
+  '/imprint',
 ])
 
 const PUBLIC_API_PREFIXES = [

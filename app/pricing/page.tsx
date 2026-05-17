@@ -16,7 +16,7 @@ const tiers = [
     features: [
       '3 device profiles',
       '15 searches/month',
-      'PDF reports',
+      'PDF + Word reports',
       'Email support',
     ],
     highlighted: false,
@@ -31,7 +31,7 @@ const tiers = [
     features: [
       '10 device profiles',
       '50 searches/month',
-      'PDF + Excel reports',
+      'PDF + Word reports',
       'Priority support',
     ],
     highlighted: true,
