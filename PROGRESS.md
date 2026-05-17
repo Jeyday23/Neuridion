@@ -181,6 +181,8 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] L3: Archive pagination — .limit(100) → URL-based pagination (25 per page)
 - [x] Footer: Sample Report + FAQ links added to pricing and homepage footers
 - [x] /faq and /sample-report added to public routes in middleware
+- [x] L9: Removed misleading step "1" badge from search panel header
+- [x] L8: Added InfoTooltip to strategy documents upload section
 
 ## Backlog (Open)
 - [ ] MHRA attachment-aware hashing (content_hash misses PDF updates)
