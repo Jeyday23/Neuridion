@@ -193,6 +193,16 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] HMAC-signed session cookies now active (was plain cookie in middleware.ts)
 - [x] Global rate limiting (120 req/min) now active via proxy.ts
 
+## Security Audit Fixes (May 17)
+- [x] P1: AUDIT_HMAC_KEY + WORKER_API_SECRET moved to REQUIRED_SECRETS (startup guard)
+- [x] P1: Worker health endpoint no longer leaks cross-tenant run IDs (counts only)
+- [x] P2: /api/bugs removed from PUBLIC_API_ROUTES (handler has own auth check)
+- [x] P2: /api/consent/ narrowed to /api/consent/cookies in proxy
+- [x] P2: Cleanup worker response stripped of cross-tenant run IDs
+- [x] P2: Profile stats query adds explicit user_id filter (defense-in-depth)
+- [x] P3: Deleted duplicate lib/crypto-utils.ts (dead code)
+- [x] P3: WORKER_API_SECRET generation guidance in .env.example
+
 ## Backlog (Open)
 - [ ] MHRA attachment-aware hashing (content_hash misses PDF updates)
 - [ ] FDA MAUDE bulk-download ingestion (bypass 26k record API cap)
