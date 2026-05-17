@@ -203,6 +203,13 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] P3: Deleted duplicate lib/crypto-utils.ts (dead code)
 - [x] P3: WORKER_API_SECRET generation guidance in .env.example
 
+## Security Audit P2 Fixes (May 17)
+- [x] P2: Removed 'unsafe-inline' from static CSP fallback script-src
+- [x] P2: Replaced hardcoded Render URL in trial-codes PDF with getBaseUrl()
+- [x] P2: Removed meaningless nonce from <body> tag in layout.tsx
+- [x] P2: Stale session cookie cleanup in proxy.ts (clear when user is null)
+- [x] P2: Migration 056 — filter_decisions UPDATE rule → BEFORE UPDATE trigger (explicit error)
+
 ## Backlog (Open)
 - [ ] MHRA attachment-aware hashing (content_hash misses PDF updates)
 - [ ] FDA MAUDE bulk-download ingestion (bypass 26k record API cap)
