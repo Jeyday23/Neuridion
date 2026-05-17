@@ -112,11 +112,16 @@ export async function POST(request: Request) {
   return Response.json({ id: data.id, saved_at: data.created_at }, { status: 201 })
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const rl = await rateLimit(`search-drafts-get:${user.id}`, 30, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429 })
   }
 
   const { data, error } = await supabase

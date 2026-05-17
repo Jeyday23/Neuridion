@@ -3,7 +3,7 @@ import { createHash } from 'crypto'
 import { z } from 'zod'
 import { callAnthropicWithRetry, callHaikuWithRetry } from './rate-limiter'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sanitizeForLlm } from '@/lib/scrapers/sanitize'
+import { sanitizeForLlm, sanitizeProfileField } from '@/lib/scrapers/sanitize'
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
@@ -275,8 +275,8 @@ async function haikuPreFilter(
         {
           role: 'user',
           content:
-            `Device profile: ${sanitizeForLlm(profile.device_name, 200)} by ${sanitizeForLlm(profile.manufacturer, 200)}` +
-            (profile.device_class ? `, ${sanitizeForLlm(profile.device_class, 50)}` : '') +
+            `Device profile: ${sanitizeProfileField(profile.device_name, 200)} by ${sanitizeProfileField(profile.manufacturer, 200)}` +
+            (profile.device_class ? `, ${sanitizeProfileField(profile.device_class, 50)}` : '') +
             `\n\n<FSN_DATA>\nFSN manufacturer: ${sanitizeForLlm(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}` +
             `\nFSN: "${sanitizeForLlm(sanitizePii(fsn.title), 500)}"\n</FSN_DATA>\n\n` +
             'Is this FSN CLEARLY NOT relevant to the device profile? ' +
@@ -306,11 +306,11 @@ async function sonnetFullFilter(
   profile: ProfileContext,
 ): Promise<FilterDecision> {
   const profileLines = [
-    `Device: ${sanitizeForLlm(profile.device_name, 200)}`,
-    `Manufacturer: ${sanitizeForLlm(profile.manufacturer, 200)}`,
-    profile.emdn_code    ? `EMDN Code: ${sanitizeForLlm(profile.emdn_code, 50)}`       : null,
-    profile.device_class ? `Device Class: ${sanitizeForLlm(profile.device_class, 50)}` : null,
-    profile.intended_use ? `Intended Use: ${sanitizeForLlm(sanitizePii(profile.intended_use), 500)}` : null,
+    `Device: ${sanitizeProfileField(profile.device_name, 200)}`,
+    `Manufacturer: ${sanitizeProfileField(profile.manufacturer, 200)}`,
+    profile.emdn_code    ? `EMDN Code: ${sanitizeProfileField(profile.emdn_code, 50)}`       : null,
+    profile.device_class ? `Device Class: ${sanitizeProfileField(profile.device_class, 50)}` : null,
+    profile.intended_use ? `Intended Use: ${sanitizeProfileField(sanitizePii(profile.intended_use), 500)}` : null,
   ]
     .filter(Boolean)
     .join('\n')

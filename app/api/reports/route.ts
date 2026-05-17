@@ -237,6 +237,7 @@ function buildReportHtml(
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:;"/>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #1a1a1a; background: #fff; padding: 0; }

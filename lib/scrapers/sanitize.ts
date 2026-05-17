@@ -38,11 +38,19 @@ export function sanitizeForLlm(text: string, maxLen = 3000): string {
     text
       .replace(COMBINING_MARKS, '')
       .replace(FORMATTING_CONTROLS, ' ')
-      // Decode common HTML entities for angle brackets before stripping boundary tags
       .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
       .replace(ROLE_MARKERS, '[MARKER_REMOVED]')
       .replace(XML_INSTRUCTIONS, '[TAG_REMOVED]')
+      .replace(/<[^>]+>/g, '')
       .replace(/\s+/g, ' ')
       .trim()
   ).slice(0, maxLen)
+}
+
+export function sanitizeProfileField(text: string, maxLen = 200): string {
+  if (!text) return ''
+  return sanitizeForLlm(text, maxLen)
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
 }

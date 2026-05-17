@@ -46,6 +46,7 @@ type AuditEventType =
   | 'account_deletion_cancelled'
   | 'preference_changed'
   | 'search_run_cancelled'
+  | 'login_failed'
 
 export async function logAuditEvent(
   userId: string | null,

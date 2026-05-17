@@ -103,6 +103,7 @@ export async function POST(req: NextRequest) {
   if (error) checkFailedLoginAlert(ip).catch(() => {})
 
   if (error) {
+    logAuditEvent(null, 'login_failed', { email: data.email, method: 'otp', reason: 'invalid_code' }, req).catch(() => {})
     return NextResponse.json(
       { error: 'Invalid or expired code. Please try again.' },
       { status: 400 },
