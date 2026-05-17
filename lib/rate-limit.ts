@@ -110,8 +110,9 @@ export async function rateLimit(
 ): Promise<{ allowed: boolean; retryAfterMs: number }> {
   const limiter = getRedisLimiter(maxRequests, windowMs)
   if (!limiter) {
-    if (process.env.NODE_ENV === 'production' && !redis) {
-      console.error('[rate-limit] Redis not configured in production — rate limiting ineffective')
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[rate-limit] Redis not configured in production — blocking request')
+      return { allowed: false, retryAfterMs: 5_000 }
     }
     return rateLimitMemory(key, maxRequests, windowMs)
   }
