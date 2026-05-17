@@ -4,11 +4,11 @@ const REQUIRED_SECRETS = [
   'STRIPE_WEBHOOK_SECRET',
   'ANTHROPIC_API_KEY',
   'AUDIT_HMAC_KEY',
-  'WORKER_API_SECRET',
 ] as const
 
 const RECOMMENDED_SECRETS = [
   'RESEND_API_KEY',
+  'WORKER_API_SECRET',
 ] as const
 
 export async function register() {
