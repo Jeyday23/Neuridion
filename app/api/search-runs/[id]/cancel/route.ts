@@ -37,7 +37,7 @@ export async function POST(
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const cancellable = ['running', 'filtering', 'queued']
+  const cancellable = ['pending', 'running', 'filtering', 'queued']
   if (!cancellable.includes(run.status)) {
     return Response.json({ error: 'Run is not cancellable' }, { status: 409 })
   }

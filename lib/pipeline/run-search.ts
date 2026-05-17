@@ -83,12 +83,26 @@ export async function runSearchPipeline(
   const stages = [scrapeStage, insertResultsStage, filterStage, persistDecisionsStage]
 
   for (const stage of stages) {
+    const { data: runCheck } = await db.from('search_runs').select('status').eq('id', runId).single()
+    if (runCheck?.status === 'cancelled') {
+      console.error(`[pipeline] run_id=${runId} cancelled by user — aborting before ${stage.name}`)
+      return
+    }
+
+    const stageName = stage.name || 'unknown'
+    const stageStart = Date.now()
+    console.error(`[pipeline] run_id=${runId} stage=${stageName} started`)
     try {
       await stage(ctx)
+      const elapsed = Math.round((Date.now() - stageStart) / 1000)
+      console.error(`[pipeline] run_id=${runId} stage=${stageName} completed in ${elapsed}s (items=${ctx.items.length} warnings=${ctx.warnings.length})`)
     } catch (err) {
+      const elapsed = Math.round((Date.now() - stageStart) / 1000)
       const msg = err instanceof Error ? err.message : String(err)
-      ctx.warnings.push(`${stage.name} failed: Pipeline stage error.`)
-      console.error(`[pipeline] ${stage.name} failed:`, msg)
+      const stack = err instanceof Error ? err.stack?.split('\n').slice(0, 3).join(' ← ') : undefined
+      ctx.warnings.push(`${stageName} failed: Pipeline stage error.`)
+      console.error(`[pipeline] run_id=${runId} stage=${stageName} FAILED in ${elapsed}s: ${msg}`)
+      if (stack) console.error(`[pipeline] run_id=${runId} stage=${stageName} stack: ${stack}`)
     }
   }
 

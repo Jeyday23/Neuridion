@@ -63,10 +63,16 @@ async function handler(req: Request): Promise<Response> {
   const pipelineStart = Date.now()
 
   try {
+    let lastProgressLog = 0
     await runSearchPipeline(
       run_id,
       jobPayload,
       async (update: ProgressUpdate) => {
+        const now = Date.now()
+        if (now - lastProgressLog > 10_000) {
+          console.error(`[process-job] run_id=${run_id} progress: source=${update.current_source ?? 'filter'} done=${update.sources_done?.length ?? 0}/${update.sources_total?.length ?? 0} items=${update.items_found ?? 0}`)
+          lastProgressLog = now
+        }
         await Promise.all([
           db.from('search_runs').update({ progress: update as unknown as Json }).eq('id', run_id),
           db.from('search_job_queue').update({ progress: update as unknown as Json }).eq('id', job_id),

@@ -5,7 +5,7 @@ import { useSearchContext, type SearchProgress } from '../search-context'
 import { useLanguage } from '../language-context'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
-import { Upload, X, CheckCircle, Loader2, ChevronDown } from 'lucide-react'
+import { Upload, X, CheckCircle, Loader2, ChevronDown, Square } from 'lucide-react'
 import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
 import { createClient } from '@/lib/supabase/client'
 import { FeedbackPopup } from '@/app/components/FeedbackPopup'
@@ -249,7 +249,7 @@ function RotatingTip() {
 
 // ─── Search progress card ─────────────────────────────────────────────────────
 
-function SearchProgressCard({ startedAt, progress }: { startedAt: number; progress: SearchProgress | null }) {
+function SearchProgressCard({ startedAt, progress, onCancel }: { startedAt: number; progress: SearchProgress | null; onCancel: () => void }) {
   return (
     <div className="mt-6 rounded-lg border border-[#E2E8F0] bg-white overflow-hidden shadow-sm">
       {/* Header */}
@@ -261,9 +261,19 @@ function SearchProgressCard({ startedAt, progress }: { startedAt: number; progre
           </span>
           <span className="text-sm font-medium text-white truncate">Searching databases…</span>
         </div>
-        <span className="text-xs text-[#0D9488] font-mono tabular-nums shrink-0">
-          <ElapsedTimer startedAt={startedAt} />
-        </span>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-xs text-[#0D9488] font-mono tabular-nums">
+            <ElapsedTimer startedAt={startedAt} />
+          </span>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium text-red-300 hover:text-white hover:bg-red-600/30 transition-colors"
+          >
+            <Square className="w-3 h-3" />
+            Stop
+          </button>
+        </div>
       </div>
 
       {/* Indeterminate progress bar */}
@@ -539,7 +549,10 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           pre_filter_count: number | null
           error_message:    string | null
         }
-        if (data.status === 'pending' || data.status === 'running') {
+        if (data.status === 'cancelled') {
+          stopPolling()
+          setState({ phase: 'idle' })
+        } else if (data.status === 'pending' || data.status === 'running') {
           setState({ phase: 'running', runId, startedAt, progress: data.progress ?? null })
         } else if (data.status === 'complete' || data.status === 'degraded') {
           stopPolling()
@@ -564,8 +577,21 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
     timeoutRef.current = setTimeout(() => {
       stopPolling()
-      setState({ phase: 'error', message: 'Search is taking longer than expected. Check the Archive page for results once complete.' })
-    }, 20 * 60 * 1000)
+      const rid = runId
+      setState({ phase: 'error', message: 'Search timed out after 15 minutes. The run may still complete in the background — check the Archive page.' })
+      apiFetch(`/api/search-runs/${rid}/cancel`, { method: 'POST' }).catch(() => {})
+    }, 15 * 60 * 1000)
+  }
+
+  async function cancelSearch() {
+    const runId = state.phase === 'running' ? state.runId : state.phase === 'queued' ? state.runId : null
+    stopPolling()
+    setState({ phase: 'idle' })
+    if (runId) {
+      try {
+        await apiFetch(`/api/search-runs/${runId}/cancel`, { method: 'POST' })
+      } catch { /* best-effort */ }
+    }
   }
 
   async function runSearch() {
@@ -797,6 +823,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         <SearchProgressCard
           startedAt={state.startedAt}
           progress={state.phase === 'running' ? state.progress : null}
+          onCancel={cancelSearch}
         />
       )}
 
