@@ -106,7 +106,7 @@ export async function sendSearchRunNotification(
 
   if (!apiKey) return
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const appUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
   const archiveUrl = `${appUrl}/dashboard/archive`
 
   const total = summary.relevantCount + summary.uncertainCount + summary.excludedCount

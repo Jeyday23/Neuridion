@@ -13,8 +13,6 @@ function getBaseUrl(): string {
   return url.replace(/\/$/, '')
 }
 
-const BASE_URL = getBaseUrl()
-
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ batch: string }> }
@@ -47,7 +45,7 @@ export async function GET(
   // Generate SVG for each code
   const codeBlocks = await Promise.all(
     (codes ?? []).map(async (row) => {
-      const url = `${BASE_URL}/claim/${row.code}`
+      const url = `${getBaseUrl()}/claim/${row.code}`
       const svg = await QRCode.toString(url, { type: 'svg', width: 160, margin: 1 })
       const expires = row.expires_at
         ? `Expires ${new Date(row.expires_at).toLocaleDateString('en-GB')}`
