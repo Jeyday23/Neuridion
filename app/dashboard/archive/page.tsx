@@ -22,12 +22,7 @@ export default async function ArchivePage({
 
   const adminClient = createAdminClient()
 
-  const { count: totalCount } = await adminClient
-    .from('search_runs')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', user.id)
-
-  const { data: runs, error } = await adminClient
+  const { data: runs, count: totalCount, error } = await adminClient
     .from('search_runs')
     .select(`
       id, status, started_at, completed_at, created_at,
@@ -37,7 +32,7 @@ export default async function ArchivePage({
       dbs_searched, error_message, total_scraped, pre_filter_count,
       report_html_path, report_pdf_path, report_excel_path, report_docx_path, report_generated_at,
       product_profiles ( device_name, manufacturer )
-    `)
+    `, { count: 'exact' })
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1)

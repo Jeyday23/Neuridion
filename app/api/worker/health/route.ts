@@ -16,7 +16,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await db
     .from('search_runs')
-    .select('id, status, started_at, created_at, completed_at')
+    .select('status, started_at, created_at, completed_at')
     .gte('created_at', since)
     .order('created_at', { ascending: false })
 

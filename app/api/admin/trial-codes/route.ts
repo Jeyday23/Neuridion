@@ -88,7 +88,7 @@ export async function GET() {
   const admin = createAdminClient()
   const { data, error } = await admin
     .from('trial_codes')
-    .select('id, code, batch_name, redeemed_by_email, redeemed_at, created_by, created_at, expires_at')
+    .select('id, code, batch_name, redeemed_by_email, redeemed_at, created_at, expires_at')
     .order('created_at', { ascending: false })
     .limit(500)
 

@@ -52,11 +52,10 @@ export async function GET(
     decision:   string
     rationale:  string
     confidence: number | null
-    model:      string | null
   }> = {}
 
   const { data: decisions, error: decisionsError } = await db.from('filter_decisions')
-    .select('fsn_result_id, decision, rationale, confidence, model_used')
+    .select('fsn_result_id, decision, rationale, confidence')
     .eq('search_run_id', id)
 
   for (const d of decisions ?? []) {
@@ -64,7 +63,6 @@ export async function GET(
       decision:   d.decision,
       rationale:  d.rationale,
       confidence: d.confidence != null ? Number(d.confidence) : null,
-      model:      d.model_used ?? null,
     }
   }
 
@@ -116,7 +114,7 @@ export async function DELETE(
 
   const { data: run, error: runError } = await db
     .from('search_runs')
-    .select('id, user_id')
+    .select('id, user_id, report_html_path, report_pdf_path, report_excel_path, report_docx_path')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
@@ -126,18 +124,15 @@ export async function DELETE(
   }
 
   // Clean up report storage files before cascade delete
-  const { data: reports } = await db
-    .from('reports')
-    .select('pdf_storage_path, excel_storage_path')
-    .eq('run_id', id)
+  const reportPaths = [
+    (run as Record<string, unknown>).report_html_path,
+    (run as Record<string, unknown>).report_pdf_path,
+    (run as Record<string, unknown>).report_excel_path,
+    (run as Record<string, unknown>).report_docx_path,
+  ].filter((p): p is string => typeof p === 'string' && p.length > 0)
 
-  if (reports && reports.length > 0) {
-    const paths = reports
-      .flatMap((r) => [r.pdf_storage_path, r.excel_storage_path])
-      .filter((p): p is string => !!p)
-    if (paths.length > 0) {
-      await db.storage.from('reports').remove(paths)
-    }
+  if (reportPaths.length > 0) {
+    await db.storage.from('reports').remove(reportPaths)
   }
 
   // NULL out the legacy search_run_id FK (NO ACTION constraint) before deleting

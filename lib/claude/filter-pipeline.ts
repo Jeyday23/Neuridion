@@ -19,6 +19,8 @@ const anthropic = new Anthropic()
 // Resets on process restart (workers are ephemeral).
 
 let creditExhausted = false
+let creditExhaustedAt = 0
+const CREDIT_RETRY_MS = 10 * 60 * 1000 // 10 minutes
 
 function isAuthError(err: unknown): boolean {
   return err instanceof Anthropic.AuthenticationError
@@ -36,13 +38,15 @@ function isCreditExhaustionError(err: unknown): boolean {
 
 function markCreditExhausted(err: unknown): void {
   creditExhausted = true
-  console.error('[filter] AI service credit/billing exhausted — all subsequent AI calls will skip:',
+  creditExhaustedAt = Date.now()
+  console.error('[filter] AI service credit/billing exhausted — all subsequent AI calls will skip for up to 10 min:',
     err instanceof Error ? err.message : String(err))
 }
 
 function markAuthFailed(err: unknown): void {
   creditExhausted = true
-  console.error('[filter] AI service authentication failed (401) — all subsequent AI calls will skip:',
+  creditExhaustedAt = Date.now()
+  console.error('[filter] AI service authentication failed (401) — all subsequent AI calls will skip for up to 10 min:',
     err instanceof Error ? err.message : String(err))
 }
 
@@ -406,6 +410,10 @@ export async function stage1Filter(
   options?: { skipCache?: boolean },
 ): Promise<FilterDecision> {
   // ── 0. Credit guard — fast path, no API call ─────────────────────────────
+  // TTL-based reset: retry after 10 minutes in case credits were topped up
+  if (creditExhausted && Date.now() - creditExhaustedAt > CREDIT_RETRY_MS) {
+    creditExhausted = false
+  }
   if (creditExhausted) {
     return {
       decision:   'filter_failed',

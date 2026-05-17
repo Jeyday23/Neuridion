@@ -12,7 +12,6 @@ interface FsnRow {
   fsn_date: string | null
   source_url: string
   source_db: string
-  raw_content: string
   filter_decision: {
     decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
     rationale: string

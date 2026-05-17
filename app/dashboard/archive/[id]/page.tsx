@@ -53,21 +53,18 @@ export default async function RunDetailPage({
     .eq('run_id', id)
     .order('fsn_date', { ascending: false })
 
-  const resultIds = (rawResults ?? []).map((r) => r.id)
   const decisionsMap: Record<string, FsnResult['filter_decision']> = {}
 
-  if (resultIds.length > 0) {
-    const { data: decisions } = await admin
-      .from('filter_decisions')
-      .select('fsn_result_id, decision, rationale, confidence')
-      .in('fsn_result_id', resultIds)
+  const { data: decisions } = await admin
+    .from('filter_decisions')
+    .select('fsn_result_id, decision, rationale, confidence')
+    .eq('search_run_id', id)
 
-    for (const d of decisions ?? []) {
-      decisionsMap[d.fsn_result_id] = {
-        decision:   d.decision as 'relevant' | 'uncertain' | 'excluded' | 'filter_failed',
-        rationale:  d.rationale,
-        confidence: d.confidence != null ? Number(d.confidence) : null,
-      }
+  for (const d of decisions ?? []) {
+    decisionsMap[d.fsn_result_id] = {
+      decision:   d.decision as 'relevant' | 'uncertain' | 'excluded' | 'filter_failed',
+      rationale:  d.rationale,
+      confidence: d.confidence != null ? Number(d.confidence) : null,
     }
   }
 

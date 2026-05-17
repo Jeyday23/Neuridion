@@ -74,7 +74,7 @@ export async function POST(request: Request) {
   // Delete user data immediately (no reason to wait 30 days for non-account data)
   const { data: runs } = await admin
     .from('search_runs')
-    .select('id')
+    .select('id, report_html_path, report_pdf_path, report_excel_path, report_docx_path')
     .eq('user_id', user.id)
 
   const runIds = (runs ?? []).map((r) => r.id)
@@ -84,16 +84,37 @@ export async function POST(request: Request) {
     await admin.from('fsn_results').delete().in('run_id', runIds)
   }
 
-  // Clean up storage files from all buckets before data deletion
+  // Clean up report storage files using paths from search_runs (reliable, no nested-dir issues)
+  const allReportPaths = (runs ?? []).flatMap((r) =>
+    [
+      (r as Record<string, unknown>).report_html_path,
+      (r as Record<string, unknown>).report_pdf_path,
+      (r as Record<string, unknown>).report_excel_path,
+      (r as Record<string, unknown>).report_docx_path,
+    ].filter((p): p is string => typeof p === 'string' && p.length > 0)
+  )
+
+  if (allReportPaths.length > 0) {
+    await admin.storage.from('reports').remove(allReportPaths)
+  }
+
+  // Clean up IFU document storage files — parallel list + single remove
   const { data: userProfiles } = await admin
     .from('product_profiles')
     .select('id')
     .eq('user_id', user.id)
 
-  for (const p of userProfiles ?? []) {
-    const { data: ifuFiles } = await admin.storage.from('ifu-documents').list(p.id)
-    if (ifuFiles && ifuFiles.length > 0) {
-      await admin.storage.from('ifu-documents').remove(ifuFiles.map((f) => `${p.id}/${f.name}`))
+  const profileIds = (userProfiles ?? []).map((p) => p.id)
+
+  if (profileIds.length > 0) {
+    const ifuListResults = await Promise.all(
+      profileIds.map((pid) => admin.storage.from('ifu-documents').list(pid))
+    )
+    const allIfuPaths = ifuListResults.flatMap((result, idx) =>
+      (result.data ?? []).map((f) => `${profileIds[idx]}/${f.name}`)
+    )
+    if (allIfuPaths.length > 0) {
+      await admin.storage.from('ifu-documents').remove(allIfuPaths)
     }
   }
 
@@ -115,16 +136,6 @@ export async function POST(request: Request) {
   ])
   if (user.email) {
     await admin.from('login_attempts').delete().eq('email', user.email)
-  }
-
-  // Clean up storage files
-  const { data: reportFiles } = await admin.storage
-    .from('reports')
-    .list(user.id)
-
-  if (reportFiles && reportFiles.length > 0) {
-    const paths = reportFiles.map((f) => `${user.id}/${f.name}`)
-    await admin.storage.from('reports').remove(paths)
   }
 
   await logAuditEvent(user.id, 'account_deleted', {

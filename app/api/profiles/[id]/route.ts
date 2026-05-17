@@ -126,7 +126,7 @@ export async function PATCH(
     .update(updatePayload as unknown as ProfileUpdate)
     .eq('id', id)
     .eq('user_id', user.id)
-    .select('id, user_id, device_name, manufacturer, emdn_code, device_class, intended_use, search_strategy, last_modified_at, last_modified_by')
+    .select('id, user_id, device_name, manufacturer, emdn_code, device_class, intended_use, search_strategy, last_modified_at')
     .single()
 
   if (updateError) {
@@ -165,7 +165,7 @@ export async function DELETE(
 
   const { data: profile, error: fetchError } = await db
     .from('product_profiles')
-    .select('id, user_id')
+    .select('id, user_id, ifu_storage_path')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
@@ -174,14 +174,10 @@ export async function DELETE(
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Clean up IFU document storage files
-  const { data: ifuFiles } = await db.storage
-    .from('ifu-documents')
-    .list(id)
-
-  if (ifuFiles && ifuFiles.length > 0) {
-    const ifuPaths = ifuFiles.map((f) => `${id}/${f.name}`)
-    await db.storage.from('ifu-documents').remove(ifuPaths)
+  // Clean up IFU document storage file using the stored path
+  const ifuPath = (profile as Record<string, unknown>).ifu_storage_path
+  if (typeof ifuPath === 'string' && ifuPath.length > 0) {
+    await db.storage.from('ifu-documents').remove([ifuPath])
   }
 
   // NULL out legacy search_run_id FK on fsn_results for all runs under this profile

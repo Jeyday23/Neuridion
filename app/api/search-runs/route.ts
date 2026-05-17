@@ -82,7 +82,7 @@ export async function POST(request: Request) {
   // Profile ownership check + snapshot for audit traceability (S22)
   const { data: profile, error: profileError } = await supabase
     .from('product_profiles')
-    .select('id, device_name, manufacturer, intended_use, emdn_code, device_class, default_dbs, search_strategy')
+    .select('id, device_name, manufacturer, intended_use, emdn_code, device_class, search_strategy')
     .eq('id', profile_id)
     .eq('user_id', user.id)
     .single()
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
   // Reject if user already has an active run — prevents concurrent pipeline abuse
   const { count: activeCount } = await db
     .from('search_runs')
-    .select('*', { count: 'exact', head: true })
+    .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
     .in('status', ['pending', 'running'])
 

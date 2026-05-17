@@ -16,7 +16,6 @@ interface FsnRow {
   fsn_date: string | null
   source_url: string
   source_db: string
-  raw_content: string
   filter_decision: {
     decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
     rationale: string
@@ -442,7 +441,7 @@ export async function POST(request: Request) {
   // Fetch run + profile (validates ownership)
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('id, profile_id, user_id, status, review_status, period_from, period_to, relevant_count, uncertain_count, excluded_count, dbs_searched, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
+    .select('id, review_status, period_from, period_to, profile_snapshot, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
     .eq('id', run_id)
     .eq('user_id', user.id)
     .single()
@@ -470,7 +469,7 @@ export async function POST(request: Request) {
   // Fetch FSN results
   const { data: rawResults, error: resultsError } = await supabase
     .from('fsn_results')
-    .select('id, title, manufacturer, fsn_date, source_url, source_db, raw_content')
+    .select('id, title, manufacturer, fsn_date, source_url, source_db')
     .eq('run_id', run_id)
     .order('fsn_date', { ascending: false })
 
@@ -502,7 +501,6 @@ export async function POST(request: Request) {
     fsn_date:        r.fsn_date,
     source_url:      r.source_url,
     source_db:       r.source_db,
-    raw_content:     r.raw_content,
     filter_decision: (decisionsMap[r.id] as FsnRow['filter_decision']) ?? null,
   }))
 
