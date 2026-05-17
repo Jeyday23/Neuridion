@@ -226,6 +226,16 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] DB connections: audited clean — all HTTP/PostgREST, no persistent connections
 - [x] Background jobs: audited clean — no hidden connection holders
 
+## Pipeline Observability & UX (May 18)
+- [x] Cancel button: Stop button added to SearchProgressCard (search-panel.tsx)
+- [x] Cancel API: 'pending' added to cancellable statuses
+- [x] Inter-stage cancellation: pipeline checks for cancelled status between stages
+- [x] Per-stage timing: start/complete/fail logs with elapsed seconds
+- [x] Stack traces: first 3 frames logged on stage failure
+- [x] Worker progress logging: throttled every 10s with source/items/progress
+- [x] Client timeout: reduced 20min → 15min with auto-cancel on expiry
+- [x] Cancelled status handling: polling loop exits cleanly on cancelled runs
+
 ## Backlog (Open)
 - [ ] MHRA attachment-aware hashing (content_hash misses PDF updates)
 - [ ] FDA MAUDE bulk-download ingestion (bypass 26k record API cap)
