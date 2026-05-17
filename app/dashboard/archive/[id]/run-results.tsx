@@ -98,7 +98,7 @@ function ResultRow({ result }: { result: FsnResult }) {
             )}
             <span className="text-zinc-400">{formatSourceLabel(result.source_db)}</span>
             {d && d.confidence != null && (
-              <span className="text-zinc-400">{Math.round(d.confidence * 100)}% confidence</span>
+              <span className="text-zinc-400" title="How certain the AI is that this classification is correct">{Math.round(d.confidence * 100)}% confidence</span>
             )}
           </div>
 

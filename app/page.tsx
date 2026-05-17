@@ -334,13 +334,21 @@ export default async function HomePage() {
               Start your free trial today. Set up your first device profile in two minutes.
             </p>
           </div>
-          <Link
-            href="/signup"
-            className="inline-flex items-center gap-2 px-6 py-[11px] bg-white text-[#0F1F3D] rounded font-semibold text-sm hover:bg-[#f1f5f9] transition-colors flex-shrink-0"
-          >
-            Start free trial
-            <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/signup"
+              className="inline-flex items-center gap-2 px-6 py-[11px] bg-white text-[#0F1F3D] rounded font-semibold text-sm hover:bg-[#f1f5f9] transition-colors flex-shrink-0"
+            >
+              Start free trial
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+            <Link
+              href="/sample-report"
+              className="text-sm text-[#7a8eab] hover:text-white transition-colors underline underline-offset-2"
+            >
+              See a sample report
+            </Link>
+          </div>
         </AnimatedSection>
       </section>
 

@@ -79,10 +79,10 @@ export async function POST(request: Request) {
   const userPlan = ((userData?.plan ?? 'free') as PlanId)
   const runLimit = PLANS[userPlan].maxSearchRuns
 
-  // Profile ownership check
+  // Profile ownership check + snapshot for audit traceability (S22)
   const { data: profile, error: profileError } = await supabase
     .from('product_profiles')
-    .select('id')
+    .select('id, device_name, manufacturer, intended_use, emdn_code, device_class, default_dbs, search_strategy')
     .eq('id', profile_id)
     .eq('user_id', user.id)
     .single()
@@ -127,9 +127,10 @@ export async function POST(request: Request) {
   const run = { id: rpcResult as string }
 
   const dbsToSearch = selected_dbs ?? ['bfarm']
+  const { id: _profileId, ...profileFields } = profile
   await db
     .from('search_runs')
-    .update({ dbs_searched: dbsToSearch })
+    .update({ dbs_searched: dbsToSearch, profile_snapshot: profileFields })
     .eq('id', run.id)
 
   const jobPayload: SearchJobPayload = {

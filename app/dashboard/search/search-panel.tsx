@@ -181,7 +181,7 @@ function FsnRow({
               </>
             )}
             <div className="mt-2 flex items-center gap-4 text-xs text-zinc-500 flex-wrap">
-              {d?.confidence != null && <span>Confidence: {Math.round(d.confidence * 100)}%</span>}
+              {d?.confidence != null && <span title="How certain the AI is that this classification is correct">Confidence: {Math.round(d.confidence * 100)}%</span>}
               {d?.model && <span>AI-assisted</span>}
               <a href={safeHref(result.source_url)} target="_blank" rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}

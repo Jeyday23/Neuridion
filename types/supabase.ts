@@ -546,6 +546,7 @@ export type Database = {
           period_to: string | null
           pre_filter_count: number | null
           profile_id: string
+          profile_snapshot: Json | null
           progress: Json | null
           relevant_count: number
           report_docx_path: string | null
@@ -579,6 +580,7 @@ export type Database = {
           period_to?: string | null
           pre_filter_count?: number | null
           profile_id: string
+          profile_snapshot?: Json | null
           progress?: Json | null
           relevant_count?: number
           report_docx_path?: string | null
@@ -612,6 +614,7 @@ export type Database = {
           period_to?: string | null
           pre_filter_count?: number | null
           profile_id?: string
+          profile_snapshot?: Json | null
           progress?: Json | null
           relevant_count?: number
           report_docx_path?: string | null

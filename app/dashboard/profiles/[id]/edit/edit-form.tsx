@@ -115,6 +115,7 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
           <input id="emdn_code" type="text" value={emnCode}
             onChange={(e) => setEmnCode(e.target.value)}
             placeholder="e.g. Z12" className={inputClass} />
+          <p className="mt-1 text-[11px] text-zinc-400">Adding an EMDN code improves AI classification accuracy for your device.</p>
         </div>
         <div>
           <label htmlFor="device_class" className="block text-sm font-medium text-zinc-700 mb-1.5">

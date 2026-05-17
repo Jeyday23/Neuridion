@@ -14,6 +14,7 @@ const PUBLIC_ROUTES = new Set([
   '/withdrawal',
   '/accessibility',
   '/imprint',
+  '/sample-report',
 ])
 
 const PUBLIC_API_PREFIXES = [

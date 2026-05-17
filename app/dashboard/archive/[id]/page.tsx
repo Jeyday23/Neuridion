@@ -29,7 +29,7 @@ export default async function RunDetailPage({
       id, status, created_at, started_at, completed_at,
       search_period_from, search_period_to, period_from, period_to,
       total_results, relevant_count, uncertain_count, excluded_count, filter_failed_count,
-      dbs_searched, error_message, review_status, terms_used,
+      dbs_searched, error_message, review_status, terms_used, profile_snapshot,
       report_html_path, report_pdf_path, report_excel_path, report_generated_at,
       product_profiles ( device_name, manufacturer )
     `)
@@ -39,10 +39,12 @@ export default async function RunDetailPage({
 
   if (!run) return notFound()
 
+  const snapshot = run.profile_snapshot as { device_name: string; manufacturer: string } | null
   const profileRaw = run.product_profiles
-  const profile = (Array.isArray(profileRaw) ? profileRaw[0] : profileRaw) as
+  const liveProfile = (Array.isArray(profileRaw) ? profileRaw[0] : profileRaw) as
     | { device_name: string; manufacturer: string }
     | null
+  const profile = snapshot ?? liveProfile
 
   // Fetch FSN results
   const { data: rawResults } = await admin
