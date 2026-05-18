@@ -82,8 +82,8 @@ export function FsnExamples() {
                     {fsn.rationale}
                   </p>
                 </div>
-                <span className="text-[11px] text-[#7a8599] font-mono flex-shrink-0 ml-3" title="Confidence in this assessment">
-                  {fsn.confidence}%
+                <span className="text-[11px] text-[#7a8599] font-mono flex-shrink-0 ml-3" title="How closely this FSN matches your device profile">
+                  {fsn.confidence}% match
                 </span>
               </div>
             </div>

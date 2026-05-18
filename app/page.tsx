@@ -27,17 +27,17 @@ const STEPS = [
   {
     num: '01',
     title: 'Define your device profile',
-    desc: 'Enter device name, manufacturer, and classification. Neuridion generates optimised search terms for each regulatory database.',
+    desc: 'Neuridion integrates into your PMS strategy. Define your device profile or upload your predefined search strategy and product profiles.',
   },
   {
     num: '02',
     title: 'Run a search',
-    desc: 'Select date range and databases. All sources are queried in parallel. Results are deduplicated across databases.',
+    desc: 'Select monitoring period and databases. All sources are queried in parallel. Results are deduplicated across databases.',
   },
   {
     num: '03',
     title: 'Review and export',
-    desc: 'AI assesses each FSN as relevant, uncertain, or excluded. Your PRRC reviews every decision before the report is finalised.',
+    desc: 'AI evaluates each FSN as relevant, uncertain, or excluded. Review every decision before the report is finalised. Export in various formats.',
   },
 ]
 
@@ -96,8 +96,8 @@ export default async function HomePage() {
             <ul className="flex flex-col items-start gap-5">
               {([
                 { icon: Search, text: 'Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel' },
-                { icon: Brain, text: 'AI assesses every Field Safety Notice against your device profile' },
-                { icon: UserCheck, text: 'Your PRRC (Person Responsible for Regulatory Compliance) reviews every decision before export' },
+                { icon: Brain, text: 'AI evaluates every Field Safety Notice against your device profile' },
+                { icon: UserCheck, text: 'Review every decision with a rationale you can verify — then export in PDF, Word, or Excel' },
                 { icon: FileText, text: 'Audit-ready PDF and Word reports in minutes' },
               ] as const).map(({ icon: Icon, text }) => (
                 <li key={text} className="flex items-center gap-3 text-[15px] text-[#3d4a5c]">
@@ -233,10 +233,10 @@ export default async function HomePage() {
       {/* FSN classification examples */}
       <section className="bg-[#f6f7f9] border-y border-[#dfe3ea] py-24">
         <div className="max-w-[1080px] mx-auto px-10">
-          <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3 text-center">Real classification output</p>
-          <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-3 text-center">Every FSN, classified against your device</h2>
+          <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3 text-center">Real assessment output</p>
+          <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-3 text-center">Every FSN, matched against your device profile</h2>
           <p className="text-[15px] text-[#3d4a5c] mb-10 max-w-xl mx-auto text-center">
-            Each Field Safety Notice from the search is classified by AI with a rationale your PRRC can verify. Nothing reaches the report unchecked.
+            Each Field Safety Notice from the search is evaluated by AI with a rationale you can verify and adjust. Nothing reaches the report unchecked.
           </p>
           <FsnExamples />
         </div>
