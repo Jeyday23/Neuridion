@@ -201,9 +201,9 @@ export default async function RunDetailPage({
         </div>
       )}
 
-      {run.status === 'error' && run.error_message && (
+      {run.status === 'error' && (
         <div className="mb-6 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-4 py-3 text-sm text-[#DC2626]">
-          <strong>Error:</strong> {run.error_message}
+          <strong>Error:</strong> This search encountered an error. Please try again or contact support.
         </div>
       )}
 

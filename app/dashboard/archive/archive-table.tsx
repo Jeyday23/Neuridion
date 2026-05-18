@@ -248,9 +248,9 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                       >
                         {STATUS_LABELS[run.status] ?? run.status}
                       </span>
-                      {run.status === 'error' && run.error_message && (
+                      {run.status === 'error' && (
                         <p className="mt-1 text-xs text-red-500 max-w-[180px] truncate">
-                          {run.error_message}
+                          Search failed. Try again or contact support.
                         </p>
                       )}
                     </td>

@@ -24,6 +24,7 @@ export async function finalizeStage(ctx: PipelineContext): Promise<void> {
     uncertain_count:     counts.uncertain,
     excluded_count:      counts.excluded,
     filter_failed_count: counts.filter_failed,
+    total_results:       counts.relevant + counts.uncertain + counts.excluded,
     total_scraped:       ctx.items.length,
     pre_filter_count:    ctx.insertedRows.length,
     progress:            null,

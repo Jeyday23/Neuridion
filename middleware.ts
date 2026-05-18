@@ -73,12 +73,13 @@ const CSRF_EXEMPT_ROUTES = [
   '/api/auth/',
   '/api/claim/',
   '/api/consent/cookies',
+  '/api/worker/',
 ]
 
 const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000
 const SESSION_COOKIE     = 'session_started_at'
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const requestId = crypto.randomUUID()
 
