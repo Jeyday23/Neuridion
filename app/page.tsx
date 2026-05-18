@@ -212,13 +212,14 @@ export default async function HomePage() {
               </div>
             ))}
           </div>
+          <p className="text-[13px] text-[#0D9488] font-medium text-center mt-6">...many more coming soon</p>
         </div>
       </section>
 
       {/* How it works */}
       <section id="how-it-works" className="max-w-[1080px] mx-auto px-10 py-24">
         <p className="text-xs font-semibold text-[#0D9488] uppercase tracking-wider mb-3 text-center">How it works</p>
-        <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-12 text-center">Three steps to your surveillance report</h2>
+        <h2 className="text-[28px] font-bold text-[#0F1F3D] tracking-tight mb-12 text-center">Three steps to your PMS report</h2>
         <AnimatedStaggerGrid className="grid md:grid-cols-3 border border-[#dfe3ea] rounded-md overflow-hidden divide-x divide-[#dfe3ea]">
           {STEPS.map(({ num, title, desc }) => (
             <AnimatedStaggerChild key={num} className="p-7 bg-white">

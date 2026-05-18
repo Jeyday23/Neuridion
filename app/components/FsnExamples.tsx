@@ -83,7 +83,7 @@ export function FsnExamples() {
                   </p>
                 </div>
                 <span className="text-[11px] text-[#7a8599] font-mono flex-shrink-0 ml-3" title="How closely this FSN matches your device profile">
-                  {fsn.confidence}% match
+                  {fsn.decision === 'excluded' ? `${fsn.confidence}% confidence` : `${fsn.confidence}% match`}
                 </span>
               </div>
             </div>
