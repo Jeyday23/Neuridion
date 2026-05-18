@@ -23,21 +23,27 @@ export default async function RunDetailPage({
 
   const admin = createAdminClient()
 
-  const { data: run } = await admin
+  const RUN_COLS = `
+    id, status, created_at, started_at, completed_at,
+    search_period_from, search_period_to, period_from, period_to,
+    total_results, relevant_count, uncertain_count, excluded_count, filter_failed_count,
+    dbs_searched, error_message, review_status, terms_used, profile_snapshot,
+    report_html_path, report_pdf_path, report_excel_path, report_generated_at,
+    product_profiles ( device_name, manufacturer )
+  `.trim()
+
+  const { data: runData, error: runError } = await admin
     .from('search_runs')
-    .select(`
-      id, status, created_at, started_at, completed_at,
-      search_period_from, search_period_to, period_from, period_to,
-      total_results, relevant_count, uncertain_count, excluded_count, filter_failed_count,
-      dbs_searched, error_message, review_status, terms_used, profile_snapshot,
-      report_html_path, report_pdf_path, report_excel_path, report_generated_at,
-      product_profiles ( device_name, manufacturer )
-    `)
+    .select(RUN_COLS)
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
 
-  if (!run) return notFound()
+  if (runError) console.error('[archive/[id]]', 'query error:', runError.message, runError.code)
+  if (!runData) return notFound()
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const run = runData as any
 
   const snapshot = run.profile_snapshot as { device_name: string; manufacturer: string } | null
   const profileRaw = run.product_profiles

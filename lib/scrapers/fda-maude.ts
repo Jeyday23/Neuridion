@@ -118,7 +118,7 @@ async function fetchQuarter(
       break
     }
 
-    const data = result.ok ? result.data : result.data
+    const data = result.data
 
     if (data.error) {
       if (data.error.code === 'NOT_FOUND') {
@@ -254,8 +254,10 @@ async function fetchPageWithRetry(url: string, maxAttempts = 3): Promise<FetchRe
   let lastError = ''
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30_000)
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': UA } })
+      const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: controller.signal })
 
       if (res.ok) {
         const data = await res.json() as OpenFdaResponse
@@ -296,6 +298,8 @@ async function fetchPageWithRetry(url: string, maxAttempts = 3): Promise<FetchRe
         await new Promise(r => setTimeout(r, backoffs[attempt]))
         continue
       }
+    } finally {
+      clearTimeout(timeout)
     }
   }
 

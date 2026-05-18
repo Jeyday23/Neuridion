@@ -12,11 +12,13 @@ export default async function ClaimPage({
   const { code } = await params
   const admin = createAdminClient()
 
-  const { data: trialCode } = await admin
+  const { data: trialCode, error: trialCodeError } = await admin
     .from('trial_codes')
     .select('id, redeemed_at, expires_at, batch_name')
     .eq('code', code)
     .maybeSingle()
+
+  if (trialCodeError) console.error('[claim]', 'query error:', trialCodeError.message, trialCodeError.code)
 
   // ── Invalid ──────────────────────────────────────────────────────────────────
   if (!trialCode) {

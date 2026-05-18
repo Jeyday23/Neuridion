@@ -82,6 +82,11 @@ export async function runSearchPipeline(
 
   const stages = [scrapeStage, insertResultsStage, filterStage, persistDecisionsStage]
 
+  // Stages whose failure should abort the pipeline and mark the run as 'error'.
+  // A scrape failure with 0 items is recoverable (finalizeStage handles it),
+  // but filter/persist failures produce incomplete data that must not be reported as success.
+  const criticalStages = new Set([filterStage, persistDecisionsStage])
+
   for (const stage of stages) {
     const { data: runCheck } = await db.from('search_runs').select('status').eq('id', runId).single()
     if (runCheck?.status === 'cancelled') {
@@ -103,6 +108,17 @@ export async function runSearchPipeline(
       ctx.warnings.push(`${stageName} failed: Pipeline stage error.`)
       console.error(`[pipeline] run_id=${runId} stage=${stageName} FAILED in ${elapsed}s: ${msg}`)
       if (stack) console.error(`[pipeline] run_id=${runId} stage=${stageName} stack: ${stack}`)
+
+      if (criticalStages.has(stage)) {
+        console.error(`[pipeline] run_id=${runId} critical stage ${stageName} failed — aborting pipeline`)
+        await db.from('search_runs').update({
+          status: 'error',
+          error_message: 'The search pipeline encountered an error. Please try again or contact support.',
+          completed_at: new Date().toISOString(),
+          progress: null,
+        }).eq('id', runId)
+        return
+      }
     }
   }
 

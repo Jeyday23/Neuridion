@@ -89,8 +89,10 @@ function stripTags(html: string): string {
 }
 
 export async function fetchBfarmDetail(sourceUrl: string): Promise<string | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30_000)
   try {
-    const res = await fetch(sourceUrl, { headers: { 'User-Agent': UA } })
+    const res = await fetch(sourceUrl, { headers: { 'User-Agent': UA }, signal: controller.signal })
     if (!res.ok) return null
     const html = await res.text()
 
@@ -104,6 +106,8 @@ export async function fetchBfarmDetail(sourceUrl: string): Promise<string | null
     return text.slice(0, 8000)
   } catch {
     return null
+  } finally {
+    clearTimeout(timeout)
   }
 }
 
@@ -152,7 +156,14 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items
 
     for (let page = 1; page <= MAX_PAGES; page++) {
       const url = buildUrl(page, fromDate, toDate)
-      const res = await fetch(url, { headers: { 'User-Agent': UA } })
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 30_000)
+      let res: Response
+      try {
+        res = await fetch(url, { headers: { 'User-Agent': UA }, signal: controller.signal })
+      } finally {
+        clearTimeout(timeout)
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching page ${page}`)
 
       const contentType = res.headers.get('content-type') || ''
@@ -254,7 +265,14 @@ async function scrapeYearShortcut(shortcut: string): Promise<ParsedItem[]> {
     const base = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&dateOfIssue_dt=${shortcut}&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
     const url  = pageNum === 1 ? base : `${base}&gtp=469344_list%3D${pageNum}`
 
-    const res = await fetch(url, { headers: { 'User-Agent': UA } })
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30_000)
+    let res: Response
+    try {
+      res = await fetch(url, { headers: { 'User-Agent': UA }, signal: controller.signal })
+    } finally {
+      clearTimeout(timeout)
+    }
     if (!res.ok) {
       console.error('[bfarm]', `${shortcut} page ${pageNum}: HTTP ${res.status}, stopping`)
       break
@@ -278,7 +296,7 @@ async function scrapeYearShortcut(shortcut: string): Promise<ParsedItem[]> {
     if (pageItems.length < RESULTS_PER_PAGE) break
 
     pageNum++
-    await new Promise(r => setTimeout(r, 500))
+    await new Promise(r => setTimeout(r, 200))
   }
 
   return items
@@ -398,7 +416,14 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
 // Kept for potential future use (e.g. "latest FSNs" widget that doesn't
 // need a date range filter). Not called from the main search pipeline.
 export async function scrapeRssFeed(options: ScraperOptions = {}): Promise<ScrapedFsn[]> {
-  const response = await fetch(RSS_URL)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30_000)
+  let response: Response
+  try {
+    response = await fetch(RSS_URL, { signal: controller.signal })
+  } finally {
+    clearTimeout(timeout)
+  }
   if (!response.ok) {
     throw new Error(`BfArM RSS fetch failed: ${response.status} ${response.statusText}`)
   }

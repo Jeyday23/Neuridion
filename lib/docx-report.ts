@@ -155,6 +155,21 @@ export async function buildDocx(rows: FsnRow[], meta: ReportMeta): Promise<Buffe
 
   const children: (Paragraph | Table)[] = []
 
+  // AI Disclaimer
+  children.push(new Paragraph({
+    spacing: { after: 200 },
+    shading: { type: ShadingType.SOLID, color: 'FEF2F2' },
+    children: [
+      new TextRun({ text: 'AI Disclaimer: ', bold: true, size: 18, font: 'Calibri', color: '991B1B' }),
+      new TextRun({
+        text: 'This report was generated with AI-assisted relevance filtering. All classifications (relevant, uncertain, excluded) are automated assessments and must be independently verified by the PRRC before use in regulatory submissions. The AI model may produce incorrect classifications.',
+        size: 18,
+        font: 'Calibri',
+        color: '991B1B',
+      }),
+    ],
+  }))
+
   // Header
   children.push(new Paragraph({
     children: [new TextRun({ text: 'POST-MARKET SURVEILLANCE', size: 16, color: '666666', font: 'Calibri', allCaps: true })],
@@ -215,6 +230,57 @@ export async function buildDocx(rows: FsnRow[], meta: ReportMeta): Promise<Buffe
     children.push(sectionHeader(`Not Relevant (${excluded.length})`, '6B7280'))
     children.push(buildFsnTable(excluded, true))
   }
+
+  // Conclusion
+  children.push(new Paragraph({
+    heading: HeadingLevel.HEADING_2,
+    spacing: { before: 400, after: 200 },
+    children: [new TextRun({ text: 'Conclusion', bold: true, size: 24, color: BRAND_NAVY, font: 'Calibri' })],
+  }))
+
+  const conclusionRelevant = relevant.length + uncertain.length
+  const failedNote = filterFailed.length > 0
+    ? ` Note: The AI filter could not be applied to ${filterFailed.length} item${filterFailed.length !== 1 ? 's' : ''} due to API unavailability — these require manual review.`
+    : ''
+  const conclusionText = conclusionRelevant === 0 && filterFailed.length === 0
+    ? 'Based on the automated screening, no Field Safety Notices were classified as relevant to this device profile during the search period. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.'
+    : `This review identified ${conclusionRelevant + filterFailed.length} Field Safety Notice${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} notice${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.${failedNote}`
+
+  children.push(new Paragraph({
+    spacing: { after: 200 },
+    children: [new TextRun({ text: conclusionText, italics: true, size: 20, font: 'Calibri', color: '333333' })],
+  }))
+
+  // Signature block
+  children.push(new Paragraph({
+    heading: HeadingLevel.HEADING_2,
+    spacing: { before: 400, after: 200 },
+    children: [new TextRun({ text: 'Review & Approval', bold: true, size: 24, color: BRAND_NAVY, font: 'Calibri' })],
+  }))
+
+  children.push(new Paragraph({
+    spacing: { after: 100 },
+    children: [new TextRun({ text: 'Reviewed by: _______________', size: 20, font: 'Calibri' })],
+  }))
+  children.push(new Paragraph({
+    spacing: { after: 100 },
+    children: [new TextRun({ text: 'Date: _______________', size: 20, font: 'Calibri' })],
+  }))
+  children.push(new Paragraph({
+    spacing: { after: 100 },
+    children: [new TextRun({ text: 'Signature: _______________', size: 20, font: 'Calibri' })],
+  }))
+  children.push(new Paragraph({
+    spacing: { before: 200, after: 200 },
+    children: [
+      new TextRun({ text: 'PRRC Confirmation: ', bold: true, size: 20, font: 'Calibri' }),
+      new TextRun({
+        text: '[ ] I have reviewed this report and confirm the AI-assisted classifications are appropriate for inclusion in post-market surveillance documentation.',
+        size: 20,
+        font: 'Calibri',
+      }),
+    ],
+  }))
 
   const doc = new Document({
     styles: {

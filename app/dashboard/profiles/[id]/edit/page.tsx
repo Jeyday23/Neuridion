@@ -24,13 +24,14 @@ export default async function EditProfilePage({
 
   const db = createAdminClient()
 
-  const { data: profile } = await db
+  const { data: profile, error: profileError } = await db
     .from('product_profiles')
     .select('id, user_id, device_name, manufacturer, emdn_code, device_class, intended_use, search_strategy')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
 
+  if (profileError) console.error('[profiles/edit]', 'query error:', profileError.message, profileError.code)
   if (!profile) return notFound()
 
   // Load edit history (gracefully ignore if table doesn't exist yet)

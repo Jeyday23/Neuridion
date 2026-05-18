@@ -147,7 +147,16 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn> {
 
     const body      = detail.details?.body     ?? ''
     const refNumber = detail.details?.ref_number ?? ''
-    const issuedDate = detail.details?.issued_date ?? ''
+    const rawIssuedDate = detail.details?.issued_date ?? ''
+
+    // Normalize issuedDate to YYYY-MM-DD — the API returns inconsistent formats
+    let issuedDate: string | null = null
+    if (rawIssuedDate) {
+      const parsed = new Date(rawIssuedDate)
+      if (!isNaN(parsed.getTime())) {
+        issuedDate = parsed.toISOString().slice(0, 10)
+      }
+    }
 
     const rawParts = [
       item.title,
@@ -157,7 +166,7 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn> {
 
     return {
       ...item,
-      fsn_date:    (issuedDate || item.fsn_date) ?? null,
+      fsn_date:    issuedDate ?? item.fsn_date ?? null,
       raw_content: sanitizeContent(rawParts.join('\n\n')),
     }
   } catch (err) {
@@ -169,9 +178,12 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn> {
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
 async function fetchJson(url: string): Promise<unknown | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30_000)
   try {
     const res = await fetch(url, {
       headers: { 'User-Agent': UA, Accept: 'application/json' },
+      signal: controller.signal,
     })
     if (!res.ok) {
       console.error(`[mhra] HTTP ${res.status} ${url}`)
@@ -192,6 +204,8 @@ async function fetchJson(url: string): Promise<unknown | null> {
   } catch (err) {
     console.error(`[mhra] Fetch failed: ${url}:`, err instanceof Error ? err.message : String(err))
     return null
+  } finally {
+    clearTimeout(timeout)
   }
 }
 

@@ -11,11 +11,13 @@ export default async function SettingsPage() {
   if (authError || !user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data: userData } = await admin
+  const { data: userData, error: userDataError } = await admin
     .from('users')
     .select('deletion_requested_at, deleted_at, consent_terms_at, consent_privacy_at, consent_cookies_at')
     .eq('id', user.id)
     .single()
+
+  if (userDataError) console.error('[settings]', 'query error:', userDataError.message, userDataError.code)
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">

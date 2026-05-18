@@ -41,7 +41,7 @@ const FSN_EXAMPLES = [
     deviceClass: 'Surgical stapler (Class IIb)',
     decision: 'excluded' as const,
     rationale: 'Surgical device, unrelated device class and intended use. No overlap with patient monitoring.',
-    confidence: 3,
+    confidence: 97,
   },
 ]
 

@@ -31,7 +31,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   for (const hit of cacheHits ?? []) cacheMap.set(hit.fsn_external_id, hit)
 
   const alreadyCached: InsertedFsnRow[] = []
-  let needsFilter: InsertedFsnRow[] = []
+  const needsFilter: InsertedFsnRow[] = []
 
   for (const row of insertedRows) {
     const skipCache = contentChanged.has(row.external_id ?? '')
@@ -53,50 +53,36 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
     })
   }
 
-  // 2. Manufacturer pre-filter
+  // 2. Manufacturer keyword boost (informational only — never excludes items)
+  // All items proceed to AI filtering regardless of keyword match.
+  // Keyword match is recorded as a boost signal for downstream use.
   const ownFilterTerms    = buildManufacturerSearchTerms(profile.manufacturer ?? '', profile.device_name ?? '')
   const manufacturerTerms = extractManufacturerTerms(profile.manufacturer ?? '')
   const deviceTerms       = ownFilterTerms.filter((t) => !manufacturerTerms.includes(t))
   const { competitorTerms } = ctx
-  const filterSearchTerms = [...new Set([...ownFilterTerms, ...competitorTerms])]
-  let toFilter            = needsFilter
+  const keywordBoosted    = new Set<string>()
 
-  if (filterSearchTerms.length > 0) {
-    const mfrMatched:  InsertedFsnRow[] = []
-    const mfrExcluded: InsertedFsnRow[] = []
-
-    for (const row of needsFilter) {
-      if (row.source_db && TRUST_SOURCE_FILTER.has(row.source_db)) {
-        mfrMatched.push(row)
-        continue
-      }
-      const hay = `${row.title} ${row.manufacturer} ${row.raw_content}`.toLowerCase()
-      let matches: boolean
-      if (competitorTerms.some((t) => hay.includes(t.toLowerCase()))) {
-        matches = true
-      } else if (deviceTerms.length === 0) {
-        matches = manufacturerTerms.some((t) => hay.includes(t.toLowerCase()))
-      } else {
-        const mfrMatch = manufacturerTerms.length === 0 || manufacturerTerms.some((t) => hay.includes(t.toLowerCase()))
-        const devMatch = deviceTerms.some((t) => hay.includes(t.toLowerCase()))
-        matches = mfrMatch && devMatch
-      }
-      if (matches) {
-        mfrMatched.push(row)
-      } else {
-        mfrExcluded.push(row)
-        ctx.decisions.push({
-          fsn_result_id: row.id,
-          decision:      'excluded',
-          rationale:     'Manufacturer mismatch — not relevant to profile.',
-          confidence:    0.95,
-          model:         null,
-        })
-      }
+  for (const row of needsFilter) {
+    if (row.source_db && TRUST_SOURCE_FILTER.has(row.source_db)) {
+      keywordBoosted.add(row.id)
+      continue
     }
-
-    toFilter = mfrMatched
+    const hay = `${row.title} ${row.manufacturer} ${row.raw_content}`.toLowerCase()
+    let matches: boolean
+    if (competitorTerms.some((t) => hay.includes(t.toLowerCase()))) {
+      matches = true
+    } else if (deviceTerms.length === 0) {
+      matches = manufacturerTerms.some((t) => hay.includes(t.toLowerCase()))
+    } else {
+      const mfrMatch = manufacturerTerms.length === 0 || manufacturerTerms.some((t) => hay.includes(t.toLowerCase()))
+      const devMatch = deviceTerms.some((t) => hay.includes(t.toLowerCase()))
+      matches = mfrMatch && devMatch
+    }
+    if (matches) keywordBoosted.add(row.id)
   }
+
+  const toFilter = needsFilter
+  console.error('[pipeline]', `run_id=${ctx.runId} keyword_boost: ${keywordBoosted.size}/${needsFilter.length} items matched manufacturer terms`)
 
   // 3. AI filter (or opt-out)
   if (aiOptOut) {

@@ -15,11 +15,13 @@ export default async function BillingPage({
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
-  const { data: userData } = await supabase
+  const { data: userData, error: userDataError } = await supabase
     .from('users')
     .select('plan, subscription_status, current_period_end, stripe_customer_id')
     .eq('id', user!.id)
     .single()
+
+  if (userDataError) console.error('[billing]', 'query error:', userDataError.message, userDataError.code)
 
   const currentPlan = (userData?.plan ?? 'free') as PlanId
   const planInfo = PLANS[currentPlan]

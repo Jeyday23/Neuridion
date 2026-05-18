@@ -70,7 +70,8 @@ export async function POST(request: Request) {
   const { profile_id, period_from, period_to, selected_dbs, force_refresh } = bodyResult.data
 
   // GDPR Art 18: block data-processing operations when restricted
-  const { data: userData } = await supabase.from('users').select('plan, processing_restricted').eq('id', user.id).single()
+  const { data: userData, error: userDataError } = await supabase.from('users').select('plan, processing_restricted').eq('id', user.id).single()
+  if (userDataError) console.error('[search-runs]', 'query error:', userDataError.message, userDataError.code)
   if (userData?.processing_restricted) {
     return Response.json({ error: 'Data processing is currently restricted on your account. You can change this in Settings > Privacy.' }, { status: 403 })
   }
@@ -162,6 +163,19 @@ export async function POST(request: Request) {
   }
 
   if (!process.env.QSTASH_TOKEN || !process.env.NEXT_PUBLIC_SITE_URL) {
+    if (process.env.ENABLE_DEV_WORKER_BYPASS === 'true' && process.env.NODE_ENV !== 'production') {
+      // Local dev: run pipeline in-process instead of via QStash
+      const workerUrl = `http://localhost:${process.env.PORT ?? 3000}/api/worker/process-job`
+      fetch(workerUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-worker-secret': process.env.WORKER_API_SECRET ?? '',
+        },
+        body: JSON.stringify(message),
+      }).catch((err) => console.error('[search-runs] dev bypass fetch failed:', err instanceof Error ? err.message : String(err)))
+      return Response.json({ run_id: run.id, status: 'pending' }, { status: 202 })
+    }
     await db.from('search_job_queue').delete().eq('id', newJob.id)
     await db.from('search_runs').delete().eq('id', run.id)
     return Response.json({ error: 'Job queue not configured' }, { status: 503 })

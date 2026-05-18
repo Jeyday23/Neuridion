@@ -6,14 +6,6 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-6 py-16">
-
-        {/* DRAFT banner */}
-        <div className="mb-8 rounded-lg bg-amber-50 border border-amber-200 px-5 py-4">
-          <p className="text-sm font-semibold text-amber-800">
-            ⚠️ DRAFT — Pending legal review. Do not treat as legally binding until reviewed by qualified counsel.
-          </p>
-        </div>
-
         <h1 className="text-3xl font-bold text-zinc-900 mb-2">Privacy Policy</h1>
         <p className="text-sm text-zinc-500 mb-10">Last updated: 12 May 2026</p>
 

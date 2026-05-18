@@ -41,6 +41,7 @@ const MUTATING_METHODS = new Set(['POST', 'PATCH', 'PUT', 'DELETE'])
 const PUBLIC_PATHS = new Set([
   '/',
   '/login',
+  '/login/password',
   '/signup',
   '/signup/confirm',
   '/admin/login',
@@ -79,7 +80,7 @@ const CSRF_EXEMPT_ROUTES = [
 const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000
 const SESSION_COOKIE     = 'session_started_at'
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const requestId = crypto.randomUUID()
 

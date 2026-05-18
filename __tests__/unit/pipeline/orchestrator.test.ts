@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 
 describe('runSearchPipeline orchestrator', () => {
-  it('continues to finalize when a middle stage throws', async () => {
+  it('aborts pipeline when critical stage (filter) throws', async () => {
     const stageOrder: string[] = []
 
     vi.doMock('../../../lib/pipeline/stages/scrape', () => ({
@@ -40,6 +40,6 @@ describe('runSearchPipeline orchestrator', () => {
       selected_dbs: ['bfarm'], user_id: 'u1', force_refresh: false,
     })
 
-    expect(stageOrder).toEqual(['scrape', 'insert', 'filter', 'persist', 'finalize'])
+    expect(stageOrder).toEqual(['scrape', 'insert', 'filter'])
   })
 })

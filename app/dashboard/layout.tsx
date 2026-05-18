@@ -16,11 +16,13 @@ export default async function DashboardLayout({
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
-  const { data } = await admin
+  const { data, error: userQueryError } = await admin
     .from('users')
     .select('role, plan')
     .eq('id', user.id)
     .single()
+
+  if (userQueryError) console.error('[dashboard/layout]', 'query error:', userQueryError.message, userQueryError.code)
   const userRole = data?.role ?? null
   const plan = PLANS[(data?.plan as PlanId) ?? 'free'] ?? PLANS.free
 

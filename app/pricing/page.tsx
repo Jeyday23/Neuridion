@@ -229,7 +229,7 @@ export default async function PricingPage() {
           </div>
           <div className="pt-8 border-t border-[#E2E8F0] flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#0D9488]">
             <span>&copy; 2026 Neuridion. All rights reserved.</span>
-            <span>Built for PRRCs, by people who understand MDR.</span>
+            <span>Built for PRRCs (Persons Responsible for Regulatory Compliance), by people who understand MDR.</span>
           </div>
         </div>
       </footer>

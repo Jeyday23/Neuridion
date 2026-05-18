@@ -55,6 +55,17 @@ export async function POST(
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
+  // Mark any running/pending jobs in the queue as cancelled to avoid orphaned workers
+  const { error: jobUpdateError } = await db
+    .from('search_job_queue')
+    .update({ status: 'cancelled' })
+    .eq('run_id', id)
+    .in('status', ['pending', 'running'])
+  if (jobUpdateError) {
+    console.error('[search-runs/cancel] Failed to cancel queue jobs:', jobUpdateError.message)
+    // Non-fatal: the run itself is already cancelled, job will no-op when it checks run status
+  }
+
   await logAuditEvent(user.id, 'search_run_cancelled', { run_id: id }, request)
 
   return Response.json({ run_id: cancelled.id, status: 'cancelled' })

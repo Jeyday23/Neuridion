@@ -67,13 +67,41 @@ export async function POST(
   // Ensure the re-queued job is attributed to the requesting user
   payload.user_id = user.id
 
-  // Reset the run to pending
+  // Clean up previous results to avoid duplicates on retry.
+  // filter_decisions is append-only in normal operation, but retry is the
+  // one exception — stale decisions must be removed before re-running.
+  const { error: decisionDeleteError } = await db
+    .from('filter_decisions')
+    .delete()
+    .eq('search_run_id', runId)
+  if (decisionDeleteError) {
+    console.error('[retry] Failed to delete stale filter_decisions:', decisionDeleteError.message)
+    return Response.json({ error: 'Failed to clean up previous results' }, { status: 500 })
+  }
+
+  const { error: fsnDeleteError } = await db
+    .from('fsn_results')
+    .delete()
+    .eq('search_run_id', runId)
+  if (fsnDeleteError) {
+    console.error('[retry] Failed to delete stale fsn_results:', fsnDeleteError.message)
+    return Response.json({ error: 'Failed to clean up previous results' }, { status: 500 })
+  }
+
+  // Reset the run to pending with zeroed counts
   const { error: resetError } = await db.from('search_runs').update({
-    status:        'pending',
-    error_message: null,
-    completed_at:  null,
-    started_at:    null,
-    progress:      null,
+    status:              'pending',
+    error_message:       null,
+    completed_at:        null,
+    started_at:          null,
+    progress:            null,
+    relevant_count:      0,
+    uncertain_count:     0,
+    excluded_count:      0,
+    filter_failed_count: 0,
+    total_results:       0,
+    total_scraped:       0,
+    pre_filter_count:    0,
   }).eq('id', runId)
 
   if (resetError) {

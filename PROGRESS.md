@@ -236,6 +236,30 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] Client timeout: reduced 20min → 15min with auto-cancel on expiry
 - [x] Cancelled status handling: polling loop exits cleanly on cancelled runs
 
+## Persona Council Audit Fixes (May 18)
+- [x] DRAFT banners removed from 5 legal pages (terms, dpa, imprint, privacy, ai-transparency)
+- [x] PRRC expanded on first use — homepage hero + pricing footer
+- [x] Confidence display fix: excluded FSN example 3% → 97% (decision confidence, not relevance)
+- [x] Report conclusion: overclaim removed, PRRC review language added (HTML + DOCX)
+- [x] DOCX: AI disclaimer block added at top of generated reports
+- [x] DOCX: Conclusion section + signature/approval block with PRRC checkbox
+- [x] Swissmedic added to report SOURCE_LABELS map
+- [x] maxDuration=120 on reports route (Vercel timeout)
+- [x] Pipeline: critical stage failures (filter/persist) now abort pipeline as 'error'
+- [x] Pipeline: manufacturer keyword pre-filter changed from hard-exclude to boost-only
+- [x] AI filter: pre-filter confidence changed from 0.85 to null (honest about non-AI assessment)
+- [x] AI filter: content truncation note appended to rationale when FSN > 2000 chars
+- [x] Retry: stale filter_decisions + fsn_results deleted before re-run
+- [x] Retry: all count columns reset to 0 on retry
+- [x] Cancel: orphaned queue jobs marked as cancelled
+- [x] Scrapers: 30s AbortController timeout on all fetch calls (bfarm, fda-maude, mhra, swissmedic)
+- [x] MHRA: issued_date normalized to YYYY-MM-DD
+- [x] BfArM: inter-page delay reduced 500ms → 200ms
+- [x] FDA MAUDE: dead code cleanup (result.ok ternary)
+- [x] Orchestrator test updated to match critical-stage-abort behavior
+- [x] TypeScript: 0 errors
+- [x] Tests: 185/185 passing
+
 ## Backlog (Open)
 - [ ] MHRA attachment-aware hashing (content_hash misses PDF updates)
 - [ ] FDA MAUDE bulk-download ingestion (bypass 26k record API cap)

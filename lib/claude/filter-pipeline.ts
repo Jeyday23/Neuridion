@@ -319,6 +319,8 @@ async function sonnetFullFilter(
     .filter(Boolean)
     .join('\n')
 
+  const originalContentLength = fsn.raw_content.length
+  const wasTruncated = originalContentLength > 2000
   const content = sanitizePii(fsn.raw_content.slice(0, 2000))
 
   const parsed = await callAnthropicWithRetry(async () => {
@@ -384,9 +386,13 @@ async function sonnetFullFilter(
     return FilterDecisionSchema.parse(toolUse.input)
   })
 
+  const truncationNote = wasTruncated
+    ? ` [Note: Content was truncated from ${originalContentLength} to 2000 characters for analysis]`
+    : ''
+
   return {
     decision:   parsed.decision,
-    rationale:  parsed.rationale,
+    rationale:  parsed.rationale + truncationNote,
     confidence: Math.max(0, Math.min(1, parsed.confidence ?? 0.5)),
     model:      SONNET_MODEL,
   }
@@ -457,8 +463,8 @@ export async function stage1Filter(
       // ── 3a. Haiku excluded — skip Sonnet ──────────────────────────────
       decision = {
         decision:   'excluded',
-        rationale:  `Pre-filter exclusion: "${fsn.title.slice(0, 80)}" does not match your device profile (${profile.device_name}).`,
-        confidence: 0.85,
+        rationale:  `Pre-filter exclusion: "${fsn.title.slice(0, 80)}" does not match your device profile (${profile.device_name}). [Pre-screened by keyword matching — confidence not assessed by AI model]`,
+        confidence: null,
         model:      HAIKU_MODEL,
       }
     } else {

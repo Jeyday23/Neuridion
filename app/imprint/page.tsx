@@ -6,16 +6,6 @@ export default function ImprintPage() {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-6 py-16">
-
-        {/* DRAFT + legal requirement banner */}
-        <div className="mb-8 rounded-lg bg-red-50 border border-red-200 px-5 py-4">
-          <p className="text-sm font-semibold text-red-800">
-            ⚠️ DRAFT — This page must be filled with real company details before public launch.
-            Required by §5 TMG (German Telemedia Act) for DACH market operation. Failure to publish
-            a legally complete Impressum may result in fines and cease-and-desist actions.
-          </p>
-        </div>
-
         <h1 className="text-3xl font-bold text-zinc-900 mb-2">Imprint (Impressum)</h1>
         <p className="text-sm text-zinc-500 mb-10">Required by §5 TMG</p>
 

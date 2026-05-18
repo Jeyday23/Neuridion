@@ -124,6 +124,8 @@ async function fetchPublicationPage(
   url.searchParams.set('direction', 'DESC')
   url.searchParams.set('size', '100')
 
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 30_000)
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -136,6 +138,7 @@ async function fetchPublicationPage(
         fromDate: params.fromDate,
         toDate: params.toDate,
       }),
+      signal: controller.signal,
     })
 
     if (!res.ok) {
@@ -147,6 +150,8 @@ async function fetchPublicationPage(
   } catch (err) {
     console.error(`[swissmedic] Fetch error ${url}:`, err instanceof Error ? err.message : String(err))
     return null
+  } finally {
+    clearTimeout(timeout)
   }
 }
 

@@ -7,6 +7,8 @@ import { buildDocx } from '@/lib/docx-report'
 import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 
+export const maxDuration = 120
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FsnRow {
@@ -33,9 +35,10 @@ const DECISION_LABEL: Record<string, string> = {
 }
 
 const SOURCE_LABELS: Record<string, string> = {
-  bfarm: 'BfArM',
-  maude: 'FDA MAUDE',
-  mhra:  'MHRA',
+  bfarm:      'BfArM',
+  maude:      'FDA MAUDE',
+  mhra:       'MHRA',
+  swissmedic: 'Swissmedic',
 }
 function fmtSourceDb(src: string): string {
   return SOURCE_LABELS[src?.toLowerCase()] ?? src?.toUpperCase() ?? 'BfArM'
@@ -221,8 +224,8 @@ function buildReportHtml(
     ? ` Note: The AI filter could not be applied to ${filterFailed.length} item${filterFailed.length !== 1 ? 's' : ''} due to API unavailability — these require manual review.`
     : ''
   const conclusion = conclusionRelevant === 0 && filterFailed.length === 0
-    ? `This review identified no Field Safety Notices that are potentially relevant to the device under review within the specified period. No further action is required at this time.`
-    : `This review identified ${conclusionRelevant + filterFailed.length} Field Safety Notice${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} notice${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan.${failedNote}`
+    ? `Based on the automated screening, no Field Safety Notices were classified as relevant to this device profile during the search period. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.`
+    : `This review identified ${conclusionRelevant + filterFailed.length} Field Safety Notice${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} notice${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.${failedNote}`
 
   const stdThead = `<thead><tr>
     <th style="width:30%;">Title</th>
@@ -420,7 +423,8 @@ export async function POST(request: Request) {
   }
 
   // GDPR Art 18: block data-processing operations when restricted
-  const { data: userFlags } = await supabase.from('users').select('processing_restricted, plan').eq('id', user.id).single()
+  const { data: userFlags, error: userFlagsError } = await supabase.from('users').select('processing_restricted, plan').eq('id', user.id).single()
+  if (userFlagsError) console.error('[reports]', 'query error:', userFlagsError.message, userFlagsError.code)
   if (userFlags?.processing_restricted) {
     return Response.json({ error: 'Data processing is currently restricted on your account. You can change this in Settings > Privacy.' }, { status: 403 })
   }

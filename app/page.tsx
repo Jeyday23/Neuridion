@@ -97,7 +97,7 @@ export default async function HomePage() {
               {([
                 { icon: Search, text: 'Search BfArM, FDA MAUDE, MHRA, and Swissmedic in parallel' },
                 { icon: Brain, text: 'AI assesses every Field Safety Notice against your device profile' },
-                { icon: UserCheck, text: 'Your PRRC reviews every decision before export' },
+                { icon: UserCheck, text: 'Your PRRC (Person Responsible for Regulatory Compliance) reviews every decision before export' },
                 { icon: FileText, text: 'Audit-ready PDF and Word reports in minutes' },
               ] as const).map(({ icon: Icon, text }) => (
                 <li key={text} className="flex items-center gap-3 text-[15px] text-[#3d4a5c]">

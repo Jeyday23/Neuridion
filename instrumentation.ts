@@ -27,4 +27,10 @@ export async function register() {
       `[instrumentation] Missing recommended env vars (features degraded): ${warned.join(', ')}`,
     )
   }
+
+  if (process.env.ENABLE_DEV_WORKER_BYPASS) {
+    console.error(
+      '[SECURITY] ENABLE_DEV_WORKER_BYPASS is set in production — this env var must be removed. Bypass is disabled but its presence indicates a misconfiguration.',
+    )
+  }
 }
