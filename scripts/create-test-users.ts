@@ -5,9 +5,12 @@ const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 const supabase = createClient(supabaseUrl, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
 
 async function main() {
+  const pw = process.env.TEST_USER_PASSWORD
+  if (!pw) throw new Error('TEST_USER_PASSWORD env var is required')
+
   const users = [
-    { email: 'anna.weber.prrc@testmail.dev', password: 'Neuridion!Test2026#', full_name: 'Dr. Anna Weber', company_name: 'MedSafe Devices GmbH' },
-    { email: 'max.engineer@testmail.dev', password: 'Neuridion!Test2026#', full_name: 'Max Müller', company_name: 'MedSafe Devices GmbH' },
+    { email: 'anna.weber.prrc@testmail.dev', password: pw, full_name: 'Dr. Anna Weber', company_name: 'MedSafe Devices GmbH' },
+    { email: 'max.engineer@testmail.dev', password: pw, full_name: 'Max Müller', company_name: 'MedSafe Devices GmbH' },
   ]
 
   for (const u of users) {

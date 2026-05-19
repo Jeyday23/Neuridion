@@ -1,10 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
+import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const ip = getClientIp(request)
+  const rl = await rateLimit(`report-urls:${ip}`, 30, 60_000)
+  if (!rl.allowed) {
+    return Response.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000)) } })
+  }
+
   const { id } = await params
   if (!z.string().uuid().safeParse(id).success) {
     return Response.json({ error: 'Invalid ID' }, { status: 400 })

@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { stripe } from '@/lib/stripe'
 import { rateLimit } from '@/lib/rate-limit'
+import { logAuditEvent } from '@/lib/audit'
 
-export async function POST(_request: Request) {
+export async function POST(request: Request) {
   const supabase = await createClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -32,6 +33,7 @@ export async function POST(_request: Request) {
       customer:   userData.stripe_customer_id,
       return_url: `${baseUrl}/dashboard/billing`,
     })
+    logAuditEvent(user.id, 'billing_event', { action: 'portal_access' }, request).catch(console.error)
     return Response.json({ url: session.url })
   } catch (err) {
     console.error('[billing/portal] Stripe error:', err instanceof Error ? err.message : String(err))

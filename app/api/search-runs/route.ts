@@ -6,6 +6,7 @@ import { type QStashJobMessage } from '@/app/api/worker/process-job/route'
 import { Client } from '@upstash/qstash'
 import { z } from 'zod'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { logAuditEvent } from '@/lib/audit'
 
 // POST enqueues to QStash and returns in <200ms — pipeline runs in process-job worker
 export const maxDuration = 30
@@ -197,5 +198,6 @@ export async function POST(request: Request) {
   }
 
   console.error('[lifecycle]', `run_id=${run.id} enqueued to QStash job_id=${newJob.id}`)
+  logAuditEvent(user.id, 'search_run', { run_id: run.id, profile_id, dbs: dbsToSearch, period_from, period_to }, request).catch(console.error)
   return Response.json({ run_id: run.id, status: 'pending' }, { status: 202 })
 }
