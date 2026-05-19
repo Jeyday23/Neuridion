@@ -68,7 +68,11 @@ export function buildManufacturerSearchTerms(
     .split(/\s+/)
     .filter(Boolean)
     .map(t => t.toLowerCase())
-    .filter(t => t.length > 4 && !LEGAL_SUFFIXES.has(t) && !GENERIC_DEVICE_WORDS.has(t))
+    .filter(t =>
+      (t.length > 4 || (t.length >= 3 && /\d/.test(t) && /[a-zA-Z]/.test(t))) &&
+      !LEGAL_SUFFIXES.has(t) &&
+      !GENERIC_DEVICE_WORDS.has(t),
+    )
 
   const extras = deviceTokens
     .filter(t => !mfrTerms.includes(t))

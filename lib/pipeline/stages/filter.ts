@@ -84,6 +84,13 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   const toFilter = needsFilter
   console.error('[pipeline]', `run_id=${ctx.runId} keyword_boost: ${keywordBoosted.size}/${needsFilter.length} items matched manufacturer terms`)
 
+  // Prioritize keyword-matched items so the AI filter cap processes the most relevant first
+  toFilter.sort((a, b) => {
+    const aB = keywordBoosted.has(a.id) ? 0 : 1
+    const bB = keywordBoosted.has(b.id) ? 0 : 1
+    return aB - bB
+  })
+
   // 3. AI filter (or opt-out)
   if (aiOptOut) {
     console.error('[pipeline]', `run_id=${ctx.runId} ai_opt_out=true — skipping AI filter, marking ${toFilter.length} items for manual review`)

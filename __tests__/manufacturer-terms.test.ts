@@ -75,8 +75,13 @@ describe('buildManufacturerSearchTerms', () => {
     // 'acme' is already in mfr terms (medical filtered as generic); 'acme pump' has no new token >4 chars
     expect(buildManufacturerSearchTerms('Acme Medical GmbH', 'Acme Pump')).toEqual(['acme'])
   })
-  it('device term ≤4 chars is ignored', () => {
+  it('pure-word device term ≤4 chars is ignored', () => {
     expect(buildManufacturerSearchTerms('Acme Corp', 'Pump')).toEqual(['acme'])
+  })
+  it('alphanumeric model numbers ≥3 chars are kept (780G)', () => {
+    expect(buildManufacturerSearchTerms('Medtronic', 'MiniMed 780G Insulin Pump System')).toEqual(
+      ['medtronic', 'minimed', '780g']
+    )
   })
   it('empty device name returns manufacturer terms', () => {
     expect(buildManufacturerSearchTerms('Roche Diabetes Care GmbH', '')).toEqual(['roche', 'diabetes'])

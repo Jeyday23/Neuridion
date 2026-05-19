@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto'
 import type { ScrapedFsn, ScraperResult } from './bfarm'
 import { sanitizeContent } from './sanitize'
+import { extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 
 // openFDA device/event endpoint — no auth required, API key raises daily quota
 // Docs: https://open.fda.gov/apis/device/event/
@@ -16,13 +17,12 @@ const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 export async function scrapeFdaMaude(params: {
   fromDate:     string
   toDate:       string
-  searchTerms?: string[]   // optional tokens (device name / manufacturer words) to narrow
-                           // the openFDA Lucene query — dramatically reduces result volume
-                           // e.g. ['CardioSense', 'Acme'] for "CardioSense Pro by Acme Medical"
+  searchTerms?: string[]
+  profile?:     { manufacturer: string; device_name: string }
 }): Promise<ScraperResult> {
   const apiKey    = process.env.OPENFDA_API_KEY
   const quarters  = splitIntoQuarters(params.fromDate, params.toDate)
-  const termClause = buildTermClause(params.searchTerms)
+  const termClause = buildTermClause(params.searchTerms, params.profile)
 
   // Fetch all quarters simultaneously — one bad quarter does not abort others
   const settled = await Promise.allSettled(
@@ -325,27 +325,49 @@ function nextDay(date: string): string {
 
 // ─── Lucene term clause ───────────────────────────────────────────────────────
 
-// Builds an openFDA Lucene OR clause from the provided tokens, searching across
-// the three most discriminating device identity fields.
-// Tokens must be plain alphanumeric — special characters are stripped before use.
-// Returns an empty string when tokens is empty/undefined (no narrowing applied).
-//
-// Example input:  ['CardioSense', 'Acme']
-// Example output: (device.brand_name:CardioSense+OR+device.generic_name:CardioSense+OR+manufacturer_name:CardioSense+OR+device.brand_name:Acme+OR+device.generic_name:Acme+OR+manufacturer_name:Acme)
-function buildTermClause(terms?: string[]): string {
+function sanitizeLucene(t: string): string {
+  return t
+    .replace(/[+&|!(){}[\]^"~*?:\\/]/g, '')
+    .replace(/^-+|-+$/g, '')
+    .replace(/[[\]{}]/g, '')
+}
+
+// Builds an openFDA Lucene clause. Uses device.manufacturer_d_name (the actual
+// device manufacturer) rather than manufacturer_name (which is the MDR reporter).
+// When profile is provided and manufacturer/device terms can be distinguished,
+// uses AND grouping to dramatically reduce result volume for large manufacturers.
+function buildTermClause(
+  terms?: string[],
+  profile?: { manufacturer: string; device_name: string },
+): string {
   if (!terms || terms.length === 0) return ''
-  const clauses = terms
-    .map(t => t.replace(/[+&|!(){}[\]^"~*?:\\/]/g, ''))   // strip Lucene special chars (preserve hyphens, periods)
-    .map(t => t.replace(/^-+|-+$/g, ''))                   // strip leading/trailing hyphens
-    .map(t => t.replace(/[[\]{}]/g, ''))                   // extra safety for Lucene range syntax
-    .filter(t => t.length >= 3)                             // skip tokens too short to discriminate
-    .filter(t => /[a-zA-Z0-9]/.test(t))                    // reject tokens that are purely non-alphanumeric
-    .flatMap(t => [
-      `device.brand_name:${t}`,
-      `device.generic_name:${t}`,
-      `manufacturer_name:${t}`,
-    ])
-  if (clauses.length === 0) return ''
+
+  const clean = terms
+    .map(sanitizeLucene)
+    .filter(t => t.length >= 3 && /[a-zA-Z0-9]/.test(t))
+  if (clean.length === 0) return ''
+
+  if (profile?.manufacturer) {
+    const mfrTokens = extractManufacturerTerms(profile.manufacturer)
+      .map(sanitizeLucene)
+      .filter(t => t.length >= 3)
+    const devTokens = clean.filter(t => !mfrTokens.includes(t))
+
+    if (mfrTokens.length > 0 && devTokens.length > 0) {
+      const mfrClauses = mfrTokens.map(t => `device.manufacturer_d_name:${t}`)
+      const devClauses = devTokens.flatMap(t => [
+        `device.brand_name:${t}`,
+        `device.generic_name:${t}`,
+      ])
+      return `(${mfrClauses.join('+OR+')})+AND+(${devClauses.join('+OR+')})`
+    }
+  }
+
+  const clauses = clean.flatMap(t => [
+    `device.brand_name:${t}`,
+    `device.generic_name:${t}`,
+    `device.manufacturer_d_name:${t}`,
+  ])
   return `(${clauses.join('+OR+')})`
 }
 
