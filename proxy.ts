@@ -179,12 +179,9 @@ export async function proxy(request: NextRequest) {
         const allowedOrigins = new Set<string>()
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
         if (siteUrl) allowedOrigins.add(new URL(siteUrl).origin)
-        const host = request.headers.get('host')
-        if (host) {
-          const proto = request.headers.get('x-forwarded-proto') ?? 'https'
-          allowedOrigins.add(`${proto}://${host}`)
-        }
-        if (allowedOrigins.size > 0 && !allowedOrigins.has(origin)) {
+        const extra = process.env.ALLOWED_ORIGINS
+        if (extra) extra.split(',').forEach((o) => allowedOrigins.add(o.trim()))
+        if (!allowedOrigins.has(origin)) {
           return NextResponse.json(
             { error: 'Forbidden' },
             { status: 403, headers: { 'x-request-id': requestId } },
