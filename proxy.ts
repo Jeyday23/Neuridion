@@ -181,6 +181,10 @@ export async function proxy(request: NextRequest) {
         if (siteUrl) allowedOrigins.add(new URL(siteUrl).origin)
         const extra = process.env.ALLOWED_ORIGINS
         if (extra) extra.split(',').forEach((o) => allowedOrigins.add(o.trim()))
+        if (process.env.NODE_ENV === 'development') {
+          allowedOrigins.add('http://localhost:3000')
+          allowedOrigins.add('http://127.0.0.1:3000')
+        }
         if (!allowedOrigins.has(origin)) {
           return NextResponse.json(
             { error: 'Forbidden' },
