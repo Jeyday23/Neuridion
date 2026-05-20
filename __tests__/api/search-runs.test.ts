@@ -180,7 +180,7 @@ describe('POST /api/search-runs', () => {
     expect(res.status).toBe(400)
 
     const json = await res.json()
-    expect(json.error).toContain('period_from must be on or before period_to')
+    expect(json.error).toBe('Validation failed. Check your input and try again.')
   })
 
   it('returns 400 when date range exceeds 5 years', async () => {
@@ -191,7 +191,7 @@ describe('POST /api/search-runs', () => {
     expect(res.status).toBe(400)
 
     const json = await res.json()
-    expect(json.error).toContain('5 years')
+    expect(json.error).toBe('Validation failed. Check your input and try again.')
   })
 
   it('returns 400 when selected_dbs contains unknown source', async () => {
