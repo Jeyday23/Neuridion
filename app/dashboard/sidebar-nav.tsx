@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Search, UserCircle, Archive, CreditCard, Settings, LogOut, Shield } from 'lucide-react'
+import { Search, Package, Archive, CreditCard, Settings, LogOut, Shield } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useLanguage } from './language-context'
 import { QuotaBar } from '@/app/components/ui/QuotaBar'
@@ -14,7 +14,7 @@ export function SidebarNav({ userRole, quota }: { userRole: string | null; quota
 
   const links = [
     { label: t.nav.search,   href: '/dashboard/search',   icon: Search      },
-    { label: t.nav.profiles, href: '/dashboard/profiles',  icon: UserCircle  },
+    { label: t.nav.profiles, href: '/dashboard/profiles',  icon: Package     },
     { label: t.nav.archive,  href: '/dashboard/archive',   icon: Archive     },
     { label: t.nav.billing,  href: '/dashboard/billing',   icon: CreditCard  },
     { label: t.nav.settings, href: '/dashboard/settings',  icon: Settings    },

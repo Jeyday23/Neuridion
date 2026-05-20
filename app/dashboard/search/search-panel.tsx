@@ -354,9 +354,21 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const { searchState: state, setSearchState: setState } = useSearchContext()
   const { t } = useLanguage()
 
-  const [profileId, setProfileId]     = useState(profiles[0]?.id ?? '')
-  const [fromDate, setFromDate]       = useState(yearAgo)
-  const [toDate, setToDate]           = useState(today)
+  const STORAGE_KEY = 'neuridion-search-form'
+
+  function loadSaved() {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY)
+      if (!raw) return null
+      return JSON.parse(raw) as { profileId?: string; fromDate?: string; toDate?: string; selectedDbs?: string[] }
+    } catch { return null }
+  }
+
+  const saved = useMemo(() => loadSaved(), [])
+
+  const [profileId, setProfileId]     = useState(saved?.profileId && profiles.some(p => p.id === saved.profileId) ? saved.profileId : profiles[0]?.id ?? '')
+  const [fromDate, setFromDate]       = useState(saved?.fromDate ?? yearAgo)
+  const [toDate, setToDate]           = useState(saved?.toDate ?? today)
   const [reportState, setReportState] = useState<ReportState>({ phase: 'idle' })
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filterTab, setFilterTab]     = useState<FilterTab>('all')
@@ -364,7 +376,15 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const [draftSaving, setDraftSaving] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const [isDragging, setIsDragging]   = useState(false)
-  const [selectedDbs, setSelectedDbs] = useState<Set<string>>(new Set(databases.filter(d => d.active).map(d => d.id)))
+  const [selectedDbs, setSelectedDbs] = useState<Set<string>>(
+    saved?.selectedDbs ? new Set(saved.selectedDbs) : new Set(databases.filter(d => d.active).map(d => d.id))
+  )
+
+  useEffect(() => {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+      profileId, fromDate, toDate, selectedDbs: [...selectedDbs],
+    }))
+  }, [profileId, fromDate, toDate, selectedDbs])
   const [hoveredDb, setHoveredDb]     = useState<string | null>(null)
 
   const [showFeedback, setShowFeedback] = useState(false)
