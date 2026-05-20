@@ -7,7 +7,7 @@ const HTML_ESCAPE_MAP: Record<string, string> = {
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 }
 const HTML_CHARS = /[&<>"']/g
-const FSN_BOUNDARY = /<\/?FSN_DATA>/gi
+const FSN_BOUNDARY = /<\/?F[​‌‍﻿]*S[​‌‍﻿]*N[​‌‍﻿]*[_.\s]?[​‌‍﻿]*D[​‌‍﻿]*A[​‌‍﻿]*T[​‌‍﻿]*A[​‌‍﻿]*>/gi
 const ROLE_MARKERS = /<\|(?:system|user|assistant|im_start|im_end)\|>/gi
 const XML_INSTRUCTIONS = /<\/?(?:instructions|system|tool_use|function_call|tool_result|thinking|answer)[^>]*>/gi
 
@@ -34,17 +34,20 @@ export function sanitizeContent(text: string, maxLen = 3000): string {
 
 export function sanitizeForLlm(text: string, maxLen = 3000): string {
   if (!text) return ''
-  return neutralizeFsnBoundary(
-    text
-      .replace(COMBINING_MARKS, '')
-      .replace(FORMATTING_CONTROLS, ' ')
-      .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-      .replace(ROLE_MARKERS, '[MARKER_REMOVED]')
-      .replace(XML_INSTRUCTIONS, '[TAG_REMOVED]')
-      .replace(/<[^>]+>/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-  ).slice(0, maxLen)
+  let s = text
+    .replace(COMBINING_MARKS, '')
+    .replace(FORMATTING_CONTROLS, ' ')
+    // Decode HTML entities FIRST so encoded boundary tags become visible
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  // Strip FSN boundary tags AFTER entity decoding to catch &lt;FSN_DATA&gt; variants
+  s = neutralizeFsnBoundary(s)
+  return s
+    .replace(ROLE_MARKERS, '[MARKER_REMOVED]')
+    .replace(XML_INSTRUCTIONS, '[TAG_REMOVED]')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLen)
 }
 
 export function sanitizeProfileField(text: string, maxLen = 200): string {

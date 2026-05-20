@@ -12,6 +12,17 @@ const RECOMMENDED_SECRETS = [
 ] as const
 
 export async function register() {
+  // AUDIT_HMAC_KEY is required in all non-development environments (staging, preview, production)
+  // to ensure audit trail PII hashing is always active outside local dev.
+  if (process.env.NODE_ENV !== 'development' && !process.env.AUDIT_HMAC_KEY?.trim()) {
+    console.error(
+      '[SECURITY] AUDIT_HMAC_KEY is required in non-development environments for audit trail PII hashing',
+    )
+    throw new Error(
+      'Missing AUDIT_HMAC_KEY — required in non-development environments for audit trail PII hashing',
+    )
+  }
+
   if (process.env.NODE_ENV !== 'production') return
 
   const missing = REQUIRED_SECRETS.filter((k) => !process.env[k]?.trim())

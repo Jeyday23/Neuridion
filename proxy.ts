@@ -79,6 +79,8 @@ const CSRF_EXEMPT_ROUTES = [
 
 const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000
 const SESSION_COOKIE     = 'session_started_at'
+const IDLE_COOKIE        = '_neuridion_active'
+const IDLE_TIMEOUT_MS    = 30 * 60 * 1000 // 30 minutes
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -128,9 +130,12 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Clear stale session cookie when no authenticated user exists
+  // Clear stale session cookies when no authenticated user exists
   if (!user && request.cookies.has(SESSION_COOKIE)) {
     supabaseResponse.cookies.delete(SESSION_COOKIE)
+  }
+  if (!user && request.cookies.has(IDLE_COOKIE)) {
+    supabaseResponse.cookies.delete(IDLE_COOKIE)
   }
 
   // Server-side absolute session expiry (8 hours)
@@ -152,11 +157,51 @@ export async function proxy(request: NextRequest) {
       if (!safeCompare(sig, expectedSig) || Date.now() - Number(tsStr) > SESSION_MAX_AGE_MS) {
         await supabase.auth.signOut()
         supabaseResponse.cookies.delete(SESSION_COOKIE)
+        supabaseResponse.cookies.delete(IDLE_COOKIE)
         if (pathname.startsWith('/api/')) {
           return NextResponse.json({ error: 'Session expired' }, { status: 401 })
         }
         return NextResponse.redirect(new URL('/login', request.url))
       }
+    }
+
+    // Server-side idle timeout (30 minutes) — skip public pages, webhooks, and workers
+    const isIdleExempt = PUBLIC_PATHS.has(pathname)
+      || pathname.startsWith('/api/webhooks/')
+      || pathname.startsWith('/api/worker/')
+      || pathname.startsWith('/claim/')
+      || pathname.startsWith('/auth/')
+    if (!isIdleExempt) {
+      const activeCookie = request.cookies.get(IDLE_COOKIE)?.value
+      const now = Date.now()
+      if (activeCookie) {
+        const [activeTs, activeSig] = activeCookie.split('.')
+        const expectedActiveSig = crypto
+          .createHmac('sha256', SESSION_HMAC_KEY)
+          .update(activeTs)
+          .digest('hex')
+          .slice(0, 32)
+        if (!safeCompare(activeSig ?? '', expectedActiveSig) || now - Number(activeTs) > IDLE_TIMEOUT_MS) {
+          // Idle timeout expired — sign out and clear cookies
+          await supabase.auth.signOut()
+          supabaseResponse.cookies.delete(SESSION_COOKIE)
+          supabaseResponse.cookies.delete(IDLE_COOKIE)
+          if (pathname.startsWith('/api/')) {
+            return NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 })
+          }
+          return NextResponse.redirect(new URL('/login', request.url))
+        }
+      }
+      // Set/refresh the idle activity cookie with current timestamp
+      const ts = String(now)
+      const sig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(ts).digest('hex').slice(0, 32)
+      supabaseResponse.cookies.set(IDLE_COOKIE, `${ts}.${sig}`, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: IDLE_TIMEOUT_MS / 1000,
+      })
     }
   }
 
