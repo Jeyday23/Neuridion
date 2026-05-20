@@ -89,7 +89,7 @@ export async function GET(
 
   const { data: signed, error: signError } = await adminClient.storage
     .from('reports')
-    .createSignedUrl(storagePath, 60 * 5) // 5-minute expiry
+    .createSignedUrl(storagePath, 60)
 
   if (signError || !signed?.signedUrl) {
     return Response.json({ error: 'Failed to generate download link' }, { status: 500 })

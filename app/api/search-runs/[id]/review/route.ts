@@ -42,7 +42,7 @@ export async function PATCH(
 
   const parsed = ReviewSchema.safeParse(body)
   if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 })
+    return Response.json({ error: 'Validation failed. Check your input and try again.' }, { status: 422 })
   }
 
   const db = createAdminClient()

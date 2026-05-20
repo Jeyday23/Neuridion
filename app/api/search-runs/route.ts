@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
   const bodyResult = SearchRunBodySchema.safeParse(rawBody)
   if (!bodyResult.success) {
-    return Response.json({ error: bodyResult.error.issues.map((i) => i.message).join('; ') }, { status: 400 })
+    return Response.json({ error: 'Validation failed. Check your input and try again.' }, { status: 400 })
   }
 
   const { profile_id, period_from, period_to, selected_dbs, force_refresh } = bodyResult.data

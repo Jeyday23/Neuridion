@@ -58,7 +58,7 @@ export async function logAuditEvent(
   try {
     const admin   = createAdminClient()
     const hdrs    = req?.headers
-    const rawIp   = hdrs?.get('x-forwarded-for')?.split(',')[0].trim() ?? null
+    const rawIp   = hdrs?.get('x-real-ip') ?? hdrs?.get('x-forwarded-for')?.split(',')[0].trim() ?? null
     const safeData = eventData ? hashPii(eventData) : null
     await admin.from('audit_log').insert({
       user_id:    userId,

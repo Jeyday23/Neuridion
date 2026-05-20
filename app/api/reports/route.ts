@@ -53,8 +53,9 @@ function fmtDate(iso: string | null): string {
 
 function safeCell(val: string | null | undefined): string {
   if (!val) return ''
-  if (/^[=+\-@\t\r|]/.test(val)) return "'" + val
-  return val
+  const stripped = val.replace(/^[﻿​ ]+/, '')
+  if (/^[=+\-@\t\r|]/.test(stripped)) return "'" + stripped
+  return stripped
 }
 
 // ─── Excel builder ────────────────────────────────────────────────────────────

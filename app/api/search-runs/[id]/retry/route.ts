@@ -148,7 +148,7 @@ export async function POST(
     return Response.json({ error: 'Failed to enqueue retry job' }, { status: 500 })
   }
 
-  await logAuditEvent(user.id, 'search_run_retried', { run_id: runId, original_status: run.status }, _request)
+  await logAuditEvent(user.id, 'search_run_retried', { run_id: runId, original_status: run.status, stale_data_purged: true }, _request)
 
   return Response.json({ run_id: runId, status: 'pending' }, { status: 200 })
 }
