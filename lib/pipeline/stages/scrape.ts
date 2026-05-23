@@ -38,6 +38,12 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
   async function processSource(sourceId: string, sourceIndex: number): Promise<{
     items: ScrapedFsn[]; warnings: string[]; contentChanged: Set<string>; canonicalIds: Map<string, string>
   }> {
+    // Check cancellation before starting each source's scrape work
+    if (await ctx.isCancelled()) {
+      console.error(`[pipeline] run_id=${ctx.runId} scrape stage: cancellation detected before starting ${sourceId}`)
+      return { items: [], warnings: [], contentChanged: new Set(), canonicalIds: new Map() }
+    }
+
     const items:          ScrapedFsn[]        = []
     const warnings:       string[]            = []
     const contentChanged: Set<string>         = new Set()

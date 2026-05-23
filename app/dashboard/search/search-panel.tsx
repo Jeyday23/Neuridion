@@ -360,7 +360,13 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY)
       if (!raw) return null
-      return JSON.parse(raw) as { profileId?: string; fromDate?: string; toDate?: string; selectedDbs?: string[] }
+      return JSON.parse(raw) as {
+        profileId?: string
+        fromDate?: string
+        toDate?: string
+        selectedDbs?: string[]
+        uploadedFileMeta?: { key: string; name: string; path: string }[]
+      }
     } catch { return null }
   }
 
@@ -374,17 +380,23 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const [filterTab, setFilterTab]     = useState<FilterTab>('all')
   const [draftId, setDraftId]         = useState<string | null>(null)
   const [draftSaving, setDraftSaving] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(
+    () => (saved?.uploadedFileMeta ?? []).map(f => ({ ...f, status: 'done' as const }))
+  )
   const [isDragging, setIsDragging]   = useState(false)
   const [selectedDbs, setSelectedDbs] = useState<Set<string>>(
     saved?.selectedDbs ? new Set(saved.selectedDbs) : new Set(databases.filter(d => d.active).map(d => d.id))
   )
 
   useEffect(() => {
+    const completedFiles = uploadedFiles
+      .filter(f => f.status === 'done')
+      .map(({ key, name, path }) => ({ key, name, path }))
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
       profileId, fromDate, toDate, selectedDbs: [...selectedDbs],
+      uploadedFileMeta: completedFiles,
     }))
-  }, [profileId, fromDate, toDate, selectedDbs])
+  }, [profileId, fromDate, toDate, selectedDbs, uploadedFiles])
   const [hoveredDb, setHoveredDb]     = useState<string | null>(null)
 
   const [showFeedback, setShowFeedback] = useState(false)
@@ -475,6 +487,11 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   }
 
   async function saveDraft(successMsg = 'Draft saved') {
+    const stillUploading = uploadedFiles.some(f => f.status === 'uploading')
+    if (stillUploading) {
+      showToast('Please wait for file uploads to finish before saving.', 'error')
+      return
+    }
     setDraftSaving(true)
     try {
       const body = {
@@ -494,6 +511,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         throw new Error(data.error ?? 'Save failed')
       }
       if (data.id) setDraftId(data.id)
+      sessionStorage.removeItem(STORAGE_KEY)
       showToast(successMsg)
     } catch (err) {
       showToast('Unable to save draft. Please try again.', 'error')
@@ -660,6 +678,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       }
 
       const { run_id } = await res.json() as { run_id: string; status: string }
+      sessionStorage.removeItem(STORAGE_KEY)
       setState({ phase: 'queued', runId: run_id, startedAt })
       startPolling(run_id, startedAt)
     } catch (err) {
@@ -769,7 +788,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             {t.search.strategyDocs}
             <InfoTooltip text="Upload your search strategy or PMS plan documents for reference. These files are stored with your search run for traceability but are not read by the AI during classification." />
           </h2>
-          <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg" className="hidden"
+          <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt" className="hidden"
             onChange={(e) => e.target.files && handleFiles(e.target.files)} />
           <div className={clsx('border-2 border-dashed rounded p-12 text-center transition-colors cursor-pointer',
             isDragging ? 'border-[#0D9488] bg-[rgba(13,148,136,0.06)]' : 'border-slate-300 hover:border-[#0D9488] hover:bg-[rgba(13,148,136,0.06)]')}
@@ -828,7 +847,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
         {/* Action bar */}
         <div className="flex items-center justify-between pt-6 border-t border-[#E2E8F0] flex-wrap gap-3">
-          <button type="button" onClick={() => saveDraft()} disabled={draftSaving}
+          <button type="button" onClick={() => saveDraft()} disabled={draftSaving || uploadedFiles.some(f => f.status === 'uploading')}
             className="px-6 py-3 border border-[#E2E8F0] text-[#134E4A] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
             {draftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
             {t.search.saveDraft}

@@ -177,36 +177,61 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn> {
 
 // ─── HTTP helpers ─────────────────────────────────────────────────────────────
 
-async function fetchJson(url: string): Promise<unknown | null> {
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30_000)
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': UA, Accept: 'application/json' },
-      signal: controller.signal,
-    })
-    if (!res.ok) {
-      console.error(`[mhra] HTTP ${res.status} ${url}`)
-      return null
-    }
+async function fetchJson(url: string, maxAttempts = 3): Promise<unknown | null> {
+  const backoffs = [1_000, 2_000, 4_000] // exponential backoff: 1s, 2s, 4s
+  let lastError = ''
 
-    const contentType = res.headers.get('content-type') || ''
-    if (!contentType.includes('json')) {
-      console.error(`[mhra] Unexpected content type from ${url}: ${contentType}`)
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30_000)
+    try {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': UA, Accept: 'application/json' },
+        signal: controller.signal,
+      })
+
+      if (!res.ok) {
+        // Only retry on 5xx server errors; 4xx errors are not transient
+        if (res.status >= 500 && attempt < maxAttempts - 1) {
+          lastError = `HTTP ${res.status}`
+          console.error(`[mhra] ${res.status} on attempt ${attempt + 1}/${maxAttempts}, retrying in ${backoffs[attempt]}ms`)
+          clearTimeout(timeout)
+          await new Promise(r => setTimeout(r, backoffs[attempt]))
+          continue
+        }
+        console.error(`[mhra] HTTP ${res.status} ${url}`)
+        return null
+      }
+
+      const contentType = res.headers.get('content-type') || ''
+      if (!contentType.includes('json')) {
+        console.error(`[mhra] Unexpected content type from ${url}: ${contentType}`)
+        return null
+      }
+      const text = await res.text()
+      if (text.length > 5 * 1024 * 1024) {
+        console.error(`[mhra] Response too large from ${url}: ${text.length} bytes`)
+        return null
+      }
+      return JSON.parse(text)
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err)
+      // Network errors and aborts are transient — retry
+      if (attempt < maxAttempts - 1) {
+        console.error(`[mhra] Fetch error on attempt ${attempt + 1}/${maxAttempts}, retrying in ${backoffs[attempt]}ms: ${lastError}`)
+        clearTimeout(timeout)
+        await new Promise(r => setTimeout(r, backoffs[attempt]))
+        continue
+      }
+      console.error(`[mhra] Fetch failed after ${maxAttempts} attempts: ${url}: ${lastError}`)
       return null
+    } finally {
+      clearTimeout(timeout)
     }
-    const text = await res.text()
-    if (text.length > 5 * 1024 * 1024) {
-      console.error(`[mhra] Response too large from ${url}: ${text.length} bytes`)
-      return null
-    }
-    return JSON.parse(text)
-  } catch (err) {
-    console.error(`[mhra] Fetch failed: ${url}:`, err instanceof Error ? err.message : String(err))
-    return null
-  } finally {
-    clearTimeout(timeout)
   }
+
+  console.error(`[mhra] All ${maxAttempts} attempts exhausted for ${url}: ${lastError}`)
+  return null
 }
 
 const jitter = (minMs: number, maxMs: number) =>

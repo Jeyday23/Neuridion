@@ -37,14 +37,24 @@ export function sanitizeForLlm(text: string, maxLen = 3000): string {
   let s = text
     .replace(COMBINING_MARKS, '')
     .replace(FORMATTING_CONTROLS, ' ')
-    // Decode HTML entities FIRST so encoded boundary tags become visible
-    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-  // Strip FSN boundary tags AFTER entity decoding to catch &lt;FSN_DATA&gt; variants
+  // Strip boundary/role/XML tags on the RAW text (before any entity decoding)
+  // so that encoded variants like &lt;FSN_DATA&gt; are caught by the regexes
+  // operating on literal characters, not on decoded HTML entities.
   s = neutralizeFsnBoundary(s)
-  return s
+  s = s
     .replace(ROLE_MARKERS, '[MARKER_REMOVED]')
     .replace(XML_INSTRUCTIONS, '[TAG_REMOVED]')
     .replace(/<[^>]+>/g, '')
+  // Decode HTML entities AFTER stripping dangerous tags — this prevents
+  // entity-encoded injection (e.g. &lt;|system|&gt;) from surviving.
+  s = s.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  // Second pass: strip any tags that were hidden behind entity encoding
+  s = neutralizeFsnBoundary(s)
+  s = s
+    .replace(ROLE_MARKERS, '[MARKER_REMOVED]')
+    .replace(XML_INSTRUCTIONS, '[TAG_REMOVED]')
+    .replace(/<[^>]+>/g, '')
+  return s
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLen)

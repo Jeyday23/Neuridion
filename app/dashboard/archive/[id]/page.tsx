@@ -1,7 +1,41 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { RunResults, type FsnResult } from './run-results'
+
+interface SearchRunData {
+  id: string
+  status: string
+  created_at: string | null
+  started_at: string | null
+  completed_at: string | null
+  search_period_from: string | null
+  search_period_to: string | null
+  period_from: string | null
+  period_to: string | null
+  total_results: number | null
+  relevant_count: number | null
+  uncertain_count: number | null
+  excluded_count: number | null
+  filter_failed_count: number | null
+  dbs_searched: string[] | string | null
+  error_message: string | null
+  review_status: string | null
+  terms_used: {
+    manufacturer_terms: string[]
+    device_terms: string[]
+    raw_manufacturer: string
+    raw_device_name: string
+    term_algorithm_version: string
+  } | null
+  profile_snapshot: { device_name: string; manufacturer: string } | null
+  report_html_path: string | null
+  report_pdf_path: string | null
+  report_excel_path: string | null
+  report_generated_at: string | null
+  product_profiles: { device_name: string; manufacturer: string } | { device_name: string; manufacturer: string }[] | null
+}
 
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -42,14 +76,11 @@ export default async function RunDetailPage({
   if (runError) console.error('[archive/[id]]', 'query error:', runError.message, runError.code)
   if (!runData) return notFound()
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const run = runData as any
+  const run = runData as unknown as SearchRunData
 
-  const snapshot = run.profile_snapshot as { device_name: string; manufacturer: string } | null
+  const snapshot = run.profile_snapshot
   const profileRaw = run.product_profiles
-  const liveProfile = (Array.isArray(profileRaw) ? profileRaw[0] : profileRaw) as
-    | { device_name: string; manufacturer: string }
-    | null
+  const liveProfile = Array.isArray(profileRaw) ? profileRaw[0] ?? null : profileRaw
   const profile = snapshot ?? liveProfile
 
   // Fetch FSN results
@@ -96,28 +127,28 @@ export default async function RunDetailPage({
     || [...new Set(results.map((r) => r.source_db).filter(Boolean))].join(', ')
     || '—'
 
-  const mhraSearched = (Array.isArray(run.dbs_searched) ? run.dbs_searched as string[] : [])
-    .some((db: string) => db.toLowerCase() === 'mhra')
+  const dbsArray = Array.isArray(run.dbs_searched) ? run.dbs_searched : []
+  const mhraSearched = dbsArray.some((db) => db.toLowerCase() === 'mhra')
   const showMhraWarning = mhraSearched && run.status === 'complete' &&
     !results.some(r => r.source_db === 'mhra')
 
   const rel  = run.relevant_count      ?? 0
   const unc  = run.uncertain_count     ?? 0
   const exc  = run.excluded_count      ?? 0
-  const fail = (run as { filter_failed_count?: number }).filter_failed_count ?? 0
+  const fail = run.filter_failed_count ?? 0
   const tot  = run.total_results       ?? results.length
 
-  const termsUsed = (run as { terms_used?: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null }).terms_used ?? null
+  const termsUsed = run.terms_used
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
       {/* Back */}
-      <a
+      <Link
         href="/dashboard/archive"
         className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800 mb-6"
       >
-        ← Back to Archive
-      </a>
+        &larr; Back to Archive
+      </Link>
 
       {/* Header */}
       <div className="mb-6">
@@ -218,7 +249,7 @@ export default async function RunDetailPage({
 
       {/* Results list */}
       {results.length > 0 ? (
-        <RunResults results={results} runId={run.id} runStatus={run.status} reviewStatus={(run as { review_status?: string }).review_status ?? 'draft'} />
+        <RunResults results={results} runId={run.id} runStatus={run.status} reviewStatus={run.review_status ?? 'draft'} />
       ) : (
         <p className="text-sm text-zinc-400 py-8 text-center">
           {run.status === 'complete' ? 'No FSN results were found for this search.' : 'Results will appear here once the search completes.'}

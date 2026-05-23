@@ -224,6 +224,7 @@ export function NeuridionSignIn() {
                         onChange={(e) => handleCodeChange(i, e.target.value)}
                         onKeyDown={(e) => handleKeyDown(i, e)}
                         disabled={loading}
+                        aria-label={`Verification code digit ${i + 1} of 8`}
                         className="w-10 h-12 text-center text-lg font-semibold border border-[#E2E8F0] rounded text-[#0F1F3D] focus:outline-none focus:ring-2 focus:ring-[#0F1F3D]/20 focus:border-[#0F1F3D] disabled:opacity-50"
                       />
                     ))}

@@ -6,6 +6,11 @@ import { extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 // openFDA device/event endpoint — no auth required, API key raises daily quota
 // Docs: https://open.fda.gov/apis/device/event/
 const BASE_URL         = 'https://api.fda.gov/device/event.json'
+
+/** Strip api_key query param from URLs before they appear in logs or error messages. */
+function redactUrl(url: string): string {
+  return url.replace(/([?&])api_key=[^&]*/g, '$1api_key=REDACTED')
+}
 const RESULTS_PER_PAGE = 1000           // API max per request
 const MAX_SKIP         = 25000          // API hard limit: skip + limit ≤ 26000
 const MAX_ITEMS        = 500            // Per-quarter cap. Quarterly chunking means a 1-year search
@@ -39,7 +44,8 @@ export async function scrapeFdaMaude(params: {
       allItems.push(...r.value.items)
       allWarnings.push(...r.value.warnings)
     } else {
-      const msg = `FDA MAUDE: quarter ${q.from}–${q.to} failed — ${String(r.reason)}. Results for this period may be incomplete.`
+      const reason = redactUrl(String(r.reason))
+      const msg = `FDA MAUDE: quarter ${q.from}–${q.to} failed — ${reason}. Results for this period may be incomplete.`
       console.error('[fda]', msg)
       allWarnings.push(msg)
     }
@@ -124,7 +130,7 @@ async function fetchQuarter(
       if (data.error.code === 'NOT_FOUND') {
         // no results for this date range
       } else {
-        console.error(`[fda] ${fromDate}→${toDate}: API error ${data.error.code} — ${data.error.message}`)
+        console.error(`[fda] ${fromDate}→${toDate}: API error ${data.error.code}`)
       }
       break
     }
@@ -276,14 +282,14 @@ async function fetchPageWithRetry(url: string, maxAttempts = 3): Promise<FetchRe
         )
         lastError = `HTTP 429 (rate limited)`
         if (attempt < maxAttempts - 1) {
-          console.error(`[fda] 429 on attempt ${attempt + 1}/${maxAttempts}, waiting ${retryAfter}ms`)
+          console.error(`[fda] 429 on attempt ${attempt + 1}/${maxAttempts} for ${redactUrl(url)}, waiting ${retryAfter}ms`)
           await new Promise(r => setTimeout(r, retryAfter))
           continue
         }
       } else if (res.status >= 500) {
         lastError = `HTTP ${res.status}`
         if (attempt < maxAttempts - 1) {
-          console.error(`[fda] ${res.status} on attempt ${attempt + 1}/${maxAttempts}, retrying in ${backoffs[attempt]}ms`)
+          console.error(`[fda] ${res.status} on attempt ${attempt + 1}/${maxAttempts} for ${redactUrl(url)}, retrying in ${backoffs[attempt]}ms`)
           await new Promise(r => setTimeout(r, backoffs[attempt]))
           continue
         }
@@ -294,7 +300,7 @@ async function fetchPageWithRetry(url: string, maxAttempts = 3): Promise<FetchRe
     } catch (err) {
       lastError = err instanceof Error ? err.message : 'Network error'
       if (attempt < maxAttempts - 1) {
-        console.error(`[fda] Fetch error on attempt ${attempt + 1}/${maxAttempts}, retrying in ${backoffs[attempt]}ms`)
+        console.error(`[fda] Fetch error on attempt ${attempt + 1}/${maxAttempts} for ${redactUrl(url)}, retrying in ${backoffs[attempt]}ms`)
         await new Promise(r => setTimeout(r, backoffs[attempt]))
         continue
       }

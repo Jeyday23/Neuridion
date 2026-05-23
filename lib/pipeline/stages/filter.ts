@@ -107,7 +107,8 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   }
 
   // Per-run AI filter cap
-  const MAX_FILTER_ITEMS = Math.max(1, parseInt(process.env.MAX_FILTER_ITEMS_PER_RUN ?? '300', 10))
+  const n = Number(process.env.MAX_FILTER_ITEMS_PER_RUN)
+  const MAX_FILTER_ITEMS = Number.isFinite(n) && n > 0 ? n : 300
   if (toFilter.length > MAX_FILTER_ITEMS) {
     const skipped = toFilter.splice(MAX_FILTER_ITEMS)
     console.error('[pipeline]', `item cap: ${skipped.length} items skipped (limit=${MAX_FILTER_ITEMS})`)
@@ -123,8 +124,25 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   }
 
   const filterLimit = pLimit(4)
+  let cancelledDuringFilter = false
+  let itemsProcessed = 0
   const filterResults = await Promise.all(
     toFilter.map((row) => filterLimit(async () => {
+      // Fast exit: once cancellation is detected, skip remaining items
+      if (cancelledDuringFilter) {
+        return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Run cancelled by user.', confidence: null, model: null }
+      }
+
+      // Poll for cancellation every ~20 items to avoid hammering the DB
+      if (itemsProcessed > 0 && itemsProcessed % 20 === 0) {
+        if (await ctx.isCancelled()) {
+          cancelledDuringFilter = true
+          console.error(`[pipeline] run_id=${ctx.runId} filter stage: cancellation detected at item ${itemsProcessed}/${toFilter.length}`)
+          return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Run cancelled by user.', confidence: null, model: null }
+        }
+      }
+      itemsProcessed++
+
       const d = await stage1Filter(
         { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date },
         profile,

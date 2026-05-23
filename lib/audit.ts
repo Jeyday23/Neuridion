@@ -3,6 +3,20 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { checkSecurityAlert } from '@/lib/security-alerts'
 import type { Json } from '@/types/supabase'
 
+// Validate AUDIT_HMAC_KEY at module load time in production.
+// Log a loud warning but do NOT throw — crashing the app at import time
+// would take down every route that transitively imports this module.
+if (process.env.NODE_ENV === 'production' && !process.env.AUDIT_HMAC_KEY) {
+  console.error(
+    '\n' +
+    '╔══════════════════════════════════════════════════════════════════╗\n' +
+    '║  [SECURITY] AUDIT_HMAC_KEY is NOT set in production!           ║\n' +
+    '║  PII hashing in audit logs is DISABLED — emails will be        ║\n' +
+    '║  silently dropped instead of hashed. Set AUDIT_HMAC_KEY now.   ║\n' +
+    '╚══════════════════════════════════════════════════════════════════╝\n',
+  )
+}
+
 function anonymizeIp(ip: string): string {
   if (ip.includes(':')) return ip.replace(/:[^:]*$/, ':0')
   return ip.replace(/\.\d+$/, '.0')

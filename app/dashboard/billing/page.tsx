@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { PLANS, type PlanId } from '@/lib/plans'
 import { BillingActions } from './billing-actions'
@@ -15,10 +16,12 @@ export default async function BillingPage({
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
   const { data: userData, error: userDataError } = await supabase
     .from('users')
     .select('plan, subscription_status, current_period_end, stripe_customer_id')
-    .eq('id', user!.id)
+    .eq('id', user.id)
     .single()
 
   if (userDataError) console.error('[billing]', 'query error:', userDataError.message, userDataError.code)

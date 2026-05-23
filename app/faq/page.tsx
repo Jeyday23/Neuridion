@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { NeuridionWordmark } from '@/components/ui/neuridion-wordmark'
 
@@ -111,6 +112,25 @@ const FAQ_SECTIONS = [
   },
 ]
 
+function renderFaqAnswer(text: string): ReactNode {
+  // Split on <a href="...">...</a> patterns and convert to React elements
+  const parts = text.split(/(<a\s+href="[^"]*"[^>]*>[^<]*<\/a>)/g)
+  if (parts.length === 1) return text
+
+  return parts.map((part, i) => {
+    const match = part.match(/<a\s+href="([^"]*)"[^>]*>([^<]*)<\/a>/)
+    if (match) {
+      const [, href, label] = match
+      return (
+        <a key={i} href={href} className="text-[#0D9488] hover:underline">
+          {label}
+        </a>
+      )
+    }
+    return part
+  })
+}
+
 export default function FaqPage() {
   return (
     <div className="min-h-screen bg-white text-[#1E293B]">
@@ -144,10 +164,9 @@ export default function FaqPage() {
                   {section.items.map((item) => (
                     <div key={item.q}>
                       <dt className="text-sm font-medium text-[#0F1F3D] mb-1">{item.q}</dt>
-                      <dd
-                        className="text-sm text-[#475569] leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: item.a }}
-                      />
+                      <dd className="text-sm text-[#475569] leading-relaxed">
+                        {renderFaqAnswer(item.a)}
+                      </dd>
                     </div>
                   ))}
                 </dl>

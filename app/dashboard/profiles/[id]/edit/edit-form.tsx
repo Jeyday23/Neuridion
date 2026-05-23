@@ -12,6 +12,13 @@ interface CompetitorEntry {
   manufacturer: string
 }
 
+/** Raw shape from DB — may use `name` or legacy `device_name` key */
+interface RawCompetitorEntry {
+  name?: string
+  device_name?: string
+  manufacturer?: string
+}
+
 interface Profile {
   id: string
   device_name: string
@@ -19,7 +26,7 @@ interface Profile {
   emdn_code: string | null
   device_class: string | null
   intended_use: string | null
-  search_strategy: { competitor_terms?: CompetitorEntry[] } | null
+  search_strategy: { competitor_terms?: RawCompetitorEntry[] } | null
 }
 
 export function EditProfileForm({ profile }: { profile: Profile }) {
@@ -34,7 +41,7 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
   const [error,        setError]        = useState<string | null>(null)
   const [competitors, setCompetitors] = useState<CompetitorEntry[]>(
     () => (profile.search_strategy?.competitor_terms ?? []).map(e => ({
-      name: e.name ?? '',
+      name: (e.name || e.device_name || ''),
       manufacturer: e.manufacturer ?? '',
     }))
   )

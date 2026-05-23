@@ -73,11 +73,25 @@ export async function runSearchPipeline(
     console.error('[pipeline] terms_used validation failed:', e)
   }
 
+  // Cancellation checker — cached for 2 seconds to avoid hammering the DB.
+  // Stages call ctx.isCancelled() at inner loop checkpoints.
+  let lastCancelCheck = 0
+  let cachedCancelled = false
+  const isCancelled = async (): Promise<boolean> => {
+    const now = Date.now()
+    if (now - lastCancelCheck < 2_000) return cachedCancelled
+    lastCancelCheck = now
+    const { data } = await db.from('search_runs').select('status').eq('id', runId).single()
+    cachedCancelled = data?.status === 'cancelled'
+    return cachedCancelled
+  }
+
   const ctx: PipelineContext = {
     runId, payload, db, profile: profile as ProfileRow, aiOptOut, searchTerms, competitorTerms, activeSources,
     items: [], contentChanged: new Set(), canonicalIds: new Map(),
     insertedRows: [], decisions: [], warnings: [],
     onProgress,
+    isCancelled,
   }
 
   const stages = [scrapeStage, insertResultsStage, filterStage, persistDecisionsStage]

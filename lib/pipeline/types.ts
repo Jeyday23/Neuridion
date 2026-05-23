@@ -62,4 +62,12 @@ export interface PipelineContext {
   warnings:        string[]
 
   onProgress?:     (update: ProgressUpdate) => Promise<void>
+
+  /**
+   * Checks whether the run has been cancelled by the user.
+   * Returns `true` if the run's status in the database is 'cancelled'.
+   * Stages should call this periodically and return early with partial results
+   * rather than throwing when cancelled.
+   */
+  isCancelled:     () => Promise<boolean>
 }

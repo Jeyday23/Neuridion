@@ -5,10 +5,15 @@ import { logAuditEvent } from '@/lib/audit'
 import type { Json } from '@/types/supabase'
 import { rateLimit, rateLimitWithIp, getClientIp } from '@/lib/rate-limit'
 
+/** Accepts both {name, manufacturer} (current) and {device_name, manufacturer} (legacy DB rows) */
 const CompetitorTermSchema = z.object({
-  name:         z.string().min(1).max(100),
+  name:         z.string().max(100).optional(),
+  device_name:  z.string().max(100).optional(),
   manufacturer: z.string().max(100).optional(),
-})
+}).transform((val) => ({
+  name:         (val.name || val.device_name || '').trim(),
+  manufacturer: val.manufacturer,
+})).refine((val) => val.name.length > 0, { message: 'Competitor product name is required' })
 
 const CreateProfileSchema = z.object({
   device_name:      z.string().min(1).max(200),

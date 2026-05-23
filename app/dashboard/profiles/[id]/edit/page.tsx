@@ -11,6 +11,35 @@ function fmtDateTime(iso: string): string {
   })
 }
 
+/**
+ * Formats a changed_fields / previous_values value for display.
+ * Handles arrays of competitor-term objects that would otherwise
+ * render as "[object Object]".
+ */
+function formatFieldValue(value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '—'
+    // Each element may be a competitor term object {name/device_name, manufacturer}
+    return value
+      .map((item) => {
+        if (typeof item === 'object' && item !== null) {
+          const obj = item as Record<string, unknown>
+          const name = (obj.name ?? obj.device_name ?? '') as string
+          const mfr = (obj.manufacturer ?? '') as string
+          return mfr ? `${name} (${mfr})` : String(name)
+        }
+        return String(item)
+      })
+      .join(', ')
+  }
+  if (typeof value === 'object') {
+    // Single object that isn't an array — show as JSON as a safe fallback
+    try { return JSON.stringify(value) } catch { return String(value) }
+  }
+  return String(value)
+}
+
 export default async function EditProfilePage({
   params,
 }: {
@@ -71,7 +100,7 @@ export default async function EditProfilePage({
       <div className="rounded-md border border-[#E2E8F0] bg-white px-8 py-8 mb-8">
         <EditProfileForm profile={{
           ...profile,
-          search_strategy: profile.search_strategy as { competitor_terms?: { name: string; manufacturer: string }[] } | null,
+          search_strategy: profile.search_strategy as { competitor_terms?: { name?: string; device_name?: string; manufacturer?: string }[] } | null,
         }} />
       </div>
 
@@ -96,9 +125,9 @@ export default async function EditProfilePage({
                     <div key={field} className="text-zinc-500 leading-relaxed">
                       <span className="font-mono">{field}</span>
                       {': '}
-                      <span className="line-through text-red-600/70">{String(entry.previous_values[field] ?? '—')}</span>
+                      <span className="line-through text-red-600/70">{formatFieldValue(entry.previous_values[field])}</span>
                       {' → '}
-                      <span className="text-green-700">{String(entry.changed_fields[field] ?? '—')}</span>
+                      <span className="text-green-700">{formatFieldValue(entry.changed_fields[field])}</span>
                     </div>
                   ))}
                 </div>
