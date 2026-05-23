@@ -173,7 +173,19 @@ export async function proxy(request: NextRequest) {
       || pathname.startsWith('/auth/')
     if (!isIdleExempt) {
       const activeCookie = request.cookies.get(IDLE_COOKIE)?.value
+      const hasEstablishedSession = request.cookies.has(SESSION_COOKIE)
       const now = Date.now()
+      if (!activeCookie && hasEstablishedSession) {
+        // Idle cookie missing for an existing session — treat as expired.
+        // New sessions won't have SESSION_COOKIE in the request yet (it's set above).
+        await supabase.auth.signOut()
+        supabaseResponse.cookies.delete(SESSION_COOKIE)
+        supabaseResponse.cookies.delete(IDLE_COOKIE)
+        if (pathname.startsWith('/api/')) {
+          return NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 })
+        }
+        return NextResponse.redirect(new URL('/login', request.url))
+      }
       if (activeCookie) {
         const [activeTs, activeSig] = activeCookie.split('.')
         const expectedActiveSig = crypto

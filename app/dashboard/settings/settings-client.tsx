@@ -118,6 +118,7 @@ export function SettingsClient({
       toast.show('Password updated.', 'success')
       setPwMsg('')
       setCurrentPw(''); setNewPw(''); setConfirmPw('')
+      router.refresh()
     }
     setPwSaving(false)
   }
