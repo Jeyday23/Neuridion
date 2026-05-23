@@ -20,7 +20,7 @@ export default async function BillingPage({
 
   const { data: userData, error: userDataError } = await supabase
     .from('users')
-    .select('plan, subscription_status, current_period_end, stripe_customer_id')
+    .select('plan, stripe_customer_id')
     .eq('id', user.id)
     .single()
 
@@ -28,7 +28,7 @@ export default async function BillingPage({
 
   const currentPlan = (userData?.plan ?? 'free') as PlanId
   const planInfo = PLANS[currentPlan]
-  const isActive = userData?.subscription_status === 'active' || userData?.subscription_status === 'trialing'
+  const isActive = currentPlan !== 'free'
   const hasCustomer = !!userData?.stripe_customer_id
 
   return (
@@ -59,24 +59,11 @@ export default async function BillingPage({
               <span className="text-2xl font-bold text-zinc-900">{planInfo.label}</span>
               <span className="text-lg text-zinc-500">{planInfo.priceMonthly}{currentPlan !== 'free' ? '/mo' : ''}</span>
             </div>
-            {userData?.subscription_status && userData.subscription_status !== 'inactive' && (
-              <div className="mt-1 flex items-center gap-2">
-                <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${
-                  isActive
-                    ? 'bg-[rgba(5,150,105,0.08)] text-[#059669] border-[rgba(5,150,105,0.2)]'
-                    : userData.subscription_status === 'past_due'
-                    ? 'bg-[rgba(220,38,38,0.06)] text-[#DC2626] border-[rgba(220,38,38,0.2)]'
-                    : 'bg-[#F8FAFC] text-[#0F766E] border-[#E2E8F0]'
-                }`}>
-                  {userData.subscription_status}
+            {isActive && (
+              <div className="mt-1">
+                <span className="inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium bg-[rgba(5,150,105,0.08)] text-[#059669] border-[rgba(5,150,105,0.2)]">
+                  Active
                 </span>
-                {userData.current_period_end && (
-                  <span className="text-xs text-zinc-400">
-                    Renews {new Date(userData.current_period_end).toLocaleDateString('en-GB', {
-                      day: '2-digit', month: 'short', year: 'numeric',
-                    })}
-                  </span>
-                )}
               </div>
             )}
           </div>

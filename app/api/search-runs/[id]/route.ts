@@ -114,52 +114,29 @@ export async function DELETE(
 
   const { data: run, error: runError } = await db
     .from('search_runs')
-    .select('id, user_id, report_html_path, report_pdf_path, report_excel_path, report_docx_path')
+    .select('id, user_id')
     .eq('id', id)
     .eq('user_id', user.id)
+    .is('deleted_at' as never, null)
     .single()
 
   if (runError || !run) {
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Clean up report storage files before cascade delete
-  const reportPaths = [
-    (run as Record<string, unknown>).report_html_path,
-    (run as Record<string, unknown>).report_pdf_path,
-    (run as Record<string, unknown>).report_excel_path,
-    (run as Record<string, unknown>).report_docx_path,
-  ].filter((p): p is string => typeof p === 'string' && p.length > 0)
-
-  if (reportPaths.length > 0) {
-    await db.storage.from('reports').remove(reportPaths)
-  }
-
-  // NULL out the legacy search_run_id FK (NO ACTION constraint) before deleting
-  const { error: unlinkError } = await db
-    .from('fsn_results')
-    .update({ search_run_id: null })
-    .eq('search_run_id', id)
-
-  if (unlinkError) {
-    console.error('[search-runs/delete]', unlinkError.message)
-    return Response.json({ error: 'Something went wrong' }, { status: 500 })
-  }
-
-  const { data: deleted, error: deleteError } = await db
+  // Soft-delete: mark as deleted, preserve data for EU MDR 10-year retention
+  const { error: softDeleteError } = await db
     .from('search_runs')
-    .delete()
+    .update({ deleted_at: new Date().toISOString(), deleted_by: user.id } as never)
     .eq('id', id)
     .eq('user_id', user.id)
-    .select('id')
-    .single()
 
-  if (deleteError || !deleted) {
-    console.error('[search-runs/delete]', deleteError?.message ?? 'Unable to delete search run')
+  if (softDeleteError) {
+    console.error('[search-runs/delete]', softDeleteError.message)
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
-  await logAuditEvent(user.id, 'search_run_deleted', { run_id: id }, _request)
+  await logAuditEvent(user.id, 'search_run_deleted', { run_id: id, soft_delete: true }, _request)
 
   return Response.json({ deleted: true })
 }

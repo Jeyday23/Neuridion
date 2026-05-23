@@ -175,6 +175,19 @@ export default function FaqPage() {
           </div>
         </div>
       </section>
+
+      <footer className="bg-white border-t border-[#E2E8F0] py-12">
+        <div className="max-w-3xl mx-auto px-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-[#0D9488]">
+            <span>&copy; 2026 Neuridion. All rights reserved.</span>
+            <div className="flex gap-4">
+              <Link href="/privacy" className="hover:text-[#0F1F3D]">Privacy</Link>
+              <Link href="/terms" className="hover:text-[#0F1F3D]">Terms</Link>
+              <Link href="/imprint" className="hover:text-[#0F1F3D]">Imprint</Link>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }

@@ -9,7 +9,7 @@ const mockUser = { id: 'aaaa-bbbb-cccc-dddd', email: 'test@example.com' }
 
 function chainable(terminal: Record<string, unknown> = {}) {
   const builder: Record<string, unknown> = {}
-  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'in', 'order', 'gte', 'lte']
+  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'in', 'is', 'order', 'gte', 'lte']
   for (const m of methods) {
     builder[m] = vi.fn().mockReturnValue(builder)
   }
@@ -207,29 +207,22 @@ describe('DELETE /api/search-runs/[id]', () => {
 
   it('returns success when run is deleted', async () => {
     // The admin from() call sequence:
-    // 1. select run by id+user_id → found
-    // 2. update fsn_results to null out search_run_id → success
-    // 3. delete search_runs → success
+    // 1. select run by id+user_id (with .is('deleted_at', null)) → found
+    // 2. soft-delete update → success
     let callIdx = 0
     const adminFrom = vi.fn().mockImplementation(() => {
       callIdx++
       if (callIdx === 1) {
-        // select run
         const c = chainable({
           single: vi.fn().mockResolvedValue({ data: { id: VALID_UUID, user_id: mockUser.id }, error: null }),
         })
         return c
       }
-      if (callIdx === 2) {
-        // update fsn_results
-        const c = chainable()
-        ;(c['eq'] as ReturnType<typeof vi.fn>).mockResolvedValue({ error: null })
-        return c
-      }
-      // delete search_runs
-      const c = chainable({
-        single: vi.fn().mockResolvedValue({ data: { id: VALID_UUID }, error: null }),
-      })
+      // soft-delete update: .update().eq('id').eq('user_id') — second .eq() is terminal
+      const c = chainable()
+      ;(c['eq'] as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce(c)
+        .mockResolvedValue({ error: null })
       return c
     })
 
