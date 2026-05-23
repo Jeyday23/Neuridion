@@ -8,7 +8,7 @@ const mockUser = { id: 'aaaa-bbbb-cccc-dddd', email: 'test@example.com' }
 
 function chainable(terminal: Record<string, unknown> = {}) {
   const builder: Record<string, unknown> = {}
-  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'in', 'order', 'gte', 'lte', 'rpc']
+  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'in', 'order', 'gte', 'lte', 'lt', 'rpc']
   for (const m of methods) {
     builder[m] = vi.fn().mockReturnValue(builder)
   }
@@ -98,7 +98,11 @@ describe('POST /api/search-runs', () => {
     mockAdminChain = chainable()
     ;(mockAdminChain['select'] as ReturnType<typeof vi.fn>).mockReturnValue(mockAdminChain)
     ;(mockAdminChain['eq'] as ReturnType<typeof vi.fn>).mockReturnValue(mockAdminChain)
-    ;(mockAdminChain['in'] as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 0, error: null })
+    // First .in() chains to .lt() for stale cleanup; second .in() is terminal for count query
+    ;(mockAdminChain['in'] as ReturnType<typeof vi.fn>)
+      .mockReturnValueOnce(mockAdminChain)
+      .mockResolvedValue({ count: 0, error: null })
+    ;(mockAdminChain['lt'] as ReturnType<typeof vi.fn>).mockResolvedValue({ error: null })
     ;(mockAdminChain['single'] as ReturnType<typeof vi.fn>).mockResolvedValue({ data: { id: 'job-1' }, error: null })
   })
 
