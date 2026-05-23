@@ -257,7 +257,7 @@ export default async function HomePage() {
               <span className="text-[13px] text-[#7a8599]"> /mo</span>
             </div>
             <ul className="flex flex-col gap-2.5 my-6 flex-1">
-              {['3 device profiles', '15 searches per month', 'PDF + Word reports', 'Email support'].map((f) => (
+              {['3 device profiles', '15 searches per month', 'PDF, Word & Excel reports', 'Email support'].map((f) => (
                 <li key={f} className="flex items-center gap-2 text-[13px] text-[#3d4a5c]">
                   <Check className="w-3.5 h-3.5 text-[#0D9488] flex-shrink-0" />
                   {f}
@@ -285,7 +285,7 @@ export default async function HomePage() {
               <span className="text-[13px] text-[#7a8599]"> /mo</span>
             </div>
             <ul className="flex flex-col gap-2.5 my-6 flex-1">
-              {['10 device profiles', '50 searches per month', 'PDF + Word reports', 'Priority support'].map((f) => (
+              {['10 device profiles', '50 searches per month', 'PDF, Word & Excel reports', 'Priority support'].map((f) => (
                 <li key={f} className="flex items-center gap-2 text-[13px] text-[#3d4a5c]">
                   <Check className="w-3.5 h-3.5 text-[#0D9488] flex-shrink-0" />
                   {f}
