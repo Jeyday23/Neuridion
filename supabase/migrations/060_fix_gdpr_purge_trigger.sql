@@ -1,6 +1,7 @@
 -- Fix: gdpr_purge_user_data references RULE no_delete_filter_decisions which
 -- was dropped in migration 050 and replaced by TRIGGER trg_prevent_filter_decisions_delete.
 -- Also adds cleanup of used_trial_emails and trial_codes PII (GDPR erasure).
+-- Uses EXECUTE for tables that may not exist yet (reports, used_trial_emails).
 
 CREATE OR REPLACE FUNCTION public.gdpr_purge_user_data(target_user_id uuid)
 RETURNS void
@@ -13,9 +14,7 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtext('gdpr_purge:' || target_user_id::text));
 
   -- Disable append-only protections for GDPR erasure
-  -- filter_decisions: trigger (since migration 050)
   ALTER TABLE public.filter_decisions DISABLE TRIGGER trg_prevent_filter_decisions_delete;
-  -- profile_edit_history: rule (since migration 039, never migrated to trigger)
   ALTER TABLE public.profile_edit_history DISABLE RULE prevent_profile_edit_history_delete;
 
   BEGIN
@@ -28,12 +27,16 @@ BEGIN
     DELETE FROM public.search_runs WHERE user_id = target_user_id;
     DELETE FROM public.product_profiles WHERE user_id = target_user_id;
     DELETE FROM public.search_drafts WHERE user_id = target_user_id;
-    DELETE FROM public.reports WHERE user_id = target_user_id;
     DELETE FROM public.user_feedback WHERE user_id = target_user_id;
 
-    -- Clean PII from trial system
-    DELETE FROM public.used_trial_emails
-      WHERE email = (SELECT email FROM auth.users WHERE id = target_user_id);
+    -- Tables that may not exist yet — use dynamic SQL
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'reports') THEN
+      EXECUTE 'DELETE FROM public.reports WHERE user_id = $1' USING target_user_id;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'used_trial_emails') THEN
+      EXECUTE 'DELETE FROM public.used_trial_emails WHERE email = (SELECT email FROM auth.users WHERE id = $1)' USING target_user_id;
+    END IF;
 
     UPDATE public.trial_codes
       SET redeemed_by_email = NULL, redeemed_by_user_id = NULL
