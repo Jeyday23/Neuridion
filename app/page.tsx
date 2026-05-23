@@ -9,6 +9,7 @@ import {
   AnimatedHero, AnimatedSection,
   AnimatedStaggerGrid, AnimatedStaggerChild,
 } from './components/LandingAnimations'
+import { MobileNav } from './components/MobileNav'
 
 export const metadata = {
   title: 'Neuridion — Post-Market Surveillance for Medical Device Manufacturers',
@@ -74,6 +75,7 @@ export default async function HomePage() {
               Start free trial
             </Link>
           </div>
+          <MobileNav />
         </div>
       </nav>
 
