@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
@@ -135,7 +136,8 @@ export async function POST(request: Request) {
     admin.from('reports').delete().eq('user_id', user.id),
   ])
   if (user.email) {
-    await admin.from('login_attempts').delete().eq('email', user.email)
+    const emailHash = createHash('sha256').update(user.email.toLowerCase()).digest('hex').slice(0, 32)
+    await admin.from('login_attempts').delete().eq('email', emailHash)
   }
 
   await logAuditEvent(user.id, 'account_deleted', {

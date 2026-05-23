@@ -42,28 +42,41 @@ export async function upsertCanonical(items: ScrapedFsn[]): Promise<CanonicalRes
   const db = createAdminClient()
 
   // Fetch existing rows for this batch to detect changes.
-  // Filter by both source AND source_record_id — never pull all rows for a source.
+  // Batch by source to get exact (source, source_record_id) pairs.
+  // A single query with .in('source', …).in('source_record_id', …) produces a
+  // cross-product (any source × any record_id), which can match rows belonging
+  // to the wrong source. Querying per-source with .eq('source', s) avoids this.
   const keys = items.map(i => `${i.source_db}:::${i.external_id}`)
-  const { data: existing } = await db
-    .from('fsn_canonical')
-    .select('id, source, source_record_id, content_hash, revision_count, first_seen_at')
-    .in('source', [...new Set(items.map(i => i.source_db))])
-    .in('source_record_id', items.map(i => i.external_id))
 
-  // Build lookup: "source:::source_record_id" → existing row
+  const sourceGroups = new Map<string, string[]>()
+  for (const item of items) {
+    const group = sourceGroups.get(item.source_db) ?? []
+    group.push(item.external_id)
+    sourceGroups.set(item.source_db, group)
+  }
+
   const existingMap = new Map<string, {
     id: string
     content_hash: string
     revision_count: number
     first_seen_at: string
   }>()
-  for (const row of existing ?? []) {
-    existingMap.set(`${row.source}:::${row.source_record_id}`, {
-      id:             row.id,
-      content_hash:   row.content_hash,
-      revision_count: row.revision_count,
-      first_seen_at:  row.first_seen_at,
-    })
+
+  for (const [source, recordIds] of sourceGroups) {
+    const { data } = await db
+      .from('fsn_canonical')
+      .select('id, source, source_record_id, content_hash, revision_count, first_seen_at')
+      .eq('source', source)
+      .in('source_record_id', recordIds)
+
+    for (const row of data ?? []) {
+      existingMap.set(`${row.source}:::${row.source_record_id}`, {
+        id:             row.id,
+        content_hash:   row.content_hash,
+        revision_count: row.revision_count,
+        first_seen_at:  row.first_seen_at,
+      })
+    }
   }
 
   const now = new Date().toISOString()

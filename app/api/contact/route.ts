@@ -51,8 +51,7 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: 'Failed to send message. Please try again.' }, { status: 500 })
   }
 
-  await logAuditEvent(null, 'admin_action', {
-    action: 'contact_form_submitted',
+  await logAuditEvent(null, 'contact_form_submitted', {
     subject,
   }, req)
 

@@ -186,6 +186,7 @@ export interface FsnContext {
   manufacturer: string
   raw_content:  string
   fsn_date:     string | null
+  source_db?:   string | null
 }
 
 // ── Cache helpers ─────────────────────────────────────────────────────────────
@@ -204,8 +205,9 @@ export function getProfileFingerprint(profile: ProfileContext): string {
 }
 
 function getFsnExternalId(fsn: FsnContext): string {
+  const key = [fsn.title, fsn.manufacturer ?? '', fsn.source_db ?? ''].join('|').toLowerCase().trim()
   return createHash('sha256')
-    .update(fsn.title.toLowerCase().trim())
+    .update(key)
     .digest('hex')
     .slice(0, 32)
 }

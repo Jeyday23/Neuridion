@@ -25,7 +25,13 @@ export async function GET(
     return Response.json({ error: 'Invalid ID' }, { status: 400 })
   }
   const { searchParams } = new URL(request.url)
-  const format = searchParams.get('format') ?? 'pdf'
+  const formatSchema = z.enum(['pdf', 'excel', 'docx', 'html']).default('pdf')
+  let format: string
+  try {
+    format = formatSchema.parse(searchParams.get('format') ?? undefined)
+  } catch {
+    return Response.json({ error: 'Invalid format. Must be one of: pdf, excel, docx, html' }, { status: 400 })
+  }
 
   const adminClient = createAdminClient()
 
@@ -39,6 +45,7 @@ export async function GET(
     `)
     .eq('id', id)
     .eq('user_id', user.id)
+    .is('deleted_at' as never, null)
     .single()
 
   if (runError || !run) {

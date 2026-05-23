@@ -331,11 +331,15 @@ function nextDay(date: string): string {
 
 // ─── Lucene term clause ───────────────────────────────────────────────────────
 
+const LUCENE_KEYWORDS = new Set(['AND', 'OR', 'NOT', 'TO'])
+
 function sanitizeLucene(t: string): string {
-  return t
+  const s = t
     .replace(/[+&|!(){}[\]^"~*?:\\/]/g, '')
     .replace(/^-+|-+$/g, '')
     .replace(/[[\]{}]/g, '')
+  if (LUCENE_KEYWORDS.has(s.toUpperCase())) return ''
+  return s
 }
 
 // Builds an openFDA Lucene clause. Uses device.manufacturer_d_name (the actual

@@ -198,7 +198,8 @@ function buildReportHtml(
       return `<tr><td colspan="${colspan}" style="padding:8px 7px;color:#888;font-style:italic;">No items in this section.</td></tr>`
     }
     return items.map((r) => {
-      const d = r.filter_decision!
+      const d = r.filter_decision
+      if (!d) return ''  // skip rows without a filter decision
       const raw = d.decision === 'filter_failed'
         ? 'AI filter could not be applied — manual review required.'
         : d.rationale
@@ -455,6 +456,7 @@ export async function POST(request: Request) {
     .select('id, status, review_status, reviewed_by, reviewed_at, period_from, period_to, dbs_searched, profile_snapshot, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
     .eq('id', run_id)
     .eq('user_id', user.id)
+    .is('deleted_at' as never, null)
     .single()
 
   if (runError || !run) {
@@ -481,8 +483,9 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Profile not found' }, { status: 404 })
   }
 
-  // Fetch FSN results
-  const { data: rawResults, error: resultsError } = await supabase
+  // Fetch FSN results — use admin client; pipeline tables may lack user-read RLS policies
+  const db = createAdminClient()
+  const { data: rawResults, error: resultsError } = await db
     .from('fsn_results')
     .select('id, title, manufacturer, fsn_date, source_url, source_db')
     .eq('run_id', run_id)
@@ -493,12 +496,12 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
-  // Fetch filter decisions
+  // Fetch filter decisions — use admin client (same reason as above)
   const decisionsMap: Record<string, { decision: string; rationale: string; confidence: number }> = {}
 
-  const { data: decisions } = await supabase
+  const { data: decisions } = await db
     .from('filter_decisions')
-    .select('fsn_result_id, decision, rationale, confidence, model')
+    .select('fsn_result_id, decision, rationale, confidence')
     .eq('search_run_id', run_id)
 
   for (const d of decisions ?? []) {
@@ -509,7 +512,8 @@ export async function POST(request: Request) {
     }
   }
 
-  const aiModels = [...new Set((decisions ?? []).map(d => (d as { model?: string }).model).filter((m): m is string => !!m))]
+  // 'model' column exists in DB but not in generated Supabase types — cast to extract
+  const aiModels = [...new Set((decisions ?? []).map(d => (d as unknown as { model?: string }).model).filter((m): m is string => !!m))]
 
   // Resolve reviewer name
   let reviewerName: string | null = null
@@ -523,9 +527,9 @@ export async function POST(request: Request) {
   const rows: FsnRow[] = (rawResults ?? []).map((r) => ({
     id:              r.id,
     title:           r.title,
-    manufacturer:    r.manufacturer,
+    manufacturer:    r.manufacturer ?? '',
     fsn_date:        r.fsn_date,
-    source_url:      r.source_url,
+    source_url:      r.source_url ?? '',
     source_db:       r.source_db,
     filter_decision: (decisionsMap[r.id] as FsnRow['filter_decision']) ?? null,
   }))

@@ -52,6 +52,7 @@ export async function PATCH(
     .select('id, review_status, user_id')
     .eq('id', id)
     .eq('user_id', user.id)
+    .is('deleted_at' as never, null)
     .single()
 
   if (!existing) {

@@ -8,8 +8,9 @@ import type { PipelineContext, InsertedFsnRow } from '../types'
 
 const TRUST_SOURCE_FILTER = new Set(['fda'])
 
-function fsnIdOf(title: string): string {
-  return createHash('sha256').update(title.toLowerCase().trim()).digest('hex').slice(0, 32)
+function fsnIdOf(fsn: { title: string; manufacturer?: string | null; source_db?: string | null }): string {
+  const key = [fsn.title, fsn.manufacturer ?? '', fsn.source_db ?? ''].join('|').toLowerCase().trim()
+  return createHash('sha256').update(key).digest('hex').slice(0, 32)
 }
 
 export async function filterStage(ctx: PipelineContext): Promise<void> {
@@ -22,7 +23,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   const { data: cacheHits } = await db
     .from('filter_decision_cache')
     .select('fsn_external_id, decision, reasoning, confidence')
-    .in('fsn_external_id', insertedRows.map((r) => fsnIdOf(r.title)))
+    .in('fsn_external_id', insertedRows.map((r) => fsnIdOf(r)))
     .eq('profile_fingerprint', profileFingerprint)
 
   const cacheMap = new Map<string, {
@@ -35,7 +36,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
 
   for (const row of insertedRows) {
     const skipCache = contentChanged.has(row.external_id ?? '')
-    if (!skipCache && cacheMap.has(fsnIdOf(row.title))) {
+    if (!skipCache && cacheMap.has(fsnIdOf(row))) {
       alreadyCached.push(row)
     } else {
       needsFilter.push(row)
@@ -43,7 +44,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   }
 
   for (const row of alreadyCached) {
-    const hit = cacheMap.get(fsnIdOf(row.title))!
+    const hit = cacheMap.get(fsnIdOf(row))!
     ctx.decisions.push({
       fsn_result_id: row.id,
       decision:      hit.decision as 'relevant' | 'uncertain' | 'excluded' | 'filter_failed',
@@ -144,7 +145,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
       itemsProcessed++
 
       const d = await stage1Filter(
-        { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date },
+        { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date, source_db: row.source_db },
         profile,
         { skipCache: true },
       )
@@ -171,7 +172,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
         const enrichedContent = sanitizeForLlm(`${row.title}\n\n${detail}`)
         pendingUpdates.push({ id: row.id, content: enrichedContent })
         const refiltered = await stage1Filter(
-          { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: enrichedContent, fsn_date: row.fsn_date },
+          { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: enrichedContent, fsn_date: row.fsn_date, source_db: row.source_db },
           profile,
           { skipCache: true },
         )

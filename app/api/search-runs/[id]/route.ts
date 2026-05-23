@@ -29,6 +29,7 @@ export async function GET(
     .from('search_runs')
     .select('id, user_id, status, progress, error_message, relevant_count, uncertain_count, excluded_count, total_scraped, pre_filter_count')
     .eq('id', id)
+    .is('deleted_at' as never, null)
     .single()
 
   if (runError || !run || run.user_id !== user.id) {
