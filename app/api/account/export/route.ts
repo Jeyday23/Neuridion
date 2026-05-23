@@ -48,10 +48,10 @@ export async function GET(request: Request) {
     loginAttemptsRes,
   ] = await Promise.all([
     runIds.length > 0
-      ? admin.from('fsn_results').select('id, run_id, external_id, title, manufacturer, fsn_date, source_url, source_db, created_at').in('run_id', runIds).limit(10000)
+      ? admin.from('fsn_results').select('id, run_id, external_id, title, manufacturer, fsn_date, source_url, source_db, created_at').in('run_id', runIds)
       : Promise.resolve({ data: [] }),
     runIds.length > 0
-      ? admin.from('filter_decisions').select('id, fsn_result_id, search_run_id, decision, rationale, created_at').in('search_run_id', runIds).limit(10000)  // model + confidence excluded: system-generated internals, not user personal data
+      ? admin.from('filter_decisions').select('id, fsn_result_id, search_run_id, decision, rationale, created_at').in('search_run_id', runIds)  // model + confidence excluded: system-generated internals, not user personal data
       : Promise.resolve({ data: [] }),
     admin.from('pdf_usage').select('id, user_id, month, count').eq('user_id', user.id),
     admin.from('search_drafts').select('id, user_id, profile_id, name, search_period_from, search_period_to, dbs_selected, created_at').eq('user_id', user.id),  // generic_terms + manufacturer_terms excluded: system-generated search intelligence, not user personal data

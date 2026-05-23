@@ -84,6 +84,25 @@ export default async function EditProfilePage({
     // Table may not exist if migration 017 hasn't run yet
   }
 
+  // Resolve edited_by UUIDs to user names
+  let editorMap: Record<string, string> = {}
+  if (history.length > 0) {
+    const uniqueEditorIds = [...new Set(
+      history.map((h) => h.edited_by).filter((id): id is string => !!id)
+    )]
+    if (uniqueEditorIds.length > 0) {
+      const { data: editors } = await db
+        .from('users')
+        .select('id, full_name, email')
+        .in('id', uniqueEditorIds)
+      if (editors) {
+        editorMap = Object.fromEntries(
+          editors.map((u) => [u.id, u.full_name || u.email || 'Unknown user'])
+        )
+      }
+    }
+  }
+
   return (
     <div className="p-8 max-w-2xl">
       <div className="mb-6">
@@ -119,7 +138,12 @@ export default async function EditProfilePage({
                         ? `Changed ${fields[0]}`
                         : `Changed ${fields.slice(0, -1).join(', ')} and ${fields[fields.length - 1]}`}
                     </span>
-                    <span className="text-zinc-400 shrink-0">{fmtDateTime(entry.edited_at)}</span>
+                    <span className="text-zinc-400 shrink-0">
+                      {entry.edited_by && editorMap[entry.edited_by]
+                        ? `by ${editorMap[entry.edited_by]} · `
+                        : ''}
+                      {fmtDateTime(entry.edited_at)}
+                    </span>
                   </div>
                   {fields.map((field) => (
                     <div key={field} className="text-zinc-500 leading-relaxed">

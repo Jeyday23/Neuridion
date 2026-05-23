@@ -182,7 +182,7 @@ function FsnRow({
             )}
             <div className="mt-2 flex items-center gap-4 text-xs text-zinc-500 flex-wrap">
               {d?.confidence != null && <span title="How certain the AI is that this classification is correct">Confidence: {Math.round(d.confidence * 100)}%</span>}
-              {d?.model && <span>AI-assisted</span>}
+              {d?.model && <span>{formatModelLabel(d.model)}</span>}
               <a href={safeHref(result.source_url)} target="_blank" rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 className="ml-auto text-[#0D9488] hover:underline text-xs">
@@ -618,9 +618,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
     timeoutRef.current = setTimeout(() => {
       stopPolling()
-      const rid = runId
-      setState({ phase: 'error', message: 'Search timed out after 15 minutes. The run may still complete in the background — check the Archive page.' })
-      apiFetch(`/api/search-runs/${rid}/cancel`, { method: 'POST' }).catch(() => {})
+      setState({ phase: 'error', message: 'Search is taking longer than expected. It is still running in the background — check the Archive page for results.' })
     }, 15 * 60 * 1000)
   }
 
@@ -1060,6 +1058,16 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       )}
     </div>
   )
+}
+
+function formatModelLabel(model: string | null | undefined): string {
+  if (!model) return 'AI-assisted'
+  const MODEL_NAMES: Record<string, string> = {
+    'claude-sonnet-4-5': 'Sonnet 4.5',
+    'claude-sonnet-4-6': 'Sonnet 4.6',
+    'claude-haiku-4-5':  'Haiku 4.5',
+  }
+  return MODEL_NAMES[model] ?? model
 }
 
 const MODEL_LABEL = 'AI-assisted'

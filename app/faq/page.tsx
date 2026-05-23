@@ -68,7 +68,7 @@ const FAQ_SECTIONS = [
       },
       {
         q: 'Is there a Data Processing Agreement (DPA)?',
-        a: 'Yes. Our DPA is available at <a href="/dpa" class="text-[#0D9488] hover:underline">neuridion.eu/dpa</a>. It covers Neuridion as a processor and lists all sub-processors (Supabase, Anthropic, Stripe, Resend).',
+        a: 'Yes. Our DPA is available at <a href="/dpa" class="text-[#0D9488] hover:underline">our DPA page</a>. It covers Neuridion as a processor and lists all sub-processors (Supabase, Anthropic, Stripe, Resend).',
       },
       {
         q: 'How long is data retained?',

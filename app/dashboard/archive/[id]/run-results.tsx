@@ -15,6 +15,7 @@ export interface FsnResult {
     decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
     rationale: string
     confidence: number | null
+    model?: string | null
   } | null
 }
 
@@ -52,6 +53,16 @@ const DECISION_LABELS: Record<string, string> = {
   uncertain:     'Uncertain',
   excluded:      'Excluded',
   filter_failed: 'Unprocessed',
+}
+
+function formatModelLabel(model: string | null | undefined): string {
+  if (!model) return 'AI-assisted'
+  const MODEL_NAMES: Record<string, string> = {
+    'claude-sonnet-4-5': 'Sonnet 4.5',
+    'claude-sonnet-4-6': 'Sonnet 4.6',
+    'claude-haiku-4-5':  'Haiku 4.5',
+  }
+  return MODEL_NAMES[model] ?? model
 }
 
 function DecisionBadge({ decision }: { decision: string }) {
@@ -99,6 +110,9 @@ function ResultRow({ result }: { result: FsnResult }) {
             <span className="text-zinc-400">{formatSourceLabel(result.source_db)}</span>
             {d && d.confidence != null && (
               <span className="text-zinc-400" title="How certain the AI is that this classification is correct">{Math.round(d.confidence * 100)}% confidence</span>
+            )}
+            {d?.model && (
+              <span className="text-zinc-400">{formatModelLabel(d.model)}</span>
             )}
           </div>
 

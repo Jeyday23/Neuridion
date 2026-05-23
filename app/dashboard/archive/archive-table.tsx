@@ -309,7 +309,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                         {hasDocx && (
                           <DownloadButton runId={run.id} format="docx" label="↓ Word" />
                         )}
-                        {!hasReport && run.status === 'complete' && (
+                        {!hasReport && (run.status === 'complete' || run.status === 'degraded') && (
                           <GenerateReportButton runId={run.id} />
                         )}
                         {['running', 'filtering', 'queued'].includes(run.status) && (

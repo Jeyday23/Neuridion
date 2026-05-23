@@ -19,7 +19,7 @@ const CreateProfileSchema = z.object({
   device_name:      z.string().min(1).max(200),
   manufacturer:     z.string().min(1).max(200),
   device_class:     z.enum(['Class I', 'Class IIa', 'Class IIb', 'Class III']).optional(),
-  emdn_code:        z.string().max(20).optional(),
+  emdn_code:        z.string().max(20).regex(/^[A-Za-z]\d{2,8}$/, 'Invalid EMDN code format').optional().or(z.literal('')).transform(v => v || null),
   intended_use:     z.string().max(2000).optional(),
   competitor_terms: z.array(CompetitorTermSchema).max(20).default([]),
 })

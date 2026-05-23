@@ -173,7 +173,10 @@ export function SettingsClient({
     <div className="space-y-10">
 
       {/* 1. Account info */}
-      <section className="rounded-md border border-[#E2E8F0] bg-white p-6">
+      <form
+        onSubmit={(e) => { e.preventDefault(); saveInfo() }}
+        className="rounded-md border border-[#E2E8F0] bg-white p-6"
+      >
         <h2 className="text-lg font-semibold text-[#0F1F3D] mb-5">Account information</h2>
         <div className="space-y-4">
           <div>
@@ -207,23 +210,27 @@ export function SettingsClient({
             </p>
           )}
           <button
-            onClick={saveInfo}
+            type="submit"
             disabled={infoSaving}
             className="rounded bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#0F766E] transition-colors disabled:opacity-50"
           >
             {infoSaving ? 'Saving…' : 'Save changes'}
           </button>
         </div>
-      </section>
+      </form>
 
       {/* 2. Password */}
-      <section className="rounded-md border border-[#E2E8F0] bg-white p-6">
+      <form
+        onSubmit={(e) => { e.preventDefault(); changePassword() }}
+        className="rounded-md border border-[#E2E8F0] bg-white p-6"
+      >
         <h2 className="text-lg font-semibold text-[#0F1F3D] mb-5">Change password</h2>
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-[#134E4A] mb-1.5">Current password</label>
             <input
               type="password"
+              autoComplete="current-password"
               value={currentPw}
               onChange={(e) => setCurrentPw(e.target.value)}
               className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
@@ -234,6 +241,7 @@ export function SettingsClient({
             <label className="block text-sm font-medium text-[#134E4A] mb-1.5">New password</label>
             <input
               type="password"
+              autoComplete="new-password"
               value={newPw}
               onChange={(e) => setNewPw(e.target.value)}
               className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
@@ -244,6 +252,7 @@ export function SettingsClient({
             <label className="block text-sm font-medium text-[#134E4A] mb-1.5">Confirm new password</label>
             <input
               type="password"
+              autoComplete="new-password"
               value={confirmPw}
               onChange={(e) => setConfirmPw(e.target.value)}
               className="w-full rounded border border-[#E2E8F0] bg-white px-3.5 py-2.5 text-sm text-[#134E4A] focus:outline-none focus:ring-2 focus:ring-[#0D9488] focus:border-transparent"
@@ -256,14 +265,14 @@ export function SettingsClient({
             </p>
           )}
           <button
-            onClick={changePassword}
+            type="submit"
             disabled={pwSaving || !newPw || !confirmPw}
             className="rounded bg-[#0D9488] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#0F766E] transition-colors disabled:opacity-50"
           >
             {pwSaving ? 'Updating…' : 'Update password'}
           </button>
         </div>
-      </section>
+      </form>
 
       {/* 3. Data export */}
       <section className="rounded-md border border-[#E2E8F0] bg-white p-6">

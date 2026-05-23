@@ -197,7 +197,7 @@ export default async function PricingPage() {
             <div>
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">Product</h4>
               <ul className="space-y-2 text-sm text-[#0F766E]">
-                <li><Link href="/" className="hover:text-[#0F1F3D]">Features</Link></li>
+                <li><Link href="/#how-it-works" className="hover:text-[#0F1F3D]">Features</Link></li>
                 <li><Link href="/pricing" className="hover:text-[#0F1F3D]">Pricing</Link></li>
                 <li><Link href="/sample-report" className="hover:text-[#0F1F3D]">Sample Report</Link></li>
                 <li><Link href="/faq" className="hover:text-[#0F1F3D]">FAQ</Link></li>
@@ -214,6 +214,7 @@ export default async function PricingPage() {
               <ul className="space-y-2 text-sm text-[#0F766E]">
                 <li><Link href="/privacy" className="hover:text-[#0F1F3D]">Privacy</Link></li>
                 <li><Link href="/terms" className="hover:text-[#0F1F3D]">Terms</Link></li>
+                <li><Link href="/withdrawal" className="hover:text-[#0F1F3D]">Withdrawal</Link></li>
                 <li><Link href="/imprint" className="hover:text-[#0F1F3D]">Imprint</Link></li>
                 <li><Link href="/dpa" className="hover:text-[#0F1F3D]">DPA</Link></li>
                 <li><Link href="/ai-transparency" className="hover:text-[#0F1F3D]">AI Transparency</Link></li>
