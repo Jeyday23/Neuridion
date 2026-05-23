@@ -45,17 +45,20 @@ export function sanitizeForLlm(text: string, maxLen = 3000): string {
     .replace(ROLE_MARKERS, '[MARKER_REMOVED]')
     .replace(XML_INSTRUCTIONS, '[TAG_REMOVED]')
     .replace(/<[^>]+>/g, '')
-  // Decode HTML entities AFTER stripping dangerous tags — this prevents
-  // entity-encoded injection (e.g. &lt;|system|&gt;) from surviving.
-  s = s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-    .replace(/&#0*60;/g, '<').replace(/&#0*62;/g, '>').replace(/&#x0*3c;/gi, '<').replace(/&#x0*3e;/gi, '>')
-    .replace(/&#x0*26;/gi, '&').replace(/&#x0*22;/gi, '"').replace(/&#x0*27;/gi, "'")
-  // Second pass: strip any tags that were hidden behind entity encoding
-  s = neutralizeFsnBoundary(s)
-  s = s
-    .replace(ROLE_MARKERS, '[MARKER_REMOVED]')
-    .replace(XML_INSTRUCTIONS, '[TAG_REMOVED]')
-    .replace(/<[^>]+>/g, '')
+  // Convergent decode+strip: iterate until stable to catch multi-encoded
+  // injection (e.g. &amp;amp;lt;|system|&amp;amp;gt; surviving two passes).
+  let prev = ''
+  while (prev !== s) {
+    prev = s
+    s = s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+      .replace(/&#0*60;/g, '<').replace(/&#0*62;/g, '>').replace(/&#x0*3c;/gi, '<').replace(/&#x0*3e;/gi, '>')
+      .replace(/&#x0*26;/gi, '&').replace(/&#x0*22;/gi, '"').replace(/&#x0*27;/gi, "'")
+    s = neutralizeFsnBoundary(s)
+    s = s
+      .replace(ROLE_MARKERS, '[MARKER_REMOVED]')
+      .replace(XML_INSTRUCTIONS, '[TAG_REMOVED]')
+      .replace(/<[^>]+>/g, '')
+  }
   return s
     .replace(/\s+/g, ' ')
     .trim()

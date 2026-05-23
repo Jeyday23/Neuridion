@@ -27,5 +27,12 @@ export async function POST(request: Request) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
   })
+  res.cookies.set('_neuridion_active', '', {
+    path: '/',
+    maxAge: 0,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+  })
   return res
 }

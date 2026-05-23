@@ -34,7 +34,7 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               "script-src 'self' 'strict-dynamic' https://js.stripe.com",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: https:",
+              "img-src 'self' data:",
               "font-src 'self'",
               "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.stripe.com https://api.pdfshift.io https://api.resend.com https://api.firecrawl.dev https://fsca.swissmedic.ch https://api.fda.gov https://www.gov.uk https://www.bfarm.de",
               "frame-src https://js.stripe.com",
