@@ -36,7 +36,7 @@ const nextConfig: NextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: https:",
               "font-src 'self'",
-              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.stripe.com https://fsca.swissmedic.ch https://api.fda.gov https://www.gov.uk https://www.bfarm.de",
+              "connect-src 'self' https://*.supabase.co https://api.anthropic.com https://api.stripe.com https://api.pdfshift.io https://api.resend.com https://api.firecrawl.dev https://fsca.swissmedic.ch https://api.fda.gov https://www.gov.uk https://www.bfarm.de",
               "frame-src https://js.stripe.com",
               "object-src 'none'",
               "base-uri 'self'",

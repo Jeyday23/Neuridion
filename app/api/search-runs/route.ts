@@ -92,6 +92,15 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Profile not found' }, { status: 404 })
   }
 
+  // Auto-cancel stale runs stuck in pending/running for over 30 minutes
+  const STALE_THRESHOLD_MINUTES = 30
+  const staleThreshold = new Date(Date.now() - STALE_THRESHOLD_MINUTES * 60_000).toISOString()
+  await db.from('search_runs')
+    .update({ status: 'error', error_message: 'Automatically cancelled — search exceeded maximum duration.' })
+    .eq('user_id', user.id)
+    .in('status', ['pending', 'running'])
+    .lt('created_at', staleThreshold)
+
   // Reject if user already has an active run — prevents concurrent pipeline abuse
   const { count: activeCount } = await db
     .from('search_runs')

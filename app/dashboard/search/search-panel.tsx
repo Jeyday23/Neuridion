@@ -487,7 +487,10 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       const res  = await apiFetch('/api/search-drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json() as { id?: string; error?: string }
       if (!res.ok) {
-        if (res.status === 429) { showToast('Too many requests — please wait a moment.', 'error'); return }
+        if (res.status === 429) {
+          showToast(data.error || 'Too many requests — please wait a moment.', 'error')
+          return
+        }
         throw new Error(data.error ?? 'Save failed')
       }
       if (data.id) setDraftId(data.id)
@@ -642,7 +645,9 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           return
         }
         if (res.status === 429) {
-          setState({ phase: 'error', message: 'Too many requests — please wait a moment and try again.' })
+          const body = await res.json().catch(() => null)
+          const msg = body?.error || 'Too many requests — please wait a moment and try again.'
+          setState({ phase: 'error', message: msg })
           return
         }
         let errMsg = `Search failed (HTTP ${res.status}).`

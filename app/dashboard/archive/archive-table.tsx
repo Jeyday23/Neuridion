@@ -204,7 +204,8 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                 const rel  = run.relevant_count  ?? 0
                 const unc  = run.uncertain_count  ?? 0
                 const exc  = run.excluded_count   ?? 0
-                const tot  = run.total_results    ?? ((rel + unc + exc) || null)
+                const sum  = rel + unc + exc
+                const tot  = sum > 0 ? sum : (run.total_results || null)
 
                 return (
                   <motion.tr

@@ -89,9 +89,12 @@ export default async function RunDetailPage({
       ? `${run.search_period_from ?? run.period_from} → ${run.search_period_to ?? run.period_to}`
       : '—'
 
-  const dbs = Array.isArray(run.dbs_searched)
+  const dbsFromColumn = Array.isArray(run.dbs_searched)
     ? (run.dbs_searched as string[]).join(', ')
-    : (run.dbs_searched as string | null) ?? '—'
+    : (run.dbs_searched as string | null) ?? ''
+  const dbs = dbsFromColumn
+    || [...new Set(results.map((r) => r.source_db).filter(Boolean))].join(', ')
+    || '—'
 
   const mhraSearched = (Array.isArray(run.dbs_searched) ? run.dbs_searched as string[] : [])
     .some((db: string) => db.toLowerCase() === 'mhra')

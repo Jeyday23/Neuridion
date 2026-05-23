@@ -223,7 +223,7 @@ export default async function PricingPage() {
             <div>
               <h4 className="text-sm font-semibold text-[#0F1F3D] mb-3">Connect</h4>
               <ul className="space-y-2 text-sm text-[#0F766E]">
-                <li><a href="#" className="hover:text-[#0F1F3D]">LinkedIn</a></li>
+                <li><Link href="/contact" className="hover:text-[#0F1F3D]">Contact us</Link></li>
               </ul>
             </div>
           </div>
