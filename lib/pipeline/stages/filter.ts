@@ -49,7 +49,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
       fsn_result_id: row.id,
       decision:      hit.decision as 'relevant' | 'uncertain' | 'excluded' | 'filter_failed',
       rationale:     hit.reasoning ?? '',
-      confidence:    hit.confidence != null ? parseFloat(hit.confidence) / 100 : null,
+      confidence:    hit.confidence != null ? parseFloat(hit.confidence) : null,
       model:         null,
     })
   }

@@ -59,10 +59,11 @@ export async function PATCH(
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const allowed = VALID_TRANSITIONS[existing.review_status]
+  const currentStatus = existing.review_status ?? 'draft'
+  const allowed = VALID_TRANSITIONS[currentStatus]
   if (allowed !== parsed.data.review_status) {
     return Response.json(
-      { error: `Cannot transition from '${existing.review_status}' to '${parsed.data.review_status}'.` },
+      { error: `Cannot transition from '${currentStatus}' to '${parsed.data.review_status}'.` },
       { status: 422 }
     )
   }
@@ -84,6 +85,10 @@ export async function PATCH(
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
+  // Self-approval detection: the query filters by user_id, so existing.user_id === user.id
+  // is always true. We only flag self_approval for 'approved' transitions. This is expected
+  // for single-user organisations where no independent reviewer is available. Logged as
+  // informational audit data, not an error condition.
   const isSelfApproval = parsed.data.review_status === 'approved' && existing.user_id === user.id
 
   await logAuditEvent(user.id, 'prrc_review_completed', {
@@ -95,7 +100,8 @@ export async function PATCH(
   if (isSelfApproval) {
     await logAuditEvent(user.id, 'self_approval_override', {
       run_id: id,
-      warning: 'self_approval',
+      severity: 'info',
+      note: 'self_approval',
       justification: 'Single-user organisation — no independent reviewer available.',
     }, request)
   }

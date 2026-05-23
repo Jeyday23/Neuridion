@@ -69,7 +69,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       })
       items.push(...result.items)
       warnings.push(...result.warnings)
-      if (result.warnings.length === 0 && result.items.length > 0) fetchedRanges.push(range)
+      if (result.items.length > 0) fetchedRanges.push(range)
     }
 
     const overlapFrom = overlapWindowStart(period_to)

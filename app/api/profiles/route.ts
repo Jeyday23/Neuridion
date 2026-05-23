@@ -120,6 +120,29 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
+  // Post-insert TOCTOU guard: re-check the profile count after insert.
+  // If a concurrent request slipped past the pre-check and we are now over the limit,
+  // delete the just-inserted profile and return 403.
+  if (limit !== -1) {
+    const { count: postCount } = await supabase
+      .from('product_profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+
+    if ((postCount ?? 0) > limit) {
+      await supabase
+        .from('product_profiles')
+        .delete()
+        .eq('id', data.id)
+        .eq('user_id', user.id)
+
+      return Response.json(
+        { error: 'Profile limit reached. Upgrade your plan to add more.' },
+        { status: 403 }
+      )
+    }
+  }
+
   await logAuditEvent(user.id, 'profile_created', { profile_id: data.id, device_name }, request)
 
   return Response.json(data, { status: 201 })

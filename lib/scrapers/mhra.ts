@@ -12,6 +12,7 @@ async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperRes
   const listings: ScrapedFsn[] = []
   const warnings: string[] = []
   let start = 0
+  let consecutiveOutOfRange = 0
 
   while (true) {
     const url = new URL(SEARCH_API)
@@ -40,8 +41,11 @@ async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperRes
       const pubDate = item.public_timestamp ? new Date(item.public_timestamp) : null
 
       if (pubDate && pubDate < fromDate) {
-        hitBoundary = true
-        break
+        consecutiveOutOfRange++
+        if (consecutiveOutOfRange >= 5) { hitBoundary = true; break }
+        continue
+      } else {
+        consecutiveOutOfRange = 0
       }
       if (pubDate && pubDate > toDate) continue
 

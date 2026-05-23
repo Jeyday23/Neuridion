@@ -22,6 +22,21 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid user ID' }, { status: 400 })
   }
   const admin = createAdminClient()
+
+  // Verify target user exists and is not already an admin
+  const { data: target, error: findError } = await admin
+    .from('users')
+    .select('id, role')
+    .eq('id', id)
+    .single()
+
+  if (findError || !target) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 })
+  }
+  if (target.role === 'admin') {
+    return NextResponse.json({ error: 'User is already an admin' }, { status: 409 })
+  }
+
   const { error } = await admin
     .from('users')
     .update({ role: 'admin' })

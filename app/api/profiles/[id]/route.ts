@@ -100,16 +100,6 @@ export async function PATCH(
 
   const now = new Date().toISOString()
 
-  // Insert history row if anything changed
-  if (Object.keys(changedFields).length > 0) {
-    await db.from('profile_edit_history').insert({
-      profile_id:      id,
-      edited_by:       user.id,
-      changed_fields:  changedFields  as Json,
-      previous_values: previousValues as Json,
-    })
-  }
-
   // Build update payload (only fields present in body)
   const updatePayload: Record<string, unknown> = {
     last_modified_at: now,
@@ -137,6 +127,16 @@ export async function PATCH(
   if (updateError) {
     console.error('[profiles/update]', updateError.message)
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
+  }
+
+  // Insert history row AFTER successful update to avoid phantom audit entries
+  if (Object.keys(changedFields).length > 0) {
+    await db.from('profile_edit_history').insert({
+      profile_id:      id,
+      edited_by:       user.id,
+      changed_fields:  changedFields  as Json,
+      previous_values: previousValues as Json,
+    })
   }
 
   if (Object.keys(changedFields).length > 0) {

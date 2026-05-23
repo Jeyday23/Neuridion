@@ -11,6 +11,13 @@ const CreateTrialCodesSchema = z.object({
   expires_at: z.iso.date().optional(),
 })
 
+function maskEmail(email: string | null): string | null {
+  if (!email) return null
+  const [local, domain] = email.split('@')
+  if (!domain) return email
+  return `${local[0]}${'*'.repeat(Math.max(local.length - 2, 1))}${local.length > 1 ? local[local.length - 1] : ''}@${domain}`
+}
+
 const ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'
 
 function generateCode(): string {
@@ -96,5 +103,9 @@ export async function GET() {
     console.error('[trial-codes:GET]', error.message)
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
-  return Response.json({ codes: data ?? [] })
+  const masked = (data ?? []).map((code) => ({
+    ...code,
+    redeemed_by_email: maskEmail(code.redeemed_by_email),
+  }))
+  return Response.json({ codes: masked })
 }

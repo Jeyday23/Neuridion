@@ -47,7 +47,8 @@ export function sanitizeForLlm(text: string, maxLen = 3000): string {
     .replace(/<[^>]+>/g, '')
   // Decode HTML entities AFTER stripping dangerous tags — this prevents
   // entity-encoded injection (e.g. &lt;|system|&gt;) from surviving.
-  s = s.replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  s = s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&#60;/g, '<').replace(/&#62;/g, '>').replace(/&#x3c;/gi, '<').replace(/&#x3e;/gi, '>')
   // Second pass: strip any tags that were hidden behind entity encoding
   s = neutralizeFsnBoundary(s)
   s = s

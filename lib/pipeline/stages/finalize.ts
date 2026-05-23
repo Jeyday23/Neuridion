@@ -3,7 +3,10 @@ import { sendSearchRunNotification } from '@/lib/email'
 import type { PipelineContext } from '../types'
 
 export function computeRunStatus(warnings: string[], itemCount: number): 'complete' | 'degraded' | 'error' {
-  if (warnings.length > 0 && itemCount === 0) return 'error'
+  if (warnings.length > 0 && itemCount === 0) {
+    const isInfoOnly = warnings.every(w => /returned 0|no .* found/i.test(w))
+    return isInfoOnly ? 'complete' : 'error'
+  }
   if (warnings.length > 0) return 'degraded'
   return 'complete'
 }

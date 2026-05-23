@@ -230,7 +230,7 @@ async function getCachedDecision(
     return {
       decision:   data.decision as FilterDecision['decision'],
       rationale:  data.reasoning ?? '',
-      confidence: data.confidence != null ? parseFloat(data.confidence) / 100 : null,
+      confidence: data.confidence != null ? parseFloat(data.confidence) : null,
       model:      null,
     }
   } catch {
@@ -252,7 +252,7 @@ async function setCachedDecision(
         decision:  decision.decision,
         reasoning: decision.rationale,
         confidence: decision.confidence != null
-          ? String(Math.round(decision.confidence * 100))
+          ? String(decision.confidence)
           : null,
       },
       { onConflict: 'fsn_external_id,profile_fingerprint' },

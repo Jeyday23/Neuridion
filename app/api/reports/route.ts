@@ -593,15 +593,13 @@ export async function POST(request: Request) {
       })
     )
   }
-  const [htmlUpload, excelUpload] = await Promise.all(uploadPromises)
+  const uploadResults = await Promise.all(uploadPromises)
 
-  if (htmlUpload.error) {
-    console.error('[reports:html-upload]', htmlUpload.error.message)
-    return Response.json({ error: 'Report generation failed' }, { status: 500 })
-  }
-  if (excelUpload.error) {
-    console.error('[reports:excel-upload]', excelUpload.error.message)
-    return Response.json({ error: 'Report generation failed' }, { status: 500 })
+  for (const result of uploadResults) {
+    if (result.error) {
+      console.error('[reports] upload error', result.error.message)
+      return Response.json({ error: 'Failed to upload report' }, { status: 500 })
+    }
   }
 
   // ── Create signed URLs ──────────────────────────────────────────────────────

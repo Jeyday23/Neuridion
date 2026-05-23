@@ -206,7 +206,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Failed to enqueue search job' }, { status: 500 })
   }
 
-  console.error('[lifecycle]', `run_id=${run.id} enqueued to QStash job_id=${newJob.id}`)
+  console.info('[lifecycle]', `run_id=${run.id} enqueued to QStash job_id=${newJob.id}`)
   logAuditEvent(user.id, 'search_run', { run_id: run.id, profile_id, dbs: dbsToSearch, period_from, period_to }, request).catch(console.error)
   return Response.json({ run_id: run.id, status: 'pending' }, { status: 202 })
 }

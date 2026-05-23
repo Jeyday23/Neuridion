@@ -405,7 +405,8 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
     const before = result.items.length
     const filtered = result.items.filter(item => {
       const hay = `${item.title} ${item.raw_content}`.toLowerCase()
-      return terms.some(t => hay.includes(t))
+      const match = terms.length >= 2 ? terms.every(t => hay.includes(t)) : terms.some(t => hay.includes(t))
+      return match
     })
     return { ...result, items: filtered }
   }
