@@ -72,34 +72,16 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
-  // Delete user data immediately (no reason to wait 30 days for non-account data)
-  const { data: runs } = await admin
-    .from('search_runs')
-    .select('id, report_html_path, report_pdf_path, report_excel_path, report_docx_path')
-    .eq('user_id', user.id)
+  // EU MDR Art. 10(8): PMS records (search_runs, fsn_results, filter_decisions,
+  // product_profiles, reports) must be retained for 10 years.
+  // GDPR Art. 17(3)(b): erasure exempted when retention is required by EU law.
+  // Strategy: anonymize user PII via RPC, delete non-PMS personal data, keep
+  // surveillance records intact for regulatory traceability.
 
-  const runIds = (runs ?? []).map((r) => r.id)
+  await admin.rpc('gdpr_purge_user_data', { target_user_id: user.id })
 
-  if (runIds.length > 0) {
-    await admin.rpc('gdpr_purge_user_data', { target_user_id: user.id })
-    await admin.from('fsn_results').delete().in('run_id', runIds)
-  }
-
-  // Clean up report storage files using paths from search_runs (reliable, no nested-dir issues)
-  const allReportPaths = (runs ?? []).flatMap((r) =>
-    [
-      (r as Record<string, unknown>).report_html_path,
-      (r as Record<string, unknown>).report_pdf_path,
-      (r as Record<string, unknown>).report_excel_path,
-      (r as Record<string, unknown>).report_docx_path,
-    ].filter((p): p is string => typeof p === 'string' && p.length > 0)
-  )
-
-  if (allReportPaths.length > 0) {
-    await admin.storage.from('reports').remove(allReportPaths)
-  }
-
-  // Clean up IFU document storage files — parallel list + single remove
+  // Delete storage files that are NOT part of the PMS record
+  // IFU documents — uploaded by user, not generated surveillance output
   const { data: userProfiles } = await admin
     .from('product_profiles')
     .select('id')
@@ -119,6 +101,7 @@ export async function POST(request: Request) {
     }
   }
 
+  // Search attachments — user-uploaded files
   const { data: attachFiles } = await admin.storage
     .from('search-attachments')
     .list(user.id)
@@ -127,23 +110,7 @@ export async function POST(request: Request) {
     await admin.storage.from('search-attachments').remove(attachFiles.map((f) => `${user.id}/${f.name}`))
   }
 
-  await Promise.all([
-    admin.from('search_runs').delete().eq('user_id', user.id),
-    admin.from('product_profiles').delete().eq('user_id', user.id),
-    admin.from('search_drafts').delete().eq('user_id', user.id),
-    admin.from('user_feedback').delete().eq('user_id', user.id),
-    admin.from('pdf_usage').delete().eq('user_id', user.id),
-    admin.from('reports').delete().eq('user_id', user.id),
-  ])
-
-  // Clean PII from trial system (GDPR erasure)
-  if (user.email) {
-    await admin.from('used_trial_emails').delete().eq('email', user.email)
-  }
-  await admin.from('trial_codes')
-    .update({ redeemed_by_email: null, redeemed_by_user_id: null })
-    .eq('redeemed_by_user_id', user.id)
-
+  // Login attempts — security log, not PMS data
   if (user.email) {
     const emailHash = createHash('sha256').update(user.email.toLowerCase()).digest('hex').slice(0, 32)
     await admin.from('login_attempts').delete().eq('email', emailHash)
@@ -152,7 +119,8 @@ export async function POST(request: Request) {
   await logAuditEvent(user.id, 'account_deleted', {
     deletion_requested_at: now.toISOString(),
     scheduled_deleted_at:  deletedAt.toISOString(),
-    data_deleted:          true,
+    pii_anonymized:        true,
+    pms_records_retained:  true,
     stripe_cancelled:      !!userData?.stripe_subscription_id,
   }, request)
 
@@ -161,7 +129,7 @@ export async function POST(request: Request) {
   return Response.json({
     ok:          true,
     deleted_at:  deletedAt.toISOString(),
-    message:     `Your account data has been deleted and your subscription cancelled. Your login will be removed on ${deletedAt.toLocaleDateString('en-GB')}.`,
+    message:     `Your personal data has been anonymized and your subscription cancelled. Post-market surveillance records are retained per EU MDR Art. 10(8). Your login will be removed on ${deletedAt.toLocaleDateString('en-GB')}.`,
   })
 }
 
