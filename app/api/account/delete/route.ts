@@ -81,7 +81,7 @@ export async function POST(request: Request) {
   const runIds = (runs ?? []).map((r) => r.id)
 
   if (runIds.length > 0) {
-    await admin.rpc('gdpr_purge_user_data', { p_run_ids: runIds })
+    await admin.rpc('gdpr_purge_user_data', { target_user_id: user.id })
     await admin.from('fsn_results').delete().in('run_id', runIds)
   }
 
@@ -135,6 +135,15 @@ export async function POST(request: Request) {
     admin.from('pdf_usage').delete().eq('user_id', user.id),
     admin.from('reports').delete().eq('user_id', user.id),
   ])
+
+  // Clean PII from trial system (GDPR erasure)
+  if (user.email) {
+    await admin.from('used_trial_emails').delete().eq('email', user.email)
+  }
+  await admin.from('trial_codes')
+    .update({ redeemed_by_email: null, redeemed_by_user_id: null })
+    .eq('redeemed_by_user_id', user.id)
+
   if (user.email) {
     const emailHash = createHash('sha256').update(user.email.toLowerCase()).digest('hex').slice(0, 32)
     await admin.from('login_attempts').delete().eq('email', emailHash)

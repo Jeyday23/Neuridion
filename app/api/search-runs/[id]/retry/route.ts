@@ -34,6 +34,7 @@ export async function POST(
     .select('id, user_id, status, period_from, period_to, profile_id')
     .eq('id', runId)
     .eq('user_id', user.id)
+    .is('deleted_at' as never, null)
     .single()
 
   if (runError || !run) {

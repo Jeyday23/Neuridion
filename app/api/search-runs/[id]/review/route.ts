@@ -92,9 +92,10 @@ export async function PATCH(
   const isSelfApproval = parsed.data.review_status === 'approved' && existing.user_id === user.id
 
   await logAuditEvent(user.id, 'prrc_review_completed', {
-    run_id:        id,
-    review_status: parsed.data.review_status,
-    self_approval: isSelfApproval,
+    run_id:                 id,
+    previous_review_status: currentStatus,
+    review_status:          parsed.data.review_status,
+    self_approval:          isSelfApproval,
   }, request)
 
   if (isSelfApproval) {

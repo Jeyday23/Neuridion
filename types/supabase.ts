@@ -905,7 +905,7 @@ export type Database = {
         Returns: number
       }
       gdpr_purge_user_data: {
-        Args: { p_run_ids: string[] }
+        Args: { target_user_id: string }
         Returns: undefined
       }
     }

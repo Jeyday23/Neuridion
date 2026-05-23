@@ -75,7 +75,7 @@ export async function GET(request: Request) {
       ? batchIn<Record<string, unknown>>(admin, 'fsn_results', 'id, run_id, external_id, title, manufacturer, fsn_date, source_url, source_db, created_at', 'run_id', runIds)
       : Promise.resolve([]),
     runIds.length > 0
-      ? batchIn<Record<string, unknown>>(admin, 'filter_decisions', 'id, fsn_result_id, search_run_id, decision, rationale, created_at', 'search_run_id', runIds)  // model + confidence excluded: system-generated internals, not user personal data
+      ? batchIn<Record<string, unknown>>(admin, 'filter_decisions', 'id, fsn_result_id, search_run_id, decision, rationale, confidence, model, created_at', 'search_run_id', runIds)
       : Promise.resolve([]),
     profileIds.length > 0
       ? batchIn<Record<string, unknown>>(admin, 'profile_edit_history', 'id, profile_id, edited_by, edited_at, changed_fields, previous_values', 'profile_id', profileIds)

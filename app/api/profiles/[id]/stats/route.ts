@@ -38,6 +38,7 @@ export async function GET(
     .select('id', { count: 'exact', head: true })
     .eq('profile_id', id)
     .eq('user_id', user.id)
+    .is('deleted_at' as never, null)
 
   if (countError) {
     console.error('[profiles/stats]', countError.message)
