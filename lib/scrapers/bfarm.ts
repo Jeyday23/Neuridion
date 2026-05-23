@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { parseStringPromise } from 'xml2js'
 import { daysBetween } from '@/lib/utils/date-chunks'
 import { sanitizeContent } from './sanitize'
@@ -136,7 +137,7 @@ export function parsePage(html: string): ParsedItem[] {
     const title = stripTags(titleMatch[1])
     const date = parseGermanDate(block)
     const idMatch = href.match(/\/(\d+-\d+)_kundeninfo/)
-    const externalId = idMatch ? idMatch[1] : href
+    const externalId = idMatch ? idMatch[1] : createHash('sha256').update(href).digest('hex').slice(0, 16)
 
     const mfrMatch = title.match(/ von (.+)$/)
     const manufacturer = mfrMatch ? mfrMatch[1].trim() : null

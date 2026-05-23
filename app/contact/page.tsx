@@ -21,7 +21,7 @@ export default function ContactPage() {
     setErrorMsg('')
 
     const form = e.currentTarget
-    const honeypot = (form.elements.namedItem('website') as HTMLInputElement)?.value ?? ''
+    const honeypot = (form.elements.namedItem('_hp_field') as HTMLInputElement)?.value ?? ''
 
     try {
       const res = await apiFetch('/api/contact', {
@@ -32,7 +32,7 @@ export default function ContactPage() {
           email: email.trim(),
           subject: subject.trim(),
           message: message.trim(),
-          website: honeypot,
+          _hp_field: honeypot,
           _t: loadedAt.current,
         }),
       })
@@ -106,8 +106,8 @@ export default function ContactPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Honeypot — hidden from humans, filled by bots */}
             <div className="absolute -left-[9999px]" aria-hidden="true">
-              <label htmlFor="website">Website</label>
-              <input type="text" id="website" name="website" tabIndex={-1} autoComplete="off" />
+              <label htmlFor="_hp_field">Do not fill this</label>
+              <input type="text" id="_hp_field" name="_hp_field" tabIndex={-1} autoComplete="off" />
             </div>
 
             <div>

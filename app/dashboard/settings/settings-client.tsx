@@ -60,14 +60,27 @@ export function SettingsClient({
     setInfoSaving(true)
     setInfoMsg('')
     const supabase = createClient()
-    const { error } = await supabase.auth.updateUser({
+    const { error: authError } = await supabase.auth.updateUser({
       data: { full_name: fullName, company_name: companyName },
     })
-    if (error) {
+    if (authError) {
       toast.show('Unable to save changes. Please try again.', 'error')
-    } else {
-      toast.show('Changes saved.', 'success')
+      setInfoSaving(false)
+      return
     }
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (authUser) {
+      const { error: dbError } = await supabase
+        .from('users')
+        .update({ full_name: fullName, company_name: companyName })
+        .eq('id', authUser.id)
+      if (dbError) {
+        toast.show('Unable to save changes. Please try again.', 'error')
+        setInfoSaving(false)
+        return
+      }
+    }
+    toast.show('Changes saved.', 'success')
     setInfoMsg('')
     setInfoSaving(false)
   }

@@ -433,7 +433,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
     if (state.results.length === 0) return
     const dismissedUntil = parseInt(localStorage.getItem('neuridion-feedback-dismissed-until') ?? '0')
     if (Date.now() > dismissedUntil) {
-      setTimeout(() => setShowFeedback(true), 5000)
+      const timer = setTimeout(() => setShowFeedback(true), 5000)
+      return () => clearTimeout(timer)
     }
   }, [state.phase])
 
@@ -845,7 +846,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
         {/* Action bar */}
         <div className="flex items-center justify-between pt-6 border-t border-[#E2E8F0] flex-wrap gap-3">
-          <button type="button" onClick={() => saveDraft()} disabled={draftSaving || uploadedFiles.some(f => f.status === 'uploading')}
+          <button type="button" onClick={() => saveDraft()} disabled={noProfiles || draftSaving || uploadedFiles.some(f => f.status === 'uploading')}
             className="px-6 py-3 border border-[#E2E8F0] text-[#134E4A] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
             {draftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
             {t.search.saveDraft}

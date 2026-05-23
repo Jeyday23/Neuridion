@@ -21,7 +21,7 @@ const UpdateSchema = z.object({
   device_name:      z.string().min(1).optional(),
   manufacturer:     z.string().min(1).optional(),
   device_class:     z.enum(DEVICE_CLASSES).nullable().optional(),
-  emdn_code:        z.string().max(20).regex(/^[A-Za-z]\d{2,8}$/, 'Invalid EMDN code format').nullable().optional().or(z.literal('')).transform(v => v || null),
+  emdn_code:        z.string().max(20).transform(v => v ? v.toUpperCase() : v).pipe(z.string().regex(/^[A-Z]\d{2,8}$/, 'Invalid EMDN code format')).nullable().optional().or(z.literal('')).transform(v => v || null),
   intended_use:     z.string().nullable().optional(),
   competitor_terms: z.array(CompetitorTermSchema).max(20).optional(),
 })

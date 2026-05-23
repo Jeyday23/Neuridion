@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, Star } from 'lucide-react'
 import { apiFetch } from '@/lib/fetch'
 
@@ -24,6 +24,13 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
   const [missing,    setMissing]    = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted,  setSubmitted]  = useState(false)
+  const autoCloseRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (autoCloseRef.current) clearTimeout(autoCloseRef.current)
+    }
+  }, [])
 
   function toggleTag(tag: string) {
     setUsefulTags(prev =>
@@ -50,7 +57,7 @@ export function FeedbackPopup({ triggeredBy, onClose }: FeedbackPopupProps) {
         'neuridion-feedback-dismissed-until',
         String(Date.now() + 7 * 24 * 60 * 60 * 1000),
       )
-      setTimeout(onClose, 2000)
+      autoCloseRef.current = setTimeout(onClose, 2000)
     } catch (err) {
       console.error('Failed to submit feedback:', err)
       setSubmitting(false)

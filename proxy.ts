@@ -226,7 +226,8 @@ export async function proxy(request: NextRequest) {
         if (siteUrl) allowedOrigins.add(new URL(siteUrl).origin)
         const extra = process.env.ALLOWED_ORIGINS
         if (extra) extra.split(',').forEach((o) => allowedOrigins.add(o.trim()))
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === 'development' && !process.env.VERCEL_ENV && !process.env.RENDER) {
+          // Only add localhost in true local dev, not in deployed dev/staging
           allowedOrigins.add('http://localhost:3000')
           allowedOrigins.add('http://127.0.0.1:3000')
         }

@@ -2,7 +2,7 @@ import { scrapeBfarm, type ScrapedFsn, type ScraperResult, type ScraperParams } 
 import { scrapeMhra }       from '@/lib/scrapers/mhra'
 import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
 import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
-import { buildManufacturerSearchTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
+import { extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
 import type { PipelineContext, ProgressUpdate } from '../types'
@@ -50,11 +50,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     const canonicalIds:   Map<string, string> = new Map()
     const fetchedRanges:  { from: string; to: string }[] = []
 
-    const ownTerms = buildManufacturerSearchTerms(
-      profile.manufacturer ?? '',
-      profile.device_name  ?? '',
-    )
-    const localSearchTerms = [...new Set([...ownTerms, ...competitorTerms])]
+    const localSearchTerms = [...new Set([...searchTerms, ...competitorTerms])]
     const hasManufacturerTerms = shouldBypassCoverageCache(localSearchTerms)
 
     async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
@@ -90,7 +86,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       }
 
       const mfrTerms = extractManufacturerTerms(profile.manufacturer ?? '')
-      const devTerms = ownTerms.filter((t) => !mfrTerms.includes(t))
+      const devTerms = searchTerms.filter((t) => !mfrTerms.includes(t))
       const coveredInWindow = covered.filter(
         (c) => c.to >= period_from && c.from <= (overlapFrom > period_from ? prevDay(overlapFrom) : period_from),
       )

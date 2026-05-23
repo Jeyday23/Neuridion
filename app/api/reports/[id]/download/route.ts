@@ -77,21 +77,29 @@ export async function GET(
   let ext = 'html'
 
   if (format === 'excel') {
+    if (!run.report_excel_path) {
+      return Response.json({ error: 'Excel report not available. Please regenerate the report.' }, { status: 404 })
+    }
     storagePath = run.report_excel_path
     ext = 'xlsx'
   } else if (format === 'docx') {
+    if (!run.report_docx_path) {
+      return Response.json({ error: 'Word report not available. Please regenerate the report.' }, { status: 404 })
+    }
     storagePath = run.report_docx_path
     ext = 'docx'
   } else if (format === 'pdf') {
-    storagePath = run.report_pdf_path ?? run.report_html_path
-    ext = run.report_pdf_path ? 'pdf' : 'html'
+    if (!run.report_pdf_path) {
+      return Response.json({ error: 'PDF not available. Please regenerate the report.' }, { status: 404 })
+    }
+    storagePath = run.report_pdf_path
+    ext = 'pdf'
   } else {
+    if (!run.report_html_path) {
+      return Response.json({ error: 'Report not yet generated' }, { status: 404 })
+    }
     storagePath = run.report_html_path
     ext = 'html'
-  }
-
-  if (!storagePath) {
-    return Response.json({ error: 'Report not yet generated' }, { status: 404 })
   }
 
   const { data: signed, error: signError } = await adminClient.storage

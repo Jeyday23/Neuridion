@@ -107,10 +107,6 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
 
   const deduped = dedup(allItems)
 
-  if (deduped.length === 0) {
-    allWarnings.push('MHRA returned 0 Field Safety Notices for the selected date range.')
-  }
-
   if (params.searchTerms && params.searchTerms.length > 0) {
     const terms = params.searchTerms.map(t => t.toLowerCase())
     const filtered = deduped.filter(item => {

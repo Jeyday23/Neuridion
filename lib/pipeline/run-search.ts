@@ -45,8 +45,9 @@ export async function runSearchPipeline(
   const aiOptOut = userFlags?.ai_opt_out === true
 
   const searchTerms = buildManufacturerSearchTerms(profile.manufacturer ?? '', profile.device_name ?? '')
-  const rawCompetitorTerms = Array.isArray((profile.search_strategy as any)?.competitor_terms)
-    ? (profile.search_strategy as { competitor_terms: Array<{ name: string; manufacturer?: string }> }).competitor_terms
+  const strategy = profile.search_strategy as { competitor_terms?: Array<{ name: string; manufacturer?: string }> } | null
+  const rawCompetitorTerms = Array.isArray(strategy?.competitor_terms)
+    ? strategy.competitor_terms
     : []
   const competitorTerms = extractCompetitorTokens(rawCompetitorTerms)
   const activeSources = payload.selected_dbs.filter((id) => SCRAPER_IDS.has(id))

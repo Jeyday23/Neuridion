@@ -84,7 +84,7 @@ export async function POST(request: Request) {
   // Profile ownership check + snapshot for audit traceability (S22)
   const { data: profile, error: profileError } = await supabase
     .from('product_profiles')
-    .select('id, device_name, manufacturer, intended_use, emdn_code, device_class, search_strategy')
+    .select('id, device_name, manufacturer, intended_use, emdn_code, device_class, search_strategy, default_dbs')
     .eq('id', profile_id)
     .eq('user_id', user.id)
     .single()
@@ -137,7 +137,8 @@ export async function POST(request: Request) {
 
   const run = { id: rpcResult as string }
 
-  const dbsToSearch = selected_dbs ?? ['bfarm']
+  const profileDefaultDbs = Array.isArray(profile.default_dbs) ? profile.default_dbs as string[] : null
+  const dbsToSearch = selected_dbs ?? profileDefaultDbs ?? ['bfarm']
   const { id: _profileId, ...profileFields } = profile
   await db
     .from('search_runs')

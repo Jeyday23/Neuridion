@@ -54,12 +54,12 @@ function markAuthFailed(err: unknown): void {
 
 const PII_PATTERNS: [RegExp, string][] = [
   [/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '[EMAIL]'],
-  [/\b(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{3,4}\b/g, '[PHONE]'],
+  [/(?:\+\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/g, '[PHONE]'],
   [/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN]'],
   [/\b(?:Patient|Reported\s+by|Contact|Name|Complainant)\s*:\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}/gi, '[PII_REDACTED]'],
   [/\b(?:DOB|Date\s+of\s+Birth)\s*:\s*\S+/gi, '[DOB_REDACTED]'],
   [/\b(?:MRN|Medical\s+Record\s+Number|Patient\s+ID)\s*:\s*\S+/gi, '[ID_REDACTED]'],
-  [/\b\d{1,5}\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\s+(?:St|Ave|Blvd|Dr|Rd|Ln|Way|Ct|Pl)\b\.?/g, '[ADDRESS]'],
+  [/\d{2,5}\s+[A-Za-z]+(?:\s+[A-Za-z]+)*\s+(?:St|Ave|Blvd|Dr|Rd|Ln|Way|Ct|Pl|Pkwy|Hwy)\.?(?:\s*,|\s*$)/gi, '[ADDRESS]'],
 ]
 
 function sanitizePii(text: string): string {

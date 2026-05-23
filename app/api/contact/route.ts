@@ -8,7 +8,7 @@ const ContactSchema = z.object({
   email:   z.string().email().max(320),
   subject: z.string().min(1).max(200),
   message: z.string().min(10).max(5000),
-  website: z.string().max(0).optional(),
+  _hp_field: z.string().max(0).optional(),
   _t:      z.number(),
 })
 
@@ -34,9 +34,9 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: 'Please fill in all required fields.' }, { status: 400 })
   }
 
-  const { name, email, subject, message, website, _t } = parsed.data
+  const { name, email, subject, message, _hp_field, _t } = parsed.data
 
-  if (website) {
+  if (_hp_field) {
     return Response.json({ ok: true })
   }
 
