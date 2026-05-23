@@ -178,10 +178,11 @@ async function buildExcel(
 
 function buildReportHtml(
   profile: { device_name: string; manufacturer: string; device_class: string | null; emdn_code: string | null },
-  run: { period_from: string; period_to: string },
+  run: { period_from: string; period_to: string; status?: string; dbs_searched?: string[] | null },
   rows: FsnRow[],
   runId: string,
   termsUsed: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null,
+  extra?: { aiModels?: string[]; reviewerName?: string | null; reviewedAt?: string | null },
 ): string {
   const today = fmtDate(new Date().toISOString())
 
@@ -300,7 +301,7 @@ function buildReportHtml(
 
   <h2>2. Search Methodology</h2>
   <table class="meta-table">
-    <tr><td>Databases Searched</td><td>${[...new Set(rows.map(r => fmtSourceDb(r.source_db)))].map(s => escHtml(s)).join(', ')}</td></tr>
+    <tr><td>Databases Searched</td><td>${run.dbs_searched && run.dbs_searched.length > 0 ? run.dbs_searched.map(db => escHtml(fmtSourceDb(db))).join(', ') : [...new Set(rows.map(r => fmtSourceDb(r.source_db)))].map(s => escHtml(s)).join(', ')}</td></tr>
     <tr><td>Search Date Range</td><td>${escHtml(run.period_from)} to ${escHtml(run.period_to)}</td></tr>
     ${termsUsed ? `
     <tr><td>Manufacturer Terms</td><td>${termsUsed.manufacturer_terms.map(t => `<code style="background:#dcfce7;padding:1px 5px;border-radius:3px;font-size:9pt;">${escHtml(t)}</code>`).join(' ') || '<em>none</em>'} <span style="color:#888;font-size:8.5pt;">(derived from &ldquo;${escHtml(termsUsed.raw_manufacturer)}&rdquo;)</span></td></tr>
@@ -308,7 +309,12 @@ function buildReportHtml(
     <tr><td>Term Derivation</td><td>Legal suffixes, generic words, and tokens &le;4 characters removed. Algorithm v${escHtml(termsUsed.term_algorithm_version)}.</td></tr>
     ` : `<tr><td>Search Parameters</td><td>All published FSNs within the specified period were retrieved and assessed for relevance to the device profile above.</td></tr>`}
     <tr><td>Assessment Criteria</td><td>Each notice was evaluated for device type, manufacturer, intended use, and applicable risk.</td></tr>
+    ${extra?.aiModels && extra.aiModels.length > 0 ? `<tr><td>AI Model</td><td>${extra.aiModels.map(m => escHtml(m)).join(', ')}</td></tr>` : ''}
   </table>
+  ${run.status === 'degraded' ? `
+  <div style="border:1px solid #d97706;background:#fffbeb;padding:8px 12px;border-radius:4px;margin-top:4mm;font-size:9pt;color:#92400e;">
+    <strong>&#9888; Partial Results:</strong> One or more databases returned incomplete data during this search. Results may not reflect full coverage. Manual verification of affected sources is recommended.
+  </div>` : ''}
 
   <h2>3. Search Results Summary</h2>
   <div class="stats-grid">
@@ -375,8 +381,8 @@ function buildReportHtml(
     </div>
     <div class="sig-box">
       <span class="label">Reviewed by</span>
-      Name: ___________________________<br/>
-      Date: ___________________________
+      Name: ${extra?.reviewerName ? escHtml(extra.reviewerName) : '___________________________'}<br/>
+      Date: ${extra?.reviewedAt ? escHtml(fmtDate(extra.reviewedAt)) : '___________________________'}
     </div>
   </div>
 
@@ -446,7 +452,7 @@ export async function POST(request: Request) {
   // Fetch run + profile (validates ownership)
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('id, review_status, period_from, period_to, profile_snapshot, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
+    .select('id, status, review_status, reviewed_by, reviewed_at, period_from, period_to, dbs_searched, profile_snapshot, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
     .eq('id', run_id)
     .eq('user_id', user.id)
     .single()
@@ -462,10 +468,14 @@ export async function POST(request: Request) {
     )
   }
 
+  const snapshot = (run as { profile_snapshot?: { device_name: string; manufacturer: string; device_class?: string | null; emdn_code?: string | null } | null }).profile_snapshot
   const profileRaw = run.product_profiles
-  const profile = (Array.isArray(profileRaw) ? profileRaw[0] : profileRaw) as {
+  const liveProfile = (Array.isArray(profileRaw) ? profileRaw[0] : profileRaw) as {
     device_name: string; manufacturer: string; device_class: string | null; emdn_code: string | null
   } | null
+  const profile = snapshot
+    ? { device_name: snapshot.device_name, manufacturer: snapshot.manufacturer, device_class: snapshot.device_class ?? null, emdn_code: snapshot.emdn_code ?? null }
+    : liveProfile
 
   if (!profile) {
     return Response.json({ error: 'Profile not found' }, { status: 404 })
@@ -488,7 +498,7 @@ export async function POST(request: Request) {
 
   const { data: decisions } = await supabase
     .from('filter_decisions')
-    .select('fsn_result_id, decision, rationale, confidence')
+    .select('fsn_result_id, decision, rationale, confidence, model')
     .eq('search_run_id', run_id)
 
   for (const d of decisions ?? []) {
@@ -497,6 +507,17 @@ export async function POST(request: Request) {
       rationale:  d.rationale,
       confidence: Number(d.confidence),
     }
+  }
+
+  const aiModels = [...new Set((decisions ?? []).map(d => (d as { model?: string }).model).filter((m): m is string => !!m))]
+
+  // Resolve reviewer name
+  let reviewerName: string | null = null
+  const reviewedBy = (run as { reviewed_by?: string | null }).reviewed_by
+  const reviewedAt = (run as { reviewed_at?: string | null }).reviewed_at
+  if (reviewedBy) {
+    const { data: reviewer } = await supabase.from('users').select('full_name, email').eq('id', reviewedBy).single()
+    reviewerName = reviewer?.full_name || reviewer?.email || null
   }
 
   const rows: FsnRow[] = (rawResults ?? []).map((r) => ({
@@ -536,7 +557,14 @@ export async function POST(request: Request) {
   }
 
   // ── Generate HTML report (open in browser and print to PDF natively) ─────────
-  const html = buildReportHtml(profile, { period_from: run.period_from, period_to: run.period_to }, rows, run_id, termsUsed)
+  const runStatus = (run as { status?: string }).status
+  const dbsSearched = (run as { dbs_searched?: string[] | null }).dbs_searched
+  const html = buildReportHtml(
+    profile,
+    { period_from: run.period_from, period_to: run.period_to, status: runStatus, dbs_searched: Array.isArray(dbsSearched) ? dbsSearched : null },
+    rows, run_id, termsUsed,
+    { aiModels, reviewerName, reviewedAt },
+  )
   const htmlBuf = Buffer.from(html, 'utf-8')
 
   // ── Upload to Supabase Storage ──────────────────────────────────────────────

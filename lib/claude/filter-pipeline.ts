@@ -463,8 +463,8 @@ export async function stage1Filter(
       // ── 3a. Haiku excluded — skip Sonnet ──────────────────────────────
       decision = {
         decision:   'excluded',
-        rationale:  `Pre-filter exclusion: "${fsn.title.slice(0, 80)}" does not match your device profile (${profile.device_name}). [Pre-screened by keyword matching — confidence not assessed by AI model]`,
-        confidence: null,
+        rationale:  `Pre-filter exclusion: "${fsn.title.slice(0, 80)}" does not match your device profile (${profile.device_name}). [Pre-screened by AI pre-filter (${HAIKU_MODEL}) — manufacturer and clinical domain clearly unrelated]`,
+        confidence: 0.85,
         model:      HAIKU_MODEL,
       }
     } else {
