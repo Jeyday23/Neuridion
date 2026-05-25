@@ -1,5 +1,7 @@
+import { createHash } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { safeCompare } from '@/lib/utils/auth'
+import { logAuditEvent } from '@/lib/audit'
 
 const STUCK_THRESHOLD_MINUTES = 20
 
@@ -73,12 +75,69 @@ async function purgeLoginAttempts(): Promise<number> {
   return deleted
 }
 
+async function processExpiredDeletions(): Promise<number> {
+  const db = createAdminClient()
+  const now = new Date().toISOString()
+
+  // Find users whose grace period has expired but haven't been purged yet.
+  // gdpr_purge_user_data sets full_name to 'Deleted User' — use that as the purge marker.
+  const { data: users, error } = await db
+    .from('users')
+    .select('id')
+    .not('deletion_requested_at', 'is', null)
+    .lte('deleted_at', now)
+    .neq('full_name', 'Deleted User')
+    .limit(10)
+
+  if (error || !users || users.length === 0) return 0
+
+  let processed = 0
+  for (const user of users) {
+    try {
+      await db.rpc('gdpr_purge_user_data', { target_user_id: user.id })
+
+      const { data: profiles } = await db.from('product_profiles').select('id').eq('user_id', user.id)
+      const profileIds = (profiles ?? []).map((p) => p.id)
+      if (profileIds.length > 0) {
+        const ifuResults = await Promise.all(
+          profileIds.map((pid) => db.storage.from('ifu-documents').list(pid))
+        )
+        const ifuPaths = ifuResults.flatMap((r, i) =>
+          (r.data ?? []).map((f) => `${profileIds[i]}/${f.name}`)
+        )
+        if (ifuPaths.length > 0) await db.storage.from('ifu-documents').remove(ifuPaths)
+      }
+
+      const { data: attachFiles } = await db.storage.from('search-attachments').list(user.id)
+      if (attachFiles && attachFiles.length > 0) {
+        await db.storage.from('search-attachments').remove(attachFiles.map((f) => `${user.id}/${f.name}`))
+      }
+
+      const emailHash = createHash('sha256').update(user.id).digest('hex').slice(0, 32)
+      await db.from('login_attempts').delete().eq('email', emailHash)
+
+      const { error: authErr } = await db.auth.admin.deleteUser(user.id)
+      if (authErr) console.error('[cleanup] auth.users deletion failed:', authErr.message)
+
+      await logAuditEvent(user.id, 'account_deleted', {
+        pii_anonymized: true, pms_records_retained: true,
+        auth_user_deleted: !authErr, deferred_deletion: true,
+      })
+      processed++
+    } catch (err) {
+      console.error('[cleanup] deletion failed for user', user.id, err instanceof Error ? err.message : String(err))
+    }
+  }
+  return processed
+}
+
 async function postHandler(_req: Request): Promise<Response> {
-  const [result, loginAttemptsPurged] = await Promise.all([
+  const [result, loginAttemptsPurged, deletionsProcessed] = await Promise.all([
     runCleanup(),
     purgeLoginAttempts(),
+    processExpiredDeletions(),
   ])
-  return Response.json({ ...result, login_attempts_purged: loginAttemptsPurged })
+  return Response.json({ ...result, login_attempts_purged: loginAttemptsPurged, deletions_processed: deletionsProcessed })
 }
 
 export async function POST(req: Request): Promise<Response> {

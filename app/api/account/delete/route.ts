@@ -1,4 +1,3 @@
-import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
@@ -58,6 +57,9 @@ export async function POST(request: Request) {
   const now       = new Date()
   const deletedAt = new Date(now.getTime() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000)
 
+  // Mark account for deletion but defer destructive operations.
+  // The cleanup worker processes expired deletions after the grace period,
+  // giving the user a real window to cancel via the DELETE endpoint.
   const { error: updateError } = await admin
     .from('users')
     .update({
@@ -72,63 +74,9 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
 
-  // EU MDR Art. 10(8): PMS records (search_runs, fsn_results, filter_decisions,
-  // product_profiles, reports) must be retained for 10 years.
-  // GDPR Art. 17(3)(b): erasure exempted when retention is required by EU law.
-  // Strategy: anonymize user PII via RPC, delete non-PMS personal data, keep
-  // surveillance records intact for regulatory traceability.
-
-  await admin.rpc('gdpr_purge_user_data', { target_user_id: user.id })
-
-  // Delete storage files that are NOT part of the PMS record
-  // IFU documents — uploaded by user, not generated surveillance output
-  const { data: userProfiles } = await admin
-    .from('product_profiles')
-    .select('id')
-    .eq('user_id', user.id)
-
-  const profileIds = (userProfiles ?? []).map((p) => p.id)
-
-  if (profileIds.length > 0) {
-    const ifuListResults = await Promise.all(
-      profileIds.map((pid) => admin.storage.from('ifu-documents').list(pid))
-    )
-    const allIfuPaths = ifuListResults.flatMap((result, idx) =>
-      (result.data ?? []).map((f) => `${profileIds[idx]}/${f.name}`)
-    )
-    if (allIfuPaths.length > 0) {
-      await admin.storage.from('ifu-documents').remove(allIfuPaths)
-    }
-  }
-
-  // Search attachments — user-uploaded files
-  const { data: attachFiles } = await admin.storage
-    .from('search-attachments')
-    .list(user.id)
-
-  if (attachFiles && attachFiles.length > 0) {
-    await admin.storage.from('search-attachments').remove(attachFiles.map((f) => `${user.id}/${f.name}`))
-  }
-
-  // Login attempts — security log, not PMS data
-  if (user.email) {
-    const emailHash = createHash('sha256').update(user.email.toLowerCase()).digest('hex').slice(0, 32)
-    await admin.from('login_attempts').delete().eq('email', emailHash)
-  }
-
-  // GDPR Art. 17: delete the auth.users record so the original email
-  // does not persist in Supabase Auth after PII anonymization.
-  const { error: authDeleteError } = await admin.auth.admin.deleteUser(user.id)
-  if (authDeleteError) {
-    console.error('[account:delete] auth.users deletion failed:', authDeleteError.message)
-  }
-
-  await logAuditEvent(user.id, 'account_deleted', {
+  await logAuditEvent(user.id, 'account_deletion_requested', {
     deletion_requested_at: now.toISOString(),
     scheduled_deleted_at:  deletedAt.toISOString(),
-    pii_anonymized:        true,
-    pms_records_retained:  true,
-    auth_user_deleted:     !authDeleteError,
     stripe_cancelled:      !!userData?.stripe_subscription_id,
   }, request)
 
@@ -137,7 +85,7 @@ export async function POST(request: Request) {
   return Response.json({
     ok:          true,
     deleted_at:  deletedAt.toISOString(),
-    message:     `Your personal data has been anonymized and your subscription cancelled. Post-market surveillance records are retained per EU MDR Art. 10(8). Your login will be removed on ${deletedAt.toLocaleDateString('en-GB')}.`,
+    message:     `Your account is scheduled for deletion on ${deletedAt.toLocaleDateString('en-GB')}. You can cancel this by logging back in within ${GRACE_PERIOD_DAYS} days. Your subscription has been cancelled. Post-market surveillance records will be retained per EU MDR Art. 10(8).`,
   })
 }
 

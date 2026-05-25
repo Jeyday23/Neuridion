@@ -45,6 +45,7 @@ type AuditEventType =
   | 'report_generated'
   | 'report_downloaded'
   | 'account_deleted'
+  | 'account_deletion_requested'
   | 'data_exported'
   | 'password_changed'
   | 'admin_action'
