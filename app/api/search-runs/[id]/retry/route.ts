@@ -68,68 +68,59 @@ export async function POST(
   // Ensure the re-queued job is attributed to the requesting user
   payload.user_id = user.id
 
-  // Clean up previous results to avoid duplicates on retry.
-  // filter_decisions is append-only in normal operation, but retry is the
-  // one exception — stale decisions must be removed before re-running.
-  const { error: decisionDeleteError } = await db
-    .from('filter_decisions')
-    .delete()
-    .eq('search_run_id', runId)
-  if (decisionDeleteError) {
-    console.error('[retry] Failed to delete stale filter_decisions:', decisionDeleteError.message)
-    return Response.json({ error: 'Failed to clean up previous results' }, { status: 500 })
+  // Create a new search run instead of mutating the old one.
+  // filter_decisions is append-only (trigger blocks DELETE), so the old run's
+  // decisions stay intact as a historical record. A retry is semantically a
+  // new run — the old run is marked superseded.
+  const { data: newRun, error: newRunError } = await db
+    .from('search_runs')
+    .insert({
+      profile_id:  run.profile_id,
+      user_id:     user.id,
+      period_from: run.period_from,
+      period_to:   run.period_to,
+      status:      'pending',
+    })
+    .select('id')
+    .single()
+
+  if (newRunError || !newRun) {
+    console.error('[retry] Failed to create new run:', newRunError?.message)
+    return Response.json({ error: 'Failed to create retry run' }, { status: 500 })
   }
 
-  const { error: fsnDeleteError } = await db
-    .from('fsn_results')
-    .delete()
-    .eq('search_run_id', runId)
-  if (fsnDeleteError) {
-    console.error('[retry] Failed to delete stale fsn_results:', fsnDeleteError.message)
-    return Response.json({ error: 'Failed to clean up previous results' }, { status: 500 })
-  }
+  const newRunId = newRun.id
 
-  // Reset the run to pending with zeroed counts
-  const { error: resetError } = await db.from('search_runs').update({
-    status:              'pending',
-    error_message:       null,
-    completed_at:        null,
-    started_at:          null,
-    progress:            null,
-    relevant_count:      0,
-    uncertain_count:     0,
-    excluded_count:      0,
-    filter_failed_count: 0,
-    total_results:       0,
-    total_scraped:       0,
-    pre_filter_count:    0,
+  // Mark the original run as superseded
+  await db.from('search_runs').update({
+    status: 'superseded',
+    error_message: `Retried as run ${newRunId}`,
   }).eq('id', runId)
 
-  if (resetError) {
-    return Response.json({ error: 'Failed to reset run status' }, { status: 500 })
-  }
+  // Point the payload at the new run
+  payload.user_id = user.id
 
-  // Insert a fresh job row for status tracking and future payload recovery
+  // Insert a fresh job row for the new run
   const { data: newJob, error: queueError } = await db
     .from('search_job_queue')
-    .insert({ run_id: runId, payload: payload as unknown as import('@/types/supabase').Json })
+    .insert({ run_id: newRunId, payload: payload as unknown as import('@/types/supabase').Json })
     .select('id')
     .single()
 
   if (queueError || !newJob) {
-    await db.from('search_runs').update({ status: 'error' }).eq('id', runId)
+    await db.from('search_runs').update({ status: 'error' }).eq('id', newRunId)
     return Response.json({ error: 'Failed to create retry job record' }, { status: 500 })
   }
 
   // Publish to QStash
   const message: QStashJobMessage = {
-    run_id: runId,
+    run_id: newRunId,
     job_id: newJob.id,
     ...payload,
   }
   if (!process.env.QSTASH_TOKEN || !process.env.NEXT_PUBLIC_SITE_URL) {
     await db.from('search_job_queue').delete().eq('id', newJob.id)
-    await db.from('search_runs').update({ status: 'error' }).eq('id', runId)
+    await db.from('search_runs').update({ status: 'error' }).eq('id', newRunId)
     return Response.json({ error: 'Job queue not configured' }, { status: 503 })
   }
 
@@ -143,13 +134,12 @@ export async function POST(
     })
   } catch (err) {
     console.error('[retry] QStash publish failed:', err instanceof Error ? err.message : String(err))
-    // Roll back both changes so the run stays retryable
     await db.from('search_job_queue').delete().eq('id', newJob.id)
-    await db.from('search_runs').update({ status: 'error' }).eq('id', runId)
+    await db.from('search_runs').update({ status: 'error' }).eq('id', newRunId)
     return Response.json({ error: 'Failed to enqueue retry job' }, { status: 500 })
   }
 
-  await logAuditEvent(user.id, 'search_run_retried', { run_id: runId, original_status: run.status, stale_data_purged: true }, _request)
+  await logAuditEvent(user.id, 'search_run_retried', { original_run_id: runId, new_run_id: newRunId, original_status: run.status }, _request)
 
-  return Response.json({ run_id: runId, status: 'pending' }, { status: 200 })
+  return Response.json({ run_id: newRunId, retried_from: runId, status: 'pending' }, { status: 200 })
 }

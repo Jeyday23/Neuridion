@@ -185,30 +185,6 @@ export async function DELETE(
     await db.storage.from('ifu-documents').remove([ifuPath])
   }
 
-  // NULL out legacy search_run_id FK on fsn_results for all runs under this profile
-  const { data: runs, error: runsError } = await db
-    .from('search_runs')
-    .select('id')
-    .eq('profile_id', id)
-
-  if (runsError) {
-    console.error('[profiles/delete]', runsError.message)
-    return Response.json({ error: 'Something went wrong' }, { status: 500 })
-  }
-
-  if (runs && runs.length > 0) {
-    const runIds = runs.map((r: { id: string }) => r.id)
-    const { error: unlinkError } = await db
-      .from('fsn_results')
-      .update({ search_run_id: null })
-      .in('search_run_id', runIds)
-
-    if (unlinkError) {
-      console.error('[profiles/delete]', unlinkError.message)
-      return Response.json({ error: 'Something went wrong' }, { status: 500 })
-    }
-  }
-
   const { data: deleted, error: deleteError } = await db
     .from('product_profiles')
     .delete()

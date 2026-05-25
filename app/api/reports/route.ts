@@ -534,70 +534,62 @@ export async function POST(request: Request) {
     filter_decision: (decisionsMap[r.id] as FsnRow['filter_decision']) ?? null,
   }))
 
-  // ── Generate Excel ──────────────────────────────────────────────────────────
+  // ── Generate and upload each format sequentially to cap peak memory ────────
   const termsUsed = (run as { terms_used?: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null }).terms_used ?? null
-
-  const excelBuf = await buildExcel(rows, {
-    device:       profile.device_name,
-    manufacturer: profile.manufacturer,
-    period_from:  run.period_from,
-    period_to:    run.period_to,
-  }, termsUsed)
-
-  // ── Generate Word (.docx) — Starter+ only ───────────────────────────────────
-  let docxBuf: Buffer | null = null
-  const userPlan = userFlags?.plan ?? 'free'
-  const paidPlans = ['starter', 'pro', 'enterprise']
-  if (paidPlans.includes(userPlan)) {
-    docxBuf = await buildDocx(rows, {
-      device:       profile.device_name,
-      manufacturer: profile.manufacturer,
-      period_from:  run.period_from,
-      period_to:    run.period_to,
-      emdn_code:    profile.emdn_code,
-      device_class: profile.device_class,
-      runId:        run_id,
-    })
-  }
-
-  // ── Generate HTML report (open in browser and print to PDF natively) ─────────
-  const runStatus = (run as { status?: string }).status
-  const dbsSearched = (run as { dbs_searched?: string[] | null }).dbs_searched
-  const html = buildReportHtml(
-    profile,
-    { period_from: run.period_from, period_to: run.period_to, status: runStatus, dbs_searched: Array.isArray(dbsSearched) ? dbsSearched : null },
-    rows, run_id, termsUsed,
-    { aiModels, reviewerName, reviewedAt },
-  )
-  const htmlBuf = Buffer.from(html, 'utf-8')
-
-  // ── Upload to Supabase Storage ──────────────────────────────────────────────
   const adminStorage = createAdminClient()
   const ts = Date.now()
-  const htmlPath  = `${user.id}/${run_id}/${ts}_report.html`
-  const excelPath = `${user.id}/${run_id}/${ts}_report.xlsx`
-  const docxPath  = docxBuf ? `${user.id}/${run_id}/${ts}_report.docx` : null
+  const userPlan = userFlags?.plan ?? 'free'
+  const paidPlans = ['starter', 'pro', 'enterprise']
 
-  const uploadPromises = [
-    adminStorage.storage.from('reports').upload(htmlPath, htmlBuf, { contentType: 'text/html', upsert: true }),
-    adminStorage.storage.from('reports').upload(excelPath, excelBuf, {
-      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      upsert: true,
-    }),
-  ]
-  if (docxBuf && docxPath) {
-    uploadPromises.push(
-      adminStorage.storage.from('reports').upload(docxPath, docxBuf, {
-        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        upsert: true,
-      })
+  // HTML — smallest, generate first
+  const runStatus = (run as { status?: string }).status
+  const dbsSearched = (run as { dbs_searched?: string[] | null }).dbs_searched
+  const htmlPath = `${user.id}/${run_id}/${ts}_report.html`
+  {
+    const html = buildReportHtml(
+      profile,
+      { period_from: run.period_from, period_to: run.period_to, status: runStatus, dbs_searched: Array.isArray(dbsSearched) ? dbsSearched : null },
+      rows, run_id, termsUsed,
+      { aiModels, reviewerName, reviewedAt },
     )
+    const { error } = await adminStorage.storage.from('reports').upload(htmlPath, Buffer.from(html, 'utf-8'), { contentType: 'text/html', upsert: true })
+    if (error) {
+      console.error('[reports] upload error', error.message)
+      return Response.json({ error: 'Failed to upload report' }, { status: 500 })
+    }
   }
-  const uploadResults = await Promise.all(uploadPromises)
 
-  for (const result of uploadResults) {
-    if (result.error) {
-      console.error('[reports] upload error', result.error.message)
+  // Excel
+  const excelPath = `${user.id}/${run_id}/${ts}_report.xlsx`
+  {
+    const excelBuf = await buildExcel(rows, {
+      device: profile.device_name, manufacturer: profile.manufacturer,
+      period_from: run.period_from, period_to: run.period_to,
+    }, termsUsed)
+    const { error } = await adminStorage.storage.from('reports').upload(excelPath, excelBuf, {
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', upsert: true,
+    })
+    if (error) {
+      console.error('[reports] upload error', error.message)
+      return Response.json({ error: 'Failed to upload report' }, { status: 500 })
+    }
+  }
+
+  // Word (.docx) — Starter+ only
+  let docxPath: string | null = null
+  if (paidPlans.includes(userPlan)) {
+    docxPath = `${user.id}/${run_id}/${ts}_report.docx`
+    const docxBuf = await buildDocx(rows, {
+      device: profile.device_name, manufacturer: profile.manufacturer,
+      period_from: run.period_from, period_to: run.period_to,
+      emdn_code: profile.emdn_code, device_class: profile.device_class,
+      runId: run_id,
+    })
+    const { error } = await adminStorage.storage.from('reports').upload(docxPath, docxBuf, {
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', upsert: true,
+    })
+    if (error) {
+      console.error('[reports] upload error', error.message)
       return Response.json({ error: 'Failed to upload report' }, { status: 500 })
     }
   }

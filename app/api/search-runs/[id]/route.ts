@@ -78,6 +78,8 @@ export async function GET(
     filter_decision: decisionsMap[r.id] ?? null,
   }))
 
+  const isTerminal = ['complete', 'error', 'failed', 'cancelled', 'degraded', 'superseded'].includes(run.status)
+
   return Response.json({
     status:           run.status,
     progress:         (run as { progress?: unknown }).progress ?? null,
@@ -88,6 +90,12 @@ export async function GET(
     total_scraped:    (run as { total_scraped?: number }).total_scraped ?? null,
     pre_filter_count: (run as { pre_filter_count?: number }).pre_filter_count ?? null,
     results:          enriched,
+  }, {
+    headers: {
+      'Cache-Control': isTerminal
+        ? 'private, max-age=60, stale-while-revalidate=300'
+        : 'private, max-age=2, stale-while-revalidate=5',
+    },
   })
 }
 

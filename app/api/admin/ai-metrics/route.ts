@@ -21,7 +21,8 @@ export async function GET() {
       admin
         .from('filter_decisions')
         .select('decision, confidence, model_used')
-        .gte('created_at', thirtyDaysAgo),
+        .gte('created_at', thirtyDaysAgo)
+        .limit(5000),
       admin
         .from('filter_decision_cache')
         .select('id', { count: 'exact', head: true })
@@ -30,11 +31,6 @@ export async function GET() {
 
     if (decisionsRes.error) {
       console.error('[admin:ai-metrics]', decisionsRes.error.message)
-      return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
-    }
-
-    if (cacheCountRes.error) {
-      console.error('[admin:ai-metrics]', cacheCountRes.error.message)
       return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
     }
 

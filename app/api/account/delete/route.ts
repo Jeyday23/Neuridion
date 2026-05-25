@@ -116,11 +116,19 @@ export async function POST(request: Request) {
     await admin.from('login_attempts').delete().eq('email', emailHash)
   }
 
+  // GDPR Art. 17: delete the auth.users record so the original email
+  // does not persist in Supabase Auth after PII anonymization.
+  const { error: authDeleteError } = await admin.auth.admin.deleteUser(user.id)
+  if (authDeleteError) {
+    console.error('[account:delete] auth.users deletion failed:', authDeleteError.message)
+  }
+
   await logAuditEvent(user.id, 'account_deleted', {
     deletion_requested_at: now.toISOString(),
     scheduled_deleted_at:  deletedAt.toISOString(),
     pii_anonymized:        true,
     pms_records_retained:  true,
+    auth_user_deleted:     !authDeleteError,
     stripe_cancelled:      !!userData?.stripe_subscription_id,
   }, request)
 
