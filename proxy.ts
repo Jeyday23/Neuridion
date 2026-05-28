@@ -6,6 +6,14 @@ import { Redis } from '@upstash/redis'
 import { buildCspHeader } from '@/lib/security/csp'
 import { safeCompare } from '@/lib/utils/auth'
 
+const MAINTENANCE_PAGE = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Neuridion — Maintenance</title>
+<style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f5f5f5;color:#171717}
+.box{text-align:center;max-width:420px;padding:2rem}h1{font-size:1.5rem;margin-bottom:.5rem}p{color:#737373;font-size:.95rem}</style>
+</head><body><div class="box"><h1>We'll be right back</h1><p>Neuridion is undergoing scheduled maintenance. Please try again in a few minutes.</p></div></body></html>`
+
 function getSessionHmacKey(): string {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required — session HMAC cannot use a fallback')
@@ -83,6 +91,20 @@ const IDLE_COOKIE        = '_neuridion_active'
 const IDLE_TIMEOUT_MS    = 30 * 60 * 1000 // 30 minutes
 
 export async function proxy(request: NextRequest) {
+  if (process.env.MAINTENANCE_MODE === 'true') {
+    const { pathname } = request.nextUrl
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { error: 'Service temporarily unavailable' },
+        { status: 503, headers: { 'Retry-After': '300' } },
+      )
+    }
+    return new NextResponse(MAINTENANCE_PAGE, {
+      status: 503,
+      headers: { 'Content-Type': 'text/html', 'Retry-After': '300' },
+    })
+  }
+
   const { pathname } = request.nextUrl
   const requestId = crypto.randomUUID()
 
