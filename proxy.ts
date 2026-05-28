@@ -93,16 +93,20 @@ const IDLE_TIMEOUT_MS    = 30 * 60 * 1000 // 30 minutes
 export async function proxy(request: NextRequest) {
   if (process.env.MAINTENANCE_MODE === 'true') {
     const { pathname } = request.nextUrl
-    if (pathname.startsWith('/api/')) {
-      return NextResponse.json(
-        { error: 'Service temporarily unavailable' },
-        { status: 503, headers: { 'Retry-After': '300' } },
-      )
+    const bypassMaintenance = pathname.startsWith('/api/webhooks/')
+      || pathname.startsWith('/api/worker/health')
+    if (!bypassMaintenance) {
+      if (pathname.startsWith('/api/')) {
+        return NextResponse.json(
+          { error: 'Service temporarily unavailable' },
+          { status: 503, headers: { 'Retry-After': '300' } },
+        )
+      }
+      return new NextResponse(MAINTENANCE_PAGE, {
+        status: 503,
+        headers: { 'Content-Type': 'text/html', 'Retry-After': '300' },
+      })
     }
-    return new NextResponse(MAINTENANCE_PAGE, {
-      status: 503,
-      headers: { 'Content-Type': 'text/html', 'Retry-After': '300' },
-    })
   }
 
   const { pathname } = request.nextUrl

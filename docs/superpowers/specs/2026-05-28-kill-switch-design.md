@@ -19,6 +19,12 @@ Environment variable `MAINTENANCE_MODE=true` checked at the very top of `proxy()
 | `/api/*` routes | `503 JSON` — `{ "error": "Service temporarily unavailable" }` with `Retry-After: 300` |
 | All other routes | `503 HTML` — minimal static page: "We'll be right back. Neuridion is undergoing scheduled maintenance." |
 
+## Bypass Routes
+
+These routes remain reachable even during maintenance:
+- `/api/webhooks/*` — Stripe webhook delivery (Stripe retries up to 72hr, blocking would cause billing state drift)
+- `/api/worker/health` — Infrastructure health check (allows monitoring to distinguish "app down" from "maintenance mode")
+
 ## What It Does NOT Touch
 
 - No changes to Redis rate limiting (Upstash sliding window, 120 req/min)
