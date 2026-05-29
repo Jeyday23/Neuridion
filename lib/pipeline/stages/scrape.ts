@@ -7,6 +7,24 @@ import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowS
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
 import type { PipelineContext, ProgressUpdate } from '../types'
 
+const SOURCE_TIMEOUTS_MS: Record<string, number> = {
+  bfarm:      180_000,
+  fda:        90_000,
+  mhra:       90_000,
+  swissmedic: 60_000,
+}
+
+const DEFAULT_TIMEOUT_MS = 120_000
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms),
+    ),
+  ])
+}
+
 const SCRAPERS: Record<string, (p: ScraperParams) => Promise<ScraperResult>> = {
   bfarm:      scrapeBfarm,
   mhra:       scrapeMhra,
@@ -141,7 +159,10 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
   }
 
   const sourceResults = await Promise.allSettled(
-    activeSources.map((id, idx) => processSource(id, idx)),
+    activeSources.map((id, idx) => {
+      const timeoutMs = SOURCE_TIMEOUTS_MS[id] ?? DEFAULT_TIMEOUT_MS
+      return withTimeout(processSource(id, idx), timeoutMs, id.toUpperCase())
+    }),
   )
 
   for (let i = 0; i < sourceResults.length; i++) {
