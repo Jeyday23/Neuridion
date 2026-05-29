@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractManufacturerTerms, buildManufacturerSearchTerms } from '../lib/search/manufacturer-terms'
+import { extractManufacturerTerms, buildManufacturerSearchTerms, extractCompetitorTokens } from '../lib/search/manufacturer-terms'
 
 describe('extractManufacturerTerms', () => {
   // Examples from spec
@@ -103,5 +103,69 @@ describe('buildManufacturerSearchTerms', () => {
     expect(buildManufacturerSearchTerms('Medtronic', 'Cobalt XT CRT-D System')).toEqual(
       ['medtronic', 'cobalt', 'crt-d']
     )
+  })
+})
+
+describe('extractCompetitorTokens', () => {
+  it('filters tokens shorter than 3 chars (except SHORT_BUT_DISTINCTIVE)', () => {
+    const result = extractCompetitorTokens([{ name: 'AB Pro Device' }])
+    expect(result).not.toContain('ab')
+    expect(result).not.toContain('pro')
+  })
+
+  it('filters GENERIC_DEVICE_WORDS from competitor names', () => {
+    const result = extractCompetitorTokens([{ name: 'CardioSense Pro Medical System' }])
+    expect(result).not.toContain('pro')
+    expect(result).not.toContain('medical')
+    expect(result).not.toContain('system')
+    expect(result).toContain('cardiosense')
+  })
+
+  it('filters GENERIC_MFR_WORDS from competitor manufacturer field', () => {
+    const result = extractCompetitorTokens([{ name: 'Widget', manufacturer: 'Global Healthcare Solutions GmbH' }])
+    expect(result).not.toContain('global')
+    expect(result).not.toContain('healthcare')
+    expect(result).not.toContain('solutions')
+    expect(result).toContain('widget')
+  })
+
+  it('caps at 3 tokens per competitor name entry', () => {
+    const result = extractCompetitorTokens([
+      { name: 'Alpha Beta Gamma Delta Epsilon Zeta' },
+    ])
+    const nameTokens = result.filter(t => ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta'].includes(t))
+    expect(nameTokens.length).toBeLessThanOrEqual(3)
+  })
+
+  it('caps at 3 tokens per competitor manufacturer entry', () => {
+    const result = extractCompetitorTokens([
+      { name: 'Widget', manufacturer: 'Alpha Beta Gamma Delta Epsilon' },
+    ])
+    const mfrTokens = result.filter(t => ['alpha', 'beta', 'gamma', 'delta', 'epsilon'].includes(t))
+    expect(mfrTokens.length).toBeLessThanOrEqual(3)
+  })
+
+  it('caps total tokens at 20', () => {
+    const entries = Array.from({ length: 15 }, (_, i) => ({
+      name: `LongProductName${i} ExtraWord${i} AnotherWord${i} FourthWord${i}`,
+      manufacturer: `Manufacturer${i} Division${i} Branch${i}`,
+    }))
+    const result = extractCompetitorTokens(entries)
+    expect(result.length).toBeLessThanOrEqual(20)
+  })
+
+  it('keeps SHORT_BUT_DISTINCTIVE 2-char tokens', () => {
+    const result = extractCompetitorTokens([{ name: '3M Steri-Strip' }])
+    expect(result).toContain('3m')
+  })
+
+  it('returns empty array for empty input', () => {
+    expect(extractCompetitorTokens([])).toEqual([])
+  })
+
+  it('skips entries with blank names', () => {
+    const result = extractCompetitorTokens([{ name: '', manufacturer: 'Acme' }])
+    expect(result).not.toContain('')
+    expect(result).toContain('acme')
   })
 })

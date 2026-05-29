@@ -81,6 +81,9 @@ export function buildManufacturerSearchTerms(
   return mfrTerms
 }
 
+const MAX_TOKENS_PER_ENTRY = 3
+const MAX_TOTAL_COMPETITOR_TOKENS = 20
+
 export function extractCompetitorTokens(
   entries: Array<{ name: string; manufacturer?: string }>,
 ): string[] {
@@ -95,9 +98,18 @@ export function extractCompetitorTokens(
         .split(/\s+/)
         .filter(Boolean)
         .map(t => t.toLowerCase())
-        .filter(t => t.length >= 2 && !LEGAL_SUFFIXES.has(t))
+        .filter(t =>
+          (t.length >= 3 || SHORT_BUT_DISTINCTIVE.has(t)) &&
+          !LEGAL_SUFFIXES.has(t) &&
+          !GENERIC_MFR_WORDS.has(t) &&
+          !GENERIC_DEVICE_WORDS.has(t),
+        )
 
-      for (const t of nameTokens) tokens.add(t)
+      let added = 0
+      for (const t of nameTokens) {
+        if (added >= MAX_TOKENS_PER_ENTRY) break
+        if (!tokens.has(t)) { tokens.add(t); added++ }
+      }
     }
 
     if (entry.manufacturer?.trim()) {
@@ -109,14 +121,19 @@ export function extractCompetitorTokens(
         .filter(Boolean)
         .map(t => t.toLowerCase())
         .filter(t =>
-          t.length >= 2 &&
+          (t.length >= 3 || SHORT_BUT_DISTINCTIVE.has(t)) &&
           !LEGAL_SUFFIXES.has(t) &&
           !GENERIC_MFR_WORDS.has(t),
         )
 
-      for (const t of mfrTokens) tokens.add(t)
+      let added = 0
+      for (const t of mfrTokens) {
+        if (added >= MAX_TOKENS_PER_ENTRY) break
+        if (!tokens.has(t)) { tokens.add(t); added++ }
+      }
     }
   }
 
-  return [...tokens]
+  const result = [...tokens]
+  return result.slice(0, MAX_TOTAL_COMPETITOR_TOKENS)
 }

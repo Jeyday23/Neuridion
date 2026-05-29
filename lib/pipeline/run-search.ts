@@ -14,7 +14,7 @@ export { shouldBypassCoverageCache }
 export const TermsUsedSchema = z.object({
   manufacturer_terms: z.array(z.string().max(100)).max(10),
   device_terms: z.array(z.string().max(100)).max(10),
-  competitor_terms: z.array(z.string().max(100)).max(60).optional(),
+  competitor_terms: z.array(z.string().max(100)).max(20).optional(),
   raw_manufacturer: z.string().max(500),
   raw_device_name: z.string().max(500),
   term_algorithm_version: z.string().max(10),
