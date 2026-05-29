@@ -187,7 +187,7 @@ export async function proxy(request: NextRequest) {
         if (pathname.startsWith('/api/')) {
           return addSecurityHeaders(NextResponse.json({ error: 'Session expired' }, { status: 401 }))
         }
-        return NextResponse.redirect(new URL('/login', request.url))
+        return addSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)))
       }
     }
 
@@ -210,7 +210,7 @@ export async function proxy(request: NextRequest) {
         if (pathname.startsWith('/api/')) {
           return addSecurityHeaders(NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 }))
         }
-        return NextResponse.redirect(new URL('/login', request.url))
+        return addSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)))
       }
       if (activeCookie) {
         const [activeTs, activeSig] = activeCookie.split('.')
@@ -227,7 +227,7 @@ export async function proxy(request: NextRequest) {
           if (pathname.startsWith('/api/')) {
             return addSecurityHeaders(NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 }))
           }
-          return NextResponse.redirect(new URL('/login', request.url))
+          return addSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)))
         }
       }
       // Set/refresh the idle activity cookie with current timestamp
@@ -303,7 +303,7 @@ export async function proxy(request: NextRequest) {
 
     if (userData?.deleted_at && new Date(userData.deleted_at) <= new Date()) {
       await supabase.auth.signOut()
-      return NextResponse.redirect(new URL('/login?deleted=1', request.url))
+      return addSecurityHeaders(NextResponse.redirect(new URL('/login?deleted=1', request.url)))
     }
   }
 
@@ -316,20 +316,20 @@ export async function proxy(request: NextRequest) {
       .single()
 
     if (data?.role !== 'admin') {
-      return NextResponse.redirect(new URL('/dashboard/search', request.url))
+      return addSecurityHeaders(NextResponse.redirect(new URL('/dashboard/search', request.url)))
     }
   }
 
   // Authenticated user visiting login/signup → send to dashboard
   if (user && (pathname === '/login' || pathname === '/signup')) {
-    return NextResponse.redirect(new URL('/dashboard/search', request.url))
+    return addSecurityHeaders(NextResponse.redirect(new URL('/dashboard/search', request.url)))
   }
 
   // Unauthenticated user visiting a protected route → send to login
   if (!user && !isPublic) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('next', pathname)
-    return NextResponse.redirect(loginUrl)
+    return addSecurityHeaders(NextResponse.redirect(loginUrl))
   }
 
   // CSP nonce — inject per-request nonce into response headers (all environments)

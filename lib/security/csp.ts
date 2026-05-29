@@ -1,5 +1,5 @@
 export function buildCspHeader(nonce: string): string {
-  if (!/^[A-Za-z0-9+/]+=*$/.test(nonce) || nonce.length < 16 || nonce.length > 64) {
+  if (!/^[A-Za-z0-9+/]{16,64}={0,2}$/.test(nonce)) {
     throw new Error('Invalid CSP nonce format')
   }
   const directives = [

@@ -818,7 +818,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             {draftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
             {t.search.saveDraft}
           </button>
-          <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || state.phase === 'queued' || isOverLimit}
+          <button type="button" onClick={runSearch} disabled={noProfiles || state.phase === 'running' || state.phase === 'queued' || isOverLimit || selectedDbs.size === 0}
             className="px-8 py-3 bg-[#0D9488] text-white rounded hover:bg-[#0F766E] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
             {(state.phase === 'running' || state.phase === 'queued')
               ? <><Loader2 className="h-4 w-4 animate-spin" />{t.search.searching}</>

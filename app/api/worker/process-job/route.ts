@@ -92,7 +92,12 @@ async function handler(req: Request): Promise<Response> {
     return new Response('OK', { status: 200 })
   } catch (err) {
     const elapsed = Math.round((Date.now() - pipelineStart) / 1000)
-    const errMsg  = err instanceof Error ? err.message : String(err)
+    const rawMsg  = err instanceof Error ? err.message : String(err)
+    const errMsg  = rawMsg
+      .replace(/sk-ant-[a-zA-Z0-9_-]+/g, '[REDACTED_KEY]')
+      .replace(/org-[a-zA-Z0-9_-]+/g, '[REDACTED_ORG]')
+      .replace(/https?:\/\/[^\s"']+/g, '[URL_REDACTED]')
+      .slice(0, 500)
     console.error(`[process-job] pipeline failed run_id=${run_id} in ${elapsed}s:`, errMsg)
 
     await Promise.all([

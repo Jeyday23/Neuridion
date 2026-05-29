@@ -432,7 +432,7 @@ export async function POST(request: Request) {
 
   // GDPR Art 18: block data-processing operations when restricted
   const { data: userFlags, error: userFlagsError } = await supabase.from('users').select('processing_restricted, plan').eq('id', user.id).single()
-  if (userFlagsError) console.error('[reports]', 'query error:', userFlagsError.message, userFlagsError.code)
+  if (userFlagsError) console.error('[reports]', 'query error:', userFlagsError.code)
   if (userFlags?.processing_restricted) {
     return Response.json({ error: 'Data processing is currently restricted on your account. You can change this in Settings > Privacy.' }, { status: 403 })
   }

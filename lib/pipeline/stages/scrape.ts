@@ -175,7 +175,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       r.value.canonicalIds.forEach((cid, eid) => ctx.canonicalIds.set(eid, cid))
     } else {
       const sourceLabel = activeSources[i].toUpperCase()
-      console.error(`[pipeline] ${activeSources[i]} FAILED:`, r.reason)
+      console.error(`[pipeline] ${activeSources[i]} FAILED:`, r.reason instanceof Error ? r.reason.message : String(r.reason))
       ctx.warnings.push(
         `${sourceLabel} database was unavailable during this search and returned no results.`
       )

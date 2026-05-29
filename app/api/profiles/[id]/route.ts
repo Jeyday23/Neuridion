@@ -24,7 +24,7 @@ const UpdateSchema = z.object({
   emdn_code:        z.string().max(20).transform(v => v ? v.toUpperCase() : v).pipe(z.string().regex(/^[A-Z]\d{2,8}$/, 'Invalid EMDN code format')).nullable().optional().or(z.literal('')).transform(v => v || null),
   intended_use:     z.string().nullable().optional(),
   competitor_terms: z.array(CompetitorTermSchema).max(20).optional(),
-  strategy_doc_paths: z.array(z.string().max(500).refine((s) => { const d = decodeURIComponent(s); return !d.includes('..') && !d.startsWith('/') && !d.includes('\0') && !s.includes('\0') }, 'Invalid file path')).max(5).optional(),
+  strategy_doc_paths: z.array(z.string().max(500).refine((s) => { try { const d = decodeURIComponent(s); return !d.includes('..') && !d.startsWith('/') && !d.includes('\0') && !s.includes('\0') } catch { return false } }, 'Invalid file path')).max(5).optional(),
 })
 
 export async function PATCH(

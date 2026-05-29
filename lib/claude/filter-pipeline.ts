@@ -36,18 +36,27 @@ function isCreditExhaustionError(err: unknown): boolean {
   return false
 }
 
+function sanitizeApiError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err)
+  return raw
+    .replace(/sk-ant-[a-zA-Z0-9_-]+/g, '[REDACTED_KEY]')
+    .replace(/org-[a-zA-Z0-9_-]+/g, '[REDACTED_ORG]')
+    .replace(/https?:\/\/[^\s"']+/g, '[URL_REDACTED]')
+    .slice(0, 200)
+}
+
 function markCreditExhausted(err: unknown): void {
   creditExhausted = true
   creditExhaustedAt = Date.now()
   console.error('[filter] AI service credit/billing exhausted — all subsequent AI calls will skip for up to 10 min:',
-    err instanceof Error ? err.message : String(err))
+    sanitizeApiError(err))
 }
 
 function markAuthFailed(err: unknown): void {
   creditExhausted = true
   creditExhaustedAt = Date.now()
   console.error('[filter] AI service authentication failed (401) — all subsequent AI calls will skip for up to 10 min:',
-    err instanceof Error ? err.message : String(err))
+    sanitizeApiError(err))
 }
 
 // ── PII sanitisation — strip personal data before sending to third-party AI ──
@@ -483,11 +492,7 @@ export async function stage1Filter(
   } catch (err) {
     if (isAuthError(err)) markAuthFailed(err)
     else if (isCreditExhaustionError(err)) markCreditExhausted(err)
-    const rawMsg = err instanceof Error ? err.message : String(err)
-    const errMsg = rawMsg
-      .replace(/sk-ant-[a-zA-Z0-9_-]+/g, '[REDACTED_KEY]')
-      .replace(/https?:\/\/[^\s"']+/g, '[URL_REDACTED]')
-      .slice(0, 200)
+    const errMsg = sanitizeApiError(err)
     console.error('[stage1Filter] Failed after retries:', errMsg)
     return {
       decision:   'filter_failed',
