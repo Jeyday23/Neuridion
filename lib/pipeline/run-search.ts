@@ -71,7 +71,7 @@ export async function runSearchPipeline(
       .eq('id', runId)
     if (termsError) console.error('[pipeline] Failed to persist terms_used:', termsError.message)
   } catch (e) {
-    console.error('[pipeline] terms_used validation failed:', e)
+    console.error('[pipeline] terms_used validation failed:', e instanceof Error ? e.message : String(e))
   }
 
   // Cancellation checker — cached for 2 seconds to avoid hammering the DB.
