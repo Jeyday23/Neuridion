@@ -53,6 +53,8 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     items_found:    0,
   }
 
+  if (ctx.onProgress) await ctx.onProgress({ ...progressState })
+
   async function processSource(sourceId: string, sourceIndex: number): Promise<{
     items: ScrapedFsn[]; warnings: string[]; contentChanged: Set<string>; canonicalIds: Map<string, string>
   }> {
