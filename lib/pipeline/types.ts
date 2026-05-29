@@ -60,6 +60,7 @@ export interface PipelineContext {
   insertedRows:    InsertedFsnRow[]
   decisions:       DecisionRow[]
   warnings:        string[]
+  timing:          Record<string, number>
 
   onProgress?:     (update: ProgressUpdate) => Promise<void>
 

@@ -90,7 +90,7 @@ export async function runSearchPipeline(
   const ctx: PipelineContext = {
     runId, payload, db, profile: profile as ProfileRow, aiOptOut, searchTerms, competitorTerms, activeSources,
     items: [], contentChanged: new Set(), canonicalIds: new Map(),
-    insertedRows: [], decisions: [], warnings: [],
+    insertedRows: [], decisions: [], warnings: [], timing: {},
     onProgress,
     isCancelled,
   }
@@ -114,8 +114,9 @@ export async function runSearchPipeline(
     console.error(`[pipeline] run_id=${runId} stage=${stageName} started`)
     try {
       await stage(ctx)
-      const elapsed = Math.round((Date.now() - stageStart) / 1000)
-      console.error(`[pipeline] run_id=${runId} stage=${stageName} completed in ${elapsed}s (items=${ctx.items.length} warnings=${ctx.warnings.length})`)
+      const elapsed = Date.now() - stageStart
+      ctx.timing[`${stageName}_ms`] = elapsed
+      console.error(`[pipeline] run_id=${runId} stage=${stageName} completed in ${Math.round(elapsed / 1000)}s (items=${ctx.items.length} warnings=${ctx.warnings.length})`)
     } catch (err) {
       const elapsed = Math.round((Date.now() - stageStart) / 1000)
       const msg = err instanceof Error ? err.message : String(err)
@@ -139,6 +140,9 @@ export async function runSearchPipeline(
 
   try {
     await finalizeStage(ctx)
+    ctx.timing.total_items_scraped = ctx.items.length
+    ctx.timing.total_items_filtered = ctx.decisions.length
+    await db.from('search_runs').update({ timing: ctx.timing }).eq('id', runId)
   } catch (err) {
     console.error('[pipeline] finalize failed:', err instanceof Error ? err.message : String(err))
     await db.from('search_runs').update({

@@ -563,6 +563,7 @@ export type Database = {
           started_at: string | null
           status: string
           terms_used: Json | null
+          timing: Json | null
           total_results: number
           total_scraped: number | null
           uncertain_count: number
@@ -597,6 +598,7 @@ export type Database = {
           started_at?: string | null
           status?: string
           terms_used?: Json | null
+          timing?: Json | null
           total_results?: number
           total_scraped?: number | null
           uncertain_count?: number
@@ -631,6 +633,7 @@ export type Database = {
           started_at?: string | null
           status?: string
           terms_used?: Json | null
+          timing?: Json | null
           total_results?: number
           total_scraped?: number | null
           uncertain_count?: number
