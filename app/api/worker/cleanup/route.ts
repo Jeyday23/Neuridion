@@ -125,7 +125,7 @@ async function processExpiredDeletions(): Promise<number> {
       })
       processed++
     } catch (err) {
-      console.error('[cleanup] deletion failed for user', user.id, err instanceof Error ? err.message : String(err))
+      console.error('[cleanup] deletion failed:', err instanceof Error ? err.message : String(err))
     }
   }
   return processed

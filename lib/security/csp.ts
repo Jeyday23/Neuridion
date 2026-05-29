@@ -1,4 +1,7 @@
 export function buildCspHeader(nonce: string): string {
+  if (!/^[A-Za-z0-9+/]+=*$/.test(nonce) || nonce.length < 16 || nonce.length > 64) {
+    throw new Error('Invalid CSP nonce format')
+  }
   const directives = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://js.stripe.com`,

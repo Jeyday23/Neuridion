@@ -97,15 +97,15 @@ export async function proxy(request: NextRequest) {
       || pathname.startsWith('/api/worker/health')
     if (!bypassMaintenance) {
       if (pathname.startsWith('/api/')) {
-        return NextResponse.json(
+        return addSecurityHeaders(NextResponse.json(
           { error: 'Service temporarily unavailable' },
           { status: 503, headers: { 'Retry-After': '300' } },
-        )
+        ))
       }
-      return new NextResponse(MAINTENANCE_PAGE, {
+      return addSecurityHeaders(new NextResponse(MAINTENANCE_PAGE, {
         status: 503,
         headers: { 'Content-Type': 'text/html', 'Retry-After': '300' },
-      })
+      }))
     }
   }
 
@@ -120,10 +120,10 @@ export async function proxy(request: NextRequest) {
       const result = await limiter.limit(ip)
       if (!result.success) {
         const retryAfter = result.reset ? Math.ceil((result.reset - Date.now()) / 1000) : 60
-        return NextResponse.json(
+        return addSecurityHeaders(NextResponse.json(
           { error: 'Too many requests' },
           { status: 429, headers: { 'Retry-After': String(retryAfter), 'x-request-id': requestId } },
-        )
+        ))
       }
     }
   }
@@ -185,7 +185,7 @@ export async function proxy(request: NextRequest) {
         supabaseResponse.cookies.delete(SESSION_COOKIE)
         supabaseResponse.cookies.delete(IDLE_COOKIE)
         if (pathname.startsWith('/api/')) {
-          return NextResponse.json({ error: 'Session expired' }, { status: 401 })
+          return addSecurityHeaders(NextResponse.json({ error: 'Session expired' }, { status: 401 }))
         }
         return NextResponse.redirect(new URL('/login', request.url))
       }
@@ -208,7 +208,7 @@ export async function proxy(request: NextRequest) {
         supabaseResponse.cookies.delete(SESSION_COOKIE)
         supabaseResponse.cookies.delete(IDLE_COOKIE)
         if (pathname.startsWith('/api/')) {
-          return NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 })
+          return addSecurityHeaders(NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 }))
         }
         return NextResponse.redirect(new URL('/login', request.url))
       }
@@ -225,7 +225,7 @@ export async function proxy(request: NextRequest) {
           supabaseResponse.cookies.delete(SESSION_COOKIE)
           supabaseResponse.cookies.delete(IDLE_COOKIE)
           if (pathname.startsWith('/api/')) {
-            return NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 })
+            return addSecurityHeaders(NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 }))
           }
           return NextResponse.redirect(new URL('/login', request.url))
         }
@@ -251,10 +251,10 @@ export async function proxy(request: NextRequest) {
     const isExempt = CSRF_EXEMPT_ROUTES.some((r) => pathname.startsWith(r))
     if (!isExempt) {
       if (!request.headers.has('x-csrf-protection')) {
-        return NextResponse.json(
+        return addSecurityHeaders(NextResponse.json(
           { error: 'Forbidden' },
           { status: 403, headers: { 'x-request-id': requestId } },
-        )
+        ))
       }
 
       const origin = request.headers.get('origin')
@@ -270,10 +270,10 @@ export async function proxy(request: NextRequest) {
           allowedOrigins.add('http://127.0.0.1:3000')
         }
         if (!allowedOrigins.has(origin)) {
-          return NextResponse.json(
+          return addSecurityHeaders(NextResponse.json(
             { error: 'Forbidden' },
             { status: 403, headers: { 'x-request-id': requestId } },
-          )
+          ))
         }
       }
     }
@@ -284,7 +284,7 @@ export async function proxy(request: NextRequest) {
     if (!user) {
       const isPublicApi = PUBLIC_API_ROUTES.some((r) => pathname.startsWith(r))
       if (!isPublicApi) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'x-request-id': requestId } })
+        return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'x-request-id': requestId } }))
       }
     }
     supabaseResponse.headers.set('x-request-id', requestId)
@@ -350,9 +350,10 @@ export async function proxy(request: NextRequest) {
 
 /**
  * Adds defense-in-depth security headers to every response.
- * HSTS and CSP are handled separately (next.config.ts / buildCspHeader).
+ * Called on both the final supabaseResponse AND every early-return response.
  */
 function addSecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')

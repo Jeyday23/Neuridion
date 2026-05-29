@@ -12,7 +12,7 @@ const SaveDraftSchema = z.object({
   dbs:              z.array(z.string()).max(10).optional(),
   genericTerms:     z.array(z.string().max(200)).max(50).optional(),
   manufacturerTerms: z.array(z.string().max(200)).max(50).optional(),
-  uploadedPaths:    z.array(z.string().max(500)).max(20).optional(),
+  uploadedPaths:    z.array(z.string().max(500).refine((s) => { const d = decodeURIComponent(s); return !d.includes('..') && !d.startsWith('/') && !d.includes('\0') && !s.includes('\0') }, 'Invalid file path')).max(20).optional(),
 })
 
 export async function POST(request: Request) {
@@ -48,6 +48,10 @@ export async function POST(request: Request) {
     manufacturerTerms,
     uploadedPaths,
   } = parsed.data
+
+  if (uploadedPaths?.some(p => !p.startsWith(`${user.id}/`))) {
+    return Response.json({ error: 'Validation failed. Check your input and try again.' }, { status: 422 })
+  }
 
   const now = new Date().toISOString()
 

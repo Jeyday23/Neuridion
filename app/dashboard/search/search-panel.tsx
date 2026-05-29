@@ -632,7 +632,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   }
 
   async function runSearch() {
-    if (!profileId || submittingRef.current) return
+    if (!profileId || submittingRef.current || selectedDbs.size === 0) return
     submittingRef.current = true
     setReportState({ phase: 'idle' })
     setExpandedIds(new Set())

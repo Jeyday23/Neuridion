@@ -483,7 +483,11 @@ export async function stage1Filter(
   } catch (err) {
     if (isAuthError(err)) markAuthFailed(err)
     else if (isCreditExhaustionError(err)) markCreditExhausted(err)
-    const errMsg = err instanceof Error ? err.message : String(err)
+    const rawMsg = err instanceof Error ? err.message : String(err)
+    const errMsg = rawMsg
+      .replace(/sk-ant-[a-zA-Z0-9_-]+/g, '[REDACTED_KEY]')
+      .replace(/https?:\/\/[^\s"']+/g, '[URL_REDACTED]')
+      .slice(0, 200)
     console.error('[stage1Filter] Failed after retries:', errMsg)
     return {
       decision:   'filter_failed',
