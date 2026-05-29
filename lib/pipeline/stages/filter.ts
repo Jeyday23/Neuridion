@@ -82,11 +82,20 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
     if (matches) keywordBoosted.add(row.id)
   }
 
-  const toFilter = needsFilter
   console.error('[pipeline]', `run_id=${ctx.runId} keyword_boost: ${keywordBoosted.size}/${needsFilter.length} items matched manufacturer terms`)
 
+  if (ctx.onProgress) {
+    await ctx.onProgress({
+      current_source: null,
+      sources_done: ctx.activeSources,
+      sources_total: ctx.activeSources,
+      items_found: ctx.items.length,
+      filter_progress: { done: 0, total: needsFilter.length, cached: alreadyCached.length },
+    })
+  }
+
   // Prioritize keyword-matched items so the AI filter cap processes the most relevant first
-  toFilter.sort((a, b) => {
+  needsFilter.sort((a, b) => {
     const aB = keywordBoosted.has(a.id) ? 0 : 1
     const bB = keywordBoosted.has(b.id) ? 0 : 1
     return aB - bB
@@ -94,8 +103,8 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
 
   // 3. AI filter (or opt-out)
   if (aiOptOut) {
-    console.error('[pipeline]', `run_id=${ctx.runId} ai_opt_out=true — skipping AI filter, marking ${toFilter.length} items for manual review`)
-    for (const row of toFilter) {
+    console.error('[pipeline]', `run_id=${ctx.runId} ai_opt_out=true — skipping AI filter, marking ${needsFilter.length} items for manual review`)
+    for (const row of needsFilter) {
       ctx.decisions.push({
         fsn_result_id: row.id,
         decision:      'filter_failed',
@@ -110,8 +119,8 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   // Per-run AI filter cap
   const n = Number(process.env.MAX_FILTER_ITEMS_PER_RUN)
   const MAX_FILTER_ITEMS = Number.isFinite(n) && n > 0 ? n : 300
-  if (toFilter.length > MAX_FILTER_ITEMS) {
-    const skipped = toFilter.splice(MAX_FILTER_ITEMS)
+  if (needsFilter.length > MAX_FILTER_ITEMS) {
+    const skipped = needsFilter.slice(MAX_FILTER_ITEMS)
     console.error('[pipeline]', `item cap: ${skipped.length} items skipped (limit=${MAX_FILTER_ITEMS})`)
     for (const row of skipped) {
       ctx.decisions.push({
@@ -123,26 +132,44 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
       })
     }
   }
+  const toFilter = needsFilter.slice(0, MAX_FILTER_ITEMS)
 
-  const filterLimit = pLimit(4)
+  const FILTER_DEADLINE_MS = 660_000
+  const filterStartMs = Date.now()
+
+  const filterLimit = pLimit(6)
   let cancelledDuringFilter = false
   let itemsProcessed = 0
   const filterResults = await Promise.all(
     toFilter.map((row) => filterLimit(async () => {
-      // Fast exit: once cancellation is detected, skip remaining items
       if (cancelledDuringFilter) {
         return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Run cancelled by user.', confidence: null, model: null }
       }
 
-      // Poll for cancellation every ~20 items to avoid hammering the DB
-      if (itemsProcessed > 0 && itemsProcessed % 20 === 0) {
+      const myIndex = itemsProcessed++
+
+      if (myIndex > 0 && myIndex % 20 === 0) {
         if (await ctx.isCancelled()) {
           cancelledDuringFilter = true
-          console.error(`[pipeline] run_id=${ctx.runId} filter stage: cancellation detected at item ${itemsProcessed}/${toFilter.length}`)
+          console.error(`[pipeline] run_id=${ctx.runId} filter stage: cancellation detected at item ${myIndex}/${toFilter.length}`)
           return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Run cancelled by user.', confidence: null, model: null }
         }
       }
-      itemsProcessed++
+
+      if (Date.now() - filterStartMs > FILTER_DEADLINE_MS) {
+        console.error(`[pipeline] run_id=${ctx.runId} filter deadline reached at item ${myIndex}/${toFilter.length}`)
+        return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Filter time limit reached — manual review required.', confidence: null, model: null }
+      }
+
+      if (myIndex > 0 && myIndex % 10 === 0 && ctx.onProgress) {
+        await ctx.onProgress({
+          current_source: null,
+          sources_done: ctx.activeSources,
+          sources_total: ctx.activeSources,
+          items_found: ctx.items.length,
+          filter_progress: { done: myIndex, total: toFilter.length, cached: alreadyCached.length },
+        })
+      }
 
       const d = await stage1Filter(
         { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date, source_db: row.source_db },

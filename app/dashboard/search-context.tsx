@@ -24,6 +24,7 @@ export interface SearchProgress {
   sources_done:   string[]
   sources_total:  string[]
   items_found:    number
+  filter_progress?: { done: number; total: number; cached: number }
 }
 
 export type SearchRunState =

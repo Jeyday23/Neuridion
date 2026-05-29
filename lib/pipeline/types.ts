@@ -17,6 +17,7 @@ export interface ProgressUpdate {
   sources_done:   string[]
   sources_total:  string[]
   items_found:    number
+  filter_progress?: { done: number; total: number; cached: number }
 }
 
 export interface ProfileRow {

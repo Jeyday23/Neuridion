@@ -1,55 +1,86 @@
-// ── Sonnet (claude-sonnet-4-6) ────────────────────────────────────────────────
-// Org limit: 50 RPM → 1200ms between requests.
-const SONNET_MIN_MS = 1000
+class ConcurrentRateLimiter {
+  private readonly maxConcurrent: number
+  private readonly rpmLimit: number
+  private readonly label: string
+  private readonly maxQueueDepth: number
 
-let lastSonnetAt = 0
-let sonnetQueue: Promise<void> = Promise.resolve()
+  private activeCalls = 0
+  private callTimestamps: number[] = []
+  private waitQueue: Array<() => void> = []
 
-async function acquireSonnet(): Promise<void> {
-  sonnetQueue = sonnetQueue.then(async () => {
-    const wait = Math.max(0, SONNET_MIN_MS - (Date.now() - lastSonnetAt))
-    if (wait > 0) await new Promise(r => setTimeout(r, wait))
-    lastSonnetAt = Date.now()
-  })
-  return sonnetQueue
+  constructor(label: string, maxConcurrent: number, rpmLimit: number, maxQueueDepth = 50) {
+    this.label = label
+    this.maxConcurrent = maxConcurrent
+    this.rpmLimit = rpmLimit
+    this.maxQueueDepth = maxQueueDepth
+  }
+
+  async acquire(): Promise<() => void> {
+    if (this.waitQueue.length >= this.maxQueueDepth) {
+      throw new Error(`Rate limiter queue full (${this.label})`)
+    }
+
+    // Wait for a concurrent slot to open
+    while (this.activeCalls >= this.maxConcurrent) {
+      await new Promise<void>((resolve) => {
+        this.waitQueue.push(resolve)
+      })
+    }
+
+    // Wait for RPM budget — sliding window over last 60s
+    const now = Date.now()
+    this.callTimestamps = this.callTimestamps.filter((ts) => now - ts < 60_000)
+
+    while (this.callTimestamps.length >= this.rpmLimit) {
+      const oldest = this.callTimestamps[0]
+      const waitMs = 60_000 - (Date.now() - oldest) + 50
+      if (waitMs > 0) {
+        await new Promise<void>((r) => setTimeout(r, waitMs))
+      }
+      const fresh = Date.now()
+      this.callTimestamps = this.callTimestamps.filter((ts) => fresh - ts < 60_000)
+    }
+
+    this.activeCalls++
+    this.callTimestamps.push(Date.now())
+
+    let released = false
+    const release = (): void => {
+      if (released) return
+      released = true
+      this.activeCalls--
+      const next = this.waitQueue.shift()
+      if (next) next()
+    }
+
+    return release
+  }
 }
 
-// ── Haiku (claude-haiku-4-5-20251001) ────────────────────────────────────────
-// Haiku has higher org limits. Use 80 RPM (conservative) → 750ms between requests.
-const HAIKU_MIN_MS = 750
-
-let lastHaikuAt = 0
-let haikuQueue: Promise<void> = Promise.resolve()
-
-async function acquireHaiku(): Promise<void> {
-  haikuQueue = haikuQueue.then(async () => {
-    const wait = Math.max(0, HAIKU_MIN_MS - (Date.now() - lastHaikuAt))
-    if (wait > 0) await new Promise(r => setTimeout(r, wait))
-    lastHaikuAt = Date.now()
-  })
-  return haikuQueue
-}
-
-// ── Shared retry wrapper ──────────────────────────────────────────────────────
+const sonnetLimiter = new ConcurrentRateLimiter('sonnet', 3, 45)
+const haikuLimiter  = new ConcurrentRateLimiter('haiku', 5, 70)
 
 async function withRetry<T>(
   fn: () => Promise<T>,
-  acquire: () => Promise<void>,
+  limiter: ConcurrentRateLimiter,
   label: string,
-  maxAttempts = 4,
+  maxAttempts: number,
 ): Promise<T> {
   let lastErr: unknown
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const release = await limiter.acquire()
     try {
-      await acquire()
-      return await fn()
+      const result = await fn()
+      release()
+      return result
     } catch (err: unknown) {
+      release()
       lastErr = err
       const msg = err instanceof Error ? err.message : String(err)
       const is429     = msg.includes('429') || msg.includes('rate_limit')
       const isOverload = msg.includes('overloaded') || msg.includes('529')
 
-      if (!is429 && !isOverload) throw err   // non-retryable
+      if (!is429 && !isOverload) throw err
       if (attempt === maxAttempts) break
 
       const backoffMs = 2000 * Math.pow(2, attempt - 1)
@@ -57,18 +88,16 @@ async function withRetry<T>(
         `${label} ${is429 ? '429' : 'overload'} ` +
         `attempt ${attempt}/${maxAttempts}, retrying in ${backoffMs}ms`,
       )
-      await new Promise(r => setTimeout(r, backoffMs))
+      await new Promise<void>((r) => setTimeout(r, backoffMs))
     }
   }
   throw lastErr
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
-
 export function callAnthropicWithRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
-  return withRetry(fn, acquireSonnet, 'sonnet', maxAttempts)
+  return withRetry(fn, sonnetLimiter, 'sonnet', maxAttempts)
 }
 
 export function callHaikuWithRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
-  return withRetry(fn, acquireHaiku, 'haiku', maxAttempts)
+  return withRetry(fn, haikuLimiter, 'haiku', maxAttempts)
 }

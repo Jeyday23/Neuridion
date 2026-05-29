@@ -315,7 +315,15 @@ function SearchProgressCard({ startedAt, progress, onCancel }: { startedAt: numb
             {progress.current_source === null && progress.sources_done.length > 0 && (
               <div className="flex items-center gap-2.5 pt-1">
                 <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
-                <span className="text-sm text-[#0F1F3D] font-medium">Running AI relevance filter…</span>
+                <div className="flex flex-col">
+                  <span className="text-sm text-[#0F1F3D] font-medium">Running AI relevance filter…</span>
+                  {progress.filter_progress && (
+                    <span className="text-xs text-teal-600">
+                      {progress.filter_progress.done}/{progress.filter_progress.total} analyzed
+                      {progress.filter_progress.cached > 0 && ` (${progress.filter_progress.cached} cached)`}
+                    </span>
+                  )}
+                </div>
               </div>
             )}
 
