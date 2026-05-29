@@ -22,6 +22,7 @@ const CreateProfileSchema = z.object({
   emdn_code:        z.string().max(20).transform(v => v ? v.toUpperCase() : v).pipe(z.string().regex(/^[A-Z]\d{2,8}$/, 'Invalid EMDN code format')).optional().or(z.literal('')).transform(v => v || null),
   intended_use:     z.string().max(2000).optional(),
   competitor_terms: z.array(CompetitorTermSchema).max(20).default([]),
+  strategy_doc_paths: z.array(z.string().max(500)).max(5).default([]),
 })
 
 export async function GET() {
@@ -75,7 +76,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return Response.json({ error: 'Validation failed. Check your input and try again.' }, { status: 422 })
   }
-  const { device_name, manufacturer, emdn_code, device_class, intended_use, competitor_terms } = parsed.data
+  const { device_name, manufacturer, emdn_code, device_class, intended_use, competitor_terms, strategy_doc_paths } = parsed.data
 
   // Enforce plan profile limit
   const { data: userData } = await supabase
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
       emdn_code:       emdn_code    ?? null,
       device_class:    device_class ?? null,
       intended_use:    intended_use ?? null,
-      search_strategy: { competitor_terms } as unknown as Json,
+      search_strategy: { competitor_terms, strategy_doc_paths } as unknown as Json,
     })
     .select('id, user_id, device_name, manufacturer, emdn_code, device_class, intended_use, search_strategy, created_at, last_modified_at')
     .single()

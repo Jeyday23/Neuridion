@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { Upload, X, CheckCircle, Loader2 } from 'lucide-react'
 import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
+import { createClient } from '@/lib/supabase/client'
 import { apiFetch } from '@/lib/fetch'
 
 const DEVICE_CLASSES = ['Class I', 'Class IIa', 'Class IIb', 'Class III']
@@ -17,6 +19,8 @@ export function ProfileForm() {
   const [saving, setSaving]   = useState(false)
   const [error, setError]     = useState<string | null>(null)
   const [competitors, setCompetitors] = useState<CompetitorEntry[]>([])
+  const [strategyFiles, setStrategyFiles] = useState<Array<{ key: string; name: string; path: string; status: 'uploading' | 'done' | 'error' }>>([])
+  const strategyInputRef = useRef<HTMLInputElement>(null)
 
   function addCompetitor() {
     if (competitors.length >= 20) return
@@ -29,6 +33,27 @@ export function ProfileForm() {
 
   function updateCompetitor(idx: number, field: 'name' | 'manufacturer', value: string) {
     setCompetitors(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e))
+  }
+
+  async function handleStrategyUpload(files: FileList | File[]) {
+    const sb = createClient()
+    const { data: { user: authUser } } = await sb.auth.getUser()
+    if (!authUser) return
+
+    for (const file of Array.from(files)) {
+      if (file.size > 10 * 1024 * 1024) continue
+      if (strategyFiles.length >= 5) break
+      const key = `${Date.now()}_${Math.random().toString(36).slice(2)}`
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `${authUser.id}/profiles/pending/${key}_${safe}`
+      setStrategyFiles(prev => [...prev, { key, name: file.name, path, status: 'uploading' }])
+      try {
+        const { error } = await sb.storage.from('search-attachments').upload(path, file)
+        setStrategyFiles(prev => prev.map(f => f.key === key ? { ...f, status: error ? 'error' : 'done' } : f))
+      } catch {
+        setStrategyFiles(prev => prev.map(f => f.key === key ? { ...f, status: 'error' } : f))
+      }
+    }
   }
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -49,6 +74,7 @@ export function ProfileForm() {
           device_class:     (fd.get('device_class') as string) || undefined,
           intended_use:     (fd.get('intended_use') as string)?.trim() || undefined,
           competitor_terms: competitors.filter(e => e.name.trim()),
+          strategy_doc_paths: strategyFiles.filter(f => f.status === 'done').map(f => f.path),
         }),
       })
       const data = await res.json() as { error?: string | Record<string, string[]> }
@@ -161,6 +187,42 @@ export function ProfileForm() {
             )}
           </div>
         )}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+          Search strategy documents
+          <InfoTooltip text="Upload your search strategy or PMS plan documents for reference. These files are stored with your profile for traceability but are not read by the AI during classification." />
+        </label>
+        <input ref={strategyInputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.txt" className="hidden"
+          onChange={(e) => e.target.files && handleStrategyUpload(e.target.files)} />
+        <button type="button" onClick={() => strategyInputRef.current?.click()}
+          disabled={strategyFiles.length >= 5}
+          className="w-full rounded border border-dashed border-zinc-300 px-4 py-3 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          <Upload className="w-4 h-4" />
+          Upload strategy document ({strategyFiles.length}/5)
+        </button>
+        {strategyFiles.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {strategyFiles.map(f => (
+              <li key={f.key} className="flex items-center gap-2 text-sm">
+                {f.status === 'uploading' && <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-500 shrink-0" />}
+                {f.status === 'done' && <CheckCircle className="w-3.5 h-3.5 text-green-600 shrink-0" />}
+                {f.status === 'error' && <X className="w-3.5 h-3.5 text-red-500 shrink-0" />}
+                <span className="flex-1 truncate text-zinc-600">{f.name}</span>
+                {f.status !== 'uploading' && (
+                  <button type="button" onClick={() => setStrategyFiles(prev => prev.filter(u => u.key !== f.key))}
+                    className="text-zinc-400 hover:text-red-500 transition-colors" aria-label="Remove file">
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-1 text-[11px] text-zinc-400">
+          If your uploaded strategy document already contains competitor information, you don't need to re-enter it in the competitor list above.
+        </p>
       </div>
 
       {error && (

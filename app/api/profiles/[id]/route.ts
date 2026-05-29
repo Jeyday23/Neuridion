@@ -24,6 +24,7 @@ const UpdateSchema = z.object({
   emdn_code:        z.string().max(20).transform(v => v ? v.toUpperCase() : v).pipe(z.string().regex(/^[A-Z]\d{2,8}$/, 'Invalid EMDN code format')).nullable().optional().or(z.literal('')).transform(v => v || null),
   intended_use:     z.string().nullable().optional(),
   competitor_terms: z.array(CompetitorTermSchema).max(20).optional(),
+  strategy_doc_paths: z.array(z.string().max(500)).max(5).optional(),
 })
 
 export async function PATCH(
@@ -98,6 +99,15 @@ export async function PATCH(
     }
   }
 
+  if (updates.strategy_doc_paths !== undefined) {
+    const prevStrategy = (existing as Record<string, unknown>).search_strategy
+    const prev = (prevStrategy as Record<string, unknown> | null)?.strategy_doc_paths ?? []
+    if (JSON.stringify(prev) !== JSON.stringify(updates.strategy_doc_paths)) {
+      changedFields['strategy_doc_paths'] = updates.strategy_doc_paths
+      previousValues['strategy_doc_paths'] = prev
+    }
+  }
+
   const now = new Date().toISOString()
 
   // Build update payload (only fields present in body)
@@ -111,8 +121,12 @@ export async function PATCH(
     }
   }
 
-  if (updates.competitor_terms !== undefined) {
-    updatePayload.search_strategy = { competitor_terms: updates.competitor_terms } as unknown as Json
+  if (updates.competitor_terms !== undefined || updates.strategy_doc_paths !== undefined) {
+    const prevStrategy = (existing.search_strategy ?? {}) as Record<string, unknown>
+    const newStrategy: Record<string, unknown> = { ...prevStrategy }
+    if (updates.competitor_terms !== undefined) newStrategy.competitor_terms = updates.competitor_terms
+    if (updates.strategy_doc_paths !== undefined) newStrategy.strategy_doc_paths = updates.strategy_doc_paths
+    updatePayload.search_strategy = newStrategy as unknown as Json
   }
 
   type ProfileUpdate = Database['public']['Tables']['product_profiles']['Update']

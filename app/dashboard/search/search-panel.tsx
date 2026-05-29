@@ -5,9 +5,8 @@ import { useSearchContext, type SearchProgress } from '../search-context'
 import { useLanguage } from '../language-context'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
-import { Upload, X, CheckCircle, Loader2, ChevronDown, Square } from 'lucide-react'
+import { X, CheckCircle, Loader2, ChevronDown, Square } from 'lucide-react'
 import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
-import { createClient } from '@/lib/supabase/client'
 import { FeedbackPopup } from '@/app/components/FeedbackPopup'
 import { useToast } from '@/app/components/ui/ToastProvider'
 import { apiFetch } from '@/lib/fetch'
@@ -51,13 +50,6 @@ type ReportState =
   | { phase: 'generating' }
   | { phase: 'ready'; pdfUrl: string | null; htmlUrl: string | null; excelUrl: string | null; pdfStatus: 'generated' | 'quota_exceeded' | 'failed' }
   | { phase: 'error'; message: string }
-
-interface UploadedFile {
-  key: string
-  name: string
-  path: string
-  status: 'uploading' | 'done' | 'error'
-}
 
 type FilterTab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
 
@@ -412,7 +404,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         fromDate?: string
         toDate?: string
         selectedDbs?: string[]
-        uploadedFileMeta?: { key: string; name: string; path: string }[]
       }
     } catch { return null }
   }
@@ -427,23 +418,15 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const [filterTab, setFilterTab]     = useState<FilterTab>('all')
   const [draftId, setDraftId]         = useState<string | null>(null)
   const [draftSaving, setDraftSaving] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>(
-    () => (saved?.uploadedFileMeta ?? []).map(f => ({ ...f, status: 'done' as const }))
-  )
-  const [isDragging, setIsDragging]   = useState(false)
   const [selectedDbs, setSelectedDbs] = useState<Set<string>>(
     saved?.selectedDbs ? new Set(saved.selectedDbs) : new Set(databases.filter(d => d.active).map(d => d.id))
   )
 
   useEffect(() => {
-    const completedFiles = uploadedFiles
-      .filter(f => f.status === 'done')
-      .map(({ key, name, path }) => ({ key, name, path }))
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
       profileId, fromDate, toDate, selectedDbs: [...selectedDbs],
-      uploadedFileMeta: completedFiles,
     }))
-  }, [profileId, fromDate, toDate, selectedDbs, uploadedFiles])
+  }, [profileId, fromDate, toDate, selectedDbs])
   const [hoveredDb, setHoveredDb]     = useState<string | null>(null)
 
   const [showFeedback, setShowFeedback] = useState(false)
@@ -458,7 +441,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   const isLongSearch   = totalDays > 366 && totalDays <= MAX_DAYS
   const isOverLimit    = totalDays > MAX_DAYS
 
-  const fileInputRef   = useRef<HTMLInputElement>(null)
   const submittingRef  = useRef(false)
   // Scroll target for "View results" navigation
   const resultsRef  = useRef<HTMLDivElement>(null)
@@ -535,11 +517,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
   }
 
   async function saveDraft(successMsg = 'Draft saved') {
-    const stillUploading = uploadedFiles.some(f => f.status === 'uploading')
-    if (stillUploading) {
-      showToast('Please wait for file uploads to finish before saving.', 'error')
-      return
-    }
     setDraftSaving(true)
     try {
       const body = {
@@ -547,7 +524,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
         profile_id: profileId || null,
         from: fromDate, to: toDate,
         dbs: [...selectedDbs],
-        uploadedPaths: uploadedFiles.filter((f) => f.status === 'done').map((f) => f.path),
       }
       const res  = await apiFetch('/api/search-drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       const data = await res.json() as { id?: string; error?: string }
@@ -567,32 +543,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       setDraftSaving(false)
     }
   }
-
-  async function handleFiles(files: FileList | File[]) {
-    const sb = createClient()
-    const { data: { user: authUser } } = await sb.auth.getUser()
-    if (!authUser) { showToast('Please sign in to upload files', 'error'); return }
-
-    for (const file of Array.from(files)) {
-      if (file.size > 10 * 1024 * 1024) { showToast(`${file.name} exceeds 10 MB limit`, 'error'); continue }
-      const key  = `${Date.now()}_${Math.random().toString(36).slice(2)}`
-      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-      const path = `${authUser.id}/${key}_${safe}`
-      setUploadedFiles((prev) => [...prev, { key, name: file.name, path, status: 'uploading' }])
-      try {
-        const { error } = await sb.storage.from('search-attachments').upload(path, file)
-        setUploadedFiles((prev) => prev.map((f) => f.key === key ? { ...f, status: error ? 'error' : 'done' } : f))
-        if (error) showToast(`Upload failed: ${file.name}`, 'error')
-      } catch {
-        setUploadedFiles((prev) => prev.map((f) => f.key === key ? { ...f, status: 'error' } : f))
-        showToast(`Upload failed: ${file.name}`, 'error')
-      }
-    }
-  }
-
-  function onDragOver(e: React.DragEvent) { e.preventDefault(); setIsDragging(true) }
-  function onDragLeave() { setIsDragging(false) }
-  function onDrop(e: React.DragEvent) { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files) }
 
   async function generateReport(runId: string) {
     setReportState({ phase: 'generating' })
@@ -834,42 +784,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           </div>
         </section>
 
-        {/* File upload */}
-        <section className="bg-white rounded-md border border-[#E2E8F0] p-8">
-          <h2 className="text-xl font-semibold text-[#0F1F3D] mb-6">
-            {t.search.strategyDocs}
-            <InfoTooltip text="Upload your search strategy or PMS plan documents for reference. These files are stored with your search run for traceability but are not read by the AI during classification." />
-          </h2>
-          <input ref={fileInputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.png,.jpg,.jpeg,.txt" className="hidden"
-            onChange={(e) => e.target.files && handleFiles(e.target.files)} />
-          <div className={clsx('border-2 border-dashed rounded p-12 text-center transition-colors cursor-pointer',
-            isDragging ? 'border-[#0D9488] bg-[rgba(13,148,136,0.06)]' : 'border-slate-300 hover:border-[#0D9488] hover:bg-[rgba(13,148,136,0.06)]')}
-            onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
-            onClick={() => fileInputRef.current?.click()}>
-            <Upload className="w-12 h-12 text-[#0D9488] mx-auto mb-4" />
-            <p className="text-[#134E4A] font-medium mb-1">{t.search.dropFiles}</p>
-            <p className="text-sm text-[#0F766E]">{t.search.dropFilesHint}</p>
-          </div>
-          {uploadedFiles.length > 0 && (
-            <ul className="mt-4 space-y-2">
-              {uploadedFiles.map((f) => (
-                <li key={f.key} className="flex items-center gap-3 text-sm">
-                  {f.status === 'uploading' && <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />}
-                  {f.status === 'done'      && <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />}
-                  {f.status === 'error'     && <X className="w-4 h-4 text-red-500 shrink-0" />}
-                  <span className={clsx('flex-1 truncate text-[#134E4A]', f.status === 'error' && 'text-red-600')}>{f.name}</span>
-                  {f.status !== 'uploading' && (
-                    <button type="button" onClick={() => setUploadedFiles((prev) => prev.filter((u) => u.key !== f.key))}
-                      className="text-zinc-400 hover:text-red-500 transition-colors" aria-label="Remove file">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
         {/* Date range warnings */}
         {isOverLimit && (
           <div className="rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] p-4">
@@ -899,7 +813,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
         {/* Action bar */}
         <div className="flex items-center justify-between pt-6 border-t border-[#E2E8F0] flex-wrap gap-3">
-          <button type="button" onClick={() => saveDraft()} disabled={noProfiles || draftSaving || uploadedFiles.some(f => f.status === 'uploading')}
+          <button type="button" onClick={() => saveDraft()} disabled={noProfiles || draftSaving}
             className="px-6 py-3 border border-[#E2E8F0] text-[#134E4A] rounded hover:border-[#0D9488] hover:text-[#0D9488] transition-colors font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
             {draftSaving && <Loader2 className="w-4 h-4 animate-spin" />}
             {t.search.saveDraft}
