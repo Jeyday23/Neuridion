@@ -60,6 +60,10 @@ export async function PATCH(
   }
   const updates = parsed.data
 
+  if (updates.strategy_doc_paths?.some(p => !p.startsWith(`${user.id}/`))) {
+    return Response.json({ error: 'Validation failed. Check your input and try again.' }, { status: 422 })
+  }
+
   const db = createAdminClient()
 
   // Fetch existing profile (verify ownership)

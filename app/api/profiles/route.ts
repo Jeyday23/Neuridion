@@ -78,6 +78,10 @@ export async function POST(request: Request) {
   }
   const { device_name, manufacturer, emdn_code, device_class, intended_use, competitor_terms, strategy_doc_paths } = parsed.data
 
+  if (strategy_doc_paths.some(p => !p.startsWith(`${user.id}/`))) {
+    return Response.json({ error: 'Validation failed. Check your input and try again.' }, { status: 422 })
+  }
+
   // Enforce plan profile limit
   const { data: userData } = await supabase
     .from('users')
