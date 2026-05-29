@@ -65,7 +65,7 @@ export function SidebarNav({ userRole, quota }: { userRole: string | null; quota
               className="flex items-center gap-3 px-4 py-3 rounded-lg text-[#134E4A] hover:bg-[#F0FDFA] transition-colors"
             >
               <Shield className="w-5 h-5" />
-              <span>Admin</span>
+              <span>Administration</span>
             </Link>
             <div className="border-t border-[#E2E8F0] my-1" />
           </>
