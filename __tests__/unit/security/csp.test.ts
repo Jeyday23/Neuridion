@@ -22,12 +22,24 @@ describe('buildCspHeader', () => {
     const requiredDomains = [
       'https://*.supabase.co',
       'https://api.stripe.com',
-      'https://api.anthropic.com',
-      'https://api.fda.gov',
-      'https://fsca.swissmedic.ch',
     ]
     for (const domain of requiredDomains) {
       expect(header).toContain(domain)
+    }
+  })
+
+  it('excludes server-only origins from connect-src', () => {
+    const header = buildCspHeader('n')
+    const serverOnly = [
+      'https://api.anthropic.com',
+      'https://api.pdfshift.io',
+      'https://api.resend.com',
+      'https://api.firecrawl.dev',
+      'https://fsca.swissmedic.ch',
+      'https://api.fda.gov',
+    ]
+    for (const domain of serverOnly) {
+      expect(header).not.toContain(domain)
     }
   })
 
