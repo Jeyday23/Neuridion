@@ -90,6 +90,8 @@ export function extractCompetitorTokens(
   const tokens = new Set<string>()
 
   for (const entry of entries) {
+    if (tokens.size >= MAX_TOTAL_COMPETITOR_TOKENS) break
+
     if (entry.name?.trim()) {
       const nameTokens = entry.name
         .replace(/[^\p{L}\p{N}\s.\-]/gu, ' ')
