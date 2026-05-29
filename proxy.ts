@@ -130,6 +130,14 @@ export async function proxy(request: NextRequest) {
 
   let supabaseResponse = NextResponse.next({ request })
 
+  // Snapshot which cookies the browser actually sent with THIS request.
+  // RSC prefetches fired before the browser processes a login Set-Cookie
+  // arrive without auth cookies. Supabase SSR then calls setAll to "delete"
+  // those tokens (maxAge=0), racing with the login response that set them.
+  // By only forwarding deletions for cookies the request actually carried,
+  // we prevent prefetch responses from wiping freshly-issued auth tokens.
+  const originalCookieNames = new Set(request.cookies.getAll().map((c) => c.name))
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -141,9 +149,12 @@ export async function proxy(request: NextRequest) {
         setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value, options }) => {
+            const isDeletion = (options?.maxAge != null && options.maxAge <= 0)
+              || (options?.expires instanceof Date && options.expires.getTime() < Date.now())
+            if (isDeletion && !originalCookieNames.has(name)) return
             supabaseResponse.cookies.set(name, value, options)
-          )
+          })
           if (headers) {
             Object.entries(headers).forEach(([key, value]) =>
               supabaseResponse.headers.set(key, value)
@@ -156,11 +167,12 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Clear stale session cookies when no authenticated user exists
-  if (!user && request.cookies.has(SESSION_COOKIE)) {
+  // Clear stale session cookies when no authenticated user exists.
+  // Use originalCookieNames (not request.cookies) because setAll mutates request.cookies.
+  if (!user && originalCookieNames.has(SESSION_COOKIE)) {
     supabaseResponse.cookies.delete(SESSION_COOKIE)
   }
-  if (!user && request.cookies.has(IDLE_COOKIE)) {
+  if (!user && originalCookieNames.has(IDLE_COOKIE)) {
     supabaseResponse.cookies.delete(IDLE_COOKIE)
   }
 
