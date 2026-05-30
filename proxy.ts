@@ -138,6 +138,11 @@ export async function proxy(request: NextRequest) {
   // we prevent prefetch responses from wiping freshly-issued auth tokens.
   const originalCookieNames = new Set(request.cookies.getAll().map((c) => c.name))
 
+  function isCookieDeletion(options?: { maxAge?: number; expires?: Date }): boolean {
+    return (options?.maxAge != null && options.maxAge <= 0)
+      || (options?.expires instanceof Date && options.expires.getTime() < Date.now())
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -147,12 +152,13 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet, headers) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value, options }) => {
+            if (isCookieDeletion(options)) return
+            request.cookies.set(name, value)
+          })
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) => {
-            const isDeletion = (options?.maxAge != null && options.maxAge <= 0)
-              || (options?.expires instanceof Date && options.expires.getTime() < Date.now())
-            if (isDeletion && !originalCookieNames.has(name)) return
+            if (isCookieDeletion(options)) return
             supabaseResponse.cookies.set(name, value, options)
           })
           if (headers) {
@@ -167,8 +173,14 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Clear stale session cookies when no authenticated user exists.
-  // Use originalCookieNames (not request.cookies) because setAll mutates request.cookies.
+  function clearAuthCookies(response: NextResponse): void {
+    for (const name of originalCookieNames) {
+      if (name.startsWith('sb-')) response.cookies.delete({ name, path: '/' })
+    }
+    response.cookies.delete({ name: SESSION_COOKIE, path: '/' })
+    response.cookies.delete({ name: IDLE_COOKIE, path: '/' })
+  }
+
   if (!user && originalCookieNames.has(SESSION_COOKIE)) {
     supabaseResponse.cookies.delete(SESSION_COOKIE)
   }
@@ -194,12 +206,11 @@ export async function proxy(request: NextRequest) {
       const expectedSig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(tsStr).digest('hex').slice(0, 32)
       if (!safeCompare(sig, expectedSig) || Date.now() - Number(tsStr) > SESSION_MAX_AGE_MS) {
         await supabase.auth.signOut()
-        supabaseResponse.cookies.delete(SESSION_COOKIE)
-        supabaseResponse.cookies.delete(IDLE_COOKIE)
-        if (pathname.startsWith('/api/')) {
-          return addSecurityHeaders(NextResponse.json({ error: 'Session expired' }, { status: 401 }))
-        }
-        return addSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)))
+        const expiredRes = pathname.startsWith('/api/')
+          ? NextResponse.json({ error: 'Session expired' }, { status: 401 })
+          : NextResponse.redirect(new URL('/login', request.url))
+        clearAuthCookies(expiredRes)
+        return addSecurityHeaders(expiredRes)
       }
     }
 
@@ -214,15 +225,12 @@ export async function proxy(request: NextRequest) {
       const hasEstablishedSession = request.cookies.has(SESSION_COOKIE)
       const now = Date.now()
       if (!activeCookie && hasEstablishedSession) {
-        // Idle cookie missing for an existing session — treat as expired.
-        // New sessions won't have SESSION_COOKIE in the request yet (it's set above).
         await supabase.auth.signOut()
-        supabaseResponse.cookies.delete(SESSION_COOKIE)
-        supabaseResponse.cookies.delete(IDLE_COOKIE)
-        if (pathname.startsWith('/api/')) {
-          return addSecurityHeaders(NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 }))
-        }
-        return addSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)))
+        const idleRes = pathname.startsWith('/api/')
+          ? NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 })
+          : NextResponse.redirect(new URL('/login', request.url))
+        clearAuthCookies(idleRes)
+        return addSecurityHeaders(idleRes)
       }
       if (activeCookie) {
         const [activeTs, activeSig] = activeCookie.split('.')
@@ -232,14 +240,12 @@ export async function proxy(request: NextRequest) {
           .digest('hex')
           .slice(0, 32)
         if (!safeCompare(activeSig ?? '', expectedActiveSig) || now - Number(activeTs) > IDLE_TIMEOUT_MS) {
-          // Idle timeout expired — sign out and clear cookies
           await supabase.auth.signOut()
-          supabaseResponse.cookies.delete(SESSION_COOKIE)
-          supabaseResponse.cookies.delete(IDLE_COOKIE)
-          if (pathname.startsWith('/api/')) {
-            return addSecurityHeaders(NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 }))
-          }
-          return addSecurityHeaders(NextResponse.redirect(new URL('/login', request.url)))
+          const idleRes2 = pathname.startsWith('/api/')
+            ? NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 })
+            : NextResponse.redirect(new URL('/login', request.url))
+          clearAuthCookies(idleRes2)
+          return addSecurityHeaders(idleRes2)
         }
       }
       // Set/refresh the idle activity cookie with current timestamp
