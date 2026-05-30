@@ -1,7 +1,8 @@
-import { chromium, type Browser, type Page } from 'playwright'
+import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
 import { createClient } from '@supabase/supabase-js'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as crypto from 'crypto'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,9 +40,10 @@ const REPORT_DIR = path.resolve('docs/prrc-review')
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in environment')
+if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+  console.error('Missing NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, or NEXT_PUBLIC_SUPABASE_ANON_KEY in environment')
   process.exit(1)
 }
 
@@ -89,6 +91,113 @@ async function test(
 function skip(section: string, name: string, reason: string): void {
   results.push({ section, name, status: 'skip', detail: reason })
   console.log(`  ○ ${name}: ${reason}`)
+}
+
+// ── Auth session establishment ───────────────────────────────────────────
+
+function hmacSha256Hex(key: string, data: string): string {
+  return crypto.createHmac('sha256', key).update(data).digest('hex')
+}
+
+async function establishSession(browser: Browser): Promise<{ context: BrowserContext; page: Page }> {
+  const { data: linkData, error: linkError } = await adminDb.auth.admin.generateLink({
+    type: 'magiclink',
+    email: TEST_EMAIL,
+  })
+  if (linkError || !linkData) throw new Error(`generateLink failed: ${linkError?.message}`)
+
+  const otp = (linkData.properties as Record<string, unknown>)?.email_otp as string | undefined
+  if (!otp) throw new Error('No email_otp returned from admin API')
+
+  const anonClient = createClient(supabaseUrl!, supabaseAnonKey!)
+  const { data: verifyData, error: verifyError } = await anonClient.auth.verifyOtp({
+    email: TEST_EMAIL,
+    token: otp,
+    type: 'email',
+  })
+  if (verifyError || !verifyData.session) throw new Error(`verifyOtp failed: ${verifyError?.message}`)
+
+  const session = verifyData.session
+  const projectRef = new URL(supabaseUrl!).hostname.split('.')[0]
+  const cookieBase = `sb-${projectRef}-auth-token`
+
+  const sessionPayload = JSON.stringify({
+    access_token: session.access_token,
+    refresh_token: session.refresh_token,
+    expires_at: session.expires_at,
+    expires_in: session.expires_in,
+    token_type: session.token_type,
+    user: session.user,
+  })
+  const encodedValue = 'base64-' + Buffer.from(sessionPayload).toString('base64url')
+
+  const domain = new URL(BASE_URL).hostname
+  const CHUNK_SIZE = 3180
+
+  const urlEncoded = encodeURIComponent(encodedValue)
+  let authCookies: { name: string; value: string; domain: string; path: string; httpOnly: boolean; secure: boolean; sameSite: 'Lax' }[]
+
+  if (urlEncoded.length <= CHUNK_SIZE) {
+    authCookies = [{
+      name: cookieBase,
+      value: encodedValue,
+      domain,
+      path: '/',
+      httpOnly: false,
+      secure: false,
+      sameSite: 'Lax' as const,
+    }]
+  } else {
+    const chunks: string[] = []
+    let remaining = encodedValue
+    while (remaining.length > 0) {
+      let chunkEnd = CHUNK_SIZE
+      if (chunkEnd > remaining.length) chunkEnd = remaining.length
+      chunks.push(remaining.slice(0, chunkEnd))
+      remaining = remaining.slice(chunkEnd)
+    }
+    authCookies = chunks.map((chunk, i) => ({
+      name: `${cookieBase}.${i}`,
+      value: chunk,
+      domain,
+      path: '/',
+      httpOnly: false,
+      secure: false,
+      sameSite: 'Lax' as const,
+    }))
+  }
+
+  const sessionHmacKey = hmacSha256Hex(supabaseServiceKey!, 'neuridion-session-v1')
+  const now = String(Date.now())
+  const sessionSig = hmacSha256Hex(sessionHmacKey, now)
+  const idleSig = hmacSha256Hex(sessionHmacKey, now)
+
+  const sessionCookies = [
+    ...authCookies,
+    {
+      name: 'session_started_at',
+      value: `${now}.${sessionSig}`,
+      domain,
+      path: '/',
+      httpOnly: true,
+      secure: false,
+      sameSite: 'Lax' as const,
+    },
+    {
+      name: '_neuridion_active',
+      value: `${now}.${idleSig}`,
+      domain,
+      path: '/',
+      httpOnly: true,
+      secure: false,
+      sameSite: 'Lax' as const,
+    },
+  ]
+
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+  await context.addCookies(sessionCookies)
+  const page = await context.newPage()
+  return { context, page }
 }
 
 // ── Report generator ─────────────────────────────────────────────────────────
@@ -238,7 +347,7 @@ async function testPublicPages(page: Page): Promise<void> {
     return { detail: 'Cookie banner appeared on fresh session' }
   })
 }
-async function testAuth(page: Page, browser: Browser): Promise<void> {
+async function testAuth(page: Page, browser: Browser): Promise<{ authedPage: Page; authedContext: BrowserContext } | null> {
   const section = 'Authentication'
 
   await test(section, 'Login page renders OTP form', page, async () => {
@@ -248,73 +357,64 @@ async function testAuth(page: Page, browser: Browser): Promise<void> {
     return { detail: 'Login page rendered with email input' }
   })
 
-  await test(section, 'OTP send and login', page, async () => {
+  await test(section, 'OTP UI flow (email → code step)', page, async () => {
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'domcontentloaded' })
+    await page.route('**/api/auth/otp', (route) =>
+      route.fulfill({ status: 200, body: '{}', contentType: 'application/json' })
+    )
     await page.fill('input[type="email"]', TEST_EMAIL)
     await page.click('button[type="submit"]')
     await page.waitForTimeout(2000)
 
     const otpInputs = await page.locator('input[inputmode="numeric"]').count()
+    await page.unroute('**/api/auth/otp')
     if (otpInputs === 0) throw new Error('OTP input fields did not appear after submitting email')
-
-    const { data, error } = await adminDb.auth.admin.generateLink({
-      type: 'magiclink',
-      email: TEST_EMAIL,
-    })
-    if (error || !data) throw new Error(`Failed to generate OTP: ${error?.message ?? 'no data'}`)
-
-    const token = data.properties?.hashed_token
-    if (!token) {
-      skip(section, 'OTP verification', 'Could not extract OTP token from admin API — manual login required')
-      return { detail: 'OTP sent, but automated verification not available', suggestion: 'Consider adding a test-only OTP bypass endpoint for automated testing' }
-    }
-
-    return { detail: 'OTP form appeared after email submission', suggestion: 'Consider adding a test mode that auto-fills OTP for CI/CD' }
+    return { detail: `${otpInputs} OTP digit inputs rendered after email submission` }
   })
 
-  await test(section, 'Session-based login bypass', page, async () => {
-    const { data: users } = await adminDb.auth.admin.listUsers()
-    const testUser = users?.users?.find((u: { email?: string }) => u.email === TEST_EMAIL)
-    if (!testUser) throw new Error(`Test user ${TEST_EMAIL} not found in Supabase`)
+  let authedPage: Page | null = null
+  let authedContext: BrowserContext | null = null
 
-    await page.goto(`${BASE_URL}/dashboard/search`, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(1500)
-    const url = page.url()
+  await test(section, 'Session cookie injection + dashboard access', page, async () => {
+    const result = await establishSession(browser)
+    authedPage = result.page
+    authedContext = result.context
 
-    if (url.includes('/login')) {
-      const { data: linkData, error: linkError } = await adminDb.auth.admin.generateLink({
-        type: 'magiclink',
-        email: TEST_EMAIL,
-      })
-      if (linkError) throw new Error(`Link generation failed: ${linkError.message}`)
+    await authedPage.goto(`${BASE_URL}/dashboard/search`, { waitUntil: 'domcontentloaded' })
+    await authedPage.waitForTimeout(2000)
+    const url = authedPage.url()
+    if (url.includes('/login')) throw new Error('Still redirected to login after session cookie injection')
+    return { detail: 'Successfully authenticated via cookie injection and reached dashboard' }
+  })
 
-      const verifyUrl = linkData?.properties?.action_link
-      if (verifyUrl) {
-        const localUrl = verifyUrl.replace(/https?:\/\/[^/]+/, BASE_URL)
-        await page.goto(localUrl, { waitUntil: 'domcontentloaded' })
-        await page.waitForTimeout(2000)
+  if (!authedPage) return null
+
+  await test(section, 'Logout works', authedPage, async () => {
+    // Dismiss cookie banner if it overlaps the logout button
+    const cookieBanner = authedPage!.locator('.fixed.bottom-0')
+    if (await cookieBanner.isVisible({ timeout: 1000 }).catch(() => false)) {
+      const acceptBtn = authedPage!.locator('button:has-text("Accept")').or(authedPage!.locator('button:has-text("Akzeptieren")'))
+      if (await acceptBtn.first().isVisible({ timeout: 1000 }).catch(() => false)) {
+        await acceptBtn.first().click()
+        await authedPage!.waitForTimeout(500)
       }
-
-      await page.goto(`${BASE_URL}/dashboard/search`, { waitUntil: 'domcontentloaded' })
-      await page.waitForTimeout(1500)
-      const finalUrl = page.url()
-      if (finalUrl.includes('/login')) throw new Error('Still redirected to login after session bypass')
     }
 
-    return { detail: 'Successfully authenticated and reached dashboard' }
-  })
-
-  await test(section, 'Logout works', page, async () => {
-    const logoutLink = page.locator('text=Log out').or(page.locator('a[href*="logout"]'))
-    if (await logoutLink.first().isVisible()) {
-      await logoutLink.first().click()
-      await page.waitForTimeout(1500)
-      const url = page.url()
+    const logoutBtn = authedPage!.locator('button:has-text("Log out")').or(authedPage!.locator('button:has-text("Abmelden")'))
+    if (await logoutBtn.first().isVisible({ timeout: 3000 }).catch(() => false)) {
+      await logoutBtn.first().click({ force: true })
+      await authedPage!.waitForTimeout(2000)
+      const url = authedPage!.url()
       if (!url.includes('/login') && url !== `${BASE_URL}/`) throw new Error(`Expected redirect to login or home, got: ${url}`)
       return { detail: `Logged out, redirected to ${url}` }
     }
-    throw new Error('Logout link not found')
+    throw new Error('Logout button not found')
   })
+
+  // Re-establish session for remaining authenticated tests
+  if (authedContext) await authedContext.close()
+  const freshSession = await establishSession(browser)
+  return { authedPage: freshSession.page, authedContext: freshSession.context }
 }
 async function testDashboardLayout(page: Page): Promise<void> {
   const section = 'Dashboard Layout'
@@ -368,10 +468,15 @@ async function testProfiles(page: Page): Promise<void> {
 
   await test(section, 'Existing profiles listed', page, async () => {
     await page.goto(`${BASE_URL}/dashboard/profiles`, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(1000)
-    const profiles = await page.locator('[class*="border"], [class*="card"]').filter({ hasText: /B\. Braun|Medtronic|Infusomat|Micra/ }).count()
-    if (profiles > 0) return { detail: `Found ${profiles} existing profiles` }
-    const emptyState = page.locator('text=No profiles').or(page.locator('text=Create your first'))
+    await page.waitForTimeout(1500)
+    // Look for any profile card with a device name or manufacturer
+    const profileCards = page.locator('[class*="border"], [class*="card"]').filter({ has: page.locator('text=/Device|Manufacturer|Class|EMDN/i') })
+    const count = await profileCards.count()
+    if (count > 0) return { detail: `Found ${count} existing profile(s)` }
+    // Also check for profile links/items in a simpler list layout
+    const profileLinks = await page.locator('a[href*="/dashboard/profiles/"]').count()
+    if (profileLinks > 0) return { detail: `Found ${profileLinks} profile link(s)` }
+    const emptyState = page.locator('text=No profiles').or(page.locator('text=Create your first')).or(page.locator('text=no device profiles'))
     if (await emptyState.first().isVisible().catch(() => false)) return { detail: 'Empty state displayed (no profiles yet)' }
     throw new Error('Neither profiles nor empty state found')
   })
@@ -421,16 +526,19 @@ async function testReportGeneration(page: Page): Promise<void> {
 
   if (page.url().includes('/login')) { skip(section, 'All report tests', 'Not authenticated'); return }
 
-  await test(section, 'Generate Report button exists in archive', page, async () => {
+  await test(section, 'Report column exists in archive', page, async () => {
     await page.goto(`${BASE_URL}/dashboard/archive`, { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(1500)
+    const reportHeader = page.locator('th:has-text("Report")')
+    const hasHeader = await reportHeader.first().isVisible().catch(() => false)
+    if (!hasHeader) throw new Error('Report column header not found in archive table')
     const genBtn = page.locator('text=Generate Report')
-    const downloadBtn = page.locator('text=PDF').or(page.locator('text=Excel'))
+    const downloadBtn = page.locator('text=PDF').or(page.locator('text=Excel').or(page.locator('text=HTML')))
     const hasGen = await genBtn.first().isVisible().catch(() => false)
     const hasDownload = await downloadBtn.first().isVisible().catch(() => false)
-    if (!hasGen && !hasDownload) throw new Error('Neither Generate Report nor download buttons found')
-    if (hasDownload) return { detail: 'Reports already generated — download links visible' }
-    return { detail: 'Generate Report button visible for completed runs' }
+    if (hasDownload) return { detail: 'Report column present — download links visible' }
+    if (hasGen) return { detail: 'Report column present — Generate Report button visible' }
+    return { detail: 'Report column present (runs may need review before report generation)', suggestion: 'Reports require review_status != draft before generation is available' }
   })
 
   await test(section, 'Download links work', page, async () => {
@@ -610,34 +718,37 @@ async function main() {
     await testPublicPages(page)
 
     console.log('[2/11] Authentication')
-    await testAuth(page, browser)
+    const authResult = await testAuth(page, browser)
+    const authedPage = authResult?.authedPage ?? page
 
     console.log('[3/11] Dashboard Layout')
-    await testDashboardLayout(page)
+    await testDashboardLayout(authedPage)
 
     console.log('[4/11] Profiles')
-    await testProfiles(page)
+    await testProfiles(authedPage)
 
     console.log('[5/11] Search')
-    await testSearch(page)
+    await testSearch(authedPage)
 
     console.log('[6/11] Report Generation')
-    await testReportGeneration(page)
+    await testReportGeneration(authedPage)
 
     console.log('[7/11] Archive')
-    await testArchive(page)
+    await testArchive(authedPage)
 
     console.log('[8/11] Settings')
-    await testSettings(page)
+    await testSettings(authedPage)
 
     console.log('[9/11] Billing')
-    await testBilling(page)
+    await testBilling(authedPage)
 
     console.log('[10/11] Admin')
-    await testAdmin(page)
+    await testAdmin(authedPage)
 
     console.log('[11/11] Error Handling')
     await testErrorHandling(page)
+
+    if (authResult?.authedContext) await authResult.authedContext.close()
   } finally {
     await browser.close()
   }

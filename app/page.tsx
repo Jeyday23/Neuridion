@@ -366,6 +366,7 @@ export default async function HomePage() {
                 <Link href="/sample-report" className="hover:text-[#0F1F3D] transition-colors">Sample Report</Link>
                 <Link href="/faq" className="hover:text-[#0F1F3D] transition-colors">FAQ</Link>
                 <Link href="/contact" className="hover:text-[#0F1F3D] transition-colors">Contact</Link>
+                <a href="mailto:info@neuridion.eu" className="hover:text-[#0F1F3D] transition-colors">info@neuridion.eu</a>
               </div>
               <div className="flex flex-col gap-1.5">
                 <Link href="/privacy" className="hover:text-[#0F1F3D] transition-colors">Privacy</Link>

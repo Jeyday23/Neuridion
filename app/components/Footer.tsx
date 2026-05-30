@@ -22,6 +22,8 @@ export function Footer({ className = '' }: { className?: string }) {
       <span className="mx-2">·</span>
       <Link href="/contact" className="hover:text-zinc-600 transition-colors">Contact</Link>
       <span className="mx-2">·</span>
+      <a href="mailto:info@neuridion.eu" className="hover:text-zinc-600 transition-colors">info@neuridion.eu</a>
+      <span className="mx-2">·</span>
       <ManageCookiesButton />
     </footer>
   )
