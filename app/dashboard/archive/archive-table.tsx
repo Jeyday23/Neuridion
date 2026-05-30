@@ -25,6 +25,7 @@ interface RunRow {
   report_html_path: string | null
   report_pdf_path: string | null
   report_excel_path: string | null
+  review_status: string | null
   report_docx_path: string | null
   report_generated_at: string | null
   product_profiles:
@@ -187,6 +188,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                 <th className="px-4 py-3 text-left font-medium text-zinc-600">DBs</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-600">Status</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-600">Results</th>
+                <th className="px-4 py-3 text-left font-medium text-zinc-600">Review</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-600">Report</th>
                 <th className="px-4 py-3 text-left font-medium text-zinc-600">Actions</th>
               </tr>
@@ -277,6 +279,26 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                       ) : '—'}
                     </td>
 
+                    {/* Review */}
+                    <td className="px-4 py-3 text-xs">
+                      {(run.status === 'complete' || run.status === 'degraded') ? (
+                        run.review_status === 'approved' ? (
+                          <span className="inline-flex items-center rounded border bg-green-50 text-green-700 border-green-200 px-2 py-0.5 font-medium">Approved</span>
+                        ) : run.review_status === 'reviewed' ? (
+                          <span className="inline-flex items-center rounded border bg-blue-50 text-blue-700 border-blue-200 px-2 py-0.5 font-medium">Reviewed</span>
+                        ) : (
+                          <a
+                            href={`/dashboard/archive/${run.id}`}
+                            className="inline-flex items-center rounded border bg-amber-50 text-amber-700 border-amber-200 px-2 py-0.5 font-medium hover:bg-amber-100 transition-colors"
+                          >
+                            Review needed
+                          </a>
+                        )
+                      ) : (
+                        <span className="text-zinc-300">—</span>
+                      )}
+                    </td>
+
                     {/* Report */}
                     <td className="px-4 py-3 text-xs">
                       {hasReport ? (
@@ -309,7 +331,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                         {hasDocx && (
                           <DownloadButton runId={run.id} format="docx" label="↓ Word" />
                         )}
-                        {!hasReport && (run.status === 'complete' || run.status === 'degraded') && (
+                        {!hasReport && (run.status === 'complete' || run.status === 'degraded') && run.review_status && run.review_status !== 'draft' && (
                           <GenerateReportButton runId={run.id} />
                         )}
                         {['running', 'filtering', 'queued'].includes(run.status) && (
