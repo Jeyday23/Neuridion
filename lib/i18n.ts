@@ -36,6 +36,9 @@ export const translations = {
       noResults:       'No Field Safety Notices (FSNs) found for the selected databases and period',
       noResultsHint:   'Databases may not publish daily. Try a wider date range — the last 14 days across all active databases typically has 10–30 FSNs.',
       noCategory:      'No results in this category.',
+      nextStep:        'Next step:',
+      nextStepBanner:  'Review and approve these results in the Archive, then generate your compliance report.',
+      reviewApprove:   'Review & Approve',
     },
     tabs: {
       all:          'All',
@@ -55,6 +58,7 @@ export const translations = {
       done:          'Search complete',
       failed:        'Search failed',
       viewResults:   'View results →',
+      reviewResults: 'Review & approve →',
       total:         'total',
     },
     phases: [
@@ -101,6 +105,9 @@ export const translations = {
       noResults:       'Keine Feldsicherheitshinweise für die ausgewählten Datenbanken und den Zeitraum gefunden',
       noResultsHint:   'Datenbanken veröffentlichen nicht täglich. Versuchen Sie einen längeren Zeitraum — die letzten 14 Tage haben typischerweise 10–30 FSNs.',
       noCategory:      'Keine Ergebnisse in dieser Kategorie.',
+      nextStep:        'Nächster Schritt:',
+      nextStepBanner:  'Ergebnisse im Archiv prüfen und genehmigen, dann Ihren Compliance-Bericht erstellen.',
+      reviewApprove:   'Prüfen & Genehmigen',
     },
     tabs: {
       all:          'Alle',
@@ -120,6 +127,7 @@ export const translations = {
       done:          'Suche abgeschlossen',
       failed:        'Suche fehlgeschlagen',
       viewResults:   'Ergebnisse anzeigen →',
+      reviewResults: 'Prüfen & genehmigen →',
       total:         'gesamt',
     },
     phases: [

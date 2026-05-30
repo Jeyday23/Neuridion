@@ -95,12 +95,20 @@ export function SearchStatusWidget() {
                 )}
                 {' '}· {searchState.results.length} {t.widget.total}
               </p>
-              <button
-                onClick={() => router.push('/dashboard/search')}
-                className="mt-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 underline underline-offset-2"
-              >
-                {t.widget.viewResults}
-              </button>
+              <div className="flex gap-3 mt-1.5">
+                <button
+                  onClick={() => router.push(`/dashboard/archive/${searchState.runId}`)}
+                  className="text-xs font-semibold text-[#0D9488] hover:text-[#0F766E] underline underline-offset-2"
+                >
+                  {t.widget.reviewResults}
+                </button>
+                <button
+                  onClick={() => router.push('/dashboard/search')}
+                  className="text-xs text-zinc-500 hover:text-zinc-700 underline underline-offset-2"
+                >
+                  {t.widget.viewResults}
+                </button>
+              </div>
             </div>
             <button
               onClick={() => setSearchState({ phase: 'idle' })}

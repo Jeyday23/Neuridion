@@ -393,6 +393,29 @@ function ProfilePreviewCard({ profile }: { profile: Profile }) {
   )
 }
 
+const WARNING_REPLACEMENTS: [RegExp, string | null][] = [
+  [/FIRECRAWL_API_KEY/i, 'BfArM extended scraping is not currently available.'],
+  [/API_KEY.*not set|not set.*API_KEY/i, null],
+  [/items? dropped.*unparseable/i, 'Some results could not be processed due to date formatting issues.'],
+  [/\d+ item cap reached/i, 'Results were capped to prevent overload — consider narrowing your search period.'],
+]
+
+const SAFE_PASSTHROUGH = /database was unavailable|returned no results|returned 0/i
+
+function sanitizeErrorMessage(raw: string | null): string {
+  if (!raw) return 'Search failed. Please try again or contact support.'
+  const lines = raw.split('\n').map(line => {
+    for (const [pattern, replacement] of WARNING_REPLACEMENTS) {
+      if (pattern.test(line)) return replacement
+    }
+    if (SAFE_PASSTHROUGH.test(line)) return line
+    return null
+  }).filter(Boolean)
+  return lines.length > 0
+    ? lines.join(' ')
+    : 'Search encountered issues. Check the Archive page for any partial results.'
+}
+
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
 export function SearchPanel({ profiles }: { profiles: Profile[] }) {
@@ -616,7 +639,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           })
         } else {
           stopPolling()
-          setState({ phase: 'error', message: data.error_message ?? 'Search failed.' })
+          setState({ phase: 'error', message: sanitizeErrorMessage(data.error_message) })
         }
       } catch {
         // Network blip — keep polling, transient errors resolve
@@ -897,6 +920,18 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
                 return (
                   <>
+                    <div className="mb-4 rounded border border-[rgba(13,148,136,0.2)] bg-[rgba(13,148,136,0.06)] px-4 py-3 flex items-center justify-between">
+                      <p className="text-sm text-[#134E4A]">
+                        <span className="font-medium">{t.search.nextStep}</span> {t.search.nextStepBanner}
+                      </p>
+                      <a
+                        href={`/dashboard/archive/${state.runId}`}
+                        className="shrink-0 rounded border border-[#0D9488] bg-[#0D9488] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#0F766E] transition-colors"
+                      >
+                        {t.search.reviewApprove}
+                      </a>
+                    </div>
+
                     {/* Summary bar */}
                     <div className="flex items-center gap-4 mb-3 flex-wrap">
                       <p className="text-sm font-medium text-[#134E4A]">
