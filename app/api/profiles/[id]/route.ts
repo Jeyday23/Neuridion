@@ -66,12 +66,13 @@ export async function PATCH(
 
   const db = createAdminClient()
 
-  // Fetch existing profile (verify ownership)
+  // Fetch existing profile (verify ownership, exclude soft-deleted)
   const { data: existing, error: fetchError } = await db
     .from('product_profiles')
     .select('id, user_id, device_name, manufacturer, device_class, emdn_code, intended_use, search_strategy')
     .eq('id', id)
     .eq('user_id', user.id)
+    .is('deleted_at' as never, null)
     .single()
 
   if (fetchError || !existing) {
@@ -191,27 +192,23 @@ export async function DELETE(
     .select('id, user_id, ifu_storage_path')
     .eq('id', id)
     .eq('user_id', user.id)
+    .is('deleted_at' as never, null)
     .single()
 
   if (fetchError || !profile) {
     return Response.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Clean up IFU document storage file using the stored path
-  const ifuPath = (profile as Record<string, unknown>).ifu_storage_path
-  if (typeof ifuPath === 'string' && ifuPath.length > 0) {
-    await db.storage.from('ifu-documents').remove([ifuPath])
-  }
-
-  const { data: deleted, error: deleteError } = await db
+  const { data: softDeleted, error: deleteError } = await db
     .from('product_profiles')
-    .delete()
+    .update({ deleted_at: new Date().toISOString() } as never)
     .eq('id', id)
     .eq('user_id', user.id)
+    .is('deleted_at' as never, null)
     .select('id')
     .single()
 
-  if (deleteError || !deleted) {
+  if (deleteError || !softDeleted) {
     console.error('[profiles/delete]', deleteError?.message ?? 'Unable to delete profile')
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
