@@ -286,7 +286,8 @@ function SearchProgressCard({ startedAt, progress, onCancel }: { startedAt: numb
           <div className="space-y-2">
             {progress.sources_total.map((sourceId) => {
               const isDone   = progress.sources_done.includes(sourceId)
-              const isActive = progress.current_source === sourceId
+              const allScrapingDone = progress.sources_done.length >= progress.sources_total.length
+              const isActive = !isDone && !allScrapingDone
               return (
                 <div key={sourceId} className="flex items-center gap-2.5">
                   {isDone  && <CheckCircle className="w-4 h-4 text-teal-500 shrink-0" />}
@@ -311,8 +312,8 @@ function SearchProgressCard({ startedAt, progress, onCancel }: { startedAt: numb
               )
             })}
 
-            {/* AI filter phase — all sources done, current_source is null */}
-            {progress.current_source === null && progress.sources_done.length > 0 && (
+            {/* AI filter phase — all sources done */}
+            {progress.sources_done.length >= progress.sources_total.length && (
               <div className="flex items-center gap-2.5 pt-1">
                 <Loader2 className="w-4 h-4 animate-spin text-teal-500 shrink-0" />
                 <div className="flex flex-col">

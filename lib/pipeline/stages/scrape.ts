@@ -151,8 +151,9 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       await Promise.all(fetchedRanges.map((range) => mergeCoverage(sourceId, range)))
     }
 
-    progressState.sources_done.push(sourceId)
-    progressState.current_source = activeSources[sourceIndex + 1] ?? null
+    if (!progressState.sources_done.includes(sourceId)) progressState.sources_done.push(sourceId)
+    const remaining = activeSources.filter(s => !progressState.sources_done.includes(s))
+    progressState.current_source = remaining[0] ?? null
     progressState.items_found   += deduped.length
     if (ctx.onProgress) await ctx.onProgress({ ...progressState, sources_done: [...progressState.sources_done] })
 
