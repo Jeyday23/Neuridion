@@ -4,11 +4,18 @@ import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 import { buildCspHeader } from '@/lib/security/csp'
 
+const encoder = new TextEncoder()
+
+const _compareKeyPromise = globalThis.crypto.subtle.importKey(
+  'raw',
+  globalThis.crypto.getRandomValues(new Uint8Array(32)),
+  { name: 'HMAC', hash: 'SHA-256' },
+  false,
+  ['sign'],
+)
+
 async function edgeSafeCompare(a: string, b: string): Promise<boolean> {
-  const key = encoder.encode('compare-key')
-  const cryptoKey = await globalThis.crypto.subtle.importKey(
-    'raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
-  )
+  const cryptoKey = await _compareKeyPromise
   const [ha, hb] = await Promise.all([
     globalThis.crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(a)),
     globalThis.crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(b)),
@@ -20,8 +27,6 @@ async function edgeSafeCompare(a: string, b: string): Promise<boolean> {
   for (let i = 0; i < viewA.length; i++) diff |= viewA[i] ^ viewB[i]
   return diff === 0
 }
-
-const encoder = new TextEncoder()
 
 async function hmacSha256Hex(key: string, data: string): Promise<string> {
   const cryptoKey = await globalThis.crypto.subtle.importKey(
@@ -84,7 +89,7 @@ const PUBLIC_PATHS = new Set([
   '/login/password',
   '/signup',
   '/signup/confirm',
-  '/admin/login',
+
   '/pricing',
   '/contact',
   '/privacy',
@@ -236,7 +241,7 @@ export async function proxy(request: NextRequest) {
     const started = request.cookies.get(SESSION_COOKIE)?.value
     if (!started) {
       const ts = String(Date.now())
-      const sig = (await hmacSha256Hex(SESSION_HMAC_KEY, ts)).slice(0, 32)
+      const sig = await hmacSha256Hex(SESSION_HMAC_KEY, ts)
       supabaseResponse.cookies.set(SESSION_COOKIE, `${ts}.${sig}`, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -246,8 +251,8 @@ export async function proxy(request: NextRequest) {
       })
     } else {
       const [tsStr, sig] = started.split('.')
-      const expectedSig = (await hmacSha256Hex(SESSION_HMAC_KEY, tsStr)).slice(0, 32)
-      if (!await edgeSafeCompare(sig, expectedSig) || Date.now() - Number(tsStr) > SESSION_MAX_AGE_MS) {
+      const expectedSig = await hmacSha256Hex(SESSION_HMAC_KEY, tsStr)
+      if (!await edgeSafeCompare(sig ?? '', expectedSig) || Date.now() - Number(tsStr) > SESSION_MAX_AGE_MS) {
         try { await supabase.auth.signOut() } catch { /* session already invalid */ }
         const expiredRes = pathname.startsWith('/api/')
           ? NextResponse.json({ error: 'Session expired' }, { status: 401 })
@@ -289,7 +294,7 @@ export async function proxy(request: NextRequest) {
       }
       // Set/refresh the idle activity cookie with current timestamp
       const ts = String(now)
-      const sig = (await hmacSha256Hex(SESSION_HMAC_KEY, ts)).slice(0, 32)
+      const sig = await hmacSha256Hex(SESSION_HMAC_KEY, ts)
       supabaseResponse.cookies.set(IDLE_COOKIE, `${ts}.${sig}`, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -314,15 +319,18 @@ export async function proxy(request: NextRequest) {
         ))
       }
 
-      const origin = request.headers.get('origin')
-      if (origin) {
+      let origin = request.headers.get('origin')
+      if (!origin) {
+        const referer = request.headers.get('referer')
+        if (referer) { try { origin = new URL(referer).origin } catch { /* malformed referer */ } }
+      }
+      if (origin && origin !== 'null') {
         const allowedOrigins = new Set<string>()
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
         if (siteUrl) allowedOrigins.add(new URL(siteUrl).origin)
         const extra = process.env.ALLOWED_ORIGINS
         if (extra) extra.split(',').forEach((o) => allowedOrigins.add(o.trim()))
         if (process.env.NODE_ENV === 'development' && !process.env.VERCEL_ENV && !process.env.RENDER) {
-          // Only add localhost in true local dev, not in deployed dev/staging
           allowedOrigins.add('http://localhost:3000')
           allowedOrigins.add('http://127.0.0.1:3000')
         }

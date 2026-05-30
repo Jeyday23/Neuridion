@@ -32,9 +32,7 @@ export default async function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
-        <meta property="csp-nonce" content={nonce} suppressHydrationWarning />
-      </head>
+      <head />
       <body className="min-h-full flex flex-col">
         <PrototypeBanner />
         {children}
