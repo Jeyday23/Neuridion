@@ -152,13 +152,19 @@ export async function proxy(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet, headers) {
+          // Token refresh sends mixed batches: deletions (stale chunks) + sets (new token).
+          // Pure-deletion batches come from sign-out or RSC prefetch races — block those.
+          const hasRealSets = cookiesToSet.some(({ options }) => !isCookieDeletion(options))
+
           cookiesToSet.forEach(({ name, value, options }) => {
-            if (isCookieDeletion(options)) return
+            if (isCookieDeletion(options) && !hasRealSets) return
+            if (isCookieDeletion(options) && !originalCookieNames.has(name)) return
             request.cookies.set(name, value)
           })
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) => {
-            if (isCookieDeletion(options)) return
+            if (isCookieDeletion(options) && !hasRealSets) return
+            if (isCookieDeletion(options) && !originalCookieNames.has(name)) return
             supabaseResponse.cookies.set(name, value, options)
           })
           if (headers) {
@@ -174,7 +180,11 @@ export async function proxy(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   function clearAuthCookies(response: NextResponse): void {
-    for (const name of originalCookieNames) {
+    const allNames = new Set([
+      ...originalCookieNames,
+      ...request.cookies.getAll().map((c) => c.name),
+    ])
+    for (const name of allNames) {
       if (name.startsWith('sb-')) response.cookies.delete({ name, path: '/' })
     }
     response.cookies.delete({ name: SESSION_COOKIE, path: '/' })
@@ -182,10 +192,10 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!user && originalCookieNames.has(SESSION_COOKIE)) {
-    supabaseResponse.cookies.delete(SESSION_COOKIE)
+    supabaseResponse.cookies.delete({ name: SESSION_COOKIE, path: '/' })
   }
   if (!user && originalCookieNames.has(IDLE_COOKIE)) {
-    supabaseResponse.cookies.delete(IDLE_COOKIE)
+    supabaseResponse.cookies.delete({ name: IDLE_COOKIE, path: '/' })
   }
 
   // Server-side absolute session expiry (8 hours)
@@ -205,7 +215,7 @@ export async function proxy(request: NextRequest) {
       const [tsStr, sig] = started.split('.')
       const expectedSig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(tsStr).digest('hex').slice(0, 32)
       if (!safeCompare(sig, expectedSig) || Date.now() - Number(tsStr) > SESSION_MAX_AGE_MS) {
-        await supabase.auth.signOut()
+        try { await supabase.auth.signOut() } catch { /* session already invalid */ }
         const expiredRes = pathname.startsWith('/api/')
           ? NextResponse.json({ error: 'Session expired' }, { status: 401 })
           : NextResponse.redirect(new URL('/login', request.url))
@@ -225,7 +235,7 @@ export async function proxy(request: NextRequest) {
       const hasEstablishedSession = request.cookies.has(SESSION_COOKIE)
       const now = Date.now()
       if (!activeCookie && hasEstablishedSession) {
-        await supabase.auth.signOut()
+        try { await supabase.auth.signOut() } catch { /* session already invalid */ }
         const idleRes = pathname.startsWith('/api/')
           ? NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 })
           : NextResponse.redirect(new URL('/login', request.url))
@@ -240,7 +250,7 @@ export async function proxy(request: NextRequest) {
           .digest('hex')
           .slice(0, 32)
         if (!safeCompare(activeSig ?? '', expectedActiveSig) || now - Number(activeTs) > IDLE_TIMEOUT_MS) {
-          await supabase.auth.signOut()
+          try { await supabase.auth.signOut() } catch { /* session already invalid */ }
           const idleRes2 = pathname.startsWith('/api/')
             ? NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 })
             : NextResponse.redirect(new URL('/login', request.url))
@@ -347,7 +357,10 @@ export async function proxy(request: NextRequest) {
   if (!user && !isPublic) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('next', pathname)
-    return addSecurityHeaders(NextResponse.redirect(loginUrl))
+    const redirectRes = NextResponse.redirect(loginUrl)
+    if (originalCookieNames.has(SESSION_COOKIE)) redirectRes.cookies.delete({ name: SESSION_COOKIE, path: '/' })
+    if (originalCookieNames.has(IDLE_COOKIE)) redirectRes.cookies.delete({ name: IDLE_COOKIE, path: '/' })
+    return addSecurityHeaders(redirectRes)
   }
 
   // CSP nonce — inject per-request nonce into response headers (all environments)
