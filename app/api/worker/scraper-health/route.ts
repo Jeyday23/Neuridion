@@ -45,11 +45,12 @@ async function checkScraper(
       durationMs,
     }
   } catch (err) {
+    console.error(`[scraper-health] ${name} failed:`, err instanceof Error ? err.message : String(err))
     return {
       source: name,
       healthy: false,
       itemCount: 0,
-      error: err instanceof Error ? err.message : String(err),
+      error: 'Scraper check failed',
       durationMs: Date.now() - start,
     }
   }

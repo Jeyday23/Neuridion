@@ -94,9 +94,12 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
   }
 
   // Validate dates client-side (API may return out-of-range items)
+  const fromDate = new Date(params.fromDate + 'T00:00:00Z')
+  const toDate   = new Date(params.toDate + 'T00:00:00Z')
   const filtered = items.filter(item => {
     if (!item.fsn_date) return false  // drop items without dates (consistent with BfArM)
-    return item.fsn_date >= params.fromDate && item.fsn_date <= params.toDate
+    const itemDate = new Date(item.fsn_date + 'T00:00:00Z')
+    return itemDate >= fromDate && itemDate <= toDate
   })
 
   const deduped = dedup(filtered)

@@ -80,6 +80,7 @@ function getPeriod(run: RunRow): string {
 const DB_LABELS: Record<string, string> = {
   bfarm:      'BfArM',
   maude:      'FDA MAUDE',
+  fda:        'FDA MAUDE',
   mhra:       'MHRA',
   swissmedic: 'Swissmedic',
 }

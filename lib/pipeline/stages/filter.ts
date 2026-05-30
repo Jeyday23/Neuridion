@@ -216,8 +216,8 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
 
     for (const result of enriched) {
       if (!result || result.decision === 'uncertain') continue
-      const idx = ctx.decisions.findIndex(d => d.fsn_result_id === result.fsn_result_id)
-      if (idx !== -1) ctx.decisions[idx] = result
+      // Push re-filtered decision as additional entry (preserves audit trail)
+      ctx.decisions.push(result)
     }
   }
 }

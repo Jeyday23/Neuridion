@@ -37,7 +37,7 @@ export function SidebarNav({ userRole, quota }: { userRole: string | null; quota
                 href={href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   active
-                    ? 'bg-blue-50 text-blue-700 font-medium'
+                    ? 'bg-[#F0FDFA] text-[#0D9488] font-medium'
                     : 'text-[#134E4A] hover:bg-[#F0FDFA]'
                 }`}
               >

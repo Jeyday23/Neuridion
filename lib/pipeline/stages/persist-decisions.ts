@@ -9,7 +9,7 @@ export async function persistDecisionsStage(ctx: PipelineContext): Promise<void>
       search_run_id: ctx.runId,
       decision:      d.decision,
       rationale:     d.rationale,
-      confidence:    d.confidence,
+      confidence:    d.confidence ?? 0,
       model_used:    d.model,
       stage:         'stage1',
     })),

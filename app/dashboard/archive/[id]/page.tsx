@@ -37,6 +37,17 @@ interface SearchRunData {
   product_profiles: { device_name: string; manufacturer: string } | { device_name: string; manufacturer: string }[] | null
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  complete:   'Complete',
+  running:    'Running',
+  filtering:  'Running',
+  pending:    'Queued',
+  queued:     'Queued',
+  error:      'Failed',
+  degraded:   'Partial results',
+  cancelled:  'Cancelled',
+}
+
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('en-GB', {
@@ -182,7 +193,7 @@ export default async function RunDetailPage({
             run.status === 'error'     ? 'bg-[rgba(220,38,38,0.06)] text-[#DC2626] border-[rgba(220,38,38,0.2)]' :
                                          'bg-[#F8FAFC] text-[#0F766E] border-[#E2E8F0]'
           }`}>
-            {run.status}
+            {STATUS_LABELS[run.status] ?? run.status}
           </span>
         </div>
         <div>

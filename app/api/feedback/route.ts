@@ -35,7 +35,7 @@ export async function POST(request: Request) {
 
   const parsed = FeedbackSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten().fieldErrors }, { status: 400 })
+    return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
   }
 
   const { rating, most_useful, missing_features } = parsed.data

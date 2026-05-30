@@ -26,8 +26,8 @@ const nextConfig: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
           {
-            // Static CSP fallback — proxy.ts overwrites with a nonce-based
-            // policy per request. This fallback applies only if the proxy
+            // Static CSP fallback — middleware.ts overwrites with a nonce-based
+            // policy per request. This fallback applies only if the middleware
             // does not execute (e.g., static assets served directly).
             key: 'Content-Security-Policy',
             value: [

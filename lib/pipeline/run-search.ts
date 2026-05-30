@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildManufacturerSearchTerms, extractManufacturerTerms, extractCompetitorTokens } from '@/lib/search/manufacturer-terms'
-import { scrapeStage, shouldBypassCoverageCache } from './stages/scrape'
+import { scrapeStage } from './stages/scrape'
 import { insertResultsStage } from './stages/insert-results'
 import { filterStage } from './stages/filter'
 import { persistDecisionsStage } from './stages/persist-decisions'
@@ -9,7 +9,6 @@ import { z } from 'zod'
 import type { PipelineContext, ProfileRow, SearchJobPayload, ProgressUpdate } from './types'
 
 export type { SearchJobPayload, ProgressUpdate }
-export { shouldBypassCoverageCache }
 
 export const TermsUsedSchema = z.object({
   manufacturer_terms: z.array(z.string().max(100)).max(10),

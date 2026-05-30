@@ -31,10 +31,6 @@ const SCRAPERS: Record<string, (p: ScraperParams) => Promise<ScraperResult>> = {
   swissmedic: scrapeSwissmedic,
 }
 
-export function shouldBypassCoverageCache(searchTerms: string[]): boolean {
-  return searchTerms.length > 0
-}
-
 function prevDay(date: string): string {
   const d = new Date(date + 'T00:00:00.000Z')
   d.setUTCDate(d.getUTCDate() - 1)
@@ -70,7 +66,6 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     const fetchedRanges:  { from: string; to: string }[] = []
 
     const localSearchTerms = [...new Set([...searchTerms, ...competitorTerms])]
-    const hasManufacturerTerms = shouldBypassCoverageCache(localSearchTerms)
 
     async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
       const result = await SCRAPERS[sourceId]({
@@ -89,7 +84,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
 
     const overlapFrom = overlapWindowStart(period_to)
 
-    if (forceRefresh || hasManufacturerTerms) {
+    if (forceRefresh) {
       await fetchSourceRange({ from: period_from, to: period_to })
     } else {
       const covered    = await getCoveredRanges(sourceId)
@@ -147,7 +142,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       }
     }
 
-    if (canonicalPersisted && !hasManufacturerTerms) {
+    if (canonicalPersisted && !forceRefresh) {
       await Promise.all(fetchedRanges.map((range) => mergeCoverage(sourceId, range)))
     }
 

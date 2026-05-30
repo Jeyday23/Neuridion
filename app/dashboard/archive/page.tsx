@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { ArchiveTable } from './archive-table'
 
 export const metadata = { title: 'Archive — Neuridion' }
@@ -21,9 +20,7 @@ export default async function ArchivePage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const adminClient = createAdminClient()
-
-  const { data: runs, count: totalCount, error } = await adminClient
+  const { data: runs, count: totalCount, error } = await supabase
     .from('search_runs')
     .select(`
       id, status, started_at, completed_at, created_at,

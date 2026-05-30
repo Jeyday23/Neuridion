@@ -91,7 +91,7 @@ export function ProfileForm() {
     }
   }
 
-  const inputClass = 'w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20'
+  const inputClass = 'w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-[#0D9488] focus:outline-none focus:ring-2 focus:ring-[#0D9488]/20'
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -231,7 +231,7 @@ export function ProfileForm() {
 
       <div className="flex items-center gap-3 pt-2">
         <button type="submit" disabled={saving}
-          className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed">
+          className="rounded-lg bg-[#0D9488] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0F766E] disabled:opacity-60 disabled:cursor-not-allowed">
           {saving ? 'Saving…' : 'Create profile'}
         </button>
       </div>

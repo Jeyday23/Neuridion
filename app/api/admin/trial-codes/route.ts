@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
   const parsed = CreateTrialCodesSchema.safeParse(body)
   if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten().fieldErrors }, { status: 422 })
+    return Response.json({ error: 'Validation failed' }, { status: 422 })
   }
   const { batch_name, quantity, expires_at } = parsed.data
 

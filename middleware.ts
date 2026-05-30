@@ -90,7 +90,7 @@ const SESSION_COOKIE     = 'session_started_at'
 const IDLE_COOKIE        = '_neuridion_active'
 const IDLE_TIMEOUT_MS    = 30 * 60 * 1000 // 30 minutes
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   if (process.env.MAINTENANCE_MODE === 'true') {
     const { pathname } = request.nextUrl
     const bypassMaintenance = pathname.startsWith('/api/webhooks/')
