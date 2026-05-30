@@ -1,10 +1,41 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import crypto from 'crypto'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 import { buildCspHeader } from '@/lib/security/csp'
-import { safeCompare } from '@/lib/utils/auth'
+
+async function edgeSafeCompare(a: string, b: string): Promise<boolean> {
+  const key = encoder.encode('compare-key')
+  const cryptoKey = await globalThis.crypto.subtle.importKey(
+    'raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  )
+  const [ha, hb] = await Promise.all([
+    globalThis.crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(a)),
+    globalThis.crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(b)),
+  ])
+  const viewA = new Uint8Array(ha)
+  const viewB = new Uint8Array(hb)
+  if (viewA.length !== viewB.length) return false
+  let diff = 0
+  for (let i = 0; i < viewA.length; i++) diff |= viewA[i] ^ viewB[i]
+  return diff === 0
+}
+
+const encoder = new TextEncoder()
+
+async function hmacSha256Hex(key: string, data: string): Promise<string> {
+  const cryptoKey = await globalThis.crypto.subtle.importKey(
+    'raw', encoder.encode(key), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  )
+  const sig = await globalThis.crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(data))
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+function randomNonce(): string {
+  const bytes = new Uint8Array(16)
+  globalThis.crypto.getRandomValues(bytes)
+  return btoa(String.fromCharCode(...bytes))
+}
 
 const MAINTENANCE_PAGE = `<!DOCTYPE html>
 <html lang="en">
@@ -14,13 +45,14 @@ const MAINTENANCE_PAGE = `<!DOCTYPE html>
 .box{text-align:center;max-width:420px;padding:2rem}h1{font-size:1.5rem;margin-bottom:.5rem}p{color:#737373;font-size:.95rem}</style>
 </head><body><div class="box"><h1>We'll be right back</h1><p>Neuridion is undergoing scheduled maintenance. Please try again in a few minutes.</p></div></body></html>`
 
-function getSessionHmacKey(): string {
+let _sessionHmacKey: string | null = null
+async function getSessionHmacKey(): Promise<string> {
+  if (_sessionHmacKey) return _sessionHmacKey
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!key) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required — session HMAC cannot use a fallback')
-  return crypto.createHmac('sha256', key).update('neuridion-session-v1').digest('hex')
+  _sessionHmacKey = await hmacSha256Hex(key, 'neuridion-session-v1')
+  return _sessionHmacKey
 }
-
-const SESSION_HMAC_KEY = getSessionHmacKey()
 
 // ── Global per-IP rate limiting (120 req/min) ────────────────────────────────
 
@@ -90,7 +122,7 @@ const SESSION_COOKIE     = 'session_started_at'
 const IDLE_COOKIE        = '_neuridion_active'
 const IDLE_TIMEOUT_MS    = 30 * 60 * 1000 // 30 minutes
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   if (process.env.MAINTENANCE_MODE === 'true') {
     const { pathname } = request.nextUrl
     const bypassMaintenance = pathname.startsWith('/api/webhooks/')
@@ -110,7 +142,8 @@ export async function middleware(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl
-  const requestId = crypto.randomUUID()
+  const requestId = globalThis.crypto.randomUUID()
+  const SESSION_HMAC_KEY = await getSessionHmacKey()
 
   // Global per-IP rate limit (120 req/min across all API routes)
   if (pathname.startsWith('/api/')) {
@@ -203,7 +236,7 @@ export async function middleware(request: NextRequest) {
     const started = request.cookies.get(SESSION_COOKIE)?.value
     if (!started) {
       const ts = String(Date.now())
-      const sig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(ts).digest('hex').slice(0, 32)
+      const sig = (await hmacSha256Hex(SESSION_HMAC_KEY, ts)).slice(0, 32)
       supabaseResponse.cookies.set(SESSION_COOKIE, `${ts}.${sig}`, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -213,8 +246,8 @@ export async function middleware(request: NextRequest) {
       })
     } else {
       const [tsStr, sig] = started.split('.')
-      const expectedSig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(tsStr).digest('hex').slice(0, 32)
-      if (!safeCompare(sig, expectedSig) || Date.now() - Number(tsStr) > SESSION_MAX_AGE_MS) {
+      const expectedSig = (await hmacSha256Hex(SESSION_HMAC_KEY, tsStr)).slice(0, 32)
+      if (!await edgeSafeCompare(sig, expectedSig) || Date.now() - Number(tsStr) > SESSION_MAX_AGE_MS) {
         try { await supabase.auth.signOut() } catch { /* session already invalid */ }
         const expiredRes = pathname.startsWith('/api/')
           ? NextResponse.json({ error: 'Session expired' }, { status: 401 })
@@ -244,12 +277,8 @@ export async function middleware(request: NextRequest) {
       }
       if (activeCookie) {
         const [activeTs, activeSig] = activeCookie.split('.')
-        const expectedActiveSig = crypto
-          .createHmac('sha256', SESSION_HMAC_KEY)
-          .update(activeTs)
-          .digest('hex')
-          .slice(0, 32)
-        if (!safeCompare(activeSig ?? '', expectedActiveSig) || now - Number(activeTs) > IDLE_TIMEOUT_MS) {
+        const expectedActiveSig = (await hmacSha256Hex(SESSION_HMAC_KEY, activeTs)).slice(0, 32)
+        if (!await edgeSafeCompare(activeSig ?? '', expectedActiveSig) || now - Number(activeTs) > IDLE_TIMEOUT_MS) {
           try { await supabase.auth.signOut() } catch { /* session already invalid */ }
           const idleRes2 = pathname.startsWith('/api/')
             ? NextResponse.json({ error: 'Session expired — idle timeout' }, { status: 401 })
@@ -260,7 +289,7 @@ export async function middleware(request: NextRequest) {
       }
       // Set/refresh the idle activity cookie with current timestamp
       const ts = String(now)
-      const sig = crypto.createHmac('sha256', SESSION_HMAC_KEY).update(ts).digest('hex').slice(0, 32)
+      const sig = (await hmacSha256Hex(SESSION_HMAC_KEY, ts)).slice(0, 32)
       supabaseResponse.cookies.set(IDLE_COOKIE, `${ts}.${sig}`, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -364,7 +393,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // CSP nonce — inject per-request nonce into response headers (all environments)
-  const nonce = crypto.randomBytes(16).toString('base64')
+  const nonce = randomNonce()
   supabaseResponse.headers.set('x-nonce', nonce)
   if (process.env.NODE_ENV === 'production') {
     supabaseResponse.headers.set('Content-Security-Policy', buildCspHeader(nonce))
