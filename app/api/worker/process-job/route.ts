@@ -49,14 +49,23 @@ async function handler(req: Request): Promise<Response> {
     return new Response('Already processed', { status: 200 })
   }
 
+  const initialProgress: ProgressUpdate = {
+    current_source: jobPayload.selected_dbs[0] ?? null,
+    sources_done:   [],
+    sources_total:  jobPayload.selected_dbs,
+    items_found:    0,
+  }
+
   await Promise.all([
     db.from('search_runs').update({
       status:     'running',
       started_at: new Date().toISOString(),
+      progress:   initialProgress as unknown as Json,
     }).eq('id', run_id),
     db.from('search_job_queue').update({
       status:     'running',
       started_at: new Date().toISOString(),
+      progress:   initialProgress as unknown as Json,
     }).eq('id', job_id),
   ])
 
@@ -73,10 +82,12 @@ async function handler(req: Request): Promise<Response> {
           console.error(`[process-job] run_id=${run_id} progress: source=${update.current_source ?? 'filter'} done=${update.sources_done?.length ?? 0}/${update.sources_total?.length ?? 0} items=${update.items_found ?? 0}`)
           lastProgressLog = now
         }
-        await Promise.all([
+        const [runUpd, queueUpd] = await Promise.all([
           db.from('search_runs').update({ progress: update as unknown as Json }).eq('id', run_id),
           db.from('search_job_queue').update({ progress: update as unknown as Json }).eq('id', job_id),
         ])
+        if (runUpd.error) console.error(`[process-job] progress write failed (search_runs):`, runUpd.error.message)
+        if (queueUpd.error) console.error(`[process-job] progress write failed (job_queue):`, queueUpd.error.message)
       },
     )
 

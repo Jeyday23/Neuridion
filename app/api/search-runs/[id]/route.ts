@@ -27,7 +27,7 @@ export async function GET(
 
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('id, user_id, status, progress, error_message, relevant_count, uncertain_count, excluded_count, total_scraped, pre_filter_count')
+    .select('id, user_id, status, progress, dbs_searched, error_message, relevant_count, uncertain_count, excluded_count, total_scraped, pre_filter_count')
     .eq('id', id)
     .is('deleted_at' as never, null)
     .single()
@@ -80,9 +80,19 @@ export async function GET(
 
   const isTerminal = ['complete', 'error', 'failed', 'cancelled', 'degraded', 'superseded'].includes(run.status)
 
+  const rawProgress = (run as { progress?: unknown }).progress ?? null
+  const rawDbs = (run as { dbs_searched?: unknown }).dbs_searched
+  const dbsSearched = Array.isArray(rawDbs) ? rawDbs as string[] : null
+  const progress = rawProgress ?? (dbsSearched && dbsSearched.length > 0 ? {
+    current_source: null,
+    sources_done:   [] as string[],
+    sources_total:  dbsSearched,
+    items_found:    0,
+  } : null)
+
   return Response.json({
     status:           run.status,
-    progress:         (run as { progress?: unknown }).progress ?? null,
+    progress,
     error_message:    (run as { error_message?: string }).error_message ?? null,
     relevant_count:   (run as { relevant_count?: number }).relevant_count  ?? 0,
     uncertain_count:  (run as { uncertain_count?: number }).uncertain_count ?? 0,
