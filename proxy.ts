@@ -282,7 +282,7 @@ export async function proxy(request: NextRequest) {
       }
       if (activeCookie) {
         const [activeTs, activeSig] = activeCookie.split('.')
-        const expectedActiveSig = (await hmacSha256Hex(SESSION_HMAC_KEY, activeTs)).slice(0, 32)
+        const expectedActiveSig = await hmacSha256Hex(SESSION_HMAC_KEY, activeTs)
         if (!await edgeSafeCompare(activeSig ?? '', expectedActiveSig) || now - Number(activeTs) > IDLE_TIMEOUT_MS) {
           try { await supabase.auth.signOut() } catch { /* session already invalid */ }
           const idleRes2 = pathname.startsWith('/api/')
