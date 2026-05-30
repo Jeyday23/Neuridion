@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { apiFetch } from '@/lib/fetch'
+import { createClient as createBrowserClient } from '@/lib/supabase/client'
 import { ArrowRight, Mail, CheckCircle } from 'lucide-react'
 import { NeuridionWordmark } from '@/components/ui/neuridion-wordmark'
 
@@ -54,23 +55,72 @@ export function NeuridionSignIn() {
     setLoading(true)
 
     try {
-      const res = await apiFetch('/api/auth/otp', {
+      const rlRes = await apiFetch('/api/auth/post-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'verify', email, code: fullCode }),
-      })
-      const data = await res.json()
-
-      if (!res.ok) {
-        setError(data.error === 'Invalid token' ? 'Incorrect code. Please check and try again.' : data.error ?? 'Verification failed. Please try again.')
+        body: JSON.stringify({ email, success: false, checkOnly: true }),
+      }).catch(() => null)
+      const rlData: { blocked?: boolean; error?: string } =
+        await rlRes?.json().catch(() => ({})) ?? {}
+      if (rlData.blocked) {
+        setError(rlData.error ?? 'Too many attempts. Try again in 15 minutes.')
         setLoading(false)
         return
       }
 
-      const safeRedirect = typeof data.redirect === 'string' &&
-        data.redirect.startsWith('/') && !data.redirect.startsWith('//')
-        ? data.redirect : undefined
+      const supabase = createBrowserClient()
+      const { error: otpError } = await supabase.auth.verifyOtp({
+        email,
+        token: fullCode,
+        type: 'email',
+      })
+
+      if (otpError) {
+        const failRes = await apiFetch('/api/auth/post-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, success: false, method: 'otp' }),
+        }).catch(() => null)
+        const failData: { blocked?: boolean; error?: string } =
+          await failRes?.json().catch(() => ({})) ?? {}
+
+        setError(failData?.blocked
+          ? (failData.error ?? 'Too many attempts. Try again in 15 minutes.')
+          : otpError.message?.includes('Invalid')
+            ? 'Incorrect code. Please check and try again.'
+            : otpError.message ?? 'Verification failed. Please try again.',
+        )
+        setLoading(false)
+        return
+      }
+
+      const callPostLogin = async (): Promise<{ redirect?: string }> => {
+        const res = await apiFetch('/api/auth/post-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, success: true, method: 'otp' }),
+        })
+        if (res.status === 401) {
+          await new Promise((r) => setTimeout(r, 250))
+          const retry = await apiFetch('/api/auth/post-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, success: true, method: 'otp' }),
+          })
+          return retry.json().catch(() => ({}))
+        }
+        return res.json().catch(() => ({}))
+      }
+      const postData = await callPostLogin()
+
+      const safeRedirect =
+        typeof postData.redirect === 'string' &&
+        postData.redirect.startsWith('/') &&
+        !postData.redirect.startsWith('//')
+          ? postData.redirect
+          : undefined
       if (safeRedirect) setRedirectPath(safeRedirect)
+      setLoading(false)
       setStep('success')
       setTimeout(() => router.push(safeRedirect ?? redirectPath), 1500)
     } catch {

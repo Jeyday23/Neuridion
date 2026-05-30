@@ -1,32 +1,108 @@
 'use client'
 
-import { useActionState, useEffect, useRef } from 'react'
-import { useFormStatus } from 'react-dom'
-import { login, type LoginState } from './actions'
-
-function SubmitButton() {
-  const { pending } = useFormStatus()
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-    >
-      {pending ? 'Signing in…' : 'Sign in'}
-    </button>
-  )
-}
+import { useState, useEffect, useRef, type FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { apiFetch } from '@/lib/fetch'
 
 export function LoginForm() {
-  const [state, action] = useActionState<LoginState, FormData>(login, null)
+  const router = useRouter()
   const emailRef = useRef<HTMLInputElement>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     emailRef.current?.focus()
   }, [])
 
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+
+    const formData = new FormData(e.currentTarget)
+    const email = (formData.get('email') as string)?.trim()
+    const password = formData.get('password') as string
+
+    if (!email || !password) {
+      setError('Email and password are required.')
+      setLoading(false)
+      return
+    }
+
+    try {
+      const rlRes = await apiFetch('/api/auth/post-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, success: false, checkOnly: true }),
+      }).catch(() => null)
+      const rlData: { blocked?: boolean; error?: string } =
+        await rlRes?.json().catch(() => ({})) ?? {}
+      if (rlData.blocked) {
+        setError(rlData.error ?? 'Too many attempts. Try again in 15 minutes.')
+        setLoading(false)
+        return
+      }
+
+      const supabase = createClient()
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (authError) {
+        const failRes = await apiFetch('/api/auth/post-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, success: false, method: 'password' }),
+        }).catch(() => null)
+        const failData: { blocked?: boolean; error?: string } =
+          await failRes?.json().catch(() => ({})) ?? {}
+
+        setError(failData.blocked
+          ? (failData.error ?? 'Too many attempts. Try again in 15 minutes.')
+          : 'Invalid email or password.')
+        setLoading(false)
+        return
+      }
+
+      const callPostLogin = async (): Promise<{ redirect?: string }> => {
+        const res = await apiFetch('/api/auth/post-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, success: true, method: 'password' }),
+        })
+        if (res.status === 401) {
+          await new Promise((r) => setTimeout(r, 250))
+          const retry = await apiFetch('/api/auth/post-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, success: true, method: 'password' }),
+          })
+          return retry.json().catch(() => ({}))
+        }
+        return res.json().catch(() => ({}))
+      }
+      const postData = await callPostLogin()
+
+      const redirectPath =
+        typeof postData.redirect === 'string' &&
+        postData.redirect.startsWith('/') &&
+        !postData.redirect.startsWith('//')
+          ? postData.redirect
+          : '/dashboard/search'
+
+      router.push(redirectPath)
+      router.refresh()
+    } catch {
+      setError('Unable to connect. Please check your internet and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <form action={action} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label
           htmlFor="email"
@@ -64,13 +140,19 @@ export function LoginForm() {
         />
       </div>
 
-      {state?.error && (
+      {error && (
         <p className="rounded-lg bg-red-50 border border-red-200 px-3.5 py-2.5 text-sm text-red-700">
-          {state.error}
+          {error}
         </p>
       )}
 
-      <SubmitButton />
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+      >
+        {loading ? 'Signing in…' : 'Sign in'}
+      </button>
     </form>
   )
 }
