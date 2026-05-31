@@ -1,19 +1,20 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { useSearchContext, type SearchProgress } from '../search-context'
+import { useSearchContext, type SearchProgress, type FsnResult } from '../search-context'
 import { useLanguage } from '../language-context'
 import { format, subMonths } from 'date-fns'
 import { clsx } from 'clsx'
-import { X, Loader2, ChevronDown } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { InfoTooltip } from '@/app/components/ui/InfoTooltip'
 import { FeedbackPopup } from '@/app/components/FeedbackPopup'
 import { useToast } from '@/app/components/ui/ToastProvider'
 import { apiFetch } from '@/lib/fetch'
 import { motion } from 'framer-motion'
 import { daysBetween } from '@/lib/utils/date-chunks'
-import { fmtSourceDb } from '@/lib/domain/source-labels'
 import { SearchProgressCard } from './search-progress'
+import { FsnRow } from './search-results'
+import { ProfilePreviewCard } from './profile-preview'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -30,33 +31,7 @@ interface Profile {
   } | null
 }
 
-interface FilterDecision {
-  decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
-  rationale: string
-  confidence: number | null
-  model: string | null
-}
-
-interface FsnResult {
-  id: string
-  title: string
-  manufacturer: string
-  fsn_date: string | null
-  source_url: string
-  source: string
-  filter_decision: FilterDecision | null
-}
-
 type FilterTab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
-
-function safeHref(url: string | null | undefined): string {
-  if (!url) return '#'
-  try {
-    const parsed = new URL(url)
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return url
-  } catch { /* malformed URL */ }
-  return '#'
-}
 
 // ─── Database list ────────────────────────────────────────────────────────────
 
@@ -77,145 +52,6 @@ const databases = [
   { id: 'cofepris',     name: 'COFEPRIS',                     region: 'Mexico',       active: false },
 ]
 
-// ─── Decision config ──────────────────────────────────────────────────────────
-
-const DOT_COLORS: Record<string, string> = {
-  relevant:      '#22c55e',
-  uncertain:     '#f59e0b',
-  excluded:      '#9ca3af',
-  filter_failed: '#ef4444',
-}
-
-const BADGE_STYLES: Record<string, string> = {
-  relevant:      'bg-green-50 text-green-700 border-green-200',
-  uncertain:     'bg-amber-50 text-amber-700 border-amber-200',
-  excluded:      'bg-zinc-100 text-zinc-500 border-zinc-200',
-  filter_failed: 'bg-red-50 text-red-700 border-red-200',
-}
-
-const PANEL_STYLES: Record<string, string> = {
-  relevant:      'bg-green-50 border-green-200',
-  uncertain:     'bg-amber-50 border-amber-200',
-  excluded:      'bg-zinc-50 border-zinc-200',
-  filter_failed: 'bg-red-50 border-red-200',
-}
-
-// ─── FSN Row ──────────────────────────────────────────────────────────────────
-
-function FsnRow({
-  result, expanded, onToggle, badgeLabels,
-}: {
-  result: FsnResult
-  expanded: boolean
-  onToggle: () => void
-  badgeLabels: Record<string, string>
-}) {
-  const d = result.filter_decision
-  const dotColor = d ? (DOT_COLORS[d.decision] ?? '#9ca3af') : '#9ca3af'
-
-  return (
-    <div className="border-b border-zinc-100 last:border-b-0">
-      <div
-        className="px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-zinc-50 transition-colors"
-        onClick={onToggle}
-      >
-        <div className="mt-1.5 shrink-0 w-2 h-2 rounded-full" style={{ backgroundColor: dotColor }} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <a href={safeHref(result.source_url)} target="_blank" rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="text-sm font-medium text-zinc-900 hover:text-[#0D9488] hover:underline line-clamp-2">
-              {result.title}
-            </a>
-            <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-500">
-              {fmtSourceDb(result.source)}
-            </span>
-          </div>
-          <div className="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-            <div className="flex items-center gap-3 text-xs text-zinc-500">
-              {result.manufacturer && <span>{result.manufacturer}</span>}
-              {result.fsn_date && (
-                <span>{new Date(result.fsn_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-              )}
-            </div>
-            {d && (
-              <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${BADGE_STYLES[d.decision] ?? ''}`}>
-                {badgeLabels[d.decision] ?? d.decision}
-              </span>
-            )}
-          </div>
-        </div>
-        <ChevronDown className={clsx('w-4 h-4 text-zinc-400 shrink-0 mt-1 transition-transform duration-150', expanded && 'rotate-180')} />
-      </div>
-
-      {expanded && (
-        <div className="px-4 pb-4 ml-5">
-          <div className={clsx('rounded border p-3 text-sm', d ? PANEL_STYLES[d.decision] : 'bg-zinc-50 border-zinc-200')}>
-            {!d && <p className="text-xs text-zinc-500 italic">No AI assessment available for this item.</p>}
-            {d?.decision === 'filter_failed' && (
-              <p className="text-xs font-medium text-amber-700">Not reviewed — manual review required.</p>
-            )}
-            {d && d.decision !== 'filter_failed' && (
-              <>
-                <p className="text-xs font-semibold text-zinc-600 mb-1">AI Assessment</p>
-                <p className="text-xs text-zinc-700 leading-relaxed">{d.rationale}</p>
-              </>
-            )}
-            <div className="mt-2 flex items-center gap-4 text-xs text-zinc-500 flex-wrap">
-              {d?.confidence != null && <span title="How certain the AI is that this classification is correct">Confidence: {Math.round(d.confidence * 100)}%</span>}
-              {d?.model && <span>{formatModelLabel(d.model)}</span>}
-              <a href={safeHref(result.source_url)} target="_blank" rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="ml-auto text-[#0D9488] hover:underline text-xs">
-                View source ↗
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Profile preview card ─────────────────────────────────────────────────────
-
-function ProfilePreviewCard({ profile }: { profile: Profile }) {
-  const competitorCount = profile.search_strategy?.competitor_terms?.filter(c => c.name?.trim()).length ?? 0
-  const docCount = profile.search_strategy?.strategy_doc_paths?.length ?? 0
-
-  return (
-    <div className="mt-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-[#0F1F3D] truncate">
-            {profile.device_name} — {profile.manufacturer}
-          </h3>
-          <div className="mt-2 space-y-1">
-            {profile.intended_use && (
-              <p className="text-xs text-[#134E4A] line-clamp-2">{profile.intended_use}</p>
-            )}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#0F766E]">
-              {profile.device_class && <span>{profile.device_class}</span>}
-              {profile.emdn_code && <span>EMDN: {profile.emdn_code}</span>}
-              {competitorCount > 0 && (
-                <span>{competitorCount} competitor{competitorCount !== 1 ? 's' : ''} monitored</span>
-              )}
-              {docCount > 0 && (
-                <span>{docCount} strategy doc{docCount !== 1 ? 's' : ''} attached</span>
-              )}
-            </div>
-          </div>
-        </div>
-        <a
-          href={`/dashboard/profiles/${profile.id}/edit`}
-          className="shrink-0 text-xs font-medium text-[#0D9488] hover:underline"
-        >
-          Edit →
-        </a>
-      </div>
-    </div>
-  )
-}
 
 const WARNING_REPLACEMENTS: [RegExp, string | null][] = [
   [/FIRECRAWL_API_KEY/i, 'BfArM extended scraping is not currently available.'],
@@ -817,16 +653,6 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
       )}
     </div>
   )
-}
-
-function formatModelLabel(model: string | null | undefined): string {
-  if (!model) return 'AI-assisted'
-  const MODEL_NAMES: Record<string, string> = {
-    'claude-sonnet-4-5': 'Sonnet 4.5',
-    'claude-sonnet-4-6': 'Sonnet 4.6',
-    'claude-haiku-4-5':  'Haiku 4.5',
-  }
-  return MODEL_NAMES[model] ?? model
 }
 
 const MODEL_LABEL = 'AI-assisted'
