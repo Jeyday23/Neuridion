@@ -41,7 +41,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('product_profiles')
     .select('id, device_name, manufacturer, intended_use, emdn_code, device_class, default_dbs, search_strategy, created_at, last_modified_at')
-    .is('deleted_at' as never, null)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
 
   if (error) {

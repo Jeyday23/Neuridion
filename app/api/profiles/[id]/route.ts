@@ -72,7 +72,7 @@ export async function PATCH(
     .select('id, user_id, device_name, manufacturer, device_class, emdn_code, intended_use, search_strategy')
     .eq('id', id)
     .eq('user_id', user.id)
-    .is('deleted_at' as never, null)
+    .is('deleted_at', null)
     .single()
 
   if (fetchError || !existing) {
@@ -192,7 +192,7 @@ export async function DELETE(
     .select('id, user_id, ifu_storage_path')
     .eq('id', id)
     .eq('user_id', user.id)
-    .is('deleted_at' as never, null)
+    .is('deleted_at', null)
     .single()
 
   if (fetchError || !profile) {
@@ -201,10 +201,10 @@ export async function DELETE(
 
   const { data: softDeleted, error: deleteError } = await db
     .from('product_profiles')
-    .update({ deleted_at: new Date().toISOString() } as never)
+    .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
     .eq('user_id', user.id)
-    .is('deleted_at' as never, null)
+    .is('deleted_at', null)
     .select('id')
     .single()
 

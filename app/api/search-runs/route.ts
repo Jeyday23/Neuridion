@@ -87,7 +87,7 @@ export async function POST(request: Request) {
     .select('id, device_name, manufacturer, intended_use, emdn_code, device_class, search_strategy, default_dbs')
     .eq('id', profile_id)
     .eq('user_id', user.id)
-    .is('deleted_at' as never, null)
+    .is('deleted_at', null)
     .single()
   if (profileError || !profile) {
     return Response.json({ error: 'Profile not found' }, { status: 404 })

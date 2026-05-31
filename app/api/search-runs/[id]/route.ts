@@ -29,7 +29,7 @@ export async function GET(
     .from('search_runs')
     .select('id, user_id, status, progress, dbs_searched, error_message, relevant_count, uncertain_count, excluded_count, total_scraped, pre_filter_count')
     .eq('id', id)
-    .is('deleted_at' as never, null)
+    .is('deleted_at', null)
     .single()
 
   if (runError || !run || run.user_id !== user.id) {
@@ -136,7 +136,7 @@ export async function DELETE(
     .select('id, user_id')
     .eq('id', id)
     .eq('user_id', user.id)
-    .is('deleted_at' as never, null)
+    .is('deleted_at', null)
     .single()
 
   if (runError || !run) {
@@ -146,7 +146,7 @@ export async function DELETE(
   // Soft-delete: mark as deleted, preserve data for EU MDR 10-year retention
   const { error: softDeleteError } = await db
     .from('search_runs')
-    .update({ deleted_at: new Date().toISOString(), deleted_by: user.id } as never)
+    .update({ deleted_at: new Date().toISOString(), deleted_by: user.id })
     .eq('id', id)
     .eq('user_id', user.id)
 
