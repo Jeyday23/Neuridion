@@ -1,6 +1,7 @@
 import type { ScrapedFsn, ScraperResult, ScraperParams } from './bfarm'
 import { buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
 import { sanitizeContent } from './sanitize'
+import { fetchWithRetry } from './fetch-with-retry'
 
 const API_BASE   = 'https://fsca.swissmedic.ch/mep/api/publications'
 const PUBLIC_BASE = 'https://fsca.swissmedic.ch/mep'
@@ -120,67 +121,37 @@ function isRelevantToProfile(publication: SwissmedicPublication, terms: string[]
 async function fetchPublicationPage(
   params: { fromDate: string; toDate: string },
   pageNumber: number,
-  maxAttempts = 3,
 ): Promise<SwissmedicPage | null> {
-  const backoffs = [1_000, 2_000, 4_000] // exponential backoff: 1s, 2s, 4s
-  let lastError = ''
+  const url = new URL(`${API_BASE}/search`)
+  url.searchParams.set('pageNumber', String(pageNumber))
+  url.searchParams.set('sortingProperty', 'PUBLICATION_DATE')
+  url.searchParams.set('direction', 'DESC')
+  url.searchParams.set('size', '100')
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const url = new URL(`${API_BASE}/search`)
-    url.searchParams.set('pageNumber', String(pageNumber))
-    url.searchParams.set('sortingProperty', 'PUBLICATION_DATE')
-    url.searchParams.set('direction', 'DESC')
-    url.searchParams.set('size', '100')
+  try {
+    const res = await fetchWithRetry(url, {
+      method: 'POST',
+      headers: {
+        'User-Agent': UA,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        fromDate: params.fromDate,
+        toDate: params.toDate,
+      }),
+    })
 
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 30_000)
-    try {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'User-Agent': UA,
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fromDate: params.fromDate,
-          toDate: params.toDate,
-        }),
-        signal: controller.signal,
-      })
-
-      if (!res.ok) {
-        // Only retry on 5xx server errors; 4xx errors are not transient
-        if (res.status >= 500 && attempt < maxAttempts - 1) {
-          lastError = `HTTP ${res.status}`
-          console.error(`[swissmedic] ${res.status} on attempt ${attempt + 1}/${maxAttempts}, retrying in ${backoffs[attempt]}ms`)
-          clearTimeout(timeout)
-          await new Promise(r => setTimeout(r, backoffs[attempt]))
-          continue
-        }
-        console.error('[swissmedic]', `HTTP ${res.status} ${url}`)
-        return null
-      }
-
-      return await res.json() as SwissmedicPage
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err)
-      // Network errors and aborts are transient — retry
-      if (attempt < maxAttempts - 1) {
-        console.error(`[swissmedic] Fetch error on attempt ${attempt + 1}/${maxAttempts}, retrying in ${backoffs[attempt]}ms: ${lastError}`)
-        clearTimeout(timeout)
-        await new Promise(r => setTimeout(r, backoffs[attempt]))
-        continue
-      }
-      console.error(`[swissmedic] Fetch failed after ${maxAttempts} attempts ${url}: ${lastError}`)
+    if (!res.ok) {
+      console.error('[swissmedic]', `HTTP ${res.status} ${url}`)
       return null
-    } finally {
-      clearTimeout(timeout)
     }
-  }
 
-  console.error(`[swissmedic] All ${maxAttempts} attempts exhausted for page ${pageNumber}: ${lastError}`)
-  return null
+    return await res.json() as SwissmedicPage
+  } catch (err) {
+    console.error(`[swissmedic] Fetch failed for page ${pageNumber}: ${err instanceof Error ? err.message : String(err)}`)
+    return null
+  }
 }
 
 function toScrapedFsn(publication: SwissmedicPublication): ScrapedFsn | null {
