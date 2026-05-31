@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { safeCompare } from '@/lib/utils/auth'
 import { logAuditEvent } from '@/lib/audit'
 
-const STUCK_THRESHOLD_MINUTES = 20
+const STUCK_THRESHOLD_MINUTES = 30
 
 export function isStuckRun(
   run: { status: string; started_at: string | null; created_at: string },
