@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { clsx } from 'clsx'
 import { apiFetch } from '@/lib/fetch'
+import { fmtSourceDb } from '@/lib/domain/source-labels'
 
 export interface FsnResult {
   id: string
@@ -29,18 +30,6 @@ function safeHref(url: string | null | undefined): string {
 }
 
 type Tab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed' | 'raw'
-
-function formatSourceLabel(src: string | null | undefined): string {
-  if (!src) return 'BfArM'
-  const map: Record<string, string> = {
-    bfarm:      'BfArM',
-    fda:        'FDA MAUDE',
-    maude:      'FDA MAUDE',
-    mhra:       'MHRA',
-    swissmedic: 'Swissmedic',
-  }
-  return map[src.toLowerCase()] ?? src.toUpperCase()
-}
 
 const DECISION_STYLES: Record<string, string> = {
   relevant:      'bg-green-50 text-green-700 border-green-200',
@@ -107,7 +96,7 @@ function ResultRow({ result }: { result: FsnResult }) {
                 })}
               </span>
             )}
-            <span className="text-zinc-400">{formatSourceLabel(result.source_db)}</span>
+            <span className="text-zinc-400">{fmtSourceDb(result.source_db)}</span>
             {d && d.confidence != null && (
               <span className="text-zinc-400" title="How certain the AI is that this classification is correct">{Math.round(d.confidence * 100)}% confidence</span>
             )}
@@ -404,7 +393,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
                     <td className="px-4 py-2.5 text-xs text-zinc-500 whitespace-nowrap">
                       {r.fsn_date ? new Date(r.fsn_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-zinc-400">{formatSourceLabel(r.source_db)}</td>
+                    <td className="px-4 py-2.5 text-xs text-zinc-400">{fmtSourceDb(r.source_db)}</td>
                     <td className="px-4 py-2.5 text-xs text-zinc-400 max-w-[200px] truncate">
                       {r.source_url ? (
                         <a href={safeHref(r.source_url)} target="_blank" rel="noopener noreferrer" className="hover:text-[#0D9488] hover:underline">{r.source_url}</a>

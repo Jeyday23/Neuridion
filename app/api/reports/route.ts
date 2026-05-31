@@ -6,6 +6,8 @@ import { generateReportPdf, canGeneratePdf, incrementPdfUsage } from '@/lib/pdfs
 import { buildDocx } from '@/lib/docx-report'
 import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { escHtml } from '@/lib/utils/html'
+import { fmtSourceDb } from '@/lib/domain/source-labels'
 
 export const maxDuration = 120
 
@@ -32,16 +34,6 @@ const DECISION_LABEL: Record<string, string> = {
   uncertain:     'Requires Further Review',
   excluded:      'Not Relevant',
   filter_failed: 'AI Filter Unavailable',
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  bfarm:      'BfArM',
-  maude:      'FDA MAUDE',
-  mhra:       'MHRA',
-  swissmedic: 'Swissmedic',
-}
-function fmtSourceDb(src: string): string {
-  return SOURCE_LABELS[src?.toLowerCase()] ?? src?.toUpperCase() ?? 'BfArM'
 }
 
 function fmtDate(iso: string | null): string {
@@ -394,15 +386,6 @@ function buildReportHtml(
 </div>
 </body>
 </html>`
-}
-
-function escHtml(str: string | null | undefined): string {
-  return (str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 function safeHref(url: string | null | undefined): string {

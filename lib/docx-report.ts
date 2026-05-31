@@ -4,6 +4,7 @@ import {
   HeadingLevel, Footer, PageNumber,
   ShadingType, TableLayoutType,
 } from 'docx'
+import { fmtSourceDb } from '@/lib/domain/source-labels'
 
 interface FsnRow {
   id: string
@@ -43,17 +44,9 @@ const DECISION_LABELS: Record<string, string> = {
   excluded:      'Not Relevant',
   filter_failed: 'AI Filter Unavailable',
 }
-const SOURCE_LABELS: Record<string, string> = {
-  bfarm: 'BfArM', maude: 'FDA MAUDE', mhra: 'MHRA', swissmedic: 'Swissmedic',
-}
-
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-}
-
-function fmtSource(src: string): string {
-  return SOURCE_LABELS[src?.toLowerCase()] ?? src?.toUpperCase() ?? 'BfArM'
 }
 
 function metaRow(label: string, value: string): TableRow {
@@ -112,7 +105,7 @@ function buildFsnTable(items: FsnRow[], compact: boolean): Table {
 
     const cells = compact
       ? [textCell(r.title, 18, bg), textCell(r.manufacturer || '—', 18, bg), textCell(fmtDate(r.fsn_date), 18, bg), textCell(displayRationale, 16, bg)]
-      : [textCell(r.title, 18, bg), textCell(r.manufacturer || '—', 18, bg), textCell(fmtDate(r.fsn_date), 18, bg), textCell(fmtSource(r.source_db), 18, bg), textCell(displayRationale, 16, bg), textCell(confidence, 18, bg)]
+      : [textCell(r.title, 18, bg), textCell(r.manufacturer || '—', 18, bg), textCell(fmtDate(r.fsn_date), 18, bg), textCell(fmtSourceDb(r.source_db), 18, bg), textCell(displayRationale, 16, bg), textCell(confidence, 18, bg)]
 
     return new TableRow({
       children: cells,
@@ -151,7 +144,7 @@ export async function buildDocx(rows: FsnRow[], meta: ReportMeta): Promise<Buffe
   const uncertain    = rows.filter((r) => r.filter_decision?.decision === 'uncertain')
   const excluded     = rows.filter((r) => r.filter_decision?.decision === 'excluded')
   const filterFailed = rows.filter((r) => r.filter_decision?.decision === 'filter_failed')
-  const sources      = [...new Set(rows.map((r) => fmtSource(r.source_db)))]
+  const sources      = [...new Set(rows.map((r) => fmtSourceDb(r.source_db)))]
 
   const children: (Paragraph | Table)[] = []
 

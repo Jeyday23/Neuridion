@@ -1,5 +1,6 @@
 import React from 'react'
 import { Document, Page, Text, View, Link, Font, StyleSheet } from '@react-pdf/renderer'
+import { fmtSourceDb } from '@/lib/domain/source-labels'
 
 // ─── Font registration ──────────────────────────────────────────────────────
 
@@ -48,16 +49,6 @@ const DECISION_LABEL: Record<string, string> = {
   uncertain:     'Requires Further Review',
   excluded:      'Not Relevant',
   filter_failed: 'AI Filter Unavailable',
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  bfarm: 'BfArM',
-  maude: 'FDA MAUDE',
-  mhra:  'MHRA',
-}
-
-function fmtSourceDb(src: string): string {
-  return SOURCE_LABELS[src?.toLowerCase()] ?? src?.toUpperCase() ?? 'BfArM'
 }
 
 function fmtDate(iso: string | null): string {

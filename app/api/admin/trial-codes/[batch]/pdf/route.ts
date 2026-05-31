@@ -2,10 +2,7 @@ import { checkIsAdmin } from '@/lib/admin-guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import QRCode from 'qrcode'
 import { rateLimit } from '@/lib/rate-limit'
-
-function escHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
+import { escHtml } from '@/lib/utils/html'
 
 function getBaseUrl(): string {
   const url = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL

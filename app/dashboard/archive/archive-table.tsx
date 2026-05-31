@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { DownloadButton, GenerateReportButton, CancelRunButton, DeleteRunButton } from './archive-actions'
+import { fmtSourceDb } from '@/lib/domain/source-labels'
 
 interface RunRow {
   id: string
@@ -77,19 +78,11 @@ function getPeriod(run: RunRow): string {
   return `${fmtDate(from)} – ${fmtDate(to)}`
 }
 
-const DB_LABELS: Record<string, string> = {
-  bfarm:      'BfArM',
-  maude:      'FDA MAUDE',
-  fda:        'FDA MAUDE',
-  mhra:       'MHRA',
-  swissmedic: 'Swissmedic',
-}
-
 function getDbsLabel(dbs: unknown): string {
   if (!dbs) return '—'
   const arr = Array.isArray(dbs) ? dbs : typeof dbs === 'string' ? [dbs] : []
   if (arr.length === 0) return '—'
-  return arr.map((d) => DB_LABELS[String(d).toLowerCase()] ?? String(d)).join(', ')
+  return arr.map((d) => fmtSourceDb(String(d))).join(', ')
 }
 
 export function ArchiveTable({ runs }: { runs: RunRow[] }) {

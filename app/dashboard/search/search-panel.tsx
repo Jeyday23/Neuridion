@@ -12,6 +12,7 @@ import { useToast } from '@/app/components/ui/ToastProvider'
 import { apiFetch } from '@/lib/fetch'
 import { motion } from 'framer-motion'
 import { daysBetween } from '@/lib/utils/date-chunks'
+import { fmtSourceDb } from '@/lib/domain/source-labels'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -54,20 +55,6 @@ function safeHref(url: string | null | undefined): string {
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return url
   } catch { /* malformed URL */ }
   return '#'
-}
-
-// ─── Source label formatter ───────────────────────────────────────────────────
-
-function formatSourceLabel(src: string | null | undefined): string {
-  if (!src) return 'BfArM'
-  const map: Record<string, string> = {
-    bfarm:      'BfArM',
-    fda:        'FDA MAUDE',
-    maude:      'FDA MAUDE',
-    mhra:       'MHRA',
-    swissmedic: 'Swissmedic',
-  }
-  return map[src.toLowerCase()] ?? src.toUpperCase()
 }
 
 // ─── Database list ────────────────────────────────────────────────────────────
@@ -140,7 +127,7 @@ function FsnRow({
               {result.title}
             </a>
             <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-medium bg-zinc-100 text-zinc-500">
-              {formatSourceLabel(result.source)}
+              {fmtSourceDb(result.source)}
             </span>
           </div>
           <div className="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -297,7 +284,7 @@ function SearchProgressCard({ startedAt, progress, onCancel }: { startedAt: numb
                     : isActive ? 'text-[#0F1F3D] font-medium'
                     :            'text-[#0D9488]'
                   )}>
-                    {formatSourceLabel(sourceId)}
+                    {fmtSourceDb(sourceId)}
                   </span>
                   {isActive && (
                     <span className="text-xs text-teal-600 font-medium ml-auto">scanning…</span>
