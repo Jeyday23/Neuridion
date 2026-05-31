@@ -5,20 +5,7 @@ import {
   ShadingType, TableLayoutType,
 } from 'docx'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
-
-interface FsnRow {
-  id: string
-  title: string
-  manufacturer: string
-  fsn_date: string | null
-  source_url: string
-  source_db: string
-  filter_decision: {
-    decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
-    rationale: string
-    confidence: number | null
-  } | null
-}
+import type { FsnReportRow } from '@/lib/domain/types'
 
 interface ReportMeta {
   device: string
@@ -88,7 +75,7 @@ function textCell(text: string, size = 18, bgColor?: string): TableCell {
   })
 }
 
-function buildFsnTable(items: FsnRow[], compact: boolean): Table {
+function buildFsnTable(items: FsnReportRow[], compact: boolean): Table {
   const headerRow = new TableRow({
     tableHeader: true,
     children: compact
@@ -138,7 +125,7 @@ function sectionHeader(title: string, color: string): Paragraph {
   })
 }
 
-export async function buildDocx(rows: FsnRow[], meta: ReportMeta): Promise<Buffer> {
+export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise<Buffer> {
   const today = fmtDate(new Date().toISOString())
   const relevant     = rows.filter((r) => r.filter_decision?.decision === 'relevant')
   const uncertain    = rows.filter((r) => r.filter_decision?.decision === 'uncertain')

@@ -8,24 +8,9 @@ import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { escHtml } from '@/lib/utils/html'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
+import type { FsnReportRow } from '@/lib/domain/types'
 
 export const maxDuration = 120
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface FsnRow {
-  id: string
-  title: string
-  manufacturer: string
-  fsn_date: string | null
-  source_url: string
-  source_db: string
-  filter_decision: {
-    decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
-    rationale: string
-    confidence: number | null
-  } | null
-}
 
 // ─── Decision label helpers (no AI language) ─────────────────────────────────
 
@@ -53,7 +38,7 @@ function safeCell(val: string | null | undefined): string {
 // ─── Excel builder ────────────────────────────────────────────────────────────
 
 async function buildExcel(
-  rows: FsnRow[],
+  rows: FsnReportRow[],
   meta: { device: string; manufacturer: string; period_from: string; period_to: string },
   termsUsed: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null,
 ): Promise<Buffer> {
@@ -171,7 +156,7 @@ async function buildExcel(
 function buildReportHtml(
   profile: { device_name: string; manufacturer: string; device_class: string | null; emdn_code: string | null },
   run: { period_from: string; period_to: string; status?: string; dbs_searched?: string[] | null },
-  rows: FsnRow[],
+  rows: FsnReportRow[],
   runId: string,
   termsUsed: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null,
   extra?: { aiModels?: string[]; reviewerName?: string | null; reviewedAt?: string | null },
@@ -184,7 +169,7 @@ function buildReportHtml(
   const filterFailed = rows.filter((r) => r.filter_decision?.decision === 'filter_failed')
 
   // Build table rows for a section. isAppendix uses compact 4-col layout + truncated rationale.
-  function sectionRows(items: FsnRow[], rowBg: string, isAppendix = false): string {
+  function sectionRows(items: FsnReportRow[], rowBg: string, isAppendix = false): string {
     const colspan = isAppendix ? '4' : '5'
     if (items.length === 0) {
       return `<tr><td colspan="${colspan}" style="padding:8px 7px;color:#888;font-style:italic;">No items in this section.</td></tr>`
@@ -507,14 +492,14 @@ export async function POST(request: Request) {
     reviewerName = reviewer?.full_name || reviewer?.email || null
   }
 
-  const rows: FsnRow[] = (rawResults ?? []).map((r) => ({
+  const rows: FsnReportRow[] = (rawResults ?? []).map((r) => ({
     id:              r.id,
     title:           r.title,
     manufacturer:    r.manufacturer ?? '',
     fsn_date:        r.fsn_date,
     source_url:      r.source_url ?? '',
     source_db:       r.source_db,
-    filter_decision: (decisionsMap[r.id] as FsnRow['filter_decision']) ?? null,
+    filter_decision: (decisionsMap[r.id] as FsnReportRow['filter_decision']) ?? null,
   }))
 
   // ── Generate and upload each format sequentially to cap peak memory ────────

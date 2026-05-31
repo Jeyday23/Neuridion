@@ -1,6 +1,7 @@
 import React from 'react'
 import { Document, Page, Text, View, Link, Font, StyleSheet } from '@react-pdf/renderer'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
+import type { FsnReportRow } from '@/lib/domain/types'
 
 // ─── Font registration ──────────────────────────────────────────────────────
 
@@ -16,20 +17,6 @@ Font.register({
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export interface FsnRow {
-  id: string
-  title: string
-  manufacturer: string
-  fsn_date: string | null
-  source_url: string
-  source_db: string
-  filter_decision: {
-    decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
-    rationale: string
-    confidence: number | null
-  } | null
-}
-
 export interface ReportData {
   profile: {
     device_name: string
@@ -38,7 +25,7 @@ export interface ReportData {
     emdn_code: string | null
   }
   run: { period_from: string; period_to: string }
-  rows: FsnRow[]
+  rows: FsnReportRow[]
   runId: string
 }
 
@@ -127,7 +114,7 @@ function StatBox({ num, label, color }: { num: number; label: string; color?: st
   )
 }
 
-function ResultsTable({ items, bgColor, isAppendix }: { items: FsnRow[]; bgColor: string; isAppendix?: boolean }) {
+function ResultsTable({ items, bgColor, isAppendix }: { items: FsnReportRow[]; bgColor: string; isAppendix?: boolean }) {
   if (items.length === 0) {
     return (
       <View style={{ flexDirection: 'row' }}>
