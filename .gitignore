@@ -69,8 +69,9 @@ next-env.d.ts
 .claude/settings.json
 .claude/settings.local.json
 
-# PRRC review agent screenshots
+# PRRC review agent outputs (may contain PII from test accounts)
 docs/prrc-review/screenshots/
+docs/prrc-review/PRRC-QA-Report-*.md
 .superpowers/
 
 # Playwright MCP temp artifacts

@@ -8,14 +8,24 @@ function getArg(name: string, fallback: string): string {
 }
 
 const BASE_URL = getArg('base-url', 'http://localhost:3000')
-const TEST_EMAIL = getArg('email', 'robert.friedrich@jpberlin.de')
+const TEST_EMAIL = getArg('email', '')
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+if (!TEST_EMAIL) {
+  console.error('Usage: npx tsx scripts/prrc-search-timing.ts --email user@example.com [--base-url http://localhost:3000]')
+  process.exit(1)
+}
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
   console.error('Missing env vars: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  process.exit(1)
+}
+
+if (!BASE_URL.includes('localhost') && !BASE_URL.includes('127.0.0.1')) {
+  console.error('Safety: this test script modifies data (review_status) — only run against localhost')
   process.exit(1)
 }
 
@@ -80,9 +90,8 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   const encodedValue = 'base64-' + Buffer.from(sessionPayload).toString('base64url')
 
   const CHUNK_SIZE = 3180
-  const urlEncoded = encodeURIComponent(encodedValue)
   let cookieParts: string[]
-  if (urlEncoded.length <= CHUNK_SIZE) {
+  if (encodedValue.length <= CHUNK_SIZE) {
     cookieParts = [`${cookieBase}=${encodedValue}`]
   } else {
     cookieParts = []
@@ -96,7 +105,8 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
     }
   }
 
-  const sessionHmacKey = hmacSha256Hex(supabaseServiceKey, 'neuridion-session-v1')
+  const hmacSalt = process.env.SESSION_HMAC_SALT ?? 'neuridion-session-v1'
+  const sessionHmacKey = hmacSha256Hex(supabaseServiceKey!, hmacSalt)
   const now = String(Date.now())
   const sessionSig = hmacSha256Hex(sessionHmacKey, now)
   const idleSig = hmacSha256Hex(sessionHmacKey, now)

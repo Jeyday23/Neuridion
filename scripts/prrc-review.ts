@@ -132,19 +132,19 @@ async function establishSession(browser: Browser): Promise<{ context: BrowserCon
   const encodedValue = 'base64-' + Buffer.from(sessionPayload).toString('base64url')
 
   const domain = new URL(BASE_URL).hostname
+  const isSecure = BASE_URL.startsWith('https://')
   const CHUNK_SIZE = 3180
 
-  const urlEncoded = encodeURIComponent(encodedValue)
   let authCookies: { name: string; value: string; domain: string; path: string; httpOnly: boolean; secure: boolean; sameSite: 'Lax' }[]
 
-  if (urlEncoded.length <= CHUNK_SIZE) {
+  if (encodedValue.length <= CHUNK_SIZE) {
     authCookies = [{
       name: cookieBase,
       value: encodedValue,
       domain,
       path: '/',
       httpOnly: false,
-      secure: false,
+      secure: isSecure,
       sameSite: 'Lax' as const,
     }]
   } else {
@@ -162,12 +162,13 @@ async function establishSession(browser: Browser): Promise<{ context: BrowserCon
       domain,
       path: '/',
       httpOnly: false,
-      secure: false,
+      secure: isSecure,
       sameSite: 'Lax' as const,
     }))
   }
 
-  const sessionHmacKey = hmacSha256Hex(supabaseServiceKey!, 'neuridion-session-v1')
+  const hmacSalt = process.env.SESSION_HMAC_SALT ?? 'neuridion-session-v1'
+  const sessionHmacKey = hmacSha256Hex(supabaseServiceKey!, hmacSalt)
   const now = String(Date.now())
   const sessionSig = hmacSha256Hex(sessionHmacKey, now)
   const idleSig = hmacSha256Hex(sessionHmacKey, now)
@@ -180,7 +181,7 @@ async function establishSession(browser: Browser): Promise<{ context: BrowserCon
       domain,
       path: '/',
       httpOnly: true,
-      secure: false,
+      secure: isSecure,
       sameSite: 'Lax' as const,
     },
     {
@@ -189,7 +190,7 @@ async function establishSession(browser: Browser): Promise<{ context: BrowserCon
       domain,
       path: '/',
       httpOnly: true,
-      secure: false,
+      secure: isSecure,
       sameSite: 'Lax' as const,
     },
   ]
@@ -226,7 +227,8 @@ function generateReport(): string {
   const totalFail = results.filter((r) => r.status === 'fail').length
   const totalSkip = results.filter((r) => r.status === 'skip').length
   const totalTests = results.length
-  const overallScore = totalTests > 0 ? Math.round((totalPass / (totalTests - totalSkip)) * 100) : 0
+  const scoreDenom = totalTests - totalSkip
+  const overallScore = scoreDenom > 0 ? Math.round((totalPass / scoreDenom) * 100) : 0
 
   const failures = results.filter((r) => r.status === 'fail')
   const suggestions = results.filter((r) => r.suggestion)
@@ -235,7 +237,8 @@ function generateReport(): string {
   md += `**Date:** ${today}\n`
   md += `**Environment:** Local dev (${BASE_URL})\n`
   md += `**App Version:** ${gitHash}\n`
-  md += `**Test Account:** ${TEST_EMAIL}\n\n`
+  const redactedEmail = TEST_EMAIL.replace(/^(.{2}).*(@.{2}).*$/, '$1***$2***')
+  md += `**Test Account:** ${redactedEmail}\n\n`
 
   md += `## Executive Summary\n\n`
   md += `Ran ${totalTests} tests across ${sectionNames.length} sections. `
