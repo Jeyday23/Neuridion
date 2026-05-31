@@ -5,6 +5,7 @@ import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
 import { extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
+import { insertResultsStage } from './insert-results'
 import type { PipelineContext, ProgressUpdate } from '../types'
 
 const SOURCE_TIMEOUTS_MS: Record<string, number> = {
@@ -165,10 +166,15 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
   for (let i = 0; i < sourceResults.length; i++) {
     const r = sourceResults[i]
     if (r.status === 'fulfilled') {
-      ctx.items.push(...r.value.items)
-      ctx.warnings.push(...r.value.warnings)
+      ctx.items = r.value.items
       r.value.contentChanged.forEach((id) => ctx.contentChanged.add(id))
       r.value.canonicalIds.forEach((cid, eid) => ctx.canonicalIds.set(eid, cid))
+      ctx.warnings.push(...r.value.warnings)
+
+      if (ctx.items.length > 0) {
+        await insertResultsStage(ctx)
+        ctx.items = []
+      }
     } else {
       const sourceLabel = activeSources[i].toUpperCase()
       console.error(`[pipeline] ${activeSources[i]} FAILED:`, r.reason instanceof Error ? r.reason.message : String(r.reason))

@@ -1,7 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { buildManufacturerSearchTerms, extractManufacturerTerms, extractCompetitorTokens } from '@/lib/search/manufacturer-terms'
 import { scrapeStage } from './stages/scrape'
-import { insertResultsStage } from './stages/insert-results'
 import { filterStage } from './stages/filter'
 import { persistDecisionsStage } from './stages/persist-decisions'
 import { finalizeStage } from './stages/finalize'
@@ -94,7 +93,7 @@ export async function runSearchPipeline(
     isCancelled,
   }
 
-  const stages = [scrapeStage, insertResultsStage, filterStage, persistDecisionsStage]
+  const stages = [scrapeStage, filterStage, persistDecisionsStage]
 
   // Stages whose failure should abort the pipeline and mark the run as 'error'.
   // A scrape failure with 0 items is recoverable (finalizeStage handles it),

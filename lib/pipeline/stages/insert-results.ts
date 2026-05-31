@@ -31,5 +31,5 @@ export async function insertResultsStage(ctx: PipelineContext): Promise<void> {
     if (inserted) allInserted.push(...inserted)
   }
 
-  ctx.insertedRows = allInserted
+  ctx.insertedRows.push(...allInserted)
 }
