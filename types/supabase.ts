@@ -227,7 +227,6 @@ export type Database = {
           product_name: string | null
           raw_content: string | null
           run_id: string
-          search_run_id: string | null
           source: string | null
           source_db: string
           source_url: string | null
@@ -244,7 +243,6 @@ export type Database = {
           product_name?: string | null
           raw_content?: string | null
           run_id: string
-          search_run_id?: string | null
           source?: string | null
           source_db: string
           source_url?: string | null
@@ -261,7 +259,6 @@ export type Database = {
           product_name?: string | null
           raw_content?: string | null
           run_id?: string
-          search_run_id?: string | null
           source?: string | null
           source_db?: string
           source_url?: string | null
@@ -278,13 +275,6 @@ export type Database = {
           {
             foreignKeyName: "fsn_results_run_id_fkey"
             columns: ["run_id"]
-            isOneToOne: false
-            referencedRelation: "search_runs"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fsn_results_search_run_id_fkey"
-            columns: ["search_run_id"]
             isOneToOne: false
             referencedRelation: "search_runs"
             referencedColumns: ["id"]
@@ -343,6 +333,7 @@ export type Database = {
         Row: {
           created_at: string
           default_dbs: Json
+          deleted_at: string | null
           device_class: string | null
           device_name: string
           emdn_code: string | null
@@ -358,6 +349,7 @@ export type Database = {
         Insert: {
           created_at?: string
           default_dbs?: Json
+          deleted_at?: string | null
           device_class?: string | null
           device_name: string
           emdn_code?: string | null
@@ -373,6 +365,7 @@ export type Database = {
         Update: {
           created_at?: string
           default_dbs?: Json
+          deleted_at?: string | null
           device_class?: string | null
           device_name?: string
           emdn_code?: string | null
@@ -538,6 +531,8 @@ export type Database = {
           completed_at: string | null
           created_at: string
           dbs_searched: Json
+          deleted_at: string | null
+          deleted_by: string | null
           error_message: string | null
           excluded_count: number
           filter_failed_count: number
@@ -573,6 +568,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           dbs_searched?: Json
+          deleted_at?: string | null
+          deleted_by?: string | null
           error_message?: string | null
           excluded_count?: number
           filter_failed_count?: number
@@ -608,6 +605,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           dbs_searched?: Json
+          deleted_at?: string | null
+          deleted_by?: string | null
           error_message?: string | null
           excluded_count?: number
           filter_failed_count?: number
@@ -809,6 +808,7 @@ export type Database = {
       }
       users: {
         Row: {
+          ai_opt_out: boolean
           company_name: string | null
           consent_cookies_at: string | null
           consent_privacy_at: string | null
@@ -821,15 +821,15 @@ export type Database = {
           full_name: string | null
           id: string
           plan: string
+          processing_restricted: boolean
           role: string
           stripe_customer_id: string | null
           stripe_price_id: string | null
           stripe_subscription_id: string | null
           subscription_status: string
-          processing_restricted: boolean
-          ai_opt_out: boolean
         }
         Insert: {
+          ai_opt_out?: boolean
           company_name?: string | null
           consent_cookies_at?: string | null
           consent_privacy_at?: string | null
@@ -842,15 +842,15 @@ export type Database = {
           full_name?: string | null
           id: string
           plan?: string
+          processing_restricted?: boolean
           role?: string
           stripe_customer_id?: string | null
           stripe_price_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string
-          processing_restricted?: boolean
-          ai_opt_out?: boolean
         }
         Update: {
+          ai_opt_out?: boolean
           company_name?: string | null
           consent_cookies_at?: string | null
           consent_privacy_at?: string | null
@@ -863,13 +863,12 @@ export type Database = {
           full_name?: string | null
           id?: string
           plan?: string
+          processing_restricted?: boolean
           role?: string
           stripe_customer_id?: string | null
           stripe_price_id?: string | null
           stripe_subscription_id?: string | null
           subscription_status?: string
-          processing_restricted?: boolean
-          ai_opt_out?: boolean
         }
         Relationships: []
       }
@@ -878,6 +877,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_and_insert_search_run: {
+        Args: {
+          p_period_from: string
+          p_period_to: string
+          p_profile_id: string
+          p_run_limit: number
+          p_user_id: string
+        }
+        Returns: string
+      }
       claim_next_job: {
         Args: { p_worker_id: string }
         Returns: {
@@ -886,13 +895,13 @@ export type Database = {
           run_id: string
         }[]
       }
+      gdpr_purge_user_data: {
+        Args: { target_user_id: string }
+        Returns: undefined
+      }
       increment_pdf_usage: {
         Args: { p_month: string; p_user_id: string }
         Returns: undefined
-      }
-      purge_old_login_attempts: {
-        Args: Record<string, never>
-        Returns: number
       }
       merge_coverage_for_source: {
         Args: { p_range_end: string; p_range_start: string; p_source: string }
@@ -903,13 +912,10 @@ export type Database = {
           source: string
         }[]
       }
+      purge_old_login_attempts: { Args: never; Returns: number }
       requeue_stale_jobs: {
         Args: { p_timeout_minutes?: number }
         Returns: number
-      }
-      gdpr_purge_user_data: {
-        Args: { target_user_id: string }
-        Returns: undefined
       }
     }
     Enums: {
