@@ -138,7 +138,7 @@ export async function runSearchPipeline(
 
   try {
     await finalizeStage(ctx)
-    ctx.timing.total_items_scraped = ctx.items.length
+    ctx.timing.total_items_scraped = ctx.insertedRows.length
     ctx.timing.total_items_filtered = ctx.decisions.length
     await db.from('search_runs').update({ timing: ctx.timing }).eq('id', runId)
   } catch (err) {

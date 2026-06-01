@@ -17,7 +17,7 @@ export async function finalizeStage(ctx: PipelineContext): Promise<void> {
     { relevant: 0, uncertain: 0, excluded: 0, filter_failed: 0 } as Record<string, number>,
   )
 
-  const runStatus = computeRunStatus(ctx.warnings, ctx.items.length)
+  const runStatus = computeRunStatus(ctx.warnings, ctx.insertedRows.length)
 
   const { error: finalizeError } = await ctx.db.from('search_runs').update({
     status:              runStatus,
@@ -28,7 +28,7 @@ export async function finalizeStage(ctx: PipelineContext): Promise<void> {
     excluded_count:      counts.excluded,
     filter_failed_count: counts.filter_failed,
     total_results:       counts.relevant + counts.uncertain + counts.excluded + (counts.filter_failed ?? 0),
-    total_scraped:       ctx.items.length,
+    total_scraped:       ctx.insertedRows.length,
     pre_filter_count:    ctx.insertedRows.length,
     progress:            null,
   }).eq('id', ctx.runId)
@@ -38,7 +38,7 @@ export async function finalizeStage(ctx: PipelineContext): Promise<void> {
   await logAuditEvent(ctx.payload.user_id, 'search_run', {
     run_id:         ctx.runId,
     profile_id:     ctx.payload.profile_id,
-    result_count:   ctx.items.length,
+    result_count:   ctx.insertedRows.length,
     relevant_count: counts.relevant,
   })
 
