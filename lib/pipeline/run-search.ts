@@ -40,7 +40,7 @@ export async function runSearchPipeline(
     .select('ai_opt_out')
     .eq('id', payload.user_id)
     .single()
-  const aiOptOut = userFlags?.ai_opt_out === true
+  const aiOptOut = userFlags?.ai_opt_out === true || process.env.SKIP_AI_FILTER === 'true'
 
   const searchTerms = buildManufacturerSearchTerms(profile.manufacturer ?? '', profile.device_name ?? '')
   const strategy = profile.search_strategy as { competitor_terms?: Array<{ name: string; manufacturer?: string }> } | null
