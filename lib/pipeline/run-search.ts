@@ -114,7 +114,7 @@ export async function runSearchPipeline(
       await stage(ctx)
       const elapsed = Date.now() - stageStart
       ctx.timing[`${stageName}_ms`] = elapsed
-      console.error(`[pipeline] run_id=${runId} stage=${stageName} completed in ${Math.round(elapsed / 1000)}s (items=${ctx.items.length} warnings=${ctx.warnings.length})`)
+      console.error(`[pipeline] run_id=${runId} stage=${stageName} completed in ${Math.round(elapsed / 1000)}s (items=${ctx.insertedRows.length} warnings=${ctx.warnings.length})`)
     } catch (err) {
       const elapsed = Math.round((Date.now() - stageStart) / 1000)
       const msg = err instanceof Error ? err.message : String(err)

@@ -89,7 +89,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
       current_source: null,
       sources_done: ctx.activeSources,
       sources_total: ctx.activeSources,
-      items_found: ctx.items.length,
+      items_found: ctx.insertedRows.length,
       filter_progress: { done: 0, total: needsFilter.length, cached: alreadyCached.length },
     })
   }
@@ -166,7 +166,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
           current_source: null,
           sources_done: ctx.activeSources,
           sources_total: ctx.activeSources,
-          items_found: ctx.items.length,
+          items_found: ctx.insertedRows.length,
           filter_progress: { done: myIndex, total: toFilter.length, cached: alreadyCached.length },
         })
       }
@@ -192,8 +192,8 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
       uncertainBfarm.map(d => detailLimit(async () => {
         const row = toFilter.find(r => r.id === d.fsn_result_id)
         if (!row) return null
-        const fsnRow = ctx.items.find(i => i.external_id === row.external_id)
-        if (!fsnRow) return null
+        const fsnRow = ctx.insertedRows.find(i => i.external_id === row.external_id)
+        if (!fsnRow?.source_url) return null
         const detail = await fetchBfarmDetail(fsnRow.source_url)
         if (!detail) return null
         const enrichedContent = sanitizeForLlm(`${row.title}\n\n${detail}`)

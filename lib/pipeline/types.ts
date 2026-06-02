@@ -39,6 +39,7 @@ export interface InsertedFsnRow {
   raw_content:  string | null
   fsn_date:     string | null
   source_db:    string | null
+  source_url:   string | null
 }
 
 export interface DecisionRow extends FilterDecision {
