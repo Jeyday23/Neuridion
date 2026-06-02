@@ -160,6 +160,7 @@ export function GenerateReportButton({ runId }: { runId: string }) {
         throw new Error(body?.error ?? 'Failed to generate report')
       }
       router.refresh()
+      setState('idle')
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'Failed to generate report')
       setState('error')
