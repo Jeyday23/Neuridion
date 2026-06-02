@@ -98,7 +98,7 @@ export async function POST(request: Request) {
 
   const { data: decisions } = await db
     .from('filter_decisions')
-    .select('fsn_result_id, decision, rationale, confidence')
+    .select('fsn_result_id, decision, rationale, confidence, model' as 'fsn_result_id, decision, rationale, confidence')
     .eq('search_run_id', run_id)
 
   for (const d of decisions ?? []) {
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
   }
 
   // 'model' column exists in DB but not in generated Supabase types — cast to extract
-  const aiModels = [...new Set((decisions ?? []).map(d => (d as unknown as { model?: string }).model).filter((m): m is string => !!m))]
+  const aiModels = [...new Set((decisions ?? []).map(d => (d as { model?: string }).model).filter((m): m is string => !!m))]
 
   // Resolve reviewer name
   let reviewerName: string | null = null

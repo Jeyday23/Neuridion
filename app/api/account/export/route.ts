@@ -5,9 +5,11 @@ import { logAuditEvent } from '@/lib/audit'
 import { rateLimit } from '@/lib/rate-limit'
 
 /** Batch `.in()` queries into chunks to avoid PostgREST URL length limits. */
+type BatchTable = 'fsn_results' | 'filter_decisions' | 'profile_edit_history'
+
 async function batchIn<T>(
   db: ReturnType<typeof createAdminClient>,
-  table: string,
+  table: BatchTable,
   selectCols: string,
   column: string,
   ids: string[],
@@ -17,8 +19,7 @@ async function batchIn<T>(
   const all: T[] = []
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- table name is always a known literal at each call site
-    const { data } = await (db.from as any)(table).select(selectCols).in(column, chunk).limit(limit)
+    const { data } = await (db.from(table) as ReturnType<typeof db.from>).select(selectCols).in(column, chunk).limit(limit)
     if (data) all.push(...(data as T[]))
   }
   return all
