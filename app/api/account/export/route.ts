@@ -19,7 +19,7 @@ async function batchIn<T>(
   const all: T[] = []
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK)
-    const { data } = await (db.from(table) as ReturnType<typeof db.from>).select(selectCols).in(column, chunk).limit(limit)
+    const { data } = await db.from(table).select(selectCols).in(column, chunk).limit(limit)
     if (data) all.push(...(data as T[]))
   }
   return all

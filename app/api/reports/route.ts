@@ -98,6 +98,7 @@ export async function POST(request: Request) {
 
   const { data: decisions } = await db
     .from('filter_decisions')
+    // 'model' exists in DB but not in generated Supabase types — cast preserves type inference for other columns
     .select('fsn_result_id, decision, rationale, confidence, model' as 'fsn_result_id, decision, rationale, confidence')
     .eq('search_run_id', run_id)
 
