@@ -53,7 +53,10 @@ export async function firecrawlFallback(params: ScraperParams): Promise<ScraperR
     }
     if (!startRes.ok) {
       const body = await startRes.text().catch(() => '')
-      console.error('[firecrawl]', `crawl start failed: HTTP ${startRes.status} — ${body.slice(0, 500)}`)
+      const safeBody = body.slice(0, 200)
+        .replace(/(?:sk-|fc-|Bearer\s+)[A-Za-z0-9_-]+/g, '[REDACTED]')
+        .replace(/[0-9a-f]{32,}/gi, '[REDACTED]')
+      console.error('[firecrawl]', `crawl start failed: HTTP ${startRes.status} — ${safeBody}`)
       return { items: [], warnings: [`Firecrawl crawl start failed (HTTP ${startRes.status})`] }
     }
 
