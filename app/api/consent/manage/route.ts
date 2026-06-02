@@ -121,10 +121,21 @@ export async function PUT(request: Request) {
   }
 
   const admin = createAdminClient()
+
+  const { data: existing } = await admin
+    .from('users')
+    .select('consent_terms_at, consent_privacy_at, consent_cookies_at')
+    .eq('id', user.id)
+    .single()
+
   const now = new Date().toISOString()
   const update: Partial<Record<ConsentField, string>> = {}
   for (const field of parsed.data.grant) {
-    update[field] = now
+    if (!existing?.[field]) update[field] = now
+  }
+
+  if (Object.keys(update).length === 0) {
+    return Response.json({ ok: true })
   }
 
   const { error } = await admin

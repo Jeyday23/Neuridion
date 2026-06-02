@@ -150,11 +150,11 @@ export function SettingsClient({
   }
 
   const grantMissingConsent = async () => {
-    setGranting(true)
     const fields: string[] = []
     if (!termsConsented) fields.push('consent_terms_at')
     if (!privacyConsented) fields.push('consent_privacy_at')
     if (fields.length === 0) return
+    setGranting(true)
 
     const res = await apiFetch('/api/consent/manage', {
       method: 'PUT',
@@ -336,14 +336,14 @@ export function SettingsClient({
           Under Art. 7 GDPR, you have the right to view and withdraw your consent at any time.
         </p>
 
-        {(!consentTermsAt || !consentPrivacyAt) && (
+        {(!termsConsented || !privacyConsented) && (
           <div className="rounded-lg bg-amber-50 border border-amber-200 px-5 py-4 mb-4">
             <p className="text-sm font-medium text-amber-800">
               Consent was not recorded at signup. Please review and accept the current Terms of Service and Privacy Policy.
             </p>
             <div className="mt-3 flex gap-3">
-              <a href="/terms" target="_blank" className="text-xs text-amber-700 underline">Terms of Service</a>
-              <a href="/privacy" target="_blank" className="text-xs text-amber-700 underline">Privacy Policy</a>
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-xs text-amber-700 underline">Terms of Service</a>
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-xs text-amber-700 underline">Privacy Policy</a>
             </div>
             <button
               onClick={grantMissingConsent}
