@@ -47,6 +47,9 @@ export function SettingsClient({
   const [consentMsg,       setConsentMsg]       = useState('')
   const [consentSaving,    setConsentSaving]    = useState(false)
   const [cookiesConsented, setCookiesConsented]  = useState(!!consentCookiesAt)
+  const [granting, setGranting] = useState(false)
+  const [termsConsented, setTermsConsented] = useState(!!consentTermsAt)
+  const [privacyConsented, setPrivacyConsented] = useState(!!consentPrivacyAt)
 
   // Delete
   const [deleteConfirm,  setDeleteConfirm]  = useState('')
@@ -144,6 +147,29 @@ export function SettingsClient({
       setConsentMsg('')
     }
     setConsentSaving(false)
+  }
+
+  const grantMissingConsent = async () => {
+    setGranting(true)
+    const fields: string[] = []
+    if (!termsConsented) fields.push('consent_terms_at')
+    if (!privacyConsented) fields.push('consent_privacy_at')
+    if (fields.length === 0) return
+
+    const res = await apiFetch('/api/consent/manage', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grant: fields }),
+    })
+    if (res.ok) {
+      setTermsConsented(true)
+      setPrivacyConsented(true)
+      toast.show('Consent recorded. Thank you.', 'success')
+      router.refresh()
+    } else {
+      toast.show('Unable to record consent. Please try again.', 'error')
+    }
+    setGranting(false)
   }
 
   // ── Data export ──────────────────────────────────────────────────────────────
@@ -309,6 +335,25 @@ export function SettingsClient({
         <p className="text-sm text-[#0F766E] mb-5">
           Under Art. 7 GDPR, you have the right to view and withdraw your consent at any time.
         </p>
+
+        {(!consentTermsAt || !consentPrivacyAt) && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 px-5 py-4 mb-4">
+            <p className="text-sm font-medium text-amber-800">
+              Consent was not recorded at signup. Please review and accept the current Terms of Service and Privacy Policy.
+            </p>
+            <div className="mt-3 flex gap-3">
+              <a href="/terms" target="_blank" className="text-xs text-amber-700 underline">Terms of Service</a>
+              <a href="/privacy" target="_blank" className="text-xs text-amber-700 underline">Privacy Policy</a>
+            </div>
+            <button
+              onClick={grantMissingConsent}
+              disabled={granting}
+              className="mt-3 rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 transition-colors disabled:opacity-50"
+            >
+              {granting ? 'Recording…' : 'I accept the Terms of Service and Privacy Policy'}
+            </button>
+          </div>
+        )}
 
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded border border-[#E2E8F0] px-4 py-3">

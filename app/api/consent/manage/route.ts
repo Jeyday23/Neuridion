@@ -11,6 +11,10 @@ const WithdrawSchema = z.object({
   withdraw: z.array(z.enum(CONSENT_FIELDS)).min(1),
 })
 
+const GrantSchema = z.object({
+  grant: z.array(z.enum(CONSENT_FIELDS)).min(1),
+})
+
 export async function GET(request: Request) {
   const ip = getClientIp(request)
   const rl = await rateLimit(`consent-read:${ip}`, 15, 60_000)
@@ -93,4 +97,49 @@ export async function POST(request: Request) {
       ? 'Consent withdrawn. Your account will be restricted. To continue using the service, please re-accept the terms.'
       : 'Cookie consent withdrawn successfully.',
   })
+}
+
+export async function PUT(request: Request) {
+  const ip = getClientIp(request)
+  const rl = await rateLimit(`consent-manage:${ip}`, 5, 60_000)
+  if (!rl.allowed) return Response.json({ error: 'Too many requests' }, { status: 429 })
+
+  const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    return Response.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  let body: unknown
+  try { body = await request.json() } catch {
+    return Response.json({ error: 'Invalid JSON body' }, { status: 400 })
+  }
+
+  const parsed = GrantSchema.safeParse(body)
+  if (!parsed.success) {
+    return Response.json({ error: 'Specify which consents to grant.' }, { status: 422 })
+  }
+
+  const admin = createAdminClient()
+  const now = new Date().toISOString()
+  const update: Partial<Record<ConsentField, string>> = {}
+  for (const field of parsed.data.grant) {
+    update[field] = now
+  }
+
+  const { error } = await admin
+    .from('users')
+    .update(update)
+    .eq('id', user.id)
+
+  if (error) {
+    console.error('[consent/manage]', error.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
+  }
+
+  await logAuditEvent(user.id, 'consent_granted', {
+    granted: parsed.data.grant,
+  }, request)
+
+  return Response.json({ ok: true })
 }
