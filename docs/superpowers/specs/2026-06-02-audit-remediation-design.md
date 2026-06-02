@@ -3,11 +3,11 @@
 **Date:** 2026-06-02
 **Status:** Approved
 **Genius Council:** Unanimous (5/5 lenses aligned)
-**Scope:** 11 findings from PRRC + 10x Engineer deep audit (mobile sidebar deferred)
+**Scope:** 10 findings from PRRC + 10x Engineer deep audit (mobile sidebar deferred, date range validation already fixed)
 
 ## Context
 
-A comprehensive production audit of Neuridion at kodex-4-medical.onrender.com identified 12 findings across GDPR compliance, security, i18n, UI/UX, and code quality. The mobile sidebar fix is deferred to a later sprint. The remaining 11 findings are addressed here in two batches: backend-first (zero UI risk), then frontend/UX.
+A comprehensive production audit of Neuridion at kodex-4-medical.onrender.com identified 12 findings across GDPR compliance, security, i18n, UI/UX, and code quality. The mobile sidebar fix is deferred to a later sprint. Fix 3 (date range validation) was already resolved — `SearchRunBodySchema` in `app/api/search-runs/route.ts:39` already has a `superRefine` check with `from > to` validation and 5-year max span. The remaining 10 findings are addressed here in two batches: backend-first (zero UI risk), then frontend/UX.
 
 ## Batch 1 — Backend Fixes (zero UI risk)
 
@@ -22,11 +22,13 @@ const email = authUser?.user?.email
 if (email) {
   const emailHash = createHash('sha256').update(email.toLowerCase()).digest('hex').slice(0, 32)
   await db.from('login_attempts').delete().eq('email', emailHash)
+} else {
+  console.warn(`[cleanup] Could not retrieve email for user ${user.id} — login_attempts may not be fully purged`)
 }
 ```
-Move this BEFORE the `db.auth.admin.deleteUser()` call (line 119), since after auth deletion the email is gone.
+Move this BEFORE the `db.auth.admin.deleteUser()` call (line 119), since after auth deletion the email is gone. Note: `gdpr_purge_user_data` RPC (line 97) runs before this but operates on the `users` table, not `auth.users` — the auth email remains available.
 
-**Files:** `app/api/worker/cleanup/route.ts` (lines 116-117, replace and reorder)
+**Files:** `app/api/worker/cleanup/route.ts` (lines 116-117, replace and reorder). `createHash` is already imported at line 1.
 
 **Test:** Unit test confirming hash output from cleanup matches hash output from `recordLoginAttempt()` for the same email input.
 
@@ -43,33 +45,39 @@ Move this BEFORE the `db.auth.admin.deleteUser()` call (line 119), since after a
 | `app/api/feedback/route.ts` | POST | `feedback_submitted` | session user |
 | `app/api/worker/process-job/route.ts` | POST | `search_run_status_changed` | payload.user_id |
 
-**Fix:** Add `await logAuditEvent(userId, eventType, metadata, request)` after each successful mutation. For `process-job`, use `payload.user_id` since it runs as a worker (no session). For the other 3, use the authenticated user's ID.
+**Fix — two parts:**
 
-**Files:** 4 route files, ~3 lines each
+**Part A — Extend AuditEventType:** In `lib/audit.ts`, add these four strings to the `AuditEventType` union (currently lines 40-66):
+- `'trial_code_created'`
+- `'bug_report_submitted'`
+- `'feedback_submitted'`
+- `'search_run_status_changed'`
 
-### Fix 3: Date range validation
+Without this, TypeScript will reject the `logAuditEvent` calls.
 
-**Root cause:** The search runs POST endpoint accepts `period_from` and `period_to` without validating that from <= to. A run with "30 Apr 2026 – 20 Apr 2026" was accepted and stored.
+**Part B — Add audit calls:** Add `import { logAuditEvent } from '@/lib/audit'` and `await logAuditEvent(userId, eventType, metadata, request)` after each successful mutation.
 
-**Fix:** Add a Zod `.refine()` to the search runs POST schema:
-```typescript
-.refine(data => data.period_from <= data.period_to, {
-  message: 'Start date must be before or equal to end date',
-  path: ['period_from'],
-})
-```
+- For `trial-codes`, `bugs`, and `feedback`: use authenticated user ID + pass `request` for IP/UA.
+- For `process-job`: use `msg.user_id` (line 34) and pass `undefined` as `request` — it runs as a QStash worker, so logging QStash's IP/UA would be misleading. Audit both the success path (line 95-101) and error path (line 114-128) with appropriate metadata.
 
-**Files:** `app/api/search-runs/route.ts` (POST handler schema)
+**Files:** `lib/audit.ts` (extend union), plus 4 route files (~4 lines each including import)
+
+### ~~Fix 3: Date range validation~~ — ALREADY RESOLVED
+
+`SearchRunBodySchema` in `app/api/search-runs/route.ts:39` already has `.superRefine()` with `from > to` validation and 5-year max span. No work needed.
 
 ### Fix 4: Firecrawl log redaction
 
 **Root cause:** `lib/scrapers/firecrawl.ts:56` logs up to 500 chars of raw HTTP response body on failure, which could include API keys or third-party error details.
 
-**Fix:** Truncate to 200 chars and strip patterns that look like API keys or tokens (sequences of 20+ alphanumeric chars):
+**Fix:** Truncate to 200 chars and strip patterns that look like API keys or tokens (prefixed sequences like `sk-`, `fc-`, `Bearer`, or hex strings 32+ chars):
 ```typescript
-const safeBody = rawBody.slice(0, 200).replace(/[A-Za-z0-9_-]{20,}/g, '[REDACTED]')
+const safeBody = rawBody.slice(0, 200)
+  .replace(/(?:sk-|fc-|Bearer\s+)[A-Za-z0-9_-]+/g, '[REDACTED]')
+  .replace(/[0-9a-f]{32,}/gi, '[REDACTED]')
 console.error('[firecrawl] error response:', safeBody)
 ```
+This avoids false positives on legitimate long words or URL paths while catching common API key formats and hex tokens.
 
 **Files:** `lib/scrapers/firecrawl.ts` (~line 56)
 
@@ -77,17 +85,17 @@ console.error('[firecrawl] error response:', safeBody)
 
 **5a. GDPR export route:**
 - `app/api/account/export/route.ts:21` — `(db.from as any)(table)` bypasses typed client
-- **Fix:** Replace the dynamic table loop with explicit typed queries for each table. There are a fixed set of tables to export — enumerate them rather than iterating with a cast.
+- **Fix:** The `batchIn` helper exists for a real reason (PostgREST URL length limits on `.in()` queries). Instead of removing it, constrain its type parameter to only accept the three tables it's used with (`'fsn_results' | 'filter_decisions' | 'profile_edit_history'`) and replace `as any` with a typed overload or a narrower assertion. This preserves the chunking logic while eliminating the `any` escape hatch.
 
 **5b. Reports route:**
 - `app/api/reports/route.ts:113` — `(d as unknown as { model?: string }).model` assumes filter_decisions has a model field
-- **Fix:** Add `model` to the `.select()` query and extend the local type to include it. The column exists in DB but not in generated Supabase types — add a type override.
+- **Fix:** Add `model` to the `.select()` string at line 101 (currently `'fsn_result_id, decision, rationale, confidence'`). Then add a local type assertion at the query site using a narrower cast: `as { fsn_result_id: string; decision: string; rationale: string; confidence: number; model?: string }[]`. This avoids `unknown` and documents the expected shape inline. If Supabase types are ever regenerated, the `model` column will be included automatically.
 
 **Files:** `app/api/account/export/route.ts`, `app/api/reports/route.ts`
 
 ### Fix 6: Favicon
 
-**Fix:** Copy the Neuridion logo from `public/neuridion-logo.svg` (or the PNG variant) and generate `app/favicon.ico`. If no suitable small icon exists, create a minimal 32x32 favicon from the "N" mark.
+**Fix:** Use the existing `public/logo/neuridion-favicon.svg` (purpose-built favicon source) to generate `app/favicon.ico` at 32x32. The SVG already exists — convert it to ICO format.
 
 **Files:** `app/favicon.ico` (new)
 
@@ -131,16 +139,18 @@ Estimated: ~30 keys per page, 4 pages = ~120 new keys (both languages).
 
 **Part B — Wire into pages:** In each page's client component, add `const { t } = useLanguage()` and replace hardcoded strings with `t.profiles.pageTitle`, `t.archive.columnDate`, etc.
 
-**Files:** `lib/i18n.ts`, plus 4 page files in `app/dashboard/`
+**Important:** `billing/page.tsx` is a Server Component (async, no `'use client'`). `useLanguage()` cannot be called there. The i18n wiring for billing must go into a new client wrapper component (e.g., `billing-client.tsx`) that the server page renders, or the existing server component must be restructured. The `settings/page.tsx` delegates to `settings-client.tsx` which is already a client component — wire i18n there. The `profiles` and `archive` pages already have client components that can use the hook.
+
+**Files:** `lib/i18n.ts`, `app/dashboard/billing/billing-client.tsx` (new client wrapper), `app/dashboard/settings/settings-client.tsx`, plus profiles and archive client components
 
 ### Fix 9: Billing plan display
 
 **Root cause:** Billing page uses session client (`createClient()`). When `userData` is null (query fails silently due to RLS or connection error), `(userData?.plan ?? 'free')` defaults to "Free". Enterprise users set via admin override (no Stripe subscription) see incorrect plan info.
 
 **Fix:**
-1. Add error logging: `if (userDataError) console.error('[billing] user query failed:', userDataError.message)`
-2. If `userData` is null, show an error state ("Unable to load plan details") instead of defaulting to free
-3. Investigate RLS on `users` table — verify the `SELECT` policy allows authenticated users to read their own `plan` column. If missing, add the policy.
+1. Error logging already exists at line 27 (`console.error('[billing]', 'query error:', ...)`). No change needed.
+2. If `userData` is null, show an error state ("Unable to load plan details") instead of defaulting to free.
+3. Investigate RLS on `users` table — the billing page uses the session client (`createClient()` at line 16) while the settings page uses `createAdminClient()` (line 13-14), suggesting RLS may block the plan column read. Verify the `SELECT` policy allows authenticated users to read their own row. If missing, add a migration with the policy. If the RLS fix is impractical, switch billing to use the admin client like settings does.
 
 **Files:** `app/dashboard/billing/page.tsx`, potentially a Supabase migration for RLS fix
 
@@ -168,6 +178,7 @@ Estimated: ~30 keys per page, 4 pages = ~120 new keys (both languages).
 - `npx vitest run` — no regressions
 - Unit test for GDPR hash consistency
 - `grep -r "as any\|as unknown as" app/api/` should show reduced count
+- Verify `AuditEventType` union includes all 4 new event types
 
 **Batch 2:**
 - `npx tsc --noEmit` — zero errors
