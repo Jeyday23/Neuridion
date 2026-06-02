@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { rateLimit } from '@/lib/rate-limit'
+import { logAuditEvent } from '@/lib/audit'
 
 const CreateTrialCodesSchema = z.object({
   batch_name: z.string().min(1).max(100).default('Unnamed'),
@@ -79,6 +80,10 @@ export async function POST(request: Request) {
     console.error('[trial-codes:POST]', error.message)
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
   }
+
+  await logAuditEvent(user?.id ?? null, 'trial_code_created', {
+    batch_name, quantity, created: data?.length ?? 0,
+  }, request)
 
   return Response.json({ ok: true, created: data?.length ?? 0 }, { status: 201 })
 }

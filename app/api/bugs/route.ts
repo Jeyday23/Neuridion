@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { logAuditEvent } from '@/lib/audit'
 
 const BugReportSchema = z.object({
   category:    z.enum(['bug', 'suggestion', 'question']),
@@ -42,6 +43,10 @@ export async function POST(request: Request) {
     console.error('[bugs] insert failed:', error.message)
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
   }
+
+  await logAuditEvent(user.id, 'bug_report_submitted', {
+    category: parsed.data.category,
+  }, request)
 
   return NextResponse.json({ ok: true })
 }

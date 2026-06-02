@@ -64,6 +64,10 @@ type AuditEventType =
   | 'search_run_retried'
   | 'login_failed'
   | 'contact_form_submitted'
+  | 'trial_code_created'
+  | 'bug_report_submitted'
+  | 'feedback_submitted'
+  | 'search_run_status_changed'
 
 export async function logAuditEvent(
   userId: string | null,

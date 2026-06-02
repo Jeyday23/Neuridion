@@ -3,6 +3,7 @@ import { runSearchPipeline, type SearchJobPayload, type ProgressUpdate } from '@
 import type { Json } from '@/types/supabase'
 import { z } from 'zod'
 import { safeCompare } from '@/lib/utils/auth'
+import { logAuditEvent } from '@/lib/audit'
 
 // Allow up to 13 minutes — long date ranges can take 10–12 min on BfArM archive
 export const maxDuration = 800
@@ -100,6 +101,10 @@ async function handler(req: Request): Promise<Response> {
       progress:     null,
     }).eq('id', job_id)
 
+    await logAuditEvent(msg.user_id, 'search_run_status_changed', {
+      run_id, status: 'completed', elapsed_seconds: elapsed,
+    })
+
     return new Response('OK', { status: 200 })
   } catch (err) {
     const elapsed = Math.round((Date.now() - pipelineStart) / 1000)
@@ -123,6 +128,10 @@ async function handler(req: Request): Promise<Response> {
         completed_at:  new Date().toISOString(),
       }).eq('id', run_id),
     ])
+
+    await logAuditEvent(msg.user_id, 'search_run_status_changed', {
+      run_id, status: 'error', elapsed_seconds: elapsed,
+    })
 
     // Return 200 — error is persisted; don't let QStash retry a logical failure
     return new Response('Pipeline failed', { status: 200 })

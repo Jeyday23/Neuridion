@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendFeedbackNotification } from '@/lib/email'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { logAuditEvent } from '@/lib/audit'
 
 const FeedbackSchema = z.object({
   rating:           z.number().int().min(1).max(5),
@@ -58,6 +59,10 @@ export async function POST(request: Request) {
     sendFeedbackNotification(parsed.data).catch((err) =>
       console.error('[feedback] email failed:', err instanceof Error ? err.message : 'Unknown')
     )
+
+    await logAuditEvent(user.id, 'feedback_submitted', {
+      rating, triggered_by: parsed.data.triggered_by,
+    }, request)
 
     return NextResponse.json({ success: true })
   } catch (err) {
