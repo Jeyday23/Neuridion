@@ -113,8 +113,14 @@ async function processExpiredDeletions(): Promise<number> {
         await db.storage.from('search-attachments').remove(attachFiles.map((f) => `${user.id}/${f.name}`))
       }
 
-      const emailHash = createHash('sha256').update(user.id).digest('hex').slice(0, 32)
-      await db.from('login_attempts').delete().eq('email', emailHash)
+      const { data: authUser } = await db.auth.admin.getUserById(user.id)
+      const authEmail = authUser?.user?.email
+      if (authEmail) {
+        const emailHash = createHash('sha256').update(authEmail.toLowerCase()).digest('hex').slice(0, 32)
+        await db.from('login_attempts').delete().eq('email', emailHash)
+      } else {
+        console.warn(`[cleanup] Could not retrieve email for user ${user.id} — login_attempts may not be fully purged`)
+      }
 
       const { error: authErr } = await db.auth.admin.deleteUser(user.id)
       if (authErr) console.error('[cleanup] auth.users deletion failed:', authErr.message)
