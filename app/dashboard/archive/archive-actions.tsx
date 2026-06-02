@@ -14,37 +14,33 @@ export function CancelRunButton({
   onCancelled: (runId: string) => void
   onToast: (message: string, type: 'success' | 'error') => void
 }) {
-  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [loading, setLoading] = useState(false)
 
   const handleClick = async () => {
-    setState('loading')
+    setLoading(true)
     try {
       const res = await apiFetch(`/api/search-runs/${runId}/cancel`, { method: 'POST' })
       const json = await res.json().catch(() => ({})) as { error?: string }
       if (!res.ok) {
-        if (res.status === 429) { onToast('Too many requests — please wait a moment.', 'error'); setState('idle'); return }
+        if (res.status === 429) { onToast('Too many requests — please wait a moment.', 'error'); return }
         throw new Error(json.error ?? 'Failed to cancel search')
       }
       onCancelled(runId)
       onToast('Search cancelled', 'success')
-      setState('idle')
     } catch {
-      setState('error')
-      onToast('Unable to cancel search', 'error')
+      onToast('Unable to cancel search — please try again.', 'error')
+    } finally {
+      setLoading(false)
     }
-  }
-
-  if (state === 'error') {
-    return <span className="text-xs text-red-500">Failed — try again</span>
   }
 
   return (
     <button
       onClick={handleClick}
-      disabled={state === 'loading'}
+      disabled={loading}
       className="text-xs text-amber-600 hover:underline disabled:opacity-50 whitespace-nowrap"
     >
-      {state === 'loading' ? 'Cancelling…' : 'Cancel'}
+      {loading ? 'Cancelling…' : 'Cancel'}
     </button>
   )
 }
@@ -58,7 +54,7 @@ export function DeleteRunButton({
   onDeleted: (runId: string) => void
   onToast: (message: string, type: 'success' | 'error') => void
 }) {
-  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [loading, setLoading] = useState(false)
 
   const handleDelete = async () => {
     const confirmed = window.confirm(
@@ -66,34 +62,30 @@ export function DeleteRunButton({
     )
     if (!confirmed) return
 
-    setState('loading')
+    setLoading(true)
     try {
       const res = await apiFetch(`/api/search-runs/${runId}`, { method: 'DELETE' })
       const json = await res.json().catch(() => ({})) as { error?: string }
       if (!res.ok) {
-        if (res.status === 429) { onToast('Too many requests — please wait a moment.', 'error'); setState('idle'); return }
+        if (res.status === 429) { onToast('Too many requests — please wait a moment.', 'error'); return }
         throw new Error(json.error ?? 'Failed to delete search run')
       }
       onDeleted(runId)
       onToast('Search run deleted', 'success')
-      setState('idle')
     } catch {
-      setState('error')
-      onToast('Unable to delete search run', 'error')
+      onToast('Unable to delete search run — please try again.', 'error')
+    } finally {
+      setLoading(false)
     }
-  }
-
-  if (state === 'error') {
-    return <span className="text-xs text-red-500">Failed — try again</span>
   }
 
   return (
     <button
       onClick={handleDelete}
-      disabled={state === 'loading'}
+      disabled={loading}
       className="text-xs text-zinc-400 hover:text-red-500 disabled:opacity-50 whitespace-nowrap"
     >
-      {state === 'loading' ? 'Deleting…' : 'Delete'}
+      {loading ? 'Deleting…' : 'Delete'}
     </button>
   )
 }
@@ -143,12 +135,11 @@ export function DownloadButton({
 
 export function GenerateReportButton({ runId }: { runId: string }) {
   const router = useRouter()
-  const [state, setState] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [errorMsg, setErrorMsg] = useState('')
+  const toast = useToast()
+  const [loading, setLoading] = useState(false)
 
   const handleClick = async () => {
-    setState('loading')
-    setErrorMsg('')
+    setLoading(true)
     try {
       const res = await apiFetch('/api/reports', {
         method: 'POST',
@@ -160,24 +151,23 @@ export function GenerateReportButton({ runId }: { runId: string }) {
         throw new Error(body?.error ?? 'Failed to generate report')
       }
       router.refresh()
-      setState('idle')
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to generate report')
-      setState('error')
+      const msg = err instanceof Error && err.message.includes('429')
+        ? 'Too many requests — please wait a moment.'
+        : 'Report generation failed — please try again.'
+      toast.show(msg, 'error')
+    } finally {
+      setLoading(false)
     }
-  }
-
-  if (state === 'error') {
-    return <span className="text-xs text-red-500 max-w-[200px]">{errorMsg}</span>
   }
 
   return (
     <button
       onClick={handleClick}
-      disabled={state === 'loading'}
+      disabled={loading}
       className="text-xs text-violet-600 hover:underline disabled:opacity-50 whitespace-nowrap"
     >
-      {state === 'loading' ? 'Generating…' : 'Generate Report'}
+      {loading ? 'Generating…' : 'Generate Report'}
     </button>
   )
 }
