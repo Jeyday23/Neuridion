@@ -308,7 +308,7 @@ export const translations = {
       withdrawing:       'Wird widerrufen...',
       consentWithdrawNote: 'Um die Einwilligung zu den Nutzungsbedingungen oder der Datenschutzerklärung zu widerrufen, löschen Sie bitte Ihr Konto unten. Der Widerruf dieser Einwilligungen bedeutet, dass wir den Dienst nicht mehr bereitstellen können.',
       deleteAccount:     'Konto löschen',
-      deleteScheduled:   'Ihr Konto ist zur Löschung am vorgesehen:',
+      deleteScheduled:   'Die Löschung Ihres Kontos ist geplant für den',
       cancelDeletion:    'Kontolöschung abbrechen',
       cancelling:        'Wird abgebrochen…',
       deleteWarning:     'Dies plant die dauerhafte Löschung Ihres Kontos in 30 Tagen. Ihre Sitzung wird sofort beendet. Daten, die für MDR-Prüfzwecke aufbewahrt werden, können nicht gelöscht werden.',

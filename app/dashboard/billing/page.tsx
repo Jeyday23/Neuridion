@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { PlanId } from '@/lib/plans'
+import { PLANS, type PlanId } from '@/lib/plans'
 import { BillingClient } from './billing-client'
 
 export const metadata = { title: 'Billing — Neuridion' }
@@ -38,7 +38,8 @@ export default async function BillingPage({
     )
   }
 
-  const currentPlan = (userData.plan ?? 'free') as PlanId
+  const rawPlan = userData.plan ?? 'free'
+  const currentPlan: PlanId = rawPlan in PLANS ? (rawPlan as PlanId) : 'free'
 
   return (
     <BillingClient
