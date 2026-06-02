@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
 import { apiFetch } from '@/lib/fetch'
+import { useToast } from '@/app/components/ui/ToastProvider'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
 
 export interface FsnResult {
@@ -152,15 +154,21 @@ function ResultRow({ result }: { result: FsnResult }) {
   )
 }
 
-export function RunResults({ results, runId, runStatus, reviewStatus: initialReviewStatus }: {
+export function RunResults({ results, runId, runStatus, reviewStatus: initialReviewStatus, hasReport: initialHasReport }: {
   results: FsnResult[]
   runId: string
   runStatus: string
   reviewStatus: string
+  hasReport: boolean
 }) {
+  const router = useRouter()
+  const toast = useToast()
   const [tab, setTab] = useState<Tab>('all')
   const [reviewStatus, setReviewStatus] = useState(initialReviewStatus)
   const [reviewLoading, setReviewLoading] = useState(false)
+  const [reportGenerated, setReportGenerated] = useState(initialHasReport)
+  const [generatingReport, setGeneratingReport] = useState(false)
+  const reportPendingRef = useRef(false)
   const [reviewedAt, setReviewedAt] = useState<string | null>(null)
   const [reviewedBy, setReviewedBy] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
@@ -194,6 +202,32 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
       setReviewError('Network error. Please check your connection and try again.')
     } finally {
       setReviewLoading(false)
+    }
+  }
+
+  async function handleGenerateReport() {
+    if (reportPendingRef.current) return
+    reportPendingRef.current = true
+    setGeneratingReport(true)
+    try {
+      const res = await apiFetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_id: runId }),
+      })
+      if (!res.ok) {
+        if (res.status === 429) { toast.show('Too many requests — please wait a moment.', 'error'); return }
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error ?? 'Failed to generate report')
+      }
+      setReportGenerated(true)
+      toast.show('Report generated successfully.', 'success')
+      router.refresh()
+    } catch {
+      toast.show('Report generation failed — please try again.', 'error')
+    } finally {
+      reportPendingRef.current = false
+      setGeneratingReport(false)
     }
   }
 
@@ -322,6 +356,36 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
       {reviewError && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {reviewError}
+        </div>
+      )}
+
+      {reviewStatus !== 'draft' && !reportGenerated && (runStatus === 'complete' || runStatus === 'degraded') && (
+        <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 flex items-center gap-3 text-sm">
+          <span className="text-violet-700 flex-1">
+            Results approved — you can now generate your compliance report.
+          </span>
+          <button
+            onClick={handleGenerateReport}
+            disabled={generatingReport}
+            aria-busy={generatingReport}
+            className="px-4 py-2 bg-violet-600 text-white rounded-lg text-xs font-medium hover:bg-violet-700 disabled:opacity-50 whitespace-nowrap"
+          >
+            {generatingReport ? 'Generating…' : 'Generate Report'}
+          </button>
+        </div>
+      )}
+
+      {reportGenerated && (
+        <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-3 text-sm">
+          <span className="text-green-700 flex-1">
+            Report generated. Download it from the archive.
+          </span>
+          <a
+            href="/dashboard/archive"
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 whitespace-nowrap"
+          >
+            Go to Archive
+          </a>
         </div>
       )}
 

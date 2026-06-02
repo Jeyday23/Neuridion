@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/app/components/ui/ToastProvider'
 import { apiFetch } from '@/lib/fetch'
@@ -38,6 +38,7 @@ export function CancelRunButton({
     <button
       onClick={handleClick}
       disabled={loading}
+      aria-busy={loading}
       className="text-xs text-amber-600 hover:underline disabled:opacity-50 whitespace-nowrap"
     >
       {loading ? 'Cancelling…' : 'Cancel'}
@@ -83,6 +84,7 @@ export function DeleteRunButton({
     <button
       onClick={handleDelete}
       disabled={loading}
+      aria-busy={loading}
       className="text-xs text-zinc-400 hover:text-red-500 disabled:opacity-50 whitespace-nowrap"
     >
       {loading ? 'Deleting…' : 'Delete'}
@@ -126,6 +128,7 @@ export function DownloadButton({
     <button
       onClick={handleClick}
       disabled={loading}
+      aria-busy={loading}
       className="text-xs text-blue-600 hover:underline disabled:opacity-50 whitespace-nowrap"
     >
       {loading ? 'Loading…' : label}
@@ -137,8 +140,11 @@ export function GenerateReportButton({ runId }: { runId: string }) {
   const router = useRouter()
   const toast = useToast()
   const [loading, setLoading] = useState(false)
+  const pendingRef = useRef(false)
 
   const handleClick = async () => {
+    if (pendingRef.current) return
+    pendingRef.current = true
     setLoading(true)
     try {
       const res = await apiFetch('/api/reports', {
@@ -147,16 +153,15 @@ export function GenerateReportButton({ runId }: { runId: string }) {
         body: JSON.stringify({ run_id: runId }),
       })
       if (!res.ok) {
+        if (res.status === 429) { toast.show('Too many requests — please wait a moment.', 'error'); return }
         const body = await res.json().catch(() => null)
         throw new Error(body?.error ?? 'Failed to generate report')
       }
       router.refresh()
-    } catch (err) {
-      const msg = err instanceof Error && err.message.includes('429')
-        ? 'Too many requests — please wait a moment.'
-        : 'Report generation failed — please try again.'
-      toast.show(msg, 'error')
+    } catch {
+      toast.show('Report generation failed — please try again.', 'error')
     } finally {
+      pendingRef.current = false
       setLoading(false)
     }
   }
@@ -165,6 +170,7 @@ export function GenerateReportButton({ runId }: { runId: string }) {
     <button
       onClick={handleClick}
       disabled={loading}
+      aria-busy={loading}
       className="text-xs text-violet-600 hover:underline disabled:opacity-50 whitespace-nowrap"
     >
       {loading ? 'Generating…' : 'Generate Report'}

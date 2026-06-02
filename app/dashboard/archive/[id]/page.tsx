@@ -261,7 +261,7 @@ export default async function RunDetailPage({
 
       {/* Results list */}
       {results.length > 0 ? (
-        <RunResults results={results} runId={run.id} runStatus={run.status} reviewStatus={run.review_status ?? 'draft'} />
+        <RunResults results={results} runId={run.id} runStatus={run.status} reviewStatus={run.review_status ?? 'draft'} hasReport={!!run.report_generated_at} />
       ) : (
         <p className="text-sm text-zinc-400 py-8 text-center">
           {run.status === 'complete' ? 'No FSN results were found for this search.' : 'Results will appear here once the search completes.'}

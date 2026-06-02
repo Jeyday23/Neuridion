@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { DownloadButton, GenerateReportButton, CancelRunButton, DeleteRunButton } from './archive-actions'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
@@ -89,6 +89,8 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
   const [rows, setRows]                   = useState(runs)
   const [profileFilter, setProfileFilter] = useState('all')
   const [statusFilter, setStatusFilter]   = useState('all')
+
+  useEffect(() => { setRows(runs) }, [runs])
   const [toast, setToast]                 = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error') => {
