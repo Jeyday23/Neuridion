@@ -10,8 +10,12 @@ describe('computeRunStatus', () => {
     expect(computeRunStatus(['BfArM failed'], 5)).toBe('degraded')
   })
 
-  it('returns "error" when warnings exist and no items', () => {
-    expect(computeRunStatus(['All sources failed'], 0)).toBe('error')
+  it('returns "error" when data-loss warnings exist and no items', () => {
+    expect(computeRunStatus(['scrapeStage failed: Pipeline stage error.'], 0)).toBe('error')
+  })
+
+  it('returns "complete" when benign warnings exist and no items', () => {
+    expect(computeRunStatus(['BFARM database was unavailable during this search and returned no results.'], 0)).toBe('complete')
   })
 
   it('returns "complete" when no warnings and no items (empty search)', () => {

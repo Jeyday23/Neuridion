@@ -2,10 +2,12 @@ import { logAuditEvent } from '@/lib/audit'
 import { sendSearchRunNotification } from '@/lib/email'
 import type { PipelineContext } from '../types'
 
+const DATA_LOSS_PATTERN = /capped|result cap|dropped|incomplete|missing|structure.*changed|Pipeline stage error/i
+
 export function computeRunStatus(warnings: string[], itemCount: number): 'complete' | 'degraded' | 'error' {
   if (warnings.length > 0 && itemCount === 0) {
-    const isInfoOnly = warnings.every(w => /returned 0|no .* found/i.test(w))
-    return isInfoOnly ? 'complete' : 'error'
+    const hasDataLoss = warnings.some(w => DATA_LOSS_PATTERN.test(w))
+    return hasDataLoss ? 'error' : 'complete'
   }
   if (warnings.length > 0) return 'degraded'
   return 'complete'
