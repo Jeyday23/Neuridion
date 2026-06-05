@@ -7,6 +7,7 @@ const SEARCH_API      = 'https://www.gov.uk/api/search.json'
 const CONTENT_API_BASE = 'https://www.gov.uk/api/content'
 const PAGE_SIZE        = 100
 const DETAIL_CONCURRENCY = 3
+const MAX_ITEMS        = 500
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
 async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperResult> {
@@ -109,16 +110,14 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
   const deduped = dedup(allItems)
 
   if (params.searchTerms && params.searchTerms.length > 0) {
-    const terms = params.searchTerms.map(t => t.toLowerCase())
-    const filtered = deduped.filter(item => {
-      const hay = `${item.title} ${item.raw_content ?? ''}`.toLowerCase()
-      const match = terms.length >= 2 ? terms.every(t => hay.includes(t)) : terms.some(t => hay.includes(t))
-      return match
-    })
-    return { items: filtered, warnings: allWarnings }
+    console.warn(`[mhra] searchTerms pre-filter disabled: passing all ${deduped.length} items to AI filter`)
   }
 
-  return { items: deduped, warnings: allWarnings }
+  if (deduped.length > MAX_ITEMS) {
+    allWarnings.push(`MHRA: result cap hit — returning ${MAX_ITEMS} of ${deduped.length} items`)
+  }
+
+  return { items: deduped.slice(0, MAX_ITEMS), warnings: allWarnings }
 }
 
 // ─── Detail enrichment ────────────────────────────────────────────────────────
@@ -129,7 +128,9 @@ async function enrichWithDetails(items: ScrapedFsn[]): Promise<ScrapedFsn[]> {
   for (let i = 0; i < items.length; i += DETAIL_CONCURRENCY) {
     const batch   = items.slice(i, i + DETAIL_CONCURRENCY)
     const enriched = await Promise.all(batch.map(enrichItem))
-    result.push(...enriched)
+    result.push(...enriched.flat())
+
+    if (result.length >= MAX_ITEMS) break
 
     if (i + DETAIL_CONCURRENCY < items.length) {
       await jitter(300, 650)
@@ -139,19 +140,24 @@ async function enrichWithDetails(items: ScrapedFsn[]): Promise<ScrapedFsn[]> {
   return result
 }
 
-async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn> {
+async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn[]> {
   const linkPath = item.source_url.replace('https://www.gov.uk', '')
-  if (!linkPath.startsWith('/')) return item
+  if (!linkPath.startsWith('/')) return [item]
 
   try {
     const detail = await fetchJson(`${CONTENT_API_BASE}${linkPath}`) as GovUkContentItem | null
-    if (!detail) return item
+    if (!detail) return [item]
 
     const body      = detail.details?.body     ?? ''
     const refNumber = detail.details?.ref_number ?? ''
     const rawIssuedDate = detail.details?.issued_date ?? ''
 
-    // Normalize issuedDate to YYYY-MM-DD — the API returns inconsistent formats
+    const h3Count = (body.match(/<h3[\s>]/g) ?? []).length
+    if (!refNumber && h3Count >= 3) {
+      const extracted = parseRoundupBody(body, linkPath, item.fsn_date)
+      if (extracted.length > 0) return extracted
+    }
+
     let issuedDate: string | null = null
     if (rawIssuedDate) {
       const parsed = new Date(rawIssuedDate)
@@ -163,19 +169,117 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn> {
     const rawParts = [
       item.title,
       refNumber  ? `Reference: ${refNumber}` : '',
-      body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+      stripHtmlTags(body).replace(/\s+/g, ' ').trim(),
     ].filter(Boolean)
 
-    return {
+    return [{
       ...item,
       fsn_date:    issuedDate ?? item.fsn_date ?? null,
       raw_content: sanitizeContent(rawParts.join('\n\n')),
-    }
+    }]
   } catch (err) {
     console.error('[mhra]', `Detail fetch failed for ${linkPath}:`, err instanceof Error ? err.message : String(err))
-    return item
+    return [item]
   }
 }
+
+// ─── Roundup page parsing ─────────────────────────────────────────────────────
+
+function parseRoundupBody(html: string, roundupPath: string, fallbackDate: string | null): ScrapedFsn[] {
+  const sections = html.split(/<h3[^>]*>/).slice(1)
+  const results: ScrapedFsn[] = []
+
+  for (const section of sections) {
+    if (results.length >= MAX_ITEMS) break
+    const closingIdx = section.indexOf('</h3>')
+    if (closingIdx < 0) continue
+
+    const h3Inner = stripHtmlTags(section.slice(0, closingIdx)).trim()
+    if (!h3Inner) continue
+
+    const afterH3 = section.slice(closingIdx + 5)
+
+    const manufacturer = extractMfrFromH3(h3Inner)
+    const product      = extractProductFromH3(h3Inner)
+    const mhraRef      = extractMhraRef(afterH3)
+    const fsnDate      = extractDateFromParagraphs(afterH3) ?? fallbackDate
+    const model        = extractModel(afterH3)
+
+    const bodyText = stripHtmlTags(afterH3).replace(/\s+/g, ' ').trim()
+    const rawParts = [h3Inner, model ? `Model: ${model}` : '', mhraRef ? `MHRA reference: ${mhraRef}` : '', bodyText].filter(Boolean)
+
+    const slug = h3Inner.slice(0, 80).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
+    const externalId = mhraRef
+      ? `mhra-ref-${mhraRef}`
+      : `${roundupPath}#${slug}-${results.length}`
+
+    results.push({
+      external_id:  externalId,
+      title:        h3Inner,
+      manufacturer: manufacturer,
+      product_name: product,
+      fsn_date:     fsnDate,
+      source_url:   `https://www.gov.uk${roundupPath}`,
+      raw_content:  sanitizeContent(rawParts.join('\n\n')),
+      source_db:    'mhra',
+    })
+  }
+
+  return results
+}
+
+function extractMfrFromH3(h3: string): string | null {
+  const colonIdx = h3.indexOf(': ')
+  if (colonIdx > 0) return h3.slice(0, colonIdx).trim() || null
+  return null
+}
+
+function extractProductFromH3(h3: string): string | null {
+  const colonIdx = h3.indexOf(': ')
+  if (colonIdx > 0) return h3.slice(colonIdx + 2).trim() || null
+  return h3 || null
+}
+
+function extractMhraRef(html: string): string | null {
+  const match = html.match(/MHRA reference:.*?(\d{7,10})/i)
+  return match ? match[1] : null
+}
+
+function extractDateFromParagraphs(html: string): string | null {
+  const paragraphs = html.match(/<p>(.*?)<\/p>/gi) ?? []
+  for (const p of paragraphs.slice(0, 3)) {
+    const text = stripHtmlTags(p).trim()
+    const dateMatch = text.match(/(\d{1,2}\s+\w+\s+\d{4})/)
+    if (dateMatch) {
+      const parsed = new Date(dateMatch[1])
+      if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10)
+    }
+    if (/^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}/i.test(text)) {
+      const parsed = new Date(text.match(/\w+\s+\d{4}/)?.[0] ?? '')
+      if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10)
+    }
+  }
+  return null
+}
+
+function extractModel(html: string): string | null {
+  const match = html.match(/<p>\s*Model:\s*(.*?)<\/p>/i)
+  if (match) return stripHtmlTags(match[1]).trim() || null
+  return null
+}
+
+function stripHtmlTags(html: string): string {
+  let result = ''
+  let inTag = false
+  for (let i = 0; i < html.length; i++) {
+    if (html[i] === '<') { inTag = true; continue }
+    if (html[i] === '>') { inTag = false; result += ' '; continue }
+    if (!inTag) result += html[i]
+  }
+  return result
+}
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
 
 async function fetchJson(url: string): Promise<unknown | null> {
   try {
@@ -264,6 +368,7 @@ interface GovUkSearchItem {
 }
 
 interface GovUkContentItem {
+  title?:   string
   details?: {
     body?:         string
     ref_number?:   string

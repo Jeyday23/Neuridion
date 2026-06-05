@@ -2,7 +2,6 @@ import { scrapeBfarm, type ScrapedFsn, type ScraperResult, type ScraperParams } 
 import { scrapeMhra }       from '@/lib/scrapers/mhra'
 import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
 import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
-import { extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
 import { insertResultsStage } from './insert-results'
@@ -100,8 +99,6 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
         await fetchSourceRange({ from: overlapFrom, to: period_to })
       }
 
-      const mfrTerms = extractManufacturerTerms(profile.manufacturer ?? '')
-      const devTerms = searchTerms.filter((t) => !mfrTerms.includes(t))
       const coveredInWindow = covered.filter(
         (c) => c.to >= period_from && c.from <= (overlapFrom > period_from ? prevDay(overlapFrom) : period_from),
       )
@@ -110,15 +107,10 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
         const canonFrom = range.from < period_from ? period_from : range.from
         const canonTo   = range.to   > period_to   ? period_to   : range.to
         const cached    = await getCanonicalItems(sourceId, canonFrom, canonTo)
-        const filtered  = localSearchTerms.length === 0 ? cached : cached.filter((item) => {
-          const hay = `${item.title} ${item.manufacturer ?? ''} ${item.raw_content ?? ''}`.toLowerCase()
-          if (competitorTerms.some((t) => hay.includes(t.toLowerCase()))) return true
-          if (devTerms.length === 0) return mfrTerms.some((t) => hay.includes(t.toLowerCase()))
-          const mfrMatch = mfrTerms.length === 0 || mfrTerms.some((t) => hay.includes(t.toLowerCase()))
-          const devMatch = devTerms.some((t) => hay.includes(t.toLowerCase()))
-          return mfrMatch && devMatch
-        })
-        items.push(...filtered)
+        if (localSearchTerms.length > 0) {
+          console.warn(`[scrape] cached canonical pre-filter disabled for ${sourceId}: passing ${cached.length} items to AI filter`)
+        }
+        items.push(...cached)
       }
     }
 

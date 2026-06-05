@@ -402,14 +402,7 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
   }
 
   if (params.searchTerms && params.searchTerms.length > 0) {
-    const terms = params.searchTerms.map(t => t.toLowerCase())
-    const before = result.items.length
-    const filtered = result.items.filter(item => {
-      const hay = `${item.title} ${item.raw_content}`.toLowerCase()
-      const match = terms.length >= 2 ? terms.every(t => hay.includes(t)) : terms.some(t => hay.includes(t))
-      return match
-    })
-    return { ...result, items: filtered }
+    console.warn(`[bfarm] searchTerms pre-filter disabled: passing all ${result.items.length} items to AI filter`)
   }
 
   return result
