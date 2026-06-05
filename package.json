@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "prrc-review": "tsx scripts/prrc-review.ts"
+    "prrc-review": "tsx scripts/prrc-review.ts",
+    "benchmark:accuracy": "tsx benchmark/cli.ts",
+    "benchmark:live": "tsx benchmark/cli.ts --live"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.95.1",
