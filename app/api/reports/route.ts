@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   // Fetch run + profile (validates ownership)
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('id, status, review_status, reviewed_by, reviewed_at, period_from, period_to, dbs_searched, profile_snapshot, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
+    .select('id, status, review_status, reviewed_by, reviewed_at, period_from, period_to, dbs_searched, terms_used, profile_snapshot, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
     .eq('id', run_id)
     .eq('user_id', user.id)
     .is('deleted_at', null)

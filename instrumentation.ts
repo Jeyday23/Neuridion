@@ -9,28 +9,25 @@ const REQUIRED_SECRETS = [
 const RECOMMENDED_SECRETS = [
   'RESEND_API_KEY',
   'WORKER_API_SECRET',
+  'UPSTASH_REDIS_REST_URL',
+  'UPSTASH_REDIS_REST_TOKEN',
 ] as const
 
 export async function register() {
-  // AUDIT_HMAC_KEY is required in all non-development environments (staging, preview, production)
-  // to ensure audit trail PII hashing is always active outside local dev.
-  if (process.env.NODE_ENV !== 'development' && !process.env.AUDIT_HMAC_KEY?.trim()) {
-    console.error(
-      '[SECURITY] AUDIT_HMAC_KEY is required in non-development environments for audit trail PII hashing',
-    )
+  if (process.env.NODE_ENV === 'production') {
+    const missing = REQUIRED_SECRETS.filter((k) => !process.env[k]?.trim())
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing required environment variables in production: ${missing.join(', ')}`,
+      )
+    }
+  } else if (process.env.NODE_ENV !== 'development' && !process.env.AUDIT_HMAC_KEY?.trim()) {
     throw new Error(
       'Missing AUDIT_HMAC_KEY — required in non-development environments for audit trail PII hashing',
     )
   }
 
   if (process.env.NODE_ENV !== 'production') return
-
-  const missing = REQUIRED_SECRETS.filter((k) => !process.env[k]?.trim())
-  if (missing.length > 0) {
-    throw new Error(
-      `Missing required environment variables in production: ${missing.join(', ')}`,
-    )
-  }
 
   const warned = RECOMMENDED_SECRETS.filter((k) => !process.env[k]?.trim())
   if (warned.length > 0) {
