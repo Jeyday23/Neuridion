@@ -23,13 +23,15 @@ function chainable(terminal: Record<string, unknown> = {}) {
   return builder
 }
 
+type CallableMock = ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>
+
 let mockAdminChain: ReturnType<typeof chainable>
-let mockConstructEvent: ReturnType<typeof vi.fn>
-let mockSubscriptionsRetrieve: ReturnType<typeof vi.fn>
-let mockRedisExists: ReturnType<typeof vi.fn>
-let mockRedisSet: ReturnType<typeof vi.fn>
-let mockRedisDel: ReturnType<typeof vi.fn>
-let mockLogAuditEvent: ReturnType<typeof vi.fn>
+let mockConstructEvent: CallableMock
+let mockSubscriptionsRetrieve: CallableMock
+let mockRedisExists: CallableMock
+let mockRedisSet: CallableMock
+let mockRedisDel: CallableMock
+let mockLogAuditEvent: CallableMock
 
 // --- next/headers ---
 vi.mock('next/headers', () => ({
