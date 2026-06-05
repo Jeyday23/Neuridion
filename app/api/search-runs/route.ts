@@ -119,8 +119,19 @@ export async function POST(request: Request) {
     )
   }
 
+  type SearchRunRpc = (
+    fn: 'check_and_insert_search_run',
+    args: {
+      p_user_id: string
+      p_profile_id: string
+      p_period_from: string
+      p_period_to: string
+      p_run_limit: number
+    }
+  ) => PromiseLike<{ data: unknown; error: { message?: string } | null }>
+
   // Atomic plan-limit check + insert (advisory lock prevents TOCTOU race)
-  const { data: rpcResult, error: runError } = await (db.rpc as Function)('check_and_insert_search_run', {
+  const { data: rpcResult, error: runError } = await (db.rpc as SearchRunRpc)('check_and_insert_search_run', {
     p_user_id:     user.id,
     p_profile_id:  profile_id,
     p_period_from: period_from,
@@ -143,7 +154,7 @@ export async function POST(request: Request) {
 
   const profileDefaultDbs = Array.isArray(profile.default_dbs) ? profile.default_dbs as string[] : null
   const dbsToSearch = selected_dbs ?? profileDefaultDbs ?? ['bfarm']
-  const { id: _profileId, ...profileFields } = profile
+  const { id: _, ...profileFields } = profile
   await db
     .from('search_runs')
     .update({ dbs_searched: dbsToSearch, profile_snapshot: profileFields })
