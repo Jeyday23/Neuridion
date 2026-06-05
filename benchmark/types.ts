@@ -37,12 +37,18 @@ export interface MatchResult {
   matched_item?: ScrapedFsn
 }
 
+export interface RecallResult {
+  found:    number
+  expected: number
+  rate:     number | null
+}
+
 export interface ProfileBenchmark {
   profile:          GoldenProfile
   sources:          SourceResult[]
   total_scraped:    number
   keyword_scores:   Map<string, number>
-  recall:           { found: number; expected: number; rate: number }
+  recall:           RecallResult
   precision_sample: { relevant_looking: number; sampled: number; rate: number }
   match_results:    MatchResult[]
   noise_dominance:  Array<{ term: string; count: number; percentage: number }>
@@ -54,8 +60,8 @@ export interface BenchmarkRun {
   mode:       'live' | 'fixture'
   profiles:   ProfileBenchmark[]
   summary: {
-    avg_recall:    number
-    avg_precision: number
+    avg_recall:    number | null
+    avg_precision: number | null
     total_scraped: number
     total_expected: number
     total_found:   number

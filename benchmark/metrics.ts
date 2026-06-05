@@ -1,5 +1,5 @@
 import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
-import type { ExpectedRecord, MatchResult } from './types'
+import type { ExpectedRecord, MatchResult, RecallResult } from './types'
 
 export function matchExpected(
   expected: ExpectedRecord[],
@@ -26,8 +26,8 @@ export function matchExpected(
   })
 }
 
-export function computeRecall(matches: MatchResult[]): { found: number; expected: number; rate: number } {
-  if (matches.length === 0) return { found: 0, expected: 0, rate: 1 }
+export function computeRecall(matches: MatchResult[]): RecallResult {
+  if (matches.length === 0) return { found: 0, expected: 0, rate: null }
   const found = matches.filter((m) => m.found).length
   return { found, expected: matches.length, rate: found / matches.length }
 }

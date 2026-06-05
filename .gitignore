@@ -77,6 +77,6 @@ docs/prrc-review/PRRC-QA-Report-*.md
 # Playwright MCP temp artifacts
 .playwright-mcp/
 
-# Benchmark fixtures (large, regenerated from live runs)
+# Benchmark data (generated locally, not source-controlled until curated)
 benchmark/fixtures/
 benchmark/results/

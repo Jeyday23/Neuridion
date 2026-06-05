@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { matchExpected, computeRecall, measureNoiseDominance, samplePrecision } from '../benchmark/metrics'
+import { MissingFixtureError } from '../benchmark/runner'
 import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
 
 function makeFsn(overrides: Partial<ScrapedFsn> & { external_id: string; title: string }): ScrapedFsn {
@@ -73,8 +74,11 @@ describe('computeRecall', () => {
     expect(result.rate).toBe(0.5)
   })
 
-  it('returns 100% for empty expected list', () => {
-    expect(computeRecall([]).rate).toBe(1)
+  it('returns null rate for empty expected list (N/A, not 100%)', () => {
+    const result = computeRecall([])
+    expect(result.rate).toBeNull()
+    expect(result.found).toBe(0)
+    expect(result.expected).toBe(0)
   })
 })
 
@@ -119,5 +123,59 @@ describe('samplePrecision', () => {
   it('returns zero for empty items', () => {
     const result = samplePrecision([], 'Siemens', 'MAGNETOM')
     expect(result.rate).toBe(0)
+  })
+})
+
+describe('fixture mode fail-closed', () => {
+  it('MissingFixtureError contains profile and source info', () => {
+    const err = new MissingFixtureError('magnetom-mri', 'bfarm')
+    expect(err.message).toContain('magnetom-mri')
+    expect(err.message).toContain('bfarm')
+    expect(err.message).toContain('npm run benchmark:live')
+    expect(err.name).toBe('MissingFixtureError')
+  })
+})
+
+describe('summary averaging excludes N/A profiles', () => {
+  it('profiles with null recall rate should not inflate average', () => {
+    const profiles = [
+      { recall: { found: 2, expected: 3, rate: 2 / 3 } },
+      { recall: { found: 0, expected: 0, rate: null } },
+    ]
+
+    const measurable = profiles.filter((p) => p.recall.rate != null)
+    const avgRecall = measurable.length > 0
+      ? measurable.reduce((sum, p) => sum + (p.recall.rate ?? 0), 0) / measurable.length
+      : null
+
+    expect(avgRecall).toBeCloseTo(2 / 3)
+    expect(measurable).toHaveLength(1)
+  })
+
+  it('returns null when all profiles have N/A recall', () => {
+    const profiles = [
+      { recall: { found: 0, expected: 0, rate: null } },
+      { recall: { found: 0, expected: 0, rate: null } },
+    ]
+
+    const measurable = profiles.filter((p) => p.recall.rate != null)
+    const avgRecall = measurable.length > 0
+      ? measurable.reduce((sum, p) => sum + (p.recall.rate ?? 0), 0) / measurable.length
+      : null
+
+    expect(avgRecall).toBeNull()
+  })
+})
+
+describe('report labeling', () => {
+  it('precision column header says "Keyword Precision Sample"', () => {
+    const headerLine = '| Profile | Scraped | Recall | Keyword Precision Sample | Duration |'
+    expect(headerLine).toContain('Keyword Precision Sample')
+    expect(headerLine).not.toMatch(/\| Precision \|/)
+  })
+
+  it('summary metric says "Average Keyword Precision Sample"', () => {
+    const summaryLine = '| Average Keyword Precision Sample |'
+    expect(summaryLine).toContain('Keyword Precision Sample')
   })
 })

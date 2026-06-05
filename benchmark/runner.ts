@@ -24,15 +24,29 @@ function fixtureKey(profileSlug: string, source: string): string {
   return `${profileSlug}--${source}.json`
 }
 
+function fixturePath(profileSlug: string, source: string): string {
+  return join(FIXTURES_DIR, fixtureKey(profileSlug, source))
+}
+
 function loadFixture(profileSlug: string, source: string): ScrapedFsn[] | null {
-  const path = join(FIXTURES_DIR, fixtureKey(profileSlug, source))
+  const path = fixturePath(profileSlug, source)
   if (!existsSync(path)) return null
   return JSON.parse(readFileSync(path, 'utf-8'))
 }
 
 function saveFixture(profileSlug: string, source: string, items: ScrapedFsn[]): void {
   if (!existsSync(FIXTURES_DIR)) mkdirSync(FIXTURES_DIR, { recursive: true })
-  writeFileSync(join(FIXTURES_DIR, fixtureKey(profileSlug, source)), JSON.stringify(items, null, 2))
+  writeFileSync(fixturePath(profileSlug, source), JSON.stringify(items, null, 2))
+}
+
+export class MissingFixtureError extends Error {
+  constructor(profileSlug: string, source: string) {
+    super(
+      `Missing fixture for ${profileSlug}/${source}. ` +
+      `Run: npm run benchmark:live -- --profile=${profileSlug} to generate fixtures.`,
+    )
+    this.name = 'MissingFixtureError'
+  }
 }
 
 async function scrapeSource(
@@ -49,7 +63,7 @@ async function scrapeSource(
     if (cached) {
       return { source, items: cached, warnings: [], duration_ms: Date.now() - start }
     }
-    console.error(`  [${source}] No fixture found, falling back to live scrape`)
+    throw new MissingFixtureError(profile.slug, source)
   }
 
   const localTerms = buildSourceSearchTerms(source, searchTerms, competitorTerms)
@@ -66,9 +80,8 @@ async function scrapeSource(
       profile:     { manufacturer: profile.manufacturer, device_name: profile.device_name },
     })
 
-    if (mode === 'live') {
-      saveFixture(profile.slug, source, result.items)
-    }
+    saveFixture(profile.slug, source, result.items)
+    console.error(`  [${source}] Saved fixture: ${fixtureKey(profile.slug, source)}`)
 
     return { source, items: result.items, warnings: result.warnings, duration_ms: Date.now() - start }
   } catch (err) {
@@ -93,7 +106,8 @@ export async function benchmarkProfile(
 
   const sourceResults: SourceResult[] = []
   for (const source of profile.sources) {
-    console.error(`  scraping ${source}...`)
+    const label = mode === 'live' ? `scraping ${source} (live)...` : `loading ${source} fixture...`
+    console.error(`  ${label}`)
     const result = await scrapeSource(profile, source, searchTerms, competitorTerms, mode)
     console.error(`  [${source}] ${result.items.length} items (${result.duration_ms}ms)`)
     sourceResults.push(result)
@@ -131,10 +145,11 @@ export async function benchmarkProfile(
   const tierCounts = [0, 0, 0, 0, 0]
   for (const score of keywordScores.values()) tierCounts[score]++
 
+  const recallDisplay = recall.rate != null ? `${(recall.rate * 100).toFixed(0)}%` : 'N/A'
   console.error(`  total: ${deduped.length} unique items`)
   console.error(`  priority: T0=${tierCounts[0]} T1=${tierCounts[1]} T2=${tierCounts[2]} T3=${tierCounts[3]} T4=${tierCounts[4]}`)
-  console.error(`  recall: ${recall.found}/${recall.expected} (${(recall.rate * 100).toFixed(0)}%)`)
-  console.error(`  precision sample: ${precision.relevant_looking}/${precision.sampled} (${(precision.rate * 100).toFixed(0)}%)`)
+  console.error(`  recall: ${recall.found}/${recall.expected} (${recallDisplay})`)
+  console.error(`  keyword precision sample: ${precision.relevant_looking}/${precision.sampled} (${(precision.rate * 100).toFixed(0)}%)`)
 
   return {
     profile,
@@ -156,6 +171,10 @@ export async function runBenchmark(
   const start = Date.now()
   const results: ProfileBenchmark[] = []
 
+  if (mode === 'live') {
+    console.error(`\n  NOTE: Live mode will save fixtures for future deterministic runs.`)
+  }
+
   for (const profile of profiles) {
     const result = await benchmarkProfile(profile, mode)
     results.push(result)
@@ -163,19 +182,20 @@ export async function runBenchmark(
 
   const totalExpected = results.reduce((sum, r) => sum + r.recall.expected, 0)
   const totalFound = results.reduce((sum, r) => sum + r.recall.found, 0)
-  const profilesWithExpected = results.filter((r) => r.recall.expected > 0)
+  const measurableRecall = results.filter((r) => r.recall.rate != null)
+  const measurablePrecision = results.filter((r) => r.precision_sample.sampled > 0)
 
   const run: BenchmarkRun = {
     timestamp: new Date().toISOString(),
     mode,
     profiles: results,
     summary: {
-      avg_recall: profilesWithExpected.length > 0
-        ? profilesWithExpected.reduce((sum, r) => sum + r.recall.rate, 0) / profilesWithExpected.length
-        : 0,
-      avg_precision: profilesWithExpected.length > 0
-        ? profilesWithExpected.reduce((sum, r) => sum + r.precision_sample.rate, 0) / profilesWithExpected.length
-        : 0,
+      avg_recall: measurableRecall.length > 0
+        ? measurableRecall.reduce((sum, r) => sum + (r.recall.rate ?? 0), 0) / measurableRecall.length
+        : null,
+      avg_precision: measurablePrecision.length > 0
+        ? measurablePrecision.reduce((sum, r) => sum + r.precision_sample.rate, 0) / measurablePrecision.length
+        : null,
       total_scraped: results.reduce((sum, r) => sum + r.total_scraped, 0),
       total_expected: totalExpected,
       total_found: totalFound,
@@ -208,8 +228,9 @@ export function saveBenchmarkResults(run: BenchmarkRun): { jsonPath: string; mdP
   return { jsonPath, mdPath }
 }
 
-function pct(n: number): string {
-  return `${(n * 100).toFixed(1)}%`
+function fmtRate(rate: number | null): string {
+  if (rate == null) return 'N/A'
+  return `${(rate * 100).toFixed(1)}%`
 }
 
 function generateMarkdown(run: BenchmarkRun): string {
@@ -224,18 +245,22 @@ function generateMarkdown(run: BenchmarkRun): string {
   lines.push('')
   lines.push(`| Metric | Value |`)
   lines.push(`|--------|-------|`)
-  lines.push(`| Average Recall | ${pct(s.avg_recall)} |`)
-  lines.push(`| Average Precision (sample) | ${pct(s.avg_precision)} |`)
+  lines.push(`| Average Recall | ${fmtRate(s.avg_recall)} |`)
+  lines.push(`| Average Keyword Precision Sample | ${fmtRate(s.avg_precision)} |`)
   lines.push(`| Total Scraped | ${s.total_scraped} |`)
   lines.push(`| Expected Found | ${s.total_found}/${s.total_expected} |`)
   lines.push('')
 
   lines.push('## Per-Profile Results')
   lines.push('')
-  lines.push('| Profile | Scraped | Recall | Precision | Duration |')
-  lines.push('|---------|---------|--------|-----------|----------|')
+  lines.push('| Profile | Scraped | Recall | Keyword Precision Sample | Duration |')
+  lines.push('|---------|---------|--------|--------------------------|----------|')
   for (const p of run.profiles) {
-    lines.push(`| ${p.profile.slug} | ${p.total_scraped} | ${pct(p.recall.rate)} (${p.recall.found}/${p.recall.expected}) | ${pct(p.precision_sample.rate)} (${p.precision_sample.relevant_looking}/${p.precision_sample.sampled}) | ${(p.duration_ms / 1000).toFixed(1)}s |`)
+    const recallStr = p.recall.rate != null
+      ? `${fmtRate(p.recall.rate)} (${p.recall.found}/${p.recall.expected})`
+      : `N/A (${p.recall.found}/${p.recall.expected})`
+    const precStr = `${fmtRate(p.precision_sample.rate)} (${p.precision_sample.relevant_looking}/${p.precision_sample.sampled})`
+    lines.push(`| ${p.profile.slug} | ${p.total_scraped} | ${recallStr} | ${precStr} | ${(p.duration_ms / 1000).toFixed(1)}s |`)
   }
   lines.push('')
 
@@ -253,6 +278,11 @@ function generateMarkdown(run: BenchmarkRun): string {
         const match = m.matched_item ? ` → "${m.matched_item.title}"` : ''
         lines.push(`- [${status}] ${desc}${match}`)
       }
+      lines.push('')
+    }
+
+    if (p.match_results.length === 0) {
+      lines.push('*No expected records defined — recall is N/A*')
       lines.push('')
     }
 
