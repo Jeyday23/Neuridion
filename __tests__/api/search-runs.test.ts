@@ -8,7 +8,7 @@ const mockUser = { id: 'aaaa-bbbb-cccc-dddd', email: 'test@example.com' }
 
 function chainable(terminal: Record<string, unknown> = {}) {
   const builder: Record<string, unknown> = {}
-  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'in', 'order', 'gte', 'lte', 'lt', 'rpc']
+  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'in', 'is', 'order', 'gte', 'lte', 'lt', 'rpc']
   for (const m of methods) {
     builder[m] = vi.fn().mockReturnValue(builder)
   }

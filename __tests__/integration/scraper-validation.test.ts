@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
+
+const RUN_LIVE_SCRAPER_TESTS = process.env.RUN_LIVE_SCRAPER_TESTS === 'true'
+const describeLive = RUN_LIVE_SCRAPER_TESTS ? describe : describe.skip
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { scrapeBfArM } from '../../lib/scrapers/bfarm'
@@ -32,7 +35,7 @@ const d180  = new Date(now); d180.setDate(d180.getDate() - 180)
 
 const fmt = (d: Date) => d.toISOString().slice(0, 10)
 
-describe('BfArM live validation', () => {
+describeLive('BfArM live validation', () => {
   it('returns items for a 90-day window with correct fields', async () => {
     const result = await scrapeBfArM({ fromDate: d90, toDate: now })
     console.log(`[BfArM] Items: ${result.items.length} | Warnings: ${result.warnings.length}`)
@@ -53,7 +56,7 @@ describe('BfArM live validation', () => {
   }, 120_000)
 })
 
-describe('FDA MAUDE live validation', () => {
+describeLive('FDA MAUDE live validation', () => {
   // openFDA device/event data lags 2-6 months behind real-time.
   // Use a known historical window where data definitely exists.
   const fdaFrom = '2024-10-01'
@@ -101,7 +104,7 @@ describe('FDA MAUDE live validation', () => {
   }, 30_000)
 })
 
-describe('MHRA live validation', () => {
+describeLive('MHRA live validation', () => {
   it('returns device FSNs for a 60-day window', async () => {
     const d60 = new Date(now); d60.setDate(d60.getDate() - 60)
     const result = await scrapeMhra({ fromDate: fmt(d60), toDate: fmt(now) })
@@ -134,7 +137,7 @@ describe('MHRA live validation', () => {
   }, 30_000)
 })
 
-describe('Swissmedic live validation', () => {
+describeLive('Swissmedic live validation', () => {
   it('returns FSCAs for a 30-day window', async () => {
     const result = await scrapeSwissmedic({ fromDate: fmt(d30), toDate: fmt(now) })
     console.log(`[Swissmedic] 30d: ${result.items.length} items | Warnings: ${result.warnings.length}`)

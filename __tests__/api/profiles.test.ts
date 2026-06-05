@@ -9,7 +9,7 @@ const mockUser = { id: 'aaaa-bbbb-cccc-dddd', email: 'test@example.com' }
 // Chainable Supabase query builder
 function chainable(terminal: Record<string, unknown> = {}) {
   const builder: Record<string, unknown> = {}
-  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'in', 'order', 'gte', 'lte']
+  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'in', 'is', 'order', 'gte', 'lte']
   for (const m of methods) {
     builder[m] = vi.fn().mockReturnValue(builder)
   }

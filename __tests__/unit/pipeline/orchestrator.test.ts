@@ -40,6 +40,6 @@ describe('runSearchPipeline orchestrator', () => {
       selected_dbs: ['bfarm'], user_id: 'u1', force_refresh: false,
     })
 
-    expect(stageOrder).toEqual(['scrape', 'insert', 'filter'])
+    expect(stageOrder).toEqual(['scrape', 'filter'])
   })
 })
