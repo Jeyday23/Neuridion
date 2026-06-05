@@ -6,11 +6,27 @@ import { fetchBfarmDetail } from '@/lib/scrapers/bfarm'
 import { sanitizeForLlm } from '@/lib/scrapers/sanitize'
 import type { PipelineContext, InsertedFsnRow } from '../types'
 
-const TRUST_SOURCE_FILTER = new Set(['fda'])
-
 function fsnIdOf(fsn: { title: string; manufacturer?: string | null; source_db?: string | null }): string {
   const key = [fsn.title, fsn.manufacturer ?? '', fsn.source_db ?? ''].join('|').toLowerCase().trim()
   return createHash('sha256').update(key).digest('hex').slice(0, 32)
+}
+
+export function computeKeywordPriority(
+  hay: string,
+  manufacturerTerms: string[],
+  deviceTerms: string[],
+  competitorTerms: string[],
+): number {
+  const h = hay.toLowerCase()
+  const mfrMatch = manufacturerTerms.length > 0 && manufacturerTerms.some((t) => h.includes(t.toLowerCase()))
+  const devMatch = deviceTerms.some((t) => h.includes(t.toLowerCase()))
+  const compMatch = competitorTerms.some((t) => h.includes(t.toLowerCase()))
+
+  if (mfrMatch && devMatch) return 0
+  if (devMatch)             return 1
+  if (mfrMatch)             return 2
+  if (compMatch)            return 3
+  return 4
 }
 
 export async function filterStage(ctx: PipelineContext): Promise<void> {
@@ -61,28 +77,15 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   const manufacturerTerms = extractManufacturerTerms(profile.manufacturer ?? '')
   const deviceTerms       = ownFilterTerms.filter((t) => !manufacturerTerms.includes(t))
   const { competitorTerms } = ctx
-  const keywordBoosted    = new Set<string>()
+  const priorityScores = new Map<string, number>()
 
   for (const row of needsFilter) {
-    if (row.source_db && TRUST_SOURCE_FILTER.has(row.source_db)) {
-      keywordBoosted.add(row.id)
-      continue
-    }
     const hay = `${row.title} ${row.manufacturer} ${row.raw_content}`.toLowerCase()
-    let matches: boolean
-    if (competitorTerms.some((t) => hay.includes(t.toLowerCase()))) {
-      matches = true
-    } else if (deviceTerms.length === 0) {
-      matches = manufacturerTerms.some((t) => hay.includes(t.toLowerCase()))
-    } else {
-      const mfrMatch = manufacturerTerms.length === 0 || manufacturerTerms.some((t) => hay.includes(t.toLowerCase()))
-      const devMatch = deviceTerms.some((t) => hay.includes(t.toLowerCase()))
-      matches = mfrMatch && devMatch
-    }
-    if (matches) keywordBoosted.add(row.id)
+    priorityScores.set(row.id, computeKeywordPriority(hay, manufacturerTerms, deviceTerms, competitorTerms))
   }
 
-  console.error('[pipeline]', `run_id=${ctx.runId} keyword_boost: ${keywordBoosted.size}/${needsFilter.length} items matched manufacturer terms`)
+  const boostedCount = [...priorityScores.values()].filter(s => s < 4).length
+  console.error('[pipeline]', `run_id=${ctx.runId} keyword_boost: ${boostedCount}/${needsFilter.length} items matched keyword terms`)
 
   if (ctx.onProgress) {
     await ctx.onProgress({
@@ -94,12 +97,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
     })
   }
 
-  // Prioritize keyword-matched items so the AI filter cap processes the most relevant first
-  needsFilter.sort((a, b) => {
-    const aB = keywordBoosted.has(a.id) ? 0 : 1
-    const bB = keywordBoosted.has(b.id) ? 0 : 1
-    return aB - bB
-  })
+  needsFilter.sort((a, b) => (priorityScores.get(a.id) ?? 4) - (priorityScores.get(b.id) ?? 4))
 
   // 3. AI filter (or opt-out)
   if (aiOptOut) {

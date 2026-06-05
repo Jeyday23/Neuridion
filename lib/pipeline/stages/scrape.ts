@@ -37,6 +37,16 @@ function prevDay(date: string): string {
   return d.toISOString().slice(0, 10)
 }
 
+export function buildSourceSearchTerms(
+  sourceId: string,
+  searchTerms: string[],
+  competitorTerms: string[],
+): string[] {
+  return sourceId === 'fda'
+    ? [...new Set(searchTerms)]
+    : [...new Set([...searchTerms, ...competitorTerms])]
+}
+
 export async function scrapeStage(ctx: PipelineContext): Promise<void> {
   const { payload, profile, searchTerms, competitorTerms, activeSources } = ctx
   const { period_from, period_to, force_refresh: forceRefresh } = payload
@@ -50,7 +60,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
 
   if (ctx.onProgress) await ctx.onProgress({ ...progressState })
 
-  async function processSource(sourceId: string, sourceIndex: number): Promise<{
+  async function processSource(sourceId: string): Promise<{
     items: ScrapedFsn[]; warnings: string[]; contentChanged: Set<string>; canonicalIds: Map<string, string>
   }> {
     // Check cancellation before starting each source's scrape work
@@ -65,7 +75,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     const canonicalIds:   Map<string, string> = new Map()
     const fetchedRanges:  { from: string; to: string }[] = []
 
-    const localSearchTerms = [...new Set([...searchTerms, ...competitorTerms])]
+    const localSearchTerms = buildSourceSearchTerms(sourceId, searchTerms, competitorTerms)
 
     async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
       const result = await SCRAPERS[sourceId]({
@@ -149,9 +159,9 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
   }
 
   const sourceResults = await Promise.allSettled(
-    activeSources.map((id, idx) => {
+    activeSources.map((id) => {
       const timeoutMs = SOURCE_TIMEOUTS_MS[id] ?? DEFAULT_TIMEOUT_MS
-      return withTimeout(processSource(id, idx), timeoutMs, id.toUpperCase())
+      return withTimeout(processSource(id), timeoutMs, id.toUpperCase())
     }),
   )
 

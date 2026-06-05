@@ -603,7 +603,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                         <span className="text-xs text-zinc-400">
                           {state.totalScraped} scraped
                           {state.preFilterCount != null && ` → ${state.preFilterCount} filtered`}
-                          {` → ${counts.all} assessed`}
+                          {` → ${counts.relevant + counts.uncertain + counts.excluded} assessed`}
+                          {counts.filter_failed > 0 && ` · ${counts.filter_failed} unfiltered`}
                         </span>
                       )}
                       <span className="text-xs text-zinc-400 ml-auto">AI-filtered · {MODEL_LABEL}</span>
