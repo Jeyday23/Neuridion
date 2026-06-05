@@ -70,10 +70,13 @@ export async function POST(request: Request) {
 
   const { profile_id, period_from, period_to, selected_dbs, force_refresh } = bodyResult.data
 
-  // GDPR Art 18: block data-processing operations when restricted
+  // GDPR Art 18: block data-processing operations when restricted (fail-closed)
   const { data: userData, error: userDataError } = await supabase.from('users').select('plan, processing_restricted').eq('id', user.id).single()
-  if (userDataError) console.error('[search-runs]', 'query error:', userDataError.message, userDataError.code)
-  if (userData?.processing_restricted) {
+  if (userDataError || !userData) {
+    console.error('[search-runs]', 'GDPR check failed — denying request:', userDataError?.message ?? 'no data', userDataError?.code)
+    return Response.json({ error: 'Unable to verify account status' }, { status: 503 })
+  }
+  if (userData.processing_restricted) {
     return Response.json({ error: 'Data processing is currently restricted on your account. You can change this in Settings > Privacy.' }, { status: 403 })
   }
 

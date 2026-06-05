@@ -63,11 +63,16 @@ vi.mock('@/lib/supabase/admin', () => ({
 }))
 
 // --- Redis ---
+let mockRedisNull = false
+
 vi.mock('@/lib/upstash', () => ({
-  redis: {
-    exists: (...args: unknown[]) => mockRedisExists(...args),
-    set: (...args: unknown[]) => mockRedisSet(...args),
-    del: (...args: unknown[]) => mockRedisDel(...args),
+  get redis() {
+    if (mockRedisNull) return null
+    return {
+      exists: (...args: unknown[]) => mockRedisExists(...args),
+      set: (...args: unknown[]) => mockRedisSet(...args),
+      del: (...args: unknown[]) => mockRedisDel(...args),
+    }
   },
 }))
 
@@ -136,6 +141,7 @@ function makeCheckoutSession(overrides: Record<string, unknown> = {}) {
 // ---------------------------------------------------------------------------
 beforeEach(() => {
   vi.clearAllMocks()
+  mockRedisNull = false
 
   // Default: Redis operational, no prior processing
   mockRedisExists = vi.fn().mockResolvedValue(0)
@@ -247,13 +253,27 @@ describe('POST /api/webhooks/stripe', () => {
       expect(processedSetCalls).toHaveLength(0)
     })
 
-    it('processes event when Redis is completely unavailable (fail-open)', async () => {
+    it('processes event when Redis is completely unavailable (fail-open in non-production)', async () => {
       mockRedisExists.mockRejectedValue(new Error('Connection refused'))
 
       const res = await POST(webhookRequest('{}'))
-      // Should still process successfully — fail-open behavior
       expect(res.status).toBe(200)
       expect(mockSubscriptionsRetrieve).toHaveBeenCalled()
+    })
+
+    it('returns 503 when redis is null in production', async () => {
+      vi.stubEnv('NODE_ENV', 'production')
+      mockRedisNull = true
+
+      const res = await POST(webhookRequest('{}'))
+      expect(res.status).toBe(503)
+      expect(mockSubscriptionsRetrieve).not.toHaveBeenCalled()
+
+      mockRedisNull = false
+      vi.unstubAllEnvs()
+      vi.stubEnv('STRIPE_WEBHOOK_SECRET', WEBHOOK_SECRET)
+      vi.stubEnv('STRIPE_PRICE_STARTER', 'price_starter_123')
+      vi.stubEnv('STRIPE_PRICE_PRO', 'price_pro_456')
     })
   })
 
@@ -418,7 +438,7 @@ describe('POST /api/webhooks/stripe', () => {
       )
     })
 
-    it('resets user to free plan', async () => {
+    it('resets user to free plan and clears subscription ID', async () => {
       const res = await POST(webhookRequest('{}'))
       expect(res.status).toBe(200)
 
@@ -428,6 +448,7 @@ describe('POST /api/webhooks/stripe', () => {
           plan: 'free',
           subscription_status: 'canceled',
           stripe_price_id: null,
+          stripe_subscription_id: null,
           current_period_end: null,
         }),
       )

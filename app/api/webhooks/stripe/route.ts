@@ -114,6 +114,11 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Invalid webhook signature' }, { status: 400 })
   }
 
+  if (!redis && process.env.NODE_ENV === 'production') {
+    console.error('[stripe-webhook] Redis unavailable in production — refusing to process without idempotency')
+    return Response.json({ error: 'Service temporarily unavailable' }, { status: 503 })
+  }
+
   let alreadyProcessed = false
   let claimed = false
   try {
@@ -218,6 +223,7 @@ export async function POST(request: Request) {
 
         const userId = await updateUserBySubscription(subscription.id, {
           stripe_price_id:        null,
+          stripe_subscription_id: null,
           subscription_status:    'canceled',
           current_period_end:     null,
           plan:                   'free',

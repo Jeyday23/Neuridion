@@ -27,10 +27,13 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // GDPR Art 18: block data-processing operations when restricted
+  // GDPR Art 18: block data-processing operations when restricted (fail-closed)
   const { data: userFlags, error: userFlagsError } = await supabase.from('users').select('processing_restricted, plan').eq('id', user.id).single()
-  if (userFlagsError) console.error('[reports]', 'query error:', userFlagsError.code)
-  if (userFlags?.processing_restricted) {
+  if (userFlagsError || !userFlags) {
+    console.error('[reports]', 'GDPR check failed — denying request:', userFlagsError?.code ?? 'no data')
+    return Response.json({ error: 'Unable to verify account status' }, { status: 503 })
+  }
+  if (userFlags.processing_restricted) {
     return Response.json({ error: 'Data processing is currently restricted on your account. You can change this in Settings > Privacy.' }, { status: 403 })
   }
 
@@ -246,7 +249,7 @@ export async function POST(request: Request) {
   }
 
   // Ownership verified via session-scoped query above — admin client needed for report_* columns not in RLS
-  await adminStorage
+  const { error: updateError } = await adminStorage
     .from('search_runs')
     .update({
       report_html_path:     htmlPath,
@@ -256,6 +259,11 @@ export async function POST(request: Request) {
       report_generated_at:  new Date().toISOString(),
     })
     .eq('id', run_id)
+
+  if (updateError) {
+    console.error('[reports] Failed to persist report paths:', updateError.message)
+    return Response.json({ error: 'Failed to save report' }, { status: 500 })
+  }
 
   await logAuditEvent(user.id, 'report_generated', { run_id, pdf_status: pdfStatus }, request)
 
