@@ -53,17 +53,24 @@ export async function GET(
     decision:   string
     rationale:  string
     confidence: number | null
+    model:      string | null
   }> = {}
 
   const { data: decisions, error: decisionsError } = await db.from('filter_decisions')
-    .select('fsn_result_id, decision, rationale, confidence')
+    .select('fsn_result_id, decision, rationale, confidence, model_used')
     .eq('search_run_id', id)
+
+  if (decisionsError) {
+    console.error('[search-runs/get]', decisionsError.message)
+    return Response.json({ error: 'Something went wrong' }, { status: 500 })
+  }
 
   for (const d of decisions ?? []) {
     decisionsMap[d.fsn_result_id] = {
       decision:   d.decision,
       rationale:  d.rationale,
       confidence: d.confidence != null ? Number(d.confidence) : null,
+      model:      d.model_used ?? null,
     }
   }
 
