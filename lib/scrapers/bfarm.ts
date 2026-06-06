@@ -401,10 +401,6 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
       : { items: primary.items, warnings: [...primary.warnings, ...fallback.warnings], archiveLimitationHit: primary.archiveLimitationHit }
   }
 
-  if (params.searchTerms && params.searchTerms.length > 0) {
-    console.warn(`[bfarm] searchTerms pre-filter disabled: passing all ${result.items.length} items to AI filter`)
-  }
-
   return result
 }
 

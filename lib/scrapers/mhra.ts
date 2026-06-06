@@ -109,10 +109,6 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
 
   const deduped = dedup(allItems)
 
-  if (params.searchTerms && params.searchTerms.length > 0) {
-    console.warn(`[mhra] searchTerms pre-filter disabled: passing all ${deduped.length} items to AI filter`)
-  }
-
   if (deduped.length > MAX_ITEMS) {
     allWarnings.push(`MHRA: result cap hit — returning ${MAX_ITEMS} of ${deduped.length} items`)
   }

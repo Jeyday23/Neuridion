@@ -4,6 +4,7 @@ import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
 import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
+import { extractManufacturerTerms, buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
 import { insertResultsStage } from './insert-results'
 import type { PipelineContext, ProgressUpdate } from '../types'
 
@@ -45,6 +46,83 @@ export function buildSourceSearchTerms(
   return sourceId === 'fda'
     ? [...new Set(searchTerms)]
     : [...new Set([...searchTerms, ...competitorTerms])]
+}
+
+const DOMAIN_TERMS: Array<{ match: RegExp; terms: string[] }> = [
+  {
+    match: /micra|pacemaker|leadless|cardiac|crt|icd|defib/i,
+    terms: ['micra', 'pacemaker', 'leadless', 'cardiac', 'crt', 'icd', 'defibrillator'],
+  },
+  {
+    match: /infusomat|infusion|pump|perfusor|syringe/i,
+    terms: ['infusomat', 'infusion', 'pump', 'perfusor', 'syringe'],
+  },
+  {
+    match: /magnetom|mri|mr\b|magnetic resonance/i,
+    terms: ['magnetom', 'mri', 'magnetic', 'resonance'],
+  },
+  {
+    match: /heartstart|aed|defibrillator/i,
+    terms: ['heartstart', 'aed', 'defibrillator'],
+  },
+  {
+    match: /accu-chek|glucose|diabetes|blood glucose/i,
+    terms: ['accu-chek', 'glucose', 'diabetes'],
+  },
+  {
+    match: /da vinci|robot|robotic/i,
+    terms: ['vinci', 'robot', 'robotic'],
+  },
+]
+
+function buildDomainTerms(profile: { device_name: string }): string[] {
+  const seed = profile.device_name ?? ''
+  return [...new Set(
+    DOMAIN_TERMS
+      .filter(d => d.match.test(seed))
+      .flatMap(d => d.terms),
+  )]
+}
+
+function includesAny(hay: string, terms: string[]): boolean {
+  return terms.some(t => hay.includes(t.toLowerCase()))
+}
+
+export function filterByKeywordRelevance(
+  items: ScrapedFsn[],
+  profile: { manufacturer: string; device_name: string },
+  competitorTerms: string[],
+): ScrapedFsn[] {
+  const mfrTerms = extractManufacturerTerms(profile.manufacturer)
+  const allTerms = buildManufacturerSearchTerms(profile.manufacturer, profile.device_name)
+  const devTerms = allTerms.filter(t => !mfrTerms.includes(t))
+  const domainTerms = buildDomainTerms(profile)
+
+  if (mfrTerms.length === 0 && devTerms.length === 0 && domainTerms.length === 0) {
+    return items
+  }
+
+  const hasDeviceOrDomainTerms = devTerms.length > 0 || domainTerms.length > 0
+
+  return items.filter(item => {
+    const hay = `${item.title} ${item.manufacturer ?? ''} ${item.product_name ?? ''} ${item.raw_content}`.toLowerCase()
+
+    const mfrMatch = includesAny(hay, mfrTerms)
+    const devMatch = includesAny(hay, devTerms)
+    const domainMatch = includesAny(hay, domainTerms)
+    const competitorMatch = includesAny(hay, competitorTerms)
+
+    if (!hasDeviceOrDomainTerms) {
+      return mfrMatch
+    }
+
+    if (mfrMatch && devMatch) return true
+    if (mfrMatch && domainMatch) return true
+    if (devMatch) return true
+    if (domainMatch && competitorMatch) return true
+
+    return false
+  })
 }
 
 export async function scrapeStage(ctx: PipelineContext): Promise<void> {
@@ -117,9 +195,6 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
         const canonFrom = range.from < period_from ? period_from : range.from
         const canonTo   = range.to   > period_to   ? period_to   : range.to
         const cached    = await getCanonicalItems(sourceId, canonFrom, canonTo)
-        if (localSearchTerms.length > 0) {
-          console.warn(`[scrape] cached canonical pre-filter disabled for ${sourceId}: passing ${cached.length} items to AI filter`)
-        }
         items.push(...cached)
       }
     }
@@ -149,13 +224,25 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       await Promise.all(fetchedRanges.map((range) => mergeCoverage(sourceId, range)))
     }
 
+    const filtered = filterByKeywordRelevance(deduped, profile, competitorTerms)
+    if (filtered.length < deduped.length) {
+      console.error(`[scrape] ${sourceId} keyword filter: ${deduped.length} → ${filtered.length} items`)
+    }
+
+    const keptIds = new Set(filtered.map(i => i.external_id))
+
     if (!progressState.sources_done.includes(sourceId)) progressState.sources_done.push(sourceId)
     const remaining = activeSources.filter(s => !progressState.sources_done.includes(s))
+    progressState.items_found   += filtered.length
     progressState.current_source = remaining[0] ?? null
-    progressState.items_found   += deduped.length
     if (ctx.onProgress) await ctx.onProgress({ ...progressState, sources_done: [...progressState.sources_done] })
 
-    return { items: deduped, warnings, contentChanged, canonicalIds }
+    return {
+      items: filtered,
+      warnings,
+      contentChanged: new Set([...contentChanged].filter(id => keptIds.has(id))),
+      canonicalIds: new Map([...canonicalIds].filter(([eid]) => keptIds.has(eid))),
+    }
   }
 
   const sourceResults = await Promise.allSettled(
