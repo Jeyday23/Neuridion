@@ -148,10 +148,15 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn[]> {
     const refNumber = detail.details?.ref_number ?? ''
     const rawIssuedDate = detail.details?.issued_date ?? ''
 
-    const h3Count = (body.match(/<h3[\s>]/g) ?? []).length
-    if (!refNumber && h3Count >= 3) {
-      const extracted = parseRoundupBody(body, linkPath, item.fsn_date)
-      if (extracted.length > 0) return extracted
+    const originalTitle = detail.title ?? item.title
+    if (isMhraRoundupPage(originalTitle, linkPath, body, refNumber)) {
+      const sections = splitRoundupSections(body, linkPath, item.fsn_date)
+      if (sections.length > 0) return sections
+      return [{
+        ...item,
+        title: cleanMhraRoundupTitle(originalTitle),
+        raw_content: sanitizeContent(stripHtmlTags(body).replace(/\s+/g, ' ').trim()),
+      }]
     }
 
     let issuedDate: string | null = null
@@ -181,59 +186,130 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn[]> {
 
 // ─── Roundup page parsing ─────────────────────────────────────────────────────
 
-function parseRoundupBody(html: string, roundupPath: string, fallbackDate: string | null): ScrapedFsn[] {
-  const sections = html.split(/<h3[^>]*>/).slice(1)
+const MHRA_DATE_RANGE = /\b\d{1,2}\s+(?:[A-Za-z]+\s+)?to\s+\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?\b/i
+
+const STRUCTURAL_HEADINGS = /^(?:problem|action|advice|background|summary|description|details|overview|introduction|conclusion|update|further information|related)$/i
+
+export function isMhraRoundupPage(
+  title: string,
+  url: string,
+  body: string,
+  refNumber: string,
+): boolean {
+  if (refNumber.trim()) return false
+  if (/field safety notices/i.test(title) && MHRA_DATE_RANGE.test(title)) return true
+  if (/\/field-safety-notices--?\d/i.test(url)) return true
+  if (MHRA_DATE_RANGE.test(title)) return true
+  const headings = [...(body.matchAll(/<h[234][^>]*>([\s\S]*?)<\/h[234]>/gi))]
+  const fsnHeadings = headings.filter(m => {
+    const text = stripHtmlTags(m[1]).trim()
+    return !STRUCTURAL_HEADINGS.test(text) && /:\s/.test(text)
+  })
+  return fsnHeadings.length >= 2
+}
+
+export function cleanMhraRoundupTitle(raw: string): string {
+  const dateMatch = raw.match(MHRA_DATE_RANGE)
+  if (dateMatch) return `Field Safety Notices: ${dateMatch[0]}`
+  return raw.trim()
+}
+
+export function splitRoundupSections(
+  html: string,
+  roundupPath: string,
+  fallbackDate: string | null,
+): ScrapedFsn[] {
+  const parts = html.split(/<h[234][^>]*>/).slice(1)
   const results: ScrapedFsn[] = []
 
-  for (const section of sections) {
+  for (const section of parts) {
     if (results.length >= MAX_ITEMS) break
-    const closingIdx = section.indexOf('</h3>')
-    if (closingIdx < 0) continue
 
-    const h3Inner = stripHtmlTags(section.slice(0, closingIdx)).trim()
-    if (!h3Inner) continue
+    const closingMatch = section.match(/<\/h[234]>/)
+    if (!closingMatch || closingMatch.index === undefined) continue
 
-    const afterH3 = section.slice(closingIdx + 5)
+    const headingText = stripHtmlTags(section.slice(0, closingMatch.index)).trim()
+    if (!headingText) continue
+    if (STRUCTURAL_HEADINGS.test(headingText)) continue
 
-    const manufacturer = extractMfrFromH3(h3Inner)
-    const product      = extractProductFromH3(h3Inner)
-    const mhraRef      = extractMhraRef(afterH3)
-    const fsnDate      = extractDateFromParagraphs(afterH3) ?? fallbackDate
-    const model        = extractModel(afterH3)
+    const afterHeading = section.slice(closingMatch.index + closingMatch[0].length)
 
-    const bodyText = stripHtmlTags(afterH3).replace(/\s+/g, ' ').trim()
-    const rawParts = [h3Inner, model ? `Model: ${model}` : '', mhraRef ? `MHRA reference: ${mhraRef}` : '', bodyText].filter(Boolean)
+    const manufacturer = extractMfrFromHeading(headingText)
+    const product = extractProductFromHeading(headingText)
+    const mhraRef = extractMhraRef(afterHeading)
+    const fsnDate = extractDateFromParagraphs(afterHeading) ?? fallbackDate
+    const fsnLink = extractFirstGovUkNoticePath(afterHeading)
 
-    const slug = h3Inner.slice(0, 80).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
+    if (!isValidRoundupSection(headingText, afterHeading, mhraRef, fsnLink)) continue
+
+    const bodyText = stripHtmlTags(afterHeading).replace(/\s+/g, ' ').trim()
+    const rawParts = [
+      headingText,
+      mhraRef ? `MHRA reference: ${mhraRef}` : '',
+      bodyText,
+    ].filter(Boolean)
+
+    const slug = headingText.slice(0, 80).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
     const externalId = mhraRef
       ? `mhra-ref-${mhraRef}`
-      : `${roundupPath}#${slug}-${results.length}`
+      : fsnLink
+        ? `mhra-${fsnLink.replace(/[^a-z0-9]+/gi, '-')}`
+        : `${roundupPath}#${slug}-${results.length}`
 
     results.push({
-      external_id:  externalId,
-      title:        h3Inner,
-      manufacturer: manufacturer,
+      external_id: externalId,
+      title: headingText,
+      manufacturer,
       product_name: product,
-      fsn_date:     fsnDate,
-      source_url:   `https://www.gov.uk${roundupPath}`,
-      raw_content:  sanitizeContent(rawParts.join('\n\n')),
-      source_db:    'mhra',
+      fsn_date: fsnDate,
+      source_url: fsnLink ? `https://www.gov.uk${fsnLink}` : `https://www.gov.uk${roundupPath}`,
+      raw_content: sanitizeContent(rawParts.join('\n\n')),
+      source_db: 'mhra',
     })
   }
 
   return results
 }
 
-function extractMfrFromH3(h3: string): string | null {
-  const colonIdx = h3.indexOf(': ')
-  if (colonIdx > 0) return h3.slice(0, colonIdx).trim() || null
+export function isValidRoundupSection(
+  headingText: string,
+  bodyHtml: string,
+  mhraRef: string | null,
+  fsnLink: string | null,
+): boolean {
+  if (mhraRef) return true
+  if (fsnLink) return true
+
+  let signals = 0
+  const combined = `${headingText} ${stripHtmlTags(bodyHtml)}`.toLowerCase()
+
+  if (extractMfrFromHeading(headingText)) signals++
+  if (/\b(?:field safety|corrective action|safety notice|recall|withdrawal)\b/i.test(combined)) signals++
+  if (/\b\d{1,2}\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/i.test(combined)) signals++
+  if (/\b(?:device|implant|pump|catheter|stent|scanner|monitor|ventilator|defibrillator|pacemaker)\b/i.test(combined)) signals++
+
+  return signals >= 2
+}
+
+function extractMfrFromHeading(heading: string): string | null {
+  const colonIdx = heading.indexOf(': ')
+  if (colonIdx > 0) return heading.slice(0, colonIdx).trim() || null
+  const dashIdx = heading.indexOf(' – ')
+  if (dashIdx > 0) return heading.slice(0, dashIdx).trim() || null
   return null
 }
 
-function extractProductFromH3(h3: string): string | null {
-  const colonIdx = h3.indexOf(': ')
-  if (colonIdx > 0) return h3.slice(colonIdx + 2).trim() || null
-  return h3 || null
+function extractProductFromHeading(heading: string): string | null {
+  const colonIdx = heading.indexOf(': ')
+  if (colonIdx > 0) return heading.slice(colonIdx + 2).trim() || null
+  const dashIdx = heading.indexOf(' – ')
+  if (dashIdx > 0) return heading.slice(dashIdx + 3).trim() || null
+  return heading || null
+}
+
+function extractFirstGovUkNoticePath(html: string): string | null {
+  const match = html.match(/href="(\/drug-device-alerts\/[^"]+)"/i)
+  return match ? match[1] : null
 }
 
 function extractMhraRef(html: string): string | null {
@@ -255,12 +331,6 @@ function extractDateFromParagraphs(html: string): string | null {
       if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10)
     }
   }
-  return null
-}
-
-function extractModel(html: string): string | null {
-  const match = html.match(/<p>\s*Model:\s*(.*?)<\/p>/i)
-  if (match) return stripHtmlTags(match[1]).trim() || null
   return null
 }
 
@@ -310,8 +380,8 @@ const jitter = (minMs: number, maxMs: number) =>
 
 // ─── Parsing helpers ──────────────────────────────────────────────────────────
 
-function cleanTitle(raw: string): string {
-  return raw.replace(/^Field Safety (Notice|Alert)[:\s]*/i, '').replace(/^FSN:\s*/i, '').trim()
+export function cleanTitle(raw: string): string {
+  return raw.replace(/^Field Safety (?:Notice|Alert)\b(?!s)[:\s]*/i, '').replace(/^FSN:\s*/i, '').trim()
 }
 
 function extractManufacturer(title: string, description: string): string | null {
