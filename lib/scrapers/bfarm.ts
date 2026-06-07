@@ -47,6 +47,7 @@ export interface ScraperResult {
 interface ScraperOptions {
   fromDate?: Date
   toDate?: Date
+  signal?: AbortSignal
 }
 
 // Keys are German month names, values are 0-based month indices.
@@ -89,11 +90,58 @@ function stripTags(html: string): string {
   return html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
 }
 
-export async function fetchBfarmDetail(sourceUrl: string): Promise<string | null> {
+function getBfarmPrimaryTimeoutMs(): number {
+  const raw = Number(process.env.BFARM_PRIMARY_TIMEOUT_MS)
+  return Number.isFinite(raw) && raw > 0 ? raw : 45_000
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && err.name === 'AbortError'
+}
+
+function fetchWithTimeout(url: string, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 30_000)
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  const abort = () => controller.abort()
+
+  if (signal?.aborted) {
+    clearTimeout(timeout)
+    controller.abort()
+  } else {
+    signal?.addEventListener('abort', abort, { once: true })
+  }
+
+  return fetch(url, { headers: { 'User-Agent': UA }, signal: controller.signal })
+    .finally(() => {
+      clearTimeout(timeout)
+      signal?.removeEventListener('abort', abort)
+    })
+}
+
+async function withPrimaryBudget<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const timeoutMs = getBfarmPrimaryTimeoutMs()
+  const controller = new AbortController()
+  let timedOut = false
+  const timeout = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, timeoutMs)
+
   try {
-    const res = await fetch(sourceUrl, { headers: { 'User-Agent': UA }, signal: controller.signal })
+    return await fn(controller.signal)
+  } catch (err) {
+    if (timedOut && isAbortError(err)) {
+      throw new Error(`BfArM primary scraper timed out after ${timeoutMs}ms`)
+    }
+    throw err
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+export async function fetchBfarmDetail(sourceUrl: string): Promise<string | null> {
+  try {
+    const res = await fetchWithTimeout(sourceUrl, 30_000)
     if (!res.ok) return null
     const html = await res.text()
 
@@ -107,8 +155,6 @@ export async function fetchBfarmDetail(sourceUrl: string): Promise<string | null
     return text.slice(0, 8000)
   } catch {
     return null
-  } finally {
-    clearTimeout(timeout)
   }
 }
 
@@ -149,7 +195,7 @@ export function parsePage(html: string): ParsedItem[] {
 }
 
 export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items: ScrapedFsn[], warnings: string[] }> {
-  const { fromDate, toDate } = options
+  const { fromDate, toDate, signal } = options
   const warnings: string[] = []
 
   try {
@@ -157,14 +203,7 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items
 
     for (let page = 1; page <= MAX_PAGES; page++) {
       const url = buildUrl(page, fromDate, toDate)
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 30_000)
-      let res: Response
-      try {
-        res = await fetch(url, { headers: { 'User-Agent': UA }, signal: controller.signal })
-      } finally {
-        clearTimeout(timeout)
-      }
+      const res = await fetchWithTimeout(url, 30_000, signal)
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching page ${page}`)
 
       const contentType = res.headers.get('content-type') || ''
@@ -258,7 +297,7 @@ export function yearToShortcut(year: number, currentYear: number): string | null
   return null
 }
 
-async function scrapeYearShortcut(shortcut: string): Promise<ParsedItem[]> {
+async function scrapeYearShortcut(shortcut: string, signal?: AbortSignal): Promise<ParsedItem[]> {
   const items: ParsedItem[] = []
   let pageNum = 1
 
@@ -266,14 +305,7 @@ async function scrapeYearShortcut(shortcut: string): Promise<ParsedItem[]> {
     const base = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&dateOfIssue_dt=${shortcut}&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
     const url  = pageNum === 1 ? base : `${base}&gtp=469344_list%3D${pageNum}`
 
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 30_000)
-    let res: Response
-    try {
-      res = await fetch(url, { headers: { 'User-Agent': UA }, signal: controller.signal })
-    } finally {
-      clearTimeout(timeout)
-    }
+    const res = await fetchWithTimeout(url, 30_000, signal)
     if (!res.ok) {
       console.error('[bfarm]', `${shortcut} page ${pageNum}: HTTP ${res.status}, stopping`)
       break
@@ -303,7 +335,7 @@ async function scrapeYearShortcut(shortcut: string): Promise<ParsedItem[]> {
   return items
 }
 
-async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: string }): Promise<ScraperResult> {
+async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: string }, signal?: AbortSignal): Promise<ScraperResult> {
   const fromYear    = new Date(params.fromDate + 'T00:00:00.000Z').getUTCFullYear()
   const toYear      = new Date(params.toDate   + 'T00:00:00.000Z').getUTCFullYear()
   const currentYear = new Date().getUTCFullYear()
@@ -330,7 +362,7 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
 
   const allParsed: ParsedItem[] = []
   const yearResults = await Promise.all(yearsToScrape.map(async (shortcut) => {
-    return scrapeYearShortcut(shortcut)
+    return scrapeYearShortcut(shortcut, signal)
   }))
   for (const items of yearResults) allParsed.push(...items)
 
@@ -382,9 +414,10 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
 
   let primary: ScraperResult
   try {
-    primary = total <= 90
-      ? await scrapeBfArM({ fromDate: from, toDate: to })
-      : await scrapeBfarmYearShortcuts(params)
+    primary = await withPrimaryBudget((signal) => total <= 90
+      ? scrapeBfArM({ fromDate: from, toDate: to, signal })
+      : scrapeBfarmYearShortcuts(params, signal)
+    )
   } catch (err) {
     primary = { items: [], warnings: [`BfArM primary scraper threw: ${String(err)}`] }
   }
