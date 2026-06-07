@@ -4,7 +4,7 @@ import { sanitizeContent } from './sanitize'
 
 const FIRECRAWL_API    = 'https://api.firecrawl.dev/v1'
 const POLL_INTERVAL_MS = 5_000
-const CRAWL_PAGE_LIMIT  = 60   // 60 pages × 30 items = 1,800 max (matches bfarm.ts MAX_PAGES)
+const CRAWL_PAGE_LIMIT  = 5
 const FIRECRAWL_REQUEST_TIMEOUT_MS = 15_000
 
 function toBfarmDate(iso: string): string {
@@ -106,6 +106,12 @@ export async function firecrawlFallback(
     return { items: [], warnings: [`Firecrawl request failed: ${msg}`] }
   }
 
+  const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
+  const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
+  const startMs  = Date.now()
+  let lastPageCount = 0
+  let bestPartialData: FirecrawlStatus['data'] = []
+
   while (Date.now() + POLL_INTERVAL_MS < deadlineMs) {
     await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
 
@@ -126,53 +132,76 @@ export async function firecrawlFallback(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`[firecrawl] poll failed: ${msg}`)
-      return { items: [], warnings: [`Firecrawl poll request failed: ${msg}`] }
+      break
+    }
+
+    const pageCount = pollData.data?.length ?? 0
+    if (pageCount !== lastPageCount) {
+      console.error(`[firecrawl] poll: status=${pollData.status} pages=${pageCount} (${Math.round((Date.now() - startMs) / 1000)}s)`)
+      lastPageCount = pageCount
+    }
+
+    if (pageCount > 0) {
+      bestPartialData = pollData.data ?? []
     }
 
     if (pollData.status === 'failed') {
-      return { items: [], warnings: ['Firecrawl crawl job failed'] }
+      console.error('[firecrawl] crawl job failed')
+      break
     }
-    if (pollData.status !== 'completed') continue
+    if (pollData.status === 'completed') {
+      break
+    }
+  }
 
-    const allParsed = (pollData.data ?? []).flatMap(page =>
-      page.html ? parsePage(page.html) : []
-    )
+  const items = extractItems(bestPartialData, fromDate, toDate)
+  const elapsed = Math.round((Date.now() - startMs) / 1000)
 
-    const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
-    const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
-
-    const inRange: ScrapedFsn[] = allParsed
-      .filter(item => item.date && item.date >= fromDate && item.date <= toDate)
-      .map(item => ({
-        external_id:  item.externalId,
-        title:        item.title,
-        manufacturer: item.manufacturer,
-        product_name: null,
-        fsn_date:     item.date ? item.date.toISOString().split('T')[0] : null,
-        source_url:   `${BFARM_ORIGIN}${item.href}`,
-        raw_content:  sanitizeContent(item.title),
-        source_db:    'bfarm',
-      }))
-
-    const seen    = new Set<string>()
-    const deduped = inRange.filter(item => {
-      if (seen.has(item.external_id)) return false
-      seen.add(item.external_id)
-      return true
-    })
-
-    const elapsed = Math.round((Date.now() - (deadlineMs - 120_000)) / 1000)
-    console.error(`[firecrawl] completed in ~${elapsed}s — ${deduped.length} items`)
-
+  if (items.length > 0) {
+    console.error(`[firecrawl] returning ${items.length} items from ${bestPartialData.length} pages (${elapsed}s)`)
     return {
-      items:    deduped,
+      items,
       warnings: ['BfArM primary scraper returned empty — results via Firecrawl fallback'],
     }
   }
 
-  const budgetUsed = Math.round((Date.now() - (deadlineMs - 120_000)) / 1000)
-  console.error(`[firecrawl] timed out after ~${budgetUsed}s (budget exhausted)`)
-  return { items: [], warnings: [`Firecrawl crawl timed out (budget exhausted after ~${budgetUsed}s)`] }
+  if (bestPartialData.length === 0) {
+    console.error(`[firecrawl] 0 pages crawled after ${elapsed}s — bfarm.de may be blocking Firecrawl IPs`)
+    return { items: [], warnings: [`Firecrawl returned 0 pages after ${elapsed}s — bfarm.de may be unreachable from cloud`] }
+  }
+
+  console.error(`[firecrawl] ${bestPartialData.length} pages crawled but 0 parseable items (${elapsed}s)`)
+  return { items: [], warnings: [`Firecrawl crawled ${bestPartialData.length} pages but 0 items matched the date range`] }
+}
+
+function extractItems(
+  pages: Array<{ url?: string; html?: string }>,
+  fromDate: Date,
+  toDate: Date,
+): ScrapedFsn[] {
+  const allParsed = pages.flatMap(page =>
+    page.html ? parsePage(page.html) : []
+  )
+
+  const inRange: ScrapedFsn[] = allParsed
+    .filter(item => item.date && item.date >= fromDate && item.date <= toDate)
+    .map(item => ({
+      external_id:  item.externalId,
+      title:        item.title,
+      manufacturer: item.manufacturer,
+      product_name: null,
+      fsn_date:     item.date ? item.date.toISOString().split('T')[0] : null,
+      source_url:   `${BFARM_ORIGIN}${item.href}`,
+      raw_content:  sanitizeContent(item.title),
+      source_db:    'bfarm',
+    }))
+
+  const seen = new Set<string>()
+  return inRange.filter(item => {
+    if (seen.has(item.external_id)) return false
+    seen.add(item.external_id)
+    return true
+  })
 }
 
 interface FirecrawlStatus {
