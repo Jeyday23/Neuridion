@@ -92,7 +92,12 @@ function stripTags(html: string): string {
 
 function getBfarmPrimaryTimeoutMs(): number {
   const raw = Number(process.env.BFARM_PRIMARY_TIMEOUT_MS)
-  return Number.isFinite(raw) && raw > 0 ? raw : 45_000
+  return Number.isFinite(raw) && raw > 0 ? raw : 30_000
+}
+
+function getBfarmSourceBudgetMs(): number {
+  const raw = Number(process.env.BFARM_SOURCE_BUDGET_MS)
+  return Number.isFinite(raw) && raw > 0 ? raw : 170_000
 }
 
 function isAbortError(err: unknown): boolean {
@@ -401,40 +406,53 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
   return { items: deduped, warnings, archiveLimitationHit: warnings.length > 0 }
 }
 
-// Public entry point — dispatches to date-range mode (≤90 days) or year-shortcut
-// mode (>90 days). Both paths return deduped, date-filtered results.
-// Falls back to Firecrawl only when the primary scraper fails unexpectedly.
-// Does NOT fall back when 0 items is due to a known archive limitation.
 export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult> {
   const { firecrawlFallback } = await import('./firecrawl')
+
+  const sourceBudgetMs = getBfarmSourceBudgetMs()
+  const sourceDeadline = Date.now() + sourceBudgetMs
 
   const total = daysBetween(params.fromDate, params.toDate)
   const from  = new Date(params.fromDate + 'T00:00:00.000Z')
   const to    = new Date(params.toDate   + 'T23:59:59.999Z')
 
+  console.error(`[bfarm] primary started (budget=${getBfarmPrimaryTimeoutMs()}ms, source_budget=${sourceBudgetMs}ms)`)
+
   let primary: ScraperResult
+  const primaryStart = Date.now()
   try {
     primary = await withPrimaryBudget((signal) => total <= 90
       ? scrapeBfArM({ fromDate: from, toDate: to, signal })
       : scrapeBfarmYearShortcuts(params, signal)
     )
   } catch (err) {
+    const elapsed = Date.now() - primaryStart
+    console.error(`[bfarm] primary timed out after ${elapsed}ms`)
     primary = { items: [], warnings: [`BfArM primary scraper threw: ${String(err)}`] }
   }
 
-  let result: ScraperResult
   if (primary.items.length > 0 || primary.archiveLimitationHit) {
-    result = primary
-  } else {
-    const fallback = await firecrawlFallback(params)
-    // If Firecrawl itself failed (402, timeout, etc.) fall back to primary so
-    // a Firecrawl outage never silently discards whatever the regular scraper found.
-    result = fallback.items.length > 0
-      ? fallback
-      : { items: primary.items, warnings: [...primary.warnings, ...fallback.warnings], archiveLimitationHit: primary.archiveLimitationHit }
+    const elapsed = Date.now() - primaryStart
+    console.error(`[bfarm] primary succeeded in ${elapsed}ms — ${primary.items.length} items`)
+    return primary
   }
 
-  return result
+  const remainingMs = sourceDeadline - Date.now()
+  if (remainingMs < 10_000) {
+    console.error(`[bfarm] skipping Firecrawl fallback — only ${Math.round(remainingMs / 1000)}s remaining`)
+    return { items: primary.items, warnings: [...primary.warnings, 'BfArM Firecrawl fallback skipped: insufficient budget remaining'] }
+  }
+
+  console.error(`[bfarm] Firecrawl fallback started with ${Math.round(remainingMs / 1000)}s remaining`)
+  const fallback = await firecrawlFallback(params, { deadlineMs: sourceDeadline })
+
+  if (fallback.items.length > 0) {
+    console.error(`[bfarm] Firecrawl fallback returned ${fallback.items.length} items`)
+    return fallback
+  }
+
+  console.error(`[bfarm] Firecrawl fallback returned 0 items`)
+  return { items: primary.items, warnings: [...primary.warnings, ...fallback.warnings], archiveLimitationHit: primary.archiveLimitationHit }
 }
 
 // Kept for potential future use (e.g. "latest FSNs" widget that doesn't

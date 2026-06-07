@@ -4,19 +4,54 @@ import { sanitizeContent } from './sanitize'
 
 const FIRECRAWL_API    = 'https://api.firecrawl.dev/v1'
 const POLL_INTERVAL_MS = 5_000
-const POLL_MAX_ATTEMPTS = 24   // 24 × 5s = 120s timeout
 const CRAWL_PAGE_LIMIT  = 60   // 60 pages × 30 items = 1,800 max (matches bfarm.ts MAX_PAGES)
+const FIRECRAWL_REQUEST_TIMEOUT_MS = 15_000
 
 function toBfarmDate(iso: string): string {
   const [y, m, d] = iso.split('-')
   return `${d}.${m}.${y}`
 }
 
-export async function firecrawlFallback(params: ScraperParams): Promise<ScraperResult> {
+function fetchWithDeadline(url: string, init: RequestInit, deadlineMs: number): Promise<Response> {
+  const controller = new AbortController()
+  const remaining = deadlineMs - Date.now()
+  const timeoutMs = Math.min(Math.max(remaining, 0), FIRECRAWL_REQUEST_TIMEOUT_MS)
+
+  if (remaining <= 0) {
+    return Promise.reject(new Error('Firecrawl budget exhausted'))
+  }
+
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  const parentSignal = init.signal
+  const abort = () => controller.abort()
+
+  if (parentSignal?.aborted) {
+    clearTimeout(timeout)
+    controller.abort()
+  } else {
+    parentSignal?.addEventListener('abort', abort, { once: true })
+  }
+
+  return fetch(url, { ...init, signal: controller.signal })
+    .finally(() => {
+      clearTimeout(timeout)
+      parentSignal?.removeEventListener('abort', abort)
+    })
+}
+
+export async function firecrawlFallback(
+  params: ScraperParams,
+  options?: { deadlineMs?: number; signal?: AbortSignal },
+): Promise<ScraperResult> {
   const apiKey = process.env.FIRECRAWL_API_KEY
   if (!apiKey) {
     return { items: [], warnings: ['FIRECRAWL_API_KEY not set — BfArM fallback unavailable'] }
   }
+
+  const deadlineMs = options?.deadlineMs ?? (Date.now() + 120_000)
+  const parentSignal = options?.signal
+
+  console.error(`[firecrawl] fallback started with ${Math.round((deadlineMs - Date.now()) / 1000)}s remaining`)
 
   const seedUrl =
     `${BFARM_ORIGIN}/SiteGlobals/Forms/Suche/Expertensuche_Formular.html` +
@@ -26,15 +61,15 @@ export async function firecrawlFallback(params: ScraperParams): Promise<ScraperR
     `&input_Datum_VON=${toBfarmDate(params.fromDate)}` +
     `&input_Datum_BIS=${toBfarmDate(params.toDate)}`
 
-  // Start the crawl job
   let crawlId: string
   try {
-    const startRes = await fetch(`${FIRECRAWL_API}/crawl`, {
+    const startRes = await fetchWithDeadline(`${FIRECRAWL_API}/crawl`, {
       method: 'POST',
       headers: {
         Authorization:  `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
+      signal: parentSignal,
       body: JSON.stringify({
         url:               seedUrl,
         limit:             CRAWL_PAGE_LIMIT,
@@ -42,10 +77,10 @@ export async function firecrawlFallback(params: ScraperParams): Promise<ScraperR
         includePaths:      ['/SiteGlobals/Forms/Suche/Expertensuche_Formular.html'],
         scrapeOptions:     { formats: ['html'] },
       }),
-    })
+    }, deadlineMs)
 
     if (startRes.status === 402) {
-      console.error('[bfarm]', 'Firecrawl fallback skipped: no credits')
+      console.error('[firecrawl] fallback skipped: no credits')
       return { items: [], warnings: ['Firecrawl fallback skipped: no credits (HTTP 402)'] }
     }
     if (startRes.status === 401 || startRes.status === 403) {
@@ -56,7 +91,7 @@ export async function firecrawlFallback(params: ScraperParams): Promise<ScraperR
       const safeBody = body.slice(0, 200)
         .replace(/(?:sk-|fc-|Bearer\s+)[A-Za-z0-9_-]+/g, '[REDACTED]')
         .replace(/[0-9a-f]{32,}/gi, '[REDACTED]')
-      console.error('[firecrawl]', `crawl start failed: HTTP ${startRes.status} — ${safeBody}`)
+      console.error(`[firecrawl] crawl start failed: HTTP ${startRes.status} — ${safeBody}`)
       return { items: [], warnings: [`Firecrawl crawl start failed (HTTP ${startRes.status})`] }
     }
 
@@ -66,24 +101,32 @@ export async function firecrawlFallback(params: ScraperParams): Promise<ScraperR
     }
     crawlId = startData.id
   } catch (err) {
-    return { items: [], warnings: [`Firecrawl request failed: ${String(err)}`] }
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`[firecrawl] start request failed: ${msg}`)
+    return { items: [], warnings: [`Firecrawl request failed: ${msg}`] }
   }
 
-  // Poll until completed or timeout
-  for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
+  while (Date.now() + POLL_INTERVAL_MS < deadlineMs) {
     await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
+
+    if (parentSignal?.aborted) {
+      return { items: [], warnings: ['Firecrawl polling aborted'] }
+    }
 
     let pollData: FirecrawlStatus
     try {
-      const pollRes = await fetch(`${FIRECRAWL_API}/crawl/${crawlId}`, {
+      const pollRes = await fetchWithDeadline(`${FIRECRAWL_API}/crawl/${crawlId}`, {
         headers: { Authorization: `Bearer ${apiKey}` },
-      })
+        signal: parentSignal,
+      }, deadlineMs)
       if (!pollRes.ok) {
         return { items: [], warnings: [`Firecrawl poll failed: HTTP ${pollRes.status}`] }
       }
       pollData = await pollRes.json() as FirecrawlStatus
     } catch (err) {
-      return { items: [], warnings: [`Firecrawl poll request failed: ${String(err)}`] }
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[firecrawl] poll failed: ${msg}`)
+      return { items: [], warnings: [`Firecrawl poll request failed: ${msg}`] }
     }
 
     if (pollData.status === 'failed') {
@@ -91,7 +134,6 @@ export async function firecrawlFallback(params: ScraperParams): Promise<ScraperR
     }
     if (pollData.status !== 'completed') continue
 
-    // Parse each crawled page's HTML using the existing BfArM parser
     const allParsed = (pollData.data ?? []).flatMap(page =>
       page.html ? parsePage(page.html) : []
     )
@@ -119,13 +161,18 @@ export async function firecrawlFallback(params: ScraperParams): Promise<ScraperR
       return true
     })
 
+    const elapsed = Math.round((Date.now() - (deadlineMs - 120_000)) / 1000)
+    console.error(`[firecrawl] completed in ~${elapsed}s — ${deduped.length} items`)
+
     return {
       items:    deduped,
       warnings: ['BfArM primary scraper returned empty — results via Firecrawl fallback'],
     }
   }
 
-  return { items: [], warnings: ['Firecrawl crawl timed out after 120s'] }
+  const budgetUsed = Math.round((Date.now() - (deadlineMs - 120_000)) / 1000)
+  console.error(`[firecrawl] timed out after ~${budgetUsed}s (budget exhausted)`)
+  return { items: [], warnings: [`Firecrawl crawl timed out (budget exhausted after ~${budgetUsed}s)`] }
 }
 
 interface FirecrawlStatus {
