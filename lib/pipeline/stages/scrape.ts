@@ -1,5 +1,6 @@
 import { scrapeBfarm, type ScrapedFsn, type ScraperResult, type ScraperParams } from '@/lib/scrapers/bfarm'
 import { scrapeMhra }       from '@/lib/scrapers/mhra'
+import { scrapeMhraExcel }  from '@/lib/scrapers/mhra-excel'
 import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
 import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
@@ -11,7 +12,7 @@ import type { PipelineContext, ProgressUpdate } from '../types'
 const SOURCE_TIMEOUTS_MS: Record<string, number> = {
   bfarm:      180_000,
   fda:        90_000,
-  mhra:       90_000,
+  mhra:       120_000,
   swissmedic: 60_000,
 }
 
@@ -25,9 +26,31 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
 }
 
+async function scrapeMhraWithFallback(params: ScraperParams): Promise<ScraperResult> {
+  try {
+    return await scrapeMhraExcel(params)
+  } catch (err) {
+    try {
+      const fallback = await scrapeMhra(params)
+      fallback.warnings.push(
+        `MHRA Excel scraper failed (${err instanceof Error ? err.message : String(err)}) — results via HTML fallback`,
+      )
+      return fallback
+    } catch (fallbackErr) {
+      return {
+        items: [],
+        warnings: [
+          `MHRA Excel scraper failed: ${err instanceof Error ? err.message : String(err)}`,
+          `MHRA HTML fallback also failed: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`,
+        ],
+      }
+    }
+  }
+}
+
 const SCRAPERS: Record<string, (p: ScraperParams) => Promise<ScraperResult>> = {
   bfarm:      scrapeBfarm,
-  mhra:       scrapeMhra,
+  mhra:       scrapeMhraWithFallback,
   fda:        scrapeFdaMaude,
   swissmedic: scrapeSwissmedic,
 }
