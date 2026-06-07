@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ExcelJS from 'exceljs'
 import {
   parseMhraExcelBuffer,
   detectColumns,
   buildMhraExternalId,
   buildMhraTitle,
+  downloadMhraExcel,
 } from '@/lib/scrapers/mhra-excel'
 
 const HEADERS = [
@@ -446,5 +447,125 @@ describe('detectColumns', () => {
     ws.addRow(['Brand', 'Manufacturer', 'Model', 'Comment'])
 
     expect(detectColumns(ws)).toBeNull()
+  })
+})
+
+describe('downloadMhraExcel hardening', () => {
+  const originalFetch = globalThis.fetch
+  const originalEnv = process.env.MHRA_EXCEL_URL
+
+  beforeEach(() => {
+    delete process.env.MHRA_EXCEL_URL
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+    if (originalEnv !== undefined) {
+      process.env.MHRA_EXCEL_URL = originalEnv
+    } else {
+      delete process.env.MHRA_EXCEL_URL
+    }
+    vi.restoreAllMocks()
+  })
+
+  it('rejects oversized Content-Length before reading body', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      url: 'https://mhra-gov.filecamp.com/file.xlsx',
+      headers: new Headers({
+        'content-type': 'application/octet-stream',
+        'content-length': String(100 * 1024 * 1024),
+      }),
+      body: null,
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+    })
+
+    await expect(downloadMhraExcel()).rejects.toThrow('too large')
+  })
+
+  it('rejects oversized streamed body even without Content-Length', async () => {
+    const bigChunk = new Uint8Array(51 * 1024 * 1024)
+    let readCalled = false
+    const mockReader = {
+      read: vi.fn().mockImplementation(() => {
+        if (!readCalled) {
+          readCalled = true
+          return Promise.resolve({ done: false, value: bigChunk })
+        }
+        return Promise.resolve({ done: true, value: undefined })
+      }),
+      releaseLock: vi.fn(),
+    }
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      url: 'https://mhra-gov.filecamp.com/file.xlsx',
+      headers: new Headers({ 'content-type': 'application/octet-stream' }),
+      body: { getReader: () => mockReader },
+    })
+
+    await expect(downloadMhraExcel()).rejects.toThrow('too large')
+    expect(mockReader.releaseLock).toHaveBeenCalled()
+  })
+
+  it('rejects non-HTTPS URL', async () => {
+    process.env.MHRA_EXCEL_URL = 'http://mhra-gov.filecamp.com/s/d/test'
+
+    await expect(downloadMhraExcel()).rejects.toThrow('must use HTTPS')
+  })
+
+  it('rejects non-allowlisted hostname', async () => {
+    process.env.MHRA_EXCEL_URL = 'https://evil.example.com/payload.xlsx'
+
+    await expect(downloadMhraExcel()).rejects.toThrow('host is not allowed')
+  })
+
+  it('rejects redirect to non-allowlisted host', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      url: 'https://evil.example.com/redirected.xlsx',
+      headers: new Headers({ 'content-type': 'application/octet-stream' }),
+      body: null,
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(500)),
+    })
+
+    await expect(downloadMhraExcel()).rejects.toThrow('host is not allowed')
+  })
+
+  it('HTML response error does not mention env var name', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      url: 'https://mhra-gov.filecamp.com/sharing-page',
+      headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+      body: null,
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+    })
+
+    await expect(downloadMhraExcel()).rejects.toThrow(
+      expect.objectContaining({
+        message: expect.not.stringContaining('MHRA_EXCEL_URL'),
+      }),
+    )
+  })
+
+  it('downloads successfully from allowed host', async () => {
+    const wb = new ExcelJS.Workbook()
+    wb.addWorksheet('2026')
+    const buf = await wb.xlsx.writeBuffer()
+
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      url: 'https://mhra-gov.filecamp.com/s/d/test',
+      headers: new Headers({
+        'content-type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'content-length': String(buf.byteLength),
+      }),
+      body: null,
+      arrayBuffer: () => Promise.resolve(buf),
+    })
+
+    const result = await downloadMhraExcel()
+    expect(result).toBeInstanceOf(Uint8Array)
+    expect(result.byteLength).toBeGreaterThan(100)
   })
 })

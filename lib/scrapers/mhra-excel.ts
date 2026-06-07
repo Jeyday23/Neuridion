@@ -7,6 +7,8 @@ import { fetchWithRetry } from './fetch-with-retry'
 const FILECAMP_URL = 'https://mhra-gov.filecamp.com/s/d/9g5cLjjFatXruS5U'
 const DOWNLOAD_TIMEOUT_MS = 20_000
 const MAX_ITEMS = 500
+const MAX_EXCEL_DOWNLOAD_BYTES = 50 * 1024 * 1024
+const ALLOWED_MHRA_EXCEL_HOSTS = new Set(['mhra-gov.filecamp.com'])
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
 interface ColumnMap {
@@ -266,8 +268,79 @@ export async function parseMhraExcelBuffer(
   return { items, warnings }
 }
 
+function assertAllowedMhraExcelUrl(rawUrl: string): string {
+  let parsed: URL
+
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    throw new Error('MHRA Excel source URL is invalid')
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new Error('MHRA Excel source URL must use HTTPS')
+  }
+
+  if (!ALLOWED_MHRA_EXCEL_HOSTS.has(parsed.hostname)) {
+    throw new Error('MHRA Excel source URL host is not allowed')
+  }
+
+  return parsed.toString()
+}
+
+async function readResponseWithLimit(res: Response): Promise<Uint8Array> {
+  const contentLength = res.headers.get('content-length')
+  if (contentLength) {
+    const size = Number(contentLength)
+    if (!Number.isFinite(size) || size < 0) {
+      throw new Error('MHRA Excel download reported an invalid size')
+    }
+    if (size > MAX_EXCEL_DOWNLOAD_BYTES) {
+      throw new Error(`MHRA Excel download too large (${size} bytes)`)
+    }
+  }
+
+  if (!res.body) {
+    const arrayBuf = await res.arrayBuffer()
+    if (arrayBuf.byteLength > MAX_EXCEL_DOWNLOAD_BYTES) {
+      throw new Error(`MHRA Excel download too large (${arrayBuf.byteLength} bytes)`)
+    }
+    return new Uint8Array(arrayBuf)
+  }
+
+  const reader = res.body.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (!value) continue
+
+      total += value.byteLength
+      if (total > MAX_EXCEL_DOWNLOAD_BYTES) {
+        throw new Error(`MHRA Excel download too large (${total} bytes)`)
+      }
+
+      chunks.push(value)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    out.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+
+  return out
+}
+
 export async function downloadMhraExcel(): Promise<Uint8Array> {
-  const url = process.env.MHRA_EXCEL_URL || FILECAMP_URL
+  const url = assertAllowedMhraExcelUrl(process.env.MHRA_EXCEL_URL || FILECAMP_URL)
 
   const res = await fetchWithRetry(url, {
     headers: {
@@ -280,17 +353,21 @@ export async function downloadMhraExcel(): Promise<Uint8Array> {
     throw new Error(`MHRA Excel download failed: HTTP ${res.status}`)
   }
 
+  const finalUrl = res.url || url
+  assertAllowedMhraExcelUrl(finalUrl)
+
   const contentType = res.headers.get('content-type') ?? ''
   if (contentType.includes('text/html')) {
-    throw new Error('MHRA Excel URL returned HTML instead of spreadsheet — check MHRA_EXCEL_URL')
+    throw new Error('MHRA Excel source returned HTML instead of a spreadsheet')
   }
 
-  const arrayBuf = await res.arrayBuffer()
-  if (arrayBuf.byteLength < 100) {
-    throw new Error(`MHRA Excel download too small (${arrayBuf.byteLength} bytes) — likely not a valid spreadsheet`)
+  const bytes = await readResponseWithLimit(res)
+
+  if (bytes.byteLength < 100) {
+    throw new Error(`MHRA Excel download too small (${bytes.byteLength} bytes) — likely not a valid spreadsheet`)
   }
 
-  return new Uint8Array(arrayBuf)
+  return bytes
 }
 
 export async function scrapeMhraExcel(params: ScraperParams): Promise<ScraperResult> {
