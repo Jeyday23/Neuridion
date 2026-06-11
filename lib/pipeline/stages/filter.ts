@@ -6,6 +6,16 @@ import { fetchBfarmDetail } from '@/lib/scrapers/bfarm'
 import { sanitizeForLlm } from '@/lib/scrapers/sanitize'
 import type { PipelineContext, InsertedFsnRow } from '../types'
 
+const TRUST_SOURCE_FILTER = new Set(['fda'])
+
+export function normalizeCachedConfidence(value: string | number | null): number | null {
+  if (value == null) return null
+  const parsed = typeof value === 'number' ? value : parseFloat(value)
+  if (!Number.isFinite(parsed)) return null
+  const normalized = parsed > 1 ? parsed / 100 : parsed
+  return Math.max(0, Math.min(1, normalized))
+}
+
 function fsnIdOf(fsn: { title: string; manufacturer?: string | null; source_db?: string | null }): string {
   const key = [fsn.title, fsn.manufacturer ?? '', fsn.source_db ?? ''].join('|').toLowerCase().trim()
   return createHash('sha256').update(key).digest('hex').slice(0, 32)
@@ -65,7 +75,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
       fsn_result_id: row.id,
       decision:      hit.decision as 'relevant' | 'uncertain' | 'excluded' | 'filter_failed',
       rationale:     hit.reasoning ?? '',
-      confidence:    hit.confidence != null ? parseFloat(hit.confidence) : null,
+      confidence:    normalizeCachedConfidence(hit.confidence),
       model:         null,
     })
   }
@@ -80,6 +90,10 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   const priorityScores = new Map<string, number>()
 
   for (const row of needsFilter) {
+    if (row.source_db && TRUST_SOURCE_FILTER.has(row.source_db)) {
+      priorityScores.set(row.id, 0)
+      continue
+    }
     const hay = `${row.title} ${row.manufacturer} ${row.raw_content}`.toLowerCase()
     priorityScores.set(row.id, computeKeywordPriority(hay, manufacturerTerms, deviceTerms, competitorTerms))
   }

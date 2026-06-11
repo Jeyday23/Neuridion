@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, startTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 import { useSearchContext } from './search-context'
@@ -28,21 +28,25 @@ export function SearchStatusWidget() {
   const { t } = useLanguage()
   const router = useRouter()
   const [elapsed, setElapsed] = useState(0)
+  const [elapsedOnDone, setElapsedOnDone] = useState<number | null>(null)
 
-  // Tick every second while running
+  // Tick every second while running; capture final elapsed when done
+  const startedAt = searchState.phase === 'running' || searchState.phase === 'done'
+    ? searchState.startedAt
+    : null
+
   useEffect(() => {
-    if (searchState.phase !== 'running') { setElapsed(0); return }
-    const start = searchState.startedAt
-    const id = setInterval(() => setElapsed(Date.now() - start), 500)
+    if (searchState.phase === 'done' && startedAt !== null) {
+      startTransition(() => setElapsedOnDone(Math.floor((Date.now() - startedAt) / 1000)))
+      return
+    }
+    startTransition(() => { setElapsedOnDone(null) })
+    if (searchState.phase !== 'running' || startedAt === null) { startTransition(() => setElapsed(0)); return }
+    const id = setInterval(() => setElapsed(Date.now() - startedAt), 500)
     return () => clearInterval(id)
-  }, [searchState.phase, searchState.phase === 'running' ? searchState.startedAt : null])
+  }, [searchState.phase, startedAt])
 
   if (searchState.phase === 'idle') return null
-
-  const elapsedOnDone =
-    searchState.phase === 'done'
-      ? Math.floor((Date.now() - searchState.startedAt) / 1000)
-      : null
 
   return (
     <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2" style={{ pointerEvents: 'none' }}>

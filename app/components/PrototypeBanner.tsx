@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, startTransition } from 'react'
 import { X } from 'lucide-react'
 
 const STORAGE_KEY = 'neuridion-prototype-banner-dismissed'
@@ -10,8 +10,10 @@ export function PrototypeBanner() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
-    if (localStorage.getItem(STORAGE_KEY) === 'true') setDismissed(true)
+    startTransition(() => {
+      setMounted(true)
+      if (localStorage.getItem(STORAGE_KEY) === 'true') setDismissed(true)
+    })
   }, [])
 
   function handleDismiss() {

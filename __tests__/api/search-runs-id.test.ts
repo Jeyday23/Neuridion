@@ -141,7 +141,7 @@ describe('GET /api/search-runs/[id]', () => {
     const decisionChain = chainable()
     ;(decisionChain['eq'] as ReturnType<typeof vi.fn>).mockResolvedValue({ data: decisions, error: null })
 
-    let adminFromCallCount = 0
+    const adminFromCallCount = 0
     mockAdminChain = chainable() // fallback
     vi.mocked((await import('@/lib/supabase/admin')).createAdminClient).mockReturnValue({
       from: vi.fn().mockImplementation((table: string) => {

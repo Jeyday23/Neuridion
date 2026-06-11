@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, startTransition } from 'react'
 import Link from 'next/link'
 import { apiFetch } from '@/lib/fetch'
 
@@ -24,7 +24,7 @@ export function CookieBanner() {
   const [visible, setVisible] = useState(false)
 
   useEffect(() => {
-    if (!getConsent()) setVisible(true)
+    if (!getConsent()) startTransition(() => setVisible(true))
   }, [])
 
   const accept = async () => {

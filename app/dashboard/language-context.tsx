@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, startTransition } from 'react'
 import { translations, type Locale, type Translations } from '@/lib/i18n'
 
 const STORAGE_KEY = 'neuridion_locale'
@@ -22,7 +22,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as Locale | null
-    if (saved && saved in translations) setLocaleState(saved)
+    if (saved && saved in translations) startTransition(() => setLocaleState(saved))
   }, [])
 
   const setLocale = (l: Locale) => {

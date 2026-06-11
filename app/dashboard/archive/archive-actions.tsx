@@ -4,6 +4,7 @@ import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useToast } from '@/app/components/ui/ToastProvider'
 import { apiFetch } from '@/lib/fetch'
+import { messageFromError } from '@/lib/ui/api-error-message'
 
 export function CancelRunButton({
   runId,
@@ -158,8 +159,8 @@ export function GenerateReportButton({ runId }: { runId: string }) {
         throw new Error(body?.error ?? 'Failed to generate report')
       }
       router.refresh()
-    } catch {
-      toast.show('Report generation failed — please try again.', 'error')
+    } catch (err) {
+      toast.show(messageFromError(err, 'Report generation failed — please try again.'), 'error')
     } finally {
       pendingRef.current = false
       setLoading(false)

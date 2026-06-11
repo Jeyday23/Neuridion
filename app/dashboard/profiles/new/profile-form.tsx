@@ -221,7 +221,7 @@ export function ProfileForm() {
           </ul>
         )}
         <p className="mt-1 text-[11px] text-zinc-400">
-          If your uploaded strategy document already contains competitor information, you don't need to re-enter it in the competitor list above.
+          If your uploaded strategy document already contains competitor information, you don&apos;t need to re-enter it in the competitor list above.
         </p>
       </div>
 

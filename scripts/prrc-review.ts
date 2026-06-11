@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
+import { execSync } from 'child_process'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -207,7 +208,7 @@ function generateReport(): string {
   const today = new Date().toISOString().slice(0, 10)
   let gitHash = 'unknown'
   try {
-    gitHash = require('child_process').execSync('git rev-parse --short HEAD').toString().trim()
+    gitHash = execSync('git rev-parse --short HEAD').toString().trim()
   } catch { /* ignore */ }
 
   const sections: SectionSummary[] = []

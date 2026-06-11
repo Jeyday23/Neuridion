@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 import { buildCspHeader } from '@/lib/security/csp'
+import { isStaleSessionAuthError } from '@/lib/auth/stale-session'
 
 const encoder = new TextEncoder()
 
@@ -215,7 +216,7 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   function clearAuthCookies(response: NextResponse): void {
     const allNames = new Set([
@@ -227,6 +228,14 @@ export async function proxy(request: NextRequest) {
     }
     response.cookies.delete({ name: SESSION_COOKIE, path: '/' })
     response.cookies.delete({ name: IDLE_COOKIE, path: '/' })
+  }
+
+  if (isStaleSessionAuthError(authError)) {
+    const staleRes = pathname.startsWith('/api/')
+      ? NextResponse.json({ error: 'Session expired. Please sign in again.' }, { status: 401, headers: { 'x-request-id': requestId } })
+      : NextResponse.redirect(new URL('/login', request.url))
+    clearAuthCookies(staleRes)
+    return addSecurityHeaders(staleRes)
   }
 
   if (!user && originalCookieNames.has(SESSION_COOKIE)) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { apiFetch } from '@/lib/fetch'
 import Link from 'next/link'
 import { ArrowLeft, Send, CheckCircle } from 'lucide-react'
@@ -13,7 +13,8 @@ export default function ContactPage() {
   const [message, setMessage] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
-  const loadedAt = useRef(Date.now())
+  const loadedAt = useRef<number>(0)
+  useEffect(() => { loadedAt.current = Date.now() }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -85,7 +86,7 @@ export default function ContactPage() {
 
         <h1 className="text-3xl font-bold text-[#0F1F3D] mb-2">Contact us</h1>
         <p className="text-[#134E4A] mb-8">
-          Questions about Neuridion, enterprise pricing, or partnerships? We'll get back to you within 1 business day.
+          Questions about Neuridion, enterprise pricing, or partnerships? We&apos;ll get back to you within 1 business day.
         </p>
 
         {status === 'sent' ? (
@@ -93,7 +94,7 @@ export default function ContactPage() {
             <CheckCircle className="w-10 h-10 text-green-600 mx-auto mb-3" />
             <h2 className="text-lg font-semibold text-green-900 mb-1">Message sent</h2>
             <p className="text-sm text-green-700">
-              Thank you for reaching out. We'll reply to <strong>{email}</strong> shortly.
+              Thank you for reaching out. We&apos;ll reply to <strong>{email}</strong> shortly.
             </p>
             <Link
               href="/"

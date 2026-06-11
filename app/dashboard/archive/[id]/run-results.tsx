@@ -2,9 +2,11 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { clsx } from 'clsx'
 import { apiFetch } from '@/lib/fetch'
 import { useToast } from '@/app/components/ui/ToastProvider'
+import { messageFromError } from '@/lib/ui/api-error-message'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
 
 export interface FsnResult {
@@ -223,8 +225,8 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
       setReportGenerated(true)
       toast.show('Report generated successfully.', 'success')
       router.refresh()
-    } catch {
-      toast.show('Report generation failed — please try again.', 'error')
+    } catch (err) {
+      toast.show(messageFromError(err, 'Report generation failed — please try again.'), 'error')
     } finally {
       reportPendingRef.current = false
       setGeneratingReport(false)
@@ -380,12 +382,12 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
           <span className="text-green-700 flex-1">
             Report generated. Download it from the archive.
           </span>
-          <a
+          <Link
             href="/dashboard/archive"
             className="px-4 py-2 bg-green-600 text-white rounded-lg text-xs font-medium hover:bg-green-700 whitespace-nowrap"
           >
             Go to Archive
-          </a>
+          </Link>
         </div>
       )}
 

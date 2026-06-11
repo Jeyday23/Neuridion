@@ -16,8 +16,14 @@ export function useSessionTimeout(
   onTimeout: () => void,
 ) {
   const router           = useRouter()
-  const lastActivityRef  = useRef(Date.now())
-  const sessionStartRef  = useRef(Date.now())
+  const lastActivityRef  = useRef<number>(0)
+  const sessionStartRef  = useRef<number>(0)
+  // Initialise timestamps after mount so Date.now() is not called during render
+  useEffect(() => {
+    if (!lastActivityRef.current) lastActivityRef.current = Date.now()
+    if (!sessionStartRef.current) sessionStartRef.current = Date.now()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const warningShownRef  = useRef(false)
   const timerRef         = useRef<ReturnType<typeof setInterval> | null>(null)
 
