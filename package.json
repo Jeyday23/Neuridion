@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "prrc-review": "tsx scripts/prrc-review.ts",
+    "verify:env": "tsx scripts/verify-env.ts",
+    "verify:integrations": "tsx scripts/verify-integrations.ts",
+    "verify:release": "tsx scripts/verify-release.ts",
     "benchmark:accuracy": "tsx benchmark/cli.ts",
     "benchmark:live": "tsx benchmark/cli.ts --live"
   },
