@@ -76,9 +76,16 @@ function buildUrl(page: number, fromDate?: Date, toDate?: Date): string {
 }
 
 function parseGermanDate(block: string): Date | null {
-  const m = block.match(/c-icon-teaser__date[\s\S]*?(\d{1,2})\.\s+(\w+)\s+(\d{4})/)
+  const m = block.match(/c-icon-teaser__date[\s\S]*?(\d{1,2})\.\s+([A-Za-zÄÖÜäöüß&;]+)\s+(\d{4})/)
   if (!m) return null
-  const month = GERMAN_MONTHS[m[2]]
+  const monthName = m[2]
+    .replace(/&auml;/gi, 'ä')
+    .replace(/&Auml;/g, 'Ä')
+    .replace(/&ouml;/gi, 'ö')
+    .replace(/&Ouml;/g, 'Ö')
+    .replace(/&uuml;/gi, 'ü')
+    .replace(/&Uuml;/g, 'Ü')
+  const month = GERMAN_MONTHS[monthName]
   if (month === undefined) return null
   // Use Date.UTC to avoid timezone-dependent local-time constructor.
   // new Date(y, m, d) would shift the date by the server's UTC offset, causing
@@ -225,6 +232,14 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items
       const pageItems = parsePage(html)
 
       if (pageItems.length === 0) break
+      const pageDates = pageItems
+        .map((item) => item.date)
+        .filter((date): date is Date => date !== null)
+      const crossedBelowFromDate = Boolean(
+        fromDate
+        && pageDates.length > 0
+        && pageDates.some((date) => date < fromDate),
+      )
 
       for (const item of pageItems) {
         if (raw.length >= MAX_ITEMS) break
@@ -241,7 +256,7 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items
         })
       }
 
-      if (raw.length >= MAX_ITEMS || pageItems.length < RESULTS_PER_PAGE) break
+      if (raw.length >= MAX_ITEMS || pageItems.length < RESULTS_PER_PAGE || crossedBelowFromDate) break
     }
 
     if (raw.length >= MAX_ITEMS) {
