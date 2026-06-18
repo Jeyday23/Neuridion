@@ -36,7 +36,7 @@ describe('verifyEnvironment', () => {
   })
 
   it('fails when a required variable is missing', () => {
-    const { AUDIT_HMAC_KEY, ...env } = validProductionEnv
+    const env = { ...validProductionEnv, AUDIT_HMAC_KEY: undefined }
     const result = verifyEnvironment(env, { mode: 'production' })
 
     expect(result.ok).toBe(false)
