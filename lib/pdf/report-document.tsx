@@ -1,19 +1,7 @@
 import React from 'react'
-import { Document, Page, Text, View, Link, Font, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, Text, View, Link, StyleSheet } from '@react-pdf/renderer'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
 import type { FsnReportRow } from '@/lib/domain/types'
-
-// ─── Font registration ──────────────────────────────────────────────────────
-
-Font.register({
-  family: 'Inter',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuLyfMZhrib2Bg-4.ttf', fontWeight: 400 },
-    { src: 'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuI6fMZhrib2Bg-4.ttf', fontWeight: 500 },
-    { src: 'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuGKYMZhrib2Bg-4.ttf', fontWeight: 600 },
-    { src: 'https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50SjIw2boKoduKmMEVuFuYMZhrib2Bg-4.ttf', fontWeight: 700 },
-  ],
-})
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -30,13 +18,6 @@ export interface ReportData {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-const DECISION_LABEL: Record<string, string> = {
-  relevant:      'Potentially Relevant',
-  uncertain:     'Requires Further Review',
-  excluded:      'Not Relevant',
-  filter_failed: 'AI Filter Unavailable',
-}
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -55,7 +36,7 @@ const RED = '#dc2626'
 
 const s = StyleSheet.create({
   page: {
-    fontFamily: 'Inter',
+    fontFamily: 'Helvetica',
     fontSize: 10.5,
     color: '#1a1a1a',
     paddingTop: '2.2cm',

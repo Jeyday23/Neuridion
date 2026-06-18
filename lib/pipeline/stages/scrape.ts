@@ -10,7 +10,6 @@ import { insertResultsStage } from './insert-results'
 import type { PipelineContext, ProgressUpdate } from '../types'
 
 const SOURCE_TIMEOUTS_MS: Record<string, number> = {
-  bfarm:      180_000,
   fda:        90_000,
   mhra:       120_000,
   swissmedic: 60_000,
@@ -270,6 +269,9 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
 
   const sourceResults = await Promise.allSettled(
     activeSources.map((id) => {
+      if (id === 'bfarm') {
+        return processSource(id)
+      }
       const timeoutMs = SOURCE_TIMEOUTS_MS[id] ?? DEFAULT_TIMEOUT_MS
       return withTimeout(processSource(id), timeoutMs, id.toUpperCase())
     }),

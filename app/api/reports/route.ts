@@ -7,9 +7,11 @@ import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { buildReportHtml } from '@/lib/reports/html-builder'
 import { buildExcel } from '@/lib/reports/excel-builder'
+import { withTimeout } from '@/lib/utils/timeout'
 import type { FsnReportRow } from '@/lib/domain/types'
 
 export const maxDuration = 120
+const PDF_GENERATION_TIMEOUT_MS = 45_000
 
 // ─── Route handler ────────────────────────────────────────────────────────────
 
@@ -49,6 +51,8 @@ export async function POST(request: Request) {
     return Response.json({ error: 'run_id must be a valid UUID' }, { status: 422 })
   }
   const { run_id } = parsed.data
+  const reportStart = Date.now()
+  console.error('[reports]', `generation started run_id=${run_id}`)
 
   // Fetch run + profile (validates ownership)
   const { data: run, error: runError } = await supabase
@@ -145,6 +149,7 @@ export async function POST(request: Request) {
   const dbsSearched = (run as { dbs_searched?: string[] | null }).dbs_searched
   const htmlPath = `${user.id}/${run_id}/${ts}_report.html`
   {
+    const stepStart = Date.now()
     const html = buildReportHtml(
       profile,
       { period_from: run.period_from, period_to: run.period_to, status: runStatus, dbs_searched: Array.isArray(dbsSearched) ? dbsSearched : null },
@@ -156,11 +161,13 @@ export async function POST(request: Request) {
       console.error('[reports] upload error', error.message)
       return Response.json({ error: 'Failed to upload report' }, { status: 500 })
     }
+    console.error('[reports]', `html generated run_id=${run_id} in ${Date.now() - stepStart}ms`)
   }
 
   // Excel
   const excelPath = `${user.id}/${run_id}/${ts}_report.xlsx`
   {
+    const stepStart = Date.now()
     const excelBuf = await buildExcel(rows, {
       device: profile.device_name, manufacturer: profile.manufacturer,
       period_from: run.period_from, period_to: run.period_to,
@@ -172,11 +179,13 @@ export async function POST(request: Request) {
       console.error('[reports] upload error', error.message)
       return Response.json({ error: 'Failed to upload report' }, { status: 500 })
     }
+    console.error('[reports]', `excel generated run_id=${run_id} in ${Date.now() - stepStart}ms`)
   }
 
   // Word (.docx) — Starter+ only
   let docxPath: string | null = null
   if (paidPlans.includes(userPlan)) {
+    const stepStart = Date.now()
     docxPath = `${user.id}/${run_id}/${ts}_report.docx`
     const docxBuf = await buildDocx(rows, {
       device: profile.device_name, manufacturer: profile.manufacturer,
@@ -191,6 +200,7 @@ export async function POST(request: Request) {
       console.error('[reports] upload error', error.message)
       return Response.json({ error: 'Failed to upload report' }, { status: 500 })
     }
+    console.error('[reports]', `docx generated run_id=${run_id} in ${Date.now() - stepStart}ms`)
   }
 
   // ── Create signed URLs ──────────────────────────────────────────────────────
@@ -213,12 +223,17 @@ export async function POST(request: Request) {
 
   if (quotaCheck.allowed) {
     try {
-      const pdfBuffer = await generateReportPdf({
-        profile,
-        run: { period_from: run.period_from, period_to: run.period_to },
-        rows,
-        runId: run_id,
-      })
+      const stepStart = Date.now()
+      const pdfBuffer = await withTimeout(
+        generateReportPdf({
+          profile,
+          run: { period_from: run.period_from, period_to: run.period_to },
+          rows,
+          runId: run_id,
+        }),
+        PDF_GENERATION_TIMEOUT_MS,
+        'PDF generation',
+      )
 
       pdfPath = `${user.id}/${run_id}/${ts}_report.pdf`
       const { error: pdfUploadErr } = await adminStorage.storage
@@ -234,6 +249,7 @@ export async function POST(request: Request) {
         pdfUrl = pdfSigned?.signedUrl ?? null
         pdfStatus = 'generated'
         await incrementPdfUsage(adminStorage, user.id)
+        console.error('[reports]', `pdf generated run_id=${run_id} in ${Date.now() - stepStart}ms`)
       } else {
         console.error('[PDF] Upload failed:', pdfUploadErr.message)
       }
@@ -264,6 +280,7 @@ export async function POST(request: Request) {
   }
 
   await logAuditEvent(user.id, 'report_generated', { run_id, pdf_status: pdfStatus }, request)
+  console.error('[reports]', `generation completed run_id=${run_id} in ${Date.now() - reportStart}ms pdf_status=${pdfStatus}`)
 
   return Response.json({
     html_url:   htmlSigned.data?.signedUrl ?? null,
