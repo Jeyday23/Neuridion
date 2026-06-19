@@ -2,6 +2,7 @@ import React from 'react'
 import { Document, Page, Text, View, Link, StyleSheet } from '@react-pdf/renderer'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
 import type { FsnReportRow } from '@/lib/domain/types'
+import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -143,6 +144,31 @@ function ResultsTable({ items, bgColor, isAppendix }: { items: FsnReportRow[]; b
   )
 }
 
+function FdaSignalTable({ rows }: { rows: FsnReportRow[] }) {
+  const signals = groupFdaSignals(rows).slice(0, 20)
+  if (signals.length === 0) return null
+  return (
+    <View>
+      <Text style={s.h2}>FDA MAUDE Signal Summary</Text>
+      <Text style={s.appendixNote}>Repeated adverse-event reports are grouped by product and reported problem. These are screening signals, not confirmed hazards, recalls, or Field Safety Notices. All underlying reports remain in the detailed results.</Text>
+      <View style={s.tableHeader} fixed>
+        <Text style={[s.tableTh, { width: '25%' }]}>Product</Text>
+        <Text style={[s.tableTh, { width: '45%' }]}>Reported problem</Text>
+        <Text style={[s.tableTh, { width: '10%' }]}>Reports</Text>
+        <Text style={[s.tableTh, { width: '20%' }]}>Period</Text>
+      </View>
+      {signals.map((signal) => (
+        <View key={signal.key} style={s.tableRow} wrap={false}>
+          <Text style={[s.tableTd, { width: '25%' }]}>{signal.product}</Text>
+          <Text style={[s.tableTd, { width: '45%' }]}>{signal.failureMode}</Text>
+          <Text style={[s.tableTd, { width: '10%' }]}>{signal.reportCount}</Text>
+          <Text style={[s.tableTd, { width: '20%' }]}>{fmtDate(signal.firstReported)} – {fmtDate(signal.lastReported)}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
 // ─── Main Document ──────────────────────────────────────────────────────────
 
 export function ReportDocument({ data }: { data: ReportData }) {
@@ -153,14 +179,16 @@ export function ReportDocument({ data }: { data: ReportData }) {
   const uncertain    = rows.filter((r) => r.filter_decision?.decision === 'uncertain')
   const excluded     = rows.filter((r) => r.filter_decision?.decision === 'excluded')
   const filterFailed = rows.filter((r) => r.filter_decision?.decision === 'filter_failed')
+  const hasFda       = groupFdaSignals(rows).length > 0
 
   const conclusionRelevant = relevant.length + uncertain.length
   const failedNote = filterFailed.length > 0
     ? ` Note: The AI filter could not be applied to ${filterFailed.length} item${filterFailed.length !== 1 ? 's' : ''} due to API unavailability — these require manual review.`
     : ''
+  const recordLabel = hasFda ? 'safety record' : 'Field Safety Notice'
   const conclusionText = conclusionRelevant === 0 && filterFailed.length === 0
-    ? 'This review identified no Field Safety Notices that are potentially relevant to the device under review within the specified period. No further action is required at this time.'
-    : `This review identified ${conclusionRelevant + filterFailed.length} Field Safety Notice${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} notice${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan.${failedNote}`
+    ? `No ${recordLabel}s were classified as relevant to the device under review within the specified period.${hasFda ? ' FDA MAUDE adverse-event reports were retained and summarized as screening signals; they are not Field Safety Notices, confirmed hazards, or recalls.' : ''} Qualified review is required before determining that no further action is needed.`
+    : `This review identified ${conclusionRelevant + filterFailed.length} ${recordLabel}${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} record${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan.${failedNote}`
 
   const databases = [...new Set(rows.map((r) => fmtSourceDb(r.source_db)))].join(', ')
 
@@ -170,7 +198,7 @@ export function ReportDocument({ data }: { data: ReportData }) {
         {/* Header */}
         <View style={s.headerBar}>
           <Text style={s.orgLine}>Post-Market Surveillance</Text>
-          <Text style={s.docTitle}>Field Safety Notice Review Report</Text>
+          <Text style={s.docTitle}>{hasFda ? 'Safety Signal & Field Notice Review Report' : 'Field Safety Notice Review Report'}</Text>
           <Text style={s.docSubtitle}>Database Search &amp; Assessment</Text>
         </View>
 
@@ -200,6 +228,8 @@ export function ReportDocument({ data }: { data: ReportData }) {
           <StatBox num={excluded.length} label="Not Relevant" color="#9ca3af" />
           {filterFailed.length > 0 && <StatBox num={filterFailed.length} label="AI Filter Unavailable" color={RED} />}
         </View>
+
+        <FdaSignalTable rows={rows} />
 
         {/* 4. Potentially Relevant */}
         <View style={[s.sectionBar, { backgroundColor: GREEN }]}>

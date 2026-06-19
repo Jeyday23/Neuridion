@@ -8,11 +8,14 @@ import { apiFetch } from '@/lib/fetch'
 import { useToast } from '@/app/components/ui/ToastProvider'
 import { messageFromError } from '@/lib/ui/api-error-message'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
+import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
 export interface FsnResult {
   id: string
   title: string
   manufacturer: string | null
+  product_name: string | null
+  raw_content: string | null
   fsn_date: string | null
   source_url: string | null
   source_db: string
@@ -269,6 +272,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
     excluded:      results.filter((r) => r.filter_decision?.decision === 'excluded').length,
     filter_failed: results.filter((r) => r.filter_decision?.decision === 'filter_failed').length,
   }
+  const fdaSignals = groupFdaSignals(results)
 
   const filtered = tab === 'all'
     ? sorted
@@ -395,6 +399,43 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <strong>{counts.filter_failed} item{counts.filter_failed !== 1 ? 's were' : ' was'} not processed by AI</strong> — these items exceeded the AI filter cap for this run. Manual review required.
         </div>
+      )}
+
+      {fdaSignals.length > 0 && (
+        <section className="mb-6 rounded-md border border-blue-200 bg-blue-50/40 p-4" aria-labelledby="fda-signals-heading">
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 id="fda-signals-heading" className="text-sm font-semibold text-zinc-900">FDA MAUDE signal groups</h2>
+            <span className="text-xs text-zinc-500">{fdaSignals.length} group{fdaSignals.length !== 1 ? 's' : ''}</span>
+          </div>
+          <p className="mt-1 text-xs leading-relaxed text-zinc-600">
+            Repeated adverse-event reports are grouped by product and reported problem. These are signals for review, not confirmed hazards or recalls; every underlying report remains available in Raw Data.
+          </p>
+          <div className="mt-3 overflow-x-auto rounded border border-blue-100 bg-white">
+            <table className="w-full text-xs">
+              <thead className="bg-blue-50 text-zinc-600">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Product</th>
+                  <th className="px-3 py-2 text-left font-medium">Reported problem</th>
+                  <th className="px-3 py-2 text-right font-medium">Reports</th>
+                  <th className="px-3 py-2 text-left font-medium">Period</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fdaSignals.slice(0, 10).map((signal) => (
+                  <tr key={signal.key} className="border-t border-zinc-100">
+                    <td className="px-3 py-2 text-zinc-800">{signal.product}</td>
+                    <td className="px-3 py-2 text-zinc-600">{signal.failureMode}</td>
+                    <td className="px-3 py-2 text-right font-semibold text-blue-700">{signal.reportCount}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-zinc-500">
+                      {signal.firstReported ? new Date(signal.firstReported).toLocaleDateString('en-GB') : '—'} → {signal.lastReported ? new Date(signal.lastReported).toLocaleDateString('en-GB') : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {fdaSignals.length > 10 && <p className="mt-2 text-xs text-zinc-500">Showing the 10 largest groups. The generated report contains up to 20 groups.</p>}
+        </section>
       )}
 
       <div role="tablist" className="flex gap-1 border-b border-zinc-200 mb-4 flex-wrap">

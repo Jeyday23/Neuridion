@@ -2,6 +2,7 @@ import { escHtml } from '@/lib/utils/html'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
 import { DECISION_LABEL, fmtDate, safeHref } from './shared'
 import type { FsnReportRow } from '@/lib/domain/types'
+import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
 export function buildReportHtml(
   profile: { device_name: string; manufacturer: string; device_class: string | null; emdn_code: string | null },
@@ -17,6 +18,14 @@ export function buildReportHtml(
   const uncertain    = rows.filter((r) => r.filter_decision?.decision === 'uncertain')
   const excluded     = rows.filter((r) => r.filter_decision?.decision === 'excluded')
   const filterFailed = rows.filter((r) => r.filter_decision?.decision === 'filter_failed')
+  const fdaSignals = groupFdaSignals(rows)
+  const hasFda = fdaSignals.length > 0
+  const fdaSignalRows = fdaSignals.slice(0, 20).map((signal) => `<tr>
+    <td>${escHtml(signal.product)}</td>
+    <td>${escHtml(signal.failureMode)}</td>
+    <td style="text-align:right;font-weight:bold;">${signal.reportCount}</td>
+    <td style="white-space:nowrap;">${fmtDate(signal.firstReported)} &ndash; ${fmtDate(signal.lastReported)}</td>
+  </tr>`).join('')
 
   // Build table rows for a section. isAppendix uses compact 4-col layout + truncated rationale.
   function sectionRows(items: FsnReportRow[], rowBg: string, isAppendix = false): string {
@@ -53,9 +62,10 @@ export function buildReportHtml(
   const failedNote = filterFailed.length > 0
     ? ` Note: The AI filter could not be applied to ${filterFailed.length} item${filterFailed.length !== 1 ? 's' : ''} due to API unavailability — these require manual review.`
     : ''
+  const recordLabel = hasFda ? 'safety record' : 'Field Safety Notice'
   const conclusion = conclusionRelevant === 0 && filterFailed.length === 0
-    ? `Based on the automated screening, no Field Safety Notices were classified as relevant to this device profile during the search period. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.`
-    : `This review identified ${conclusionRelevant + filterFailed.length} Field Safety Notice${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} notice${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.${failedNote}`
+    ? `Based on the automated screening, no ${recordLabel}s were classified as relevant to this device profile during the search period.${hasFda ? ' FDA MAUDE adverse-event reports were retained and summarized as screening signals; they are not Field Safety Notices, confirmed hazards, or recalls.' : ''} This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.`
+    : `This review identified ${conclusionRelevant + filterFailed.length} ${recordLabel}${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} record${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.${failedNote}`
 
   const stdThead = `<thead><tr>
     <th style="width:30%;">Title</th>
@@ -112,7 +122,7 @@ export function buildReportHtml(
 
   <div class="doc-header">
     <div class="org-line">Post-Market Surveillance</div>
-    <div class="doc-title">Field Safety Notice Review Report</div>
+    <div class="doc-title">${hasFda ? 'Safety Signal &amp; Field Notice Review Report' : 'Field Safety Notice Review Report'}</div>
     <div class="doc-subtitle">Database Search &amp; Assessment</div>
   </div>
 
@@ -168,6 +178,16 @@ export function buildReportHtml(
     </div>` : ''}
   </div>
 
+  ${fdaSignals.length > 0 ? `
+  <h2>FDA MAUDE Signal Summary</h2>
+  <p class="appendix-note">Repeated adverse-event reports are grouped by product and reported problem. A group is a screening signal, not a confirmed hazard, recall, or Field Safety Notice. All underlying reports remain listed in the detailed results and source data.</p>
+  <table class="results-table">
+    <thead><tr><th>Product</th><th>Reported problem</th><th style="text-align:right;">Reports</th><th>Reporting period</th></tr></thead>
+    <tbody>${fdaSignalRows}</tbody>
+  </table>
+  ${fdaSignals.length > 20 ? `<p class="appendix-note">Showing the 20 largest of ${fdaSignals.length} signal groups.</p>` : ''}
+  ` : ''}
+
   <!-- 4. POTENTIALLY RELEVANT -->
   <div class="section-bar" style="background-color:#16a34a;">POTENTIALLY RELEVANT &mdash; ${relevant.length} item${relevant.length !== 1 ? 's' : ''}</div>
   <table class="results-table">${stdThead}<tbody>${sectionRows(relevant, '#f0fdf4')}</tbody></table>
@@ -183,9 +203,9 @@ export function buildReportHtml(
   <table class="results-table">${stdThead}<tbody>${sectionRows(filterFailed, '#fef2f2')}</tbody></table>
   ` : ''}
 
-  <!-- Appendix A: EXCLUDED FSNs -->
-  ${excluded.length > 50 ? `<p class="appendix-note" style="margin-top:8mm;">This appendix lists ${excluded.length} excluded FSNs for audit completeness.</p>` : ''}
-  <div class="section-bar" style="background-color:#6b7280;${excluded.length <= 50 ? '' : 'margin-top:4px;'}">APPENDIX A &mdash; EXCLUDED FSNs &mdash; ${excluded.length} item${excluded.length !== 1 ? 's' : ''}</div>
+  <!-- Appendix A: EXCLUDED RECORDS -->
+  ${excluded.length > 50 ? `<p class="appendix-note" style="margin-top:8mm;">This appendix lists ${excluded.length} excluded records for audit completeness.</p>` : ''}
+  <div class="section-bar" style="background-color:#6b7280;${excluded.length <= 50 ? '' : 'margin-top:4px;'}">APPENDIX A &mdash; EXCLUDED RECORDS &mdash; ${excluded.length} item${excluded.length !== 1 ? 's' : ''}</div>
   <p class="appendix-note">These items were reviewed and determined not relevant to the device profile. Listed for audit completeness.</p>
   <table class="appendix-table">
     <thead><tr>

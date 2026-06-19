@@ -6,6 +6,7 @@ import {
 } from 'docx'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
 import type { FsnReportRow } from '@/lib/domain/types'
+import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
 interface ReportMeta {
   device: string
@@ -132,6 +133,8 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
   const excluded     = rows.filter((r) => r.filter_decision?.decision === 'excluded')
   const filterFailed = rows.filter((r) => r.filter_decision?.decision === 'filter_failed')
   const sources      = [...new Set(rows.map((r) => fmtSourceDb(r.source_db)))]
+  const fdaSignals   = groupFdaSignals(rows)
+  const hasFda       = fdaSignals.length > 0
 
   const children: (Paragraph | Table)[] = []
 
@@ -156,7 +159,7 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
   }))
   children.push(new Paragraph({
     spacing: { after: 200 },
-    children: [new TextRun({ text: 'Field Safety Notice Review Report', bold: true, size: 30, color: BRAND_NAVY, font: 'Calibri' })],
+    children: [new TextRun({ text: hasFda ? 'Safety Signal & Field Notice Review Report' : 'Field Safety Notice Review Report', bold: true, size: 30, color: BRAND_NAVY, font: 'Calibri' })],
   }))
 
   // Metadata table
@@ -180,7 +183,7 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
   }))
 
   const summaryRows = [
-    metaRow('Total notices reviewed', String(rows.length)),
+    metaRow('Total safety records reviewed', String(rows.length)),
     metaRow('Potentially relevant', String(relevant.length)),
     metaRow('Requires further review', String(uncertain.length)),
     metaRow('Not relevant', String(excluded.length)),
@@ -189,6 +192,33 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
     summaryRows.push(metaRow('AI filter unavailable', String(filterFailed.length)))
   }
   children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: summaryRows }))
+
+  if (fdaSignals.length > 0) {
+    children.push(sectionHeader(`FDA MAUDE Signal Groups (${fdaSignals.length})`, BRAND_TEAL))
+    children.push(new Paragraph({
+      spacing: { after: 120 },
+      children: [new TextRun({
+        text: 'Repeated adverse-event reports are grouped by product and reported problem. These are screening signals, not confirmed hazards, recalls, or Field Safety Notices. All underlying reports remain in the detailed results.',
+        italics: true,
+        size: 17,
+        color: '555555',
+        font: 'Calibri',
+      })],
+    }))
+    children.push(new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      layout: TableLayoutType.FIXED,
+      rows: [
+        new TableRow({ tableHeader: true, children: [headerCell('Product'), headerCell('Reported Problem'), headerCell('Reports'), headerCell('Period')] }),
+        ...fdaSignals.slice(0, 20).map((signal) => new TableRow({ children: [
+          textCell(signal.product, 16),
+          textCell(signal.failureMode, 16),
+          textCell(String(signal.reportCount), 16),
+          textCell(`${fmtDate(signal.firstReported)} – ${fmtDate(signal.lastReported)}`, 16),
+        ] })),
+      ],
+    }))
+  }
 
   // FSN sections
   if (relevant.length > 0 || uncertain.length === 0 && excluded.length === 0) {
@@ -222,9 +252,10 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
   const failedNote = filterFailed.length > 0
     ? ` Note: The AI filter could not be applied to ${filterFailed.length} item${filterFailed.length !== 1 ? 's' : ''} due to API unavailability — these require manual review.`
     : ''
+  const recordLabel = hasFda ? 'safety record' : 'Field Safety Notice'
   const conclusionText = conclusionRelevant === 0 && filterFailed.length === 0
-    ? 'Based on the automated screening, no Field Safety Notices were classified as relevant to this device profile during the search period. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.'
-    : `This review identified ${conclusionRelevant + filterFailed.length} Field Safety Notice${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} notice${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.${failedNote}`
+    ? `Based on the automated screening, no ${recordLabel}s were classified as relevant to this device profile during the search period.${hasFda ? ' FDA MAUDE adverse-event reports were retained and summarized as screening signals; they are not Field Safety Notices, confirmed hazards, or recalls.' : ''} This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.`
+    : `This review identified ${conclusionRelevant + filterFailed.length} ${recordLabel}${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} record${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.${failedNote}`
 
   children.push(new Paragraph({
     spacing: { after: 200 },

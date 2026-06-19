@@ -11,6 +11,8 @@ export interface FsnReportRow {
   id: string
   title: string
   manufacturer: string
+  product_name?: string | null
+  raw_content?: string | null
   fsn_date: string | null
   source_url: string
   source_db: string

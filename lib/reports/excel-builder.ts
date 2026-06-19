@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { DECISION_LABEL, fmtDate, safeCell } from './shared'
 import type { FsnReportRow } from '@/lib/domain/types'
+import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
 export async function buildExcel(
   rows: FsnReportRow[],
@@ -16,7 +17,7 @@ export async function buildExcel(
   if (sources.length === 0) sources.push('bfarm')
 
   for (const src of sources) {
-    const sheetName = src === 'bfarm' ? 'BfArM' : src === 'maude' ? 'FDA MAUDE' : src === 'mhra' ? 'MHRA' : src.toUpperCase()
+    const sheetName = src === 'bfarm' ? 'BfArM' : (src === 'maude' || src === 'fda') ? 'FDA MAUDE' : src === 'mhra' ? 'MHRA' : src.toUpperCase()
     const ws = wb.addWorksheet(sheetName)
 
     // Columns
@@ -80,6 +81,37 @@ export async function buildExcel(
     ws.views = [{ state: 'frozen', ySplit: 1 }]
   }
 
+  const fdaSignals = groupFdaSignals(rows)
+  if (fdaSignals.length > 0) {
+    const signalWs = wb.addWorksheet('FDA Signal Summary')
+    signalWs.columns = [
+      { header: 'Product', key: 'product', width: 35 },
+      { header: 'Manufacturer', key: 'manufacturer', width: 30 },
+      { header: 'Reported Problem', key: 'failureMode', width: 55 },
+      { header: 'Report Count', key: 'reportCount', width: 14 },
+      { header: 'First Reported', key: 'firstReported', width: 16 },
+      { header: 'Last Reported', key: 'lastReported', width: 16 },
+      { header: 'Evidence URLs (up to 5)', key: 'evidenceUrls', width: 70 },
+    ]
+    const signalHeader = signalWs.getRow(1)
+    signalHeader.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    signalHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A1A2E' } }
+    for (const signal of fdaSignals) {
+      const row = signalWs.addRow({
+        product: safeCell(signal.product),
+        manufacturer: safeCell(signal.manufacturer),
+        failureMode: safeCell(signal.failureMode),
+        reportCount: signal.reportCount,
+        firstReported: signal.firstReported ? fmtDate(signal.firstReported) : '—',
+        lastReported: signal.lastReported ? fmtDate(signal.lastReported) : '—',
+        evidenceUrls: safeCell(signal.evidenceUrls.join('\n')),
+      })
+      row.getCell('failureMode').alignment = { wrapText: true, vertical: 'top' }
+      row.getCell('evidenceUrls').alignment = { wrapText: true, vertical: 'top' }
+    }
+    signalWs.views = [{ state: 'frozen', ySplit: 1 }]
+  }
+
   // Summary sheet — created once after all source sheets
   const sumWs = wb.addWorksheet('Summary')
   sumWs.columns = [{ width: 30 }, { width: 40 }]
@@ -94,7 +126,7 @@ export async function buildExcel(
   addMeta('Review period', `${meta.period_from} to ${meta.period_to}`)
   addMeta('Report generated', fmtDate(new Date().toISOString()))
   sumWs.addRow([])
-  addMeta('Total notices reviewed', String(rows.length))
+  addMeta('Total safety records reviewed', String(rows.length))
   addMeta('Potentially relevant', String(rows.filter((r) => r.filter_decision?.decision === 'relevant').length))
   addMeta('Requires further review', String(rows.filter((r) => r.filter_decision?.decision === 'uncertain').length))
   addMeta('Not relevant', String(rows.filter((r) => r.filter_decision?.decision === 'excluded').length))

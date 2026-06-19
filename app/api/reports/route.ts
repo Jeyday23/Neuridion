@@ -91,7 +91,7 @@ export async function POST(request: Request) {
   const db = createAdminClient()
   const { data: rawResults, error: resultsError } = await db
     .from('fsn_results')
-    .select('id, title, manufacturer, fsn_date, source_url, source_db')
+    .select('id, title, manufacturer, product_name, raw_content, fsn_date, source_url, source_db')
     .eq('run_id', run_id)
     .order('fsn_date', { ascending: false })
 
@@ -131,6 +131,8 @@ export async function POST(request: Request) {
     id:              r.id,
     title:           r.title,
     manufacturer:    r.manufacturer ?? '',
+    product_name:    r.product_name ?? null,
+    raw_content:     r.raw_content ?? null,
     fsn_date:        r.fsn_date,
     source_url:      r.source_url ?? '',
     source_db:       r.source_db,

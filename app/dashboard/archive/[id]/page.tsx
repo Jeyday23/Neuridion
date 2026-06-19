@@ -98,7 +98,7 @@ export default async function RunDetailPage({
   // Fetch FSN results
   const { data: rawResults } = await admin
     .from('fsn_results')
-    .select('id, title, manufacturer, fsn_date, source_url, source_db')
+    .select('id, title, manufacturer, product_name, raw_content, fsn_date, source_url, source_db')
     .eq('run_id', id)
     .order('fsn_date', { ascending: false })
 
@@ -121,6 +121,8 @@ export default async function RunDetailPage({
     id:              r.id,
     title:           r.title,
     manufacturer:    r.manufacturer ?? null,
+    product_name:    r.product_name ?? null,
+    raw_content:     r.raw_content ?? null,
     fsn_date:        r.fsn_date ?? null,
     source_url:      r.source_url,
     source_db:       r.source_db,
