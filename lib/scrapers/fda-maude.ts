@@ -11,6 +11,12 @@ const BASE_URL         = 'https://api.fda.gov/device/event.json'
 function redactUrl(url: string): string {
   return url.replace(/([?&])api_key=[^&]*/g, '$1api_key=REDACTED')
 }
+
+function safeFetchError(err: unknown, timedOut: boolean): string {
+  if (timedOut) return 'request timed out after 30000ms'
+  const raw = err instanceof Error ? `${err.name}: ${err.message}` : 'Network error'
+  return redactUrl(raw).replace(/\s+/g, ' ').slice(0, 240)
+}
 const RESULTS_PER_PAGE = 1000           // API max per request
 const MAX_SKIP         = 25000          // API hard limit: skip + limit ≤ 26000
 const MAX_ITEMS        = 500            // Per-quarter cap. Quarterly chunking means a 1-year search
@@ -305,11 +311,17 @@ async function fetchPageWithRetry(url: string, maxAttempts = 3, signal?: AbortSi
       const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: controller.signal })
 
       if (res.ok) {
+        if (attempt > 0) {
+          console.error(`[fda] request recovered on attempt ${attempt + 1}/${maxAttempts} after ${lastError}`)
+        }
         const data = await res.json() as OpenFdaResponse
         return { ok: true, data }
       }
 
       if (res.status === 404) {
+        if (attempt > 0) {
+          console.error(`[fda] request recovered on attempt ${attempt + 1}/${maxAttempts} after ${lastError}; no matching records`)
+        }
         const data = await res.json().catch(() => ({ error: { code: 'NOT_FOUND', message: 'No results' } })) as OpenFdaResponse
         return { ok: false, retriable: false, data }
       }
@@ -341,9 +353,9 @@ async function fetchPageWithRetry(url: string, maxAttempts = 3, signal?: AbortSi
       }
     } catch (err) {
       if (signal?.aborted) throw (signal.reason ?? err)
-      lastError = err instanceof Error ? err.message : 'Network error'
+      lastError = safeFetchError(err, controller.signal.aborted)
       if (attempt < maxAttempts - 1) {
-        console.error(`[fda] Fetch error on attempt ${attempt + 1}/${maxAttempts} for ${redactUrl(url)}, retrying in ${backoffs[attempt]}ms`)
+        console.error(`[fda] transient fetch error on attempt ${attempt + 1}/${maxAttempts}: ${lastError}; retrying in ${backoffs[attempt]}ms for ${redactUrl(url)}`)
         await wait(backoffs[attempt], signal)
         continue
       }
