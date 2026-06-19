@@ -216,6 +216,12 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     let cachedItemCount  = 0
 
     const localSearchTerms = buildSourceSearchTerms(sourceId, searchTerms, competitorTerms)
+    // FDA acquisition is profile-specific because search terms are pushed into
+    // openFDA. sync_coverage is keyed only by source + date range, so reusing it
+    // across profiles can return another device's capped dataset as "covered".
+    // Keep FDA interactive searches fresh until bulk, source-complete ingestion
+    // has its own independently certified coverage store.
+    const canReuseSourceCoverage = sourceId !== 'fda'
 
     async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
       const scraper = getProductionScraper(sourceId)
@@ -239,14 +245,14 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       )
       items.push(...result.items)
       warnings.push(...result.warnings)
-      if (result.outcome === 'complete' || result.outcome === 'empty') {
+      if (canReuseSourceCoverage && (result.outcome === 'complete' || result.outcome === 'empty')) {
         coverageEligibleRanges.push(range)
       }
     }
 
     const overlapFrom = overlapWindowStart(period_to)
 
-    if (forceRefresh) {
+    if (forceRefresh || !canReuseSourceCoverage) {
       await fetchSourceRange({ from: period_from, to: period_to })
     } else {
       const covered    = await getCoveredRanges(sourceId)

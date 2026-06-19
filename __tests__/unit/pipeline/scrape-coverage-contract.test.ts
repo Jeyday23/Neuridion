@@ -3,6 +3,9 @@ import type { PipelineContext } from '@/lib/pipeline/types'
 import type { ScraperResult, ScrapedFsn } from '@/lib/scrapers/bfarm'
 
 const mergeCoverage = vi.fn(async () => undefined)
+const getCoveredRanges = vi.fn(async () => [] as Array<{ from: string; to: string }>)
+const getCanonicalItems = vi.fn(async () => [] as ScrapedFsn[])
+const scraper = vi.fn(async () => nextResult)
 const upsertCanonical = vi.fn(async (items: ScrapedFsn[]) => items.map(item => ({
   canonical_id: `canonical-${item.external_id}`,
   content_changed: false,
@@ -10,11 +13,11 @@ const upsertCanonical = vi.fn(async (items: ScrapedFsn[]) => items.map(item => (
 let nextResult: ScraperResult
 
 vi.mock('@/lib/scrapers/registry', () => ({
-  getProductionScraper: () => async () => nextResult,
+  getProductionScraper: () => scraper,
 }))
 
 vi.mock('@/lib/sync/coverage', () => ({
-  getCoveredRanges: vi.fn(async () => []),
+  getCoveredRanges,
   computeUncoveredRanges: vi.fn(() => []),
   mergeCoverage,
   overlapWindowStart: vi.fn(() => '2026-06-01'),
@@ -22,7 +25,7 @@ vi.mock('@/lib/sync/coverage', () => ({
 
 vi.mock('@/lib/sync/canonical', () => ({
   upsertCanonical,
-  getCanonicalItems: vi.fn(async () => []),
+  getCanonicalItems,
 }))
 
 vi.mock('@/lib/pipeline/stages/insert-results', () => ({
@@ -77,6 +80,11 @@ describe('scrape coverage completeness contract', () => {
   beforeEach(() => {
     mergeCoverage.mockClear()
     upsertCanonical.mockClear()
+    getCoveredRanges.mockClear()
+    getCanonicalItems.mockClear()
+    scraper.mockClear()
+    getCoveredRanges.mockResolvedValue([])
+    getCanonicalItems.mockResolvedValue([])
   })
 
   it('never certifies a partial range as covered', async () => {
@@ -88,12 +96,60 @@ describe('scrape coverage completeness contract', () => {
     expect(mergeCoverage).not.toHaveBeenCalled()
   })
 
-  it('certifies a successfully checked empty range', async () => {
+  it('does not certify a profile-specific FDA range even when the result is empty', async () => {
     nextResult = { items: [], warnings: [], outcome: 'empty' }
     const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
 
     await scrapeStage(context())
 
-    expect(mergeCoverage).toHaveBeenCalledWith('fda', { from: '2026-06-01', to: '2026-06-01' })
+    expect(mergeCoverage).not.toHaveBeenCalled()
+  })
+
+  it('certifies a successfully checked empty range for source-complete scrapers', async () => {
+    nextResult = { items: [], warnings: [], outcome: 'empty' }
+    const ctx = context()
+    ctx.payload.selected_dbs = ['swissmedic']
+    ctx.activeSources = ['swissmedic']
+    const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
+
+    await scrapeStage(ctx)
+
+    expect(mergeCoverage).toHaveBeenCalledWith('swissmedic', { from: '2026-06-01', to: '2026-06-01' })
+  })
+
+  it('never reuses source-wide FDA coverage for a profile-specific query', async () => {
+    getCoveredRanges.mockResolvedValue([{ from: '2026-01-01', to: '2026-06-01' }])
+    getCanonicalItems.mockResolvedValue(Array.from({ length: 1000 }, (_, index) => ({
+      ...item,
+      external_id: `cached-${index}`,
+    })))
+    nextResult = {
+      items: [{
+        ...item,
+        title: 'Medtronic Micra AV leadless pacemaker',
+        manufacturer: 'Medtronic',
+        product_name: 'Micra AV',
+      }],
+      warnings: [],
+      outcome: 'complete',
+    }
+    const ctx = context()
+    ctx.payload.period_from = '2026-01-01'
+    ctx.payload.period_to = '2026-06-01'
+    ctx.profile.manufacturer = 'Medtronic'
+    ctx.profile.device_name = 'Micra AV'
+    ctx.searchTerms = ['medtronic', 'micra']
+
+    const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
+    await scrapeStage(ctx)
+
+    expect(getCoveredRanges).not.toHaveBeenCalled()
+    expect(getCanonicalItems).not.toHaveBeenCalled()
+    expect(scraper).toHaveBeenCalledWith(expect.objectContaining({
+      fromDate: '2026-01-01',
+      toDate: '2026-06-01',
+      searchTerms: expect.arrayContaining(['medtronic', 'micra']),
+    }))
+    expect(ctx.insertedRows.map(row => row.external_id)).toEqual(['record-1'])
   })
 })
