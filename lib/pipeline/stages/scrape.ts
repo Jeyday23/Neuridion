@@ -211,6 +211,9 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     const contentChanged: Set<string>         = new Set()
     const canonicalIds:   Map<string, string> = new Map()
     const coverageEligibleRanges: { from: string; to: string }[] = []
+    const sourceOutcomes: string[]             = []
+    let fetchedItemCount = 0
+    let cachedItemCount  = 0
 
     const localSearchTerms = buildSourceSearchTerms(sourceId, searchTerms, competitorTerms)
 
@@ -228,6 +231,12 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
         },
         signal,
       })
+      fetchedItemCount += result.items.length
+      sourceOutcomes.push(`${range.from}..${range.to}:${result.outcome}`)
+      console.error(
+        `[scrape] ${sourceId} range ${range.from}..${range.to}: ` +
+        `outcome=${result.outcome} raw=${result.items.length} warnings=${result.warnings.length}`,
+      )
       items.push(...result.items)
       warnings.push(...result.warnings)
       if (result.outcome === 'complete' || result.outcome === 'empty') {
@@ -260,6 +269,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
         const canonFrom = range.from < period_from ? period_from : range.from
         const canonTo   = range.to   > period_to   ? period_to   : range.to
         const cached    = await getCanonicalItems(sourceId, canonFrom, canonTo)
+        cachedItemCount += cached.length
         items.push(...cached)
       }
     }
@@ -291,6 +301,11 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
 
     const filterAudit = auditKeywordRelevance(deduped, profile, competitorTerms)
     const filtered = filterAudit.items
+    console.error(
+      `[scrape] ${sourceId} source summary: fetched=${fetchedItemCount} cached=${cachedItemCount} ` +
+      `deduped=${deduped.length} kept=${filtered.length} warnings=${warnings.length} ` +
+      `outcomes=${sourceOutcomes.join(',') || 'cache-only'}`,
+    )
     if (filtered.length < deduped.length) {
       console.error(`[scrape] ${sourceId} keyword filter: ${deduped.length} → ${filtered.length} items`)
     }
@@ -328,6 +343,9 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
   for (let i = 0; i < sourceResults.length; i++) {
     const r = sourceResults[i]
     if (r.status === 'fulfilled') {
+      console.error(
+        `[pipeline] ${activeSources[i]} completed: kept=${r.value.items.length} warnings=${r.value.warnings.length}`,
+      )
       ctx.items = r.value.items
       r.value.contentChanged.forEach((id) => ctx.contentChanged.add(id))
       r.value.canonicalIds.forEach((cid, eid) => ctx.canonicalIds.set(eid, cid))
