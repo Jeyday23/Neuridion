@@ -1,4 +1,4 @@
-import type { ScrapedFsn, ScraperResult, ScraperParams } from './bfarm'
+import { scraperResult, type ScrapedFsn, type ScraperResult, type ScraperParams } from './bfarm'
 import { chunkDateRange, daysBetween } from '@/lib/utils/date-chunks'
 import { sanitizeContent } from './sanitize'
 import { fetchWithRetry } from './fetch-with-retry'
@@ -10,7 +10,7 @@ const DETAIL_CONCURRENCY = 3
 const MAX_ITEMS        = 500
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
-async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperResult> {
+async function scrapeMhraChunk(fromDate: Date, toDate: Date, signal?: AbortSignal): Promise<ScraperResult> {
   const listings: ScrapedFsn[] = []
   const warnings: string[] = []
   let start = 0
@@ -28,7 +28,7 @@ async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperRes
     url.searchParams.append('fields[]',        'public_timestamp')
     url.searchParams.append('fields[]',        'alert_type')
 
-    const page = await fetchJson(url.toString()) as GovUkSearchResponse | null
+    const page = await fetchJson(url.toString(), signal) as GovUkSearchResponse | null
 
     if (page === null) {
       warnings.push(`MHRA: fetch failed at offset ${start} — results may be incomplete.`)
@@ -79,8 +79,8 @@ async function scrapeMhraChunk(fromDate: Date, toDate: Date): Promise<ScraperRes
     await jitter(150, 350)
   }
 
-  const enriched = await enrichWithDetails(listings)
-  return { items: enriched, warnings }
+  const enriched = await enrichWithDetails(listings, signal)
+  return scraperResult(enriched, warnings)
 }
 
 export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> {
@@ -92,6 +92,7 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
     const result = await scrapeMhraChunk(
       new Date(params.fromDate + 'T00:00:00.000Z'),
       new Date(params.toDate + 'T23:59:59.999Z'),
+      params.signal,
     )
     allItems.push(...result.items)
     allWarnings.push(...result.warnings)
@@ -101,29 +102,36 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
       const result = await scrapeMhraChunk(
         new Date(chunk.from + 'T00:00:00.000Z'),
         new Date(chunk.to + 'T23:59:59.999Z'),
+        params.signal,
       )
       allItems.push(...result.items)
       allWarnings.push(...result.warnings)
     }
   }
 
-  const deduped = dedup(allItems)
+  // Detail enrichment may replace the listing publication date with the
+  // regulator's issued date. Re-apply the requested range after enrichment so
+  // the returned evidence cannot drift outside the user's search window.
+  const deduped = dedup(allItems).filter(item => {
+    if (!item.fsn_date) return false
+    return item.fsn_date >= params.fromDate && item.fsn_date <= params.toDate
+  })
 
   if (deduped.length > MAX_ITEMS) {
     allWarnings.push(`MHRA: result cap hit — returning ${MAX_ITEMS} of ${deduped.length} items`)
   }
 
-  return { items: deduped.slice(0, MAX_ITEMS), warnings: allWarnings }
+  return scraperResult(deduped.slice(0, MAX_ITEMS), allWarnings)
 }
 
 // ─── Detail enrichment ────────────────────────────────────────────────────────
 
-async function enrichWithDetails(items: ScrapedFsn[]): Promise<ScrapedFsn[]> {
+async function enrichWithDetails(items: ScrapedFsn[], signal?: AbortSignal): Promise<ScrapedFsn[]> {
   const result: ScrapedFsn[] = []
 
   for (let i = 0; i < items.length; i += DETAIL_CONCURRENCY) {
     const batch   = items.slice(i, i + DETAIL_CONCURRENCY)
-    const enriched = await Promise.all(batch.map(enrichItem))
+    const enriched = await Promise.all(batch.map(item => enrichItem(item, signal)))
     result.push(...enriched.flat())
 
     if (result.length >= MAX_ITEMS) break
@@ -136,17 +144,18 @@ async function enrichWithDetails(items: ScrapedFsn[]): Promise<ScrapedFsn[]> {
   return result
 }
 
-async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn[]> {
+async function enrichItem(item: ScrapedFsn, signal?: AbortSignal): Promise<ScrapedFsn[]> {
   const linkPath = item.source_url.replace('https://www.gov.uk', '')
   if (!linkPath.startsWith('/')) return [item]
 
   try {
-    const detail = await fetchJson(`${CONTENT_API_BASE}${linkPath}`) as GovUkContentItem | null
+    const detail = await fetchJson(`${CONTENT_API_BASE}${linkPath}`, signal) as GovUkContentItem | null
     if (!detail) return [item]
 
     const body      = detail.details?.body     ?? ''
     const refNumber = detail.details?.ref_number ?? ''
     const rawIssuedDate = detail.details?.issued_date ?? ''
+    const attachmentUrls = extractGovUkAttachmentUrls(detail)
 
     const originalTitle = detail.title ?? item.title
     if (isMhraRoundupPage(originalTitle, linkPath, body, refNumber)) {
@@ -171,6 +180,7 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn[]> {
       item.title,
       refNumber  ? `Reference: ${refNumber}` : '',
       stripHtmlTags(body).replace(/\s+/g, ' ').trim(),
+      attachmentUrls.length > 0 ? `Attachments:\n${attachmentUrls.join('\n')}` : '',
     ].filter(Boolean)
 
     return [{
@@ -182,6 +192,23 @@ async function enrichItem(item: ScrapedFsn): Promise<ScrapedFsn[]> {
     console.error('[mhra]', `Detail fetch failed for ${linkPath}:`, err instanceof Error ? err.message : String(err))
     return [item]
   }
+}
+
+export function extractGovUkAttachmentUrls(detail: GovUkContentItem): string[] {
+  const candidates = detail.details?.attachments ?? []
+  const urls = candidates.flatMap(attachment => [attachment.url, attachment.web_url])
+
+  return [...new Set(urls.flatMap(raw => {
+    if (!raw) return []
+    try {
+      const parsed = new URL(raw, 'https://www.gov.uk')
+      if (parsed.protocol !== 'https:') return []
+      if (parsed.hostname !== 'www.gov.uk' && parsed.hostname !== 'assets.publishing.service.gov.uk') return []
+      return [parsed.toString()]
+    } catch {
+      return []
+    }
+  }))]
 }
 
 // ─── Roundup page parsing ─────────────────────────────────────────────────────
@@ -347,10 +374,11 @@ function stripHtmlTags(html: string): string {
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 
-async function fetchJson(url: string): Promise<unknown | null> {
+async function fetchJson(url: string, signal?: AbortSignal): Promise<unknown | null> {
   try {
     const res = await fetchWithRetry(url, {
       headers: { 'User-Agent': UA, Accept: 'application/json' },
+      signal,
     })
 
     if (!res.ok) {
@@ -370,6 +398,7 @@ async function fetchJson(url: string): Promise<unknown | null> {
     }
     return JSON.parse(text)
   } catch (err) {
+    if (signal?.aborted) throw (signal.reason ?? err)
     console.error(`[mhra] Fetch failed: ${url}: ${err instanceof Error ? err.message : String(err)}`)
     return null
   }
@@ -440,5 +469,9 @@ interface GovUkContentItem {
     ref_number?:   string
     issued_date?:  string
     alert_type?:   string
+    attachments?:  Array<{
+      url?:      string
+      web_url?:  string
+    }>
   }
 }

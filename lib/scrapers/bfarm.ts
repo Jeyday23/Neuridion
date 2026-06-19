@@ -29,6 +29,7 @@ export type FsnItem = ScrapedFsn
 export interface ScraperParams {
   fromDate:     string
   toDate:       string
+  signal?:      AbortSignal
   searchTerms?: string[]   // pre-computed tokens from buildManufacturerSearchTerms
   profile?: {
     manufacturer: string
@@ -36,18 +37,46 @@ export interface ScraperParams {
   }
 }
 
+export type ScraperOutcome = 'complete' | 'empty' | 'partial' | 'failed'
+
 // Returned by every public scraper function.
-// Non-empty warnings → the caller should mark the run as 'degraded'.
+// `outcome` is the machine-readable completeness contract. Coverage and health
+// decisions must never be inferred from item count alone.
 export interface ScraperResult {
   items:                 ScrapedFsn[]
   warnings:              string[]
+  outcome:               ScraperOutcome
   archiveLimitationHit?: boolean   // true when results are empty due to a known archive limit, not a scraper error
+}
+
+export function scraperResult(
+  items: ScrapedFsn[],
+  warnings: string[] = [],
+  options: { failed?: boolean; archiveLimitationHit?: boolean } = {},
+): ScraperResult {
+  const outcome: ScraperOutcome = options.failed
+    ? 'failed'
+    : warnings.length > 0 || options.archiveLimitationHit
+      ? 'partial'
+      : items.length > 0
+        ? 'complete'
+        : 'empty'
+
+  return {
+    items,
+    warnings,
+    outcome,
+    ...(options.archiveLimitationHit !== undefined
+      ? { archiveLimitationHit: options.archiveLimitationHit }
+      : {}),
+  }
 }
 
 interface ScraperOptions {
   fromDate?: Date
   toDate?: Date
   signal?: AbortSignal
+  query?: string
 }
 
 // Keys are German month names, values are 0-based month indices.
@@ -66,16 +95,21 @@ function formatBfarmDate(d: Date): string {
 // BfArM results are sorted newest-first; include date params on every page so
 // the server can at least hint at the range (even if server-side filtering is
 // unreliable, it reduces pages returned).  We always filter client-side too.
-function buildUrl(page: number, fromDate?: Date, toDate?: Date): string {
+function buildUrl(page: number, fromDate?: Date, toDate?: Date, query?: string): string {
   let url = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
   if (fromDate) url += `&input_Datum_VON=${formatBfarmDate(fromDate)}`
   if (toDate)   url += `&input_Datum_BIS=${formatBfarmDate(toDate)}`
+  if (query) url += `&submit=Senden&templateQueryString=${encodeURIComponent(query)}`
   // %3D is the URL-encoded "=" required by BfArM's pagination parameter.
   if (page > 1) url += `&gtp=469344_list%3D${page}`
   return url
 }
 
 function parseGermanDate(block: string): Date | null {
+  const numeric = block.match(/c-icon-teaser__date[\s\S]*?(\d{1,2})\.(\d{1,2})\.(\d{4})/)
+  if (numeric) {
+    return new Date(Date.UTC(Number(numeric[3]), Number(numeric[2]) - 1, Number(numeric[1])))
+  }
   const m = block.match(/c-icon-teaser__date[\s\S]*?(\d{1,2})\.\s+([A-Za-zÄÖÜäöüß&;]+)\s+(\d{4})/)
   if (!m) return null
   const monthName = m[2]
@@ -94,7 +128,48 @@ function parseGermanDate(block: string): Date | null {
 }
 
 function stripTags(html: string): string {
-  return html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+  return decodeHtml(html.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
+}
+
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&nbsp;/gi, ' ')
+}
+
+function classPattern(className: string): string {
+  return `(?=[^"']*\\b${className}\\b)[^"']*`
+}
+
+function elementTextByClass(block: string, className: string): string | null {
+  const match = block.match(new RegExp(
+    `<([a-z][a-z0-9:-]*)\\b[^>]*class=["']${classPattern(className)}["'][^>]*>([\\s\\S]*?)<\\/\\1>`,
+    'i',
+  ))
+  return match ? stripTags(match[2]) : null
+}
+
+function hrefByClass(block: string, className: string): string | null {
+  const anchors = block.match(/<a\b[^>]*>/gi) ?? []
+  for (const anchor of anchors) {
+    const classMatch = anchor.match(/class=["']([^"']*)["']/i)
+    if (!classMatch?.[1].split(/\s+/).includes(className)) continue
+    const hrefMatch = anchor.match(/href=["']([^"']+)["']/i)
+    if (hrefMatch) return decodeHtml(hrefMatch[1])
+  }
+  return null
+}
+
+function absoluteBfarmUrl(href: string): string {
+  try {
+    return new URL(href, BFARM_ORIGIN).toString()
+  } catch {
+    return href
+  }
 }
 
 function getBfarmPrimaryTimeoutMs(): number {
@@ -130,7 +205,7 @@ function fetchWithTimeout(url: string, timeoutMs: number, signal?: AbortSignal):
     })
 }
 
-async function withPrimaryBudget<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+async function withPrimaryBudget<T>(fn: (signal: AbortSignal) => Promise<T>, parentSignal?: AbortSignal): Promise<T> {
   const timeoutMs = getBfarmPrimaryTimeoutMs()
   const controller = new AbortController()
   let timedOut = false
@@ -138,6 +213,9 @@ async function withPrimaryBudget<T>(fn: (signal: AbortSignal) => Promise<T>): Pr
     timedOut = true
     controller.abort()
   }, timeoutMs)
+  const abortFromParent = () => controller.abort(parentSignal?.reason)
+  if (parentSignal?.aborted) controller.abort(parentSignal.reason)
+  else parentSignal?.addEventListener('abort', abortFromParent, { once: true })
 
   try {
     return await fn(controller.signal)
@@ -148,6 +226,7 @@ async function withPrimaryBudget<T>(fn: (signal: AbortSignal) => Promise<T>): Pr
     throw err
   } finally {
     clearTimeout(timeout)
+    parentSignal?.removeEventListener('abort', abortFromParent)
   }
 }
 
@@ -175,61 +254,88 @@ export interface ParsedItem {
   title:        string
   date:         Date | null
   externalId:   string
+  reference:    string | null
   manufacturer: string | null
+  productName:  string | null
 }
 
 export function parsePage(html: string): ParsedItem[] {
   const items: ParsedItem[] = []
-  const blocks = html.split('<li class="l-teaser-list__item">')
+  const starts = [...html.matchAll(/<(?:li|div)\b[^>]*class=["'][^"']*\bl-teaser-list__item\b[^"']*["'][^>]*>/gi)]
 
-  for (let i = 1; i < blocks.length; i++) {
-    const block = blocks[i]
+  for (let i = 0; i < starts.length; i++) {
+    const start = starts[i].index ?? 0
+    const end = starts[i + 1]?.index ?? html.length
+    const block = html.slice(start, end)
 
-    // href always precedes the class attribute on these <a> tags
-    const hrefMatch = block.match(/href="(\/SharedDocs\/Kundeninfos[^"]+)"/)
-    if (!hrefMatch) continue
-    const href = hrefMatch[1]
+    const href = hrefByClass(block, 'c-icon-teaser__link--download')
+      ?? decodeHtml(block.match(/href=["']([^"']*\/SharedDocs\/Kundeninfos[^"']+)["']/i)?.[1] ?? '')
+    if (!href) continue
 
-    const titleMatch = block.match(/class="c-icon-teaser__headline">([\s\S]*?)<\/span>/)
-    if (!titleMatch) continue
-    const title = stripTags(titleMatch[1])
+    const title = elementTextByClass(block, 'c-icon-teaser__headline')
+    if (!title) continue
     const date = parseGermanDate(block)
-    const idMatch = href.match(/\/(\d+-\d+)_kundeninfo/)
-    const externalId = idMatch ? idMatch[1] : createHash('sha256').update(href).digest('hex').slice(0, 16)
+    const referenceText = elementTextByClass(block, 'c-icon-teaser__reference') ?? block
+    const referenceMatch = stripTags(referenceText).match(/\b(\d{4,6})\s*\/\s*(\d{2})\b/)
+      ?? href.match(/\/(\d{4,6})-(\d{2})_kundeninfo/i)
+    const reference = referenceMatch ? `${referenceMatch[1]}/${referenceMatch[2]}` : null
+    const externalId = reference
+      ? reference.replace('/', '-')
+      : createHash('sha256').update(href).digest('hex').slice(0, 16)
 
-    const mfrMatch = title.match(/ von (.+)$/)
+    const mfrMatch = title.match(/\s+von\s+(.+)$/i)
     const manufacturer = mfrMatch ? mfrMatch[1].trim() : null
+    const productMatch = title.match(/Sicherheitsinformation\s+zu\s+(.+?)\s+von\s+/i)
+    const productName = productMatch ? productMatch[1].trim() : null
 
-    items.push({ href, title, date, externalId, manufacturer })
+    items.push({ href, title, date, externalId, reference, manufacturer, productName })
   }
 
   return items
 }
 
-export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items: ScrapedFsn[], warnings: string[] }> {
-  const { fromDate, toDate, signal } = options
+export function parseNextPageHref(html: string): string | null {
+  const containers = html.match(/<(?:li|div)\b[^>]*class=["'][^"']*["'][^>]*>[\s\S]*?<\/(?:li|div)>/gi) ?? []
+  for (const container of containers) {
+    const classes = container.match(/^<[^>]*class=["']([^"']*)["']/i)?.[1].split(/\s+/) ?? []
+    if (!classes.includes('c-navindex__item') || !classes.includes('is-forward')) continue
+    const href = container.match(/<a\b[^>]*href=["']([^"']+)["']/i)?.[1]
+    if (href) return decodeHtml(href)
+  }
+  return null
+}
+
+export async function scrapeBfArM(options: ScraperOptions = {}): Promise<ScraperResult> {
+  const { fromDate, toDate, signal, query } = options
   const warnings: string[] = []
 
   try {
     const raw: ScrapedFsn[] = []
 
-    for (let page = 1; page <= MAX_PAGES; page++) {
-      const url = buildUrl(page, fromDate, toDate)
+    let url: string | null = buildUrl(1, fromDate, toDate, query)
+    const visited = new Set<string>()
+    for (let page = 1; page <= MAX_PAGES && url; page++) {
+      if (visited.has(url)) {
+        warnings.push(`BfArM: pagination loop detected on page ${page}`)
+        break
+      }
+      visited.add(url)
       const res = await fetchWithTimeout(url, 30_000, signal)
       if (!res.ok) throw new Error(`HTTP ${res.status} fetching page ${page}`)
 
       const contentType = res.headers.get('content-type') || ''
       if (!contentType.includes('text/html')) {
         warnings.push(`BfArM: unexpected content type on page ${page}: ${contentType}`)
-        return { items: [], warnings }
+        return scraperResult([], warnings)
       }
       const html = await res.text()
       if (html.length > 5 * 1024 * 1024) {
         warnings.push(`BfArM: response too large on page ${page}: ${html.length} bytes`)
-        return { items: [], warnings }
+        return scraperResult([], warnings)
       }
 
       const pageItems = parsePage(html)
+      const nextHref = parseNextPageHref(html)
 
       if (pageItems.length === 0) break
       const pageDates = pageItems
@@ -248,15 +354,20 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items
           external_id:  item.externalId,
           title:        item.title,
           manufacturer: item.manufacturer,
-          product_name: null,
+          product_name: item.productName,
           fsn_date:     item.date ? item.date.toISOString().split('T')[0] : null,
-          source_url:   `${BFARM_ORIGIN}${item.href}`,
-          raw_content:  sanitizeContent(item.title),
+          source_url:   absoluteBfarmUrl(item.href),
+          raw_content:  sanitizeContent([
+            item.title,
+            item.reference ? `BfArM reference: ${item.reference}` : '',
+            absoluteBfarmUrl(item.href),
+          ].filter(Boolean).join('\n')),
           source_db:    'bfarm',
         })
       }
 
-      if (raw.length >= MAX_ITEMS || pageItems.length < RESULTS_PER_PAGE || crossedBelowFromDate) break
+      if (raw.length >= MAX_ITEMS || crossedBelowFromDate || !nextHref) break
+      url = absoluteBfarmUrl(nextHref)
     }
 
     if (raw.length >= MAX_ITEMS) {
@@ -291,10 +402,10 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<{ items
     // RSS ignores the date filter and would pollute results with out-of-range
     // items. Zero results is a valid state: BfArM does not publish daily.
     if (deduped.length === 0) {
-      return { items: [], warnings }
+      return scraperResult([], warnings)
     }
 
-    return { items: deduped, warnings }
+    return scraperResult(deduped, warnings)
   } catch (err) {
     console.error('[BfArM] HTML scraper error:', err instanceof Error ? err.message : String(err))
     // Re-throw so the search run is marked as error rather than silently
@@ -320,11 +431,12 @@ export function yearToShortcut(year: number, currentYear: number): string | null
 async function scrapeYearShortcut(shortcut: string, signal?: AbortSignal): Promise<ParsedItem[]> {
   const items: ParsedItem[] = []
   let pageNum = 1
+  let url: string | null = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&dateOfIssue_dt=${shortcut}&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
+  const visited = new Set<string>()
 
-  while (pageNum <= MAX_PAGES_YEAR) {
-    const base = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&dateOfIssue_dt=${shortcut}&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
-    const url  = pageNum === 1 ? base : `${base}&gtp=469344_list%3D${pageNum}`
-
+  while (pageNum <= MAX_PAGES_YEAR && url) {
+    if (visited.has(url)) break
+    visited.add(url)
     const res = await fetchWithTimeout(url, 30_000, signal)
     if (!res.ok) {
       console.error('[bfarm]', `${shortcut} page ${pageNum}: HTTP ${res.status}, stopping`)
@@ -343,12 +455,14 @@ async function scrapeYearShortcut(shortcut: string, signal?: AbortSignal): Promi
     }
 
     const pageItems = parsePage(html)
+    const nextHref = parseNextPageHref(html)
 
     if (pageItems.length === 0) break
     items.push(...pageItems)
-    if (pageItems.length < RESULTS_PER_PAGE) break
+    if (!nextHref) break
 
     pageNum++
+    url = absoluteBfarmUrl(nextHref)
     await new Promise(r => setTimeout(r, 200))
   }
 
@@ -377,7 +491,7 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
   }
 
   if (yearsToScrape.length === 0) {
-    return { items: [], warnings, archiveLimitationHit: true }
+    return scraperResult([], warnings, { archiveLimitationHit: true })
   }
 
   const allParsed: ParsedItem[] = []
@@ -393,10 +507,14 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
     external_id:  item.externalId,
     title:        item.title,
     manufacturer: item.manufacturer,
-    product_name: null,
+    product_name: item.productName,
     fsn_date:     item.date ? item.date.toISOString().split('T')[0] : null,
-    source_url:   `${BFARM_ORIGIN}${item.href}`,
-    raw_content:  sanitizeContent(item.title),
+    source_url:   absoluteBfarmUrl(item.href),
+    raw_content:  sanitizeContent([
+      item.title,
+      item.reference ? `BfArM reference: ${item.reference}` : '',
+      absoluteBfarmUrl(item.href),
+    ].filter(Boolean).join('\n')),
     source_db:    'bfarm',
   }))
 
@@ -418,7 +536,7 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
     seen.add(item.external_id)
     return true
   })
-  return { items: deduped, warnings, archiveLimitationHit: warnings.length > 0 }
+  return scraperResult(deduped, warnings, { archiveLimitationHit: warnings.length > 0 })
 }
 
 export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult> {
@@ -436,14 +554,43 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
   let primary: ScraperResult
   const primaryStart = Date.now()
   try {
-    primary = await withPrimaryBudget((signal) => total <= 90
-      ? scrapeBfArM({ fromDate: from, toDate: to, signal })
-      : scrapeBfarmYearShortcuts(params, signal)
-    )
+    primary = await withPrimaryBudget(async (signal) => {
+      if (total > 90) return scrapeBfarmYearShortcuts(params, signal)
+
+      const targetedQuery = params.profile?.device_name?.trim()
+        || params.profile?.manufacturer?.trim()
+        || ''
+      if (!targetedQuery) return scrapeBfArM({ fromDate: from, toDate: to, signal })
+
+      // Broad discovery protects recall; the targeted query protects against
+      // category/indexing gaps. Neither is trusted for date accuracy.
+      const searches = await Promise.allSettled([
+        scrapeBfArM({ fromDate: from, toDate: to, signal }),
+        scrapeBfArM({ fromDate: from, toDate: to, signal, query: targetedQuery }),
+      ])
+      const successful = searches
+        .filter((result): result is PromiseFulfilledResult<ScraperResult> => result.status === 'fulfilled')
+        .map(result => result.value)
+      const warnings = successful.flatMap(result => result.warnings)
+      searches.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          warnings.push(`BfArM ${index === 0 ? 'broad' : 'targeted'} discovery failed: ${String(result.reason)}`)
+        }
+      })
+      if (successful.length === 0) throw searches[0].status === 'rejected' ? searches[0].reason : new Error('BfArM discovery failed')
+
+      const byId = new Map<string, ScrapedFsn>()
+      for (const result of successful) {
+        for (const item of result.items) byId.set(item.external_id, item)
+      }
+      return scraperResult([...byId.values()], [...new Set(warnings)], {
+        failed: successful.every(result => result.outcome === 'failed'),
+      })
+    }, params.signal)
   } catch (err) {
     const elapsed = Date.now() - primaryStart
     console.error(`[bfarm] primary timed out after ${elapsed}ms`)
-    primary = { items: [], warnings: [`BfArM primary scraper threw: ${String(err)}`] }
+    primary = scraperResult([], [`BfArM primary scraper threw: ${String(err)}`], { failed: true })
   }
 
   if (primary.items.length > 0 || primary.archiveLimitationHit) {
@@ -455,11 +602,11 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
   const remainingMs = sourceDeadline - Date.now()
   if (remainingMs < 10_000) {
     console.error(`[bfarm] skipping Firecrawl fallback — only ${Math.round(remainingMs / 1000)}s remaining`)
-    return { items: primary.items, warnings: [...primary.warnings, 'BfArM Firecrawl fallback skipped: insufficient budget remaining'] }
+    return scraperResult(primary.items, [...primary.warnings, 'BfArM Firecrawl fallback skipped: insufficient budget remaining'], { failed: primary.outcome === 'failed' })
   }
 
   console.error(`[bfarm] Firecrawl fallback started with ${Math.round(remainingMs / 1000)}s remaining`)
-  const fallback = await firecrawlFallback(params, { deadlineMs: sourceDeadline })
+  const fallback = await firecrawlFallback(params, { deadlineMs: sourceDeadline, signal: params.signal })
 
   if (fallback.items.length > 0) {
     console.error(`[bfarm] Firecrawl fallback returned ${fallback.items.length} items`)
@@ -467,7 +614,11 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
   }
 
   console.error(`[bfarm] Firecrawl fallback returned 0 items`)
-  return { items: primary.items, warnings: [...primary.warnings, ...fallback.warnings], archiveLimitationHit: primary.archiveLimitationHit }
+  return scraperResult(
+    primary.items,
+    [...primary.warnings, ...fallback.warnings],
+    { failed: primary.outcome === 'failed' && fallback.outcome === 'failed', archiveLimitationHit: primary.archiveLimitationHit },
+  )
 }
 
 // Kept for potential future use (e.g. "latest FSNs" widget that doesn't

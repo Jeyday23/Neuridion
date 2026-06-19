@@ -131,6 +131,37 @@ describe('MHRA Excel parsing', () => {
     expect(items[0].raw_content).toContain('FSN date/reference: FSN-2026-URGENT-001')
   })
 
+  it('uses an HTTPS FSN hyperlink as record-level provenance', async () => {
+    const evidenceUrl = 'https://assets.publishing.service.gov.uk/media/fsn.pdf'
+    const buf = await buildBuffer([{
+      name: '2026',
+      rows: [
+        HEADERS,
+        makeRow({ dateOrRef: { text: 'FSN-2026-001', hyperlink: evidenceUrl } }),
+      ],
+    }])
+
+    const { items } = await parseMhraExcelBuffer(buf, '2026-01-01', '2026-12-31')
+
+    expect(items[0].source_url).toBe(evidenceUrl)
+    expect(items[0].raw_content).toContain(`FSN document: ${evidenceUrl}`)
+  })
+
+  it('rejects non-HTTPS spreadsheet hyperlinks as provenance', async () => {
+    const buf = await buildBuffer([{
+      name: '2026',
+      rows: [
+        HEADERS,
+        makeRow({ dateOrRef: { text: 'FSN-2026-001', hyperlink: 'http://example.test/fsn.pdf' } }),
+      ],
+    }])
+
+    const { items } = await parseMhraExcelBuffer(buf, '2026-01-01', '2026-12-31')
+
+    expect(items[0].source_url).toBe('https://www.gov.uk/drug-device-alerts')
+    expect(items[0].raw_content).not.toContain('http://example.test')
+  })
+
   it('keeps all rows with same Halo reference (no aggressive dedup)', async () => {
     const buf = await buildBuffer([{
       name: '2026',

@@ -5,9 +5,31 @@ import {
   splitRoundupSections,
   isValidRoundupSection,
   cleanTitle,
+  extractGovUkAttachmentUrls,
 } from '@/lib/scrapers/mhra'
 
 describe('MHRA roundup parsing', () => {
+  describe('GOV.UK attachment provenance', () => {
+    it('keeps only unique HTTPS GOV.UK evidence URLs', () => {
+      const urls = extractGovUkAttachmentUrls({
+        details: {
+          attachments: [
+            { url: 'https://assets.publishing.service.gov.uk/media/fsn.pdf' },
+            { web_url: '/government/uploads/fsn-supporting-note.pdf' },
+            { url: 'https://assets.publishing.service.gov.uk/media/fsn.pdf' },
+            { url: 'https://evil.example/pretend-fsn.pdf' },
+            { url: 'http://www.gov.uk/insecure.pdf' },
+          ],
+        },
+      })
+
+      expect(urls).toEqual([
+        'https://assets.publishing.service.gov.uk/media/fsn.pdf',
+        'https://www.gov.uk/government/uploads/fsn-supporting-note.pdf',
+      ])
+    })
+  })
+
   describe('isMhraRoundupPage', () => {
     it('detects roundup from plural Notices title + date range', () => {
       expect(isMhraRoundupPage(

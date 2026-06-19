@@ -1,0 +1,17 @@
+[
+  { "date": "2026-04-13", "reference": "11546/26", "product": "ORBIS Medication", "manufacturer": "DH Healthcare GmbH" },
+  { "date": "2026-04-08", "reference": "14727/26", "product": "COPRA6", "manufacturer": "COPRA System GmbH" },
+  { "date": "2026-03-25", "reference": "13441/26", "product": "ORBIS Medication", "manufacturer": "DH Healthcare GmbH" },
+  { "date": "2026-03-18", "reference": "11709/26", "product": "ORBIS Medication", "manufacturer": "DH Healthcare GmbH" },
+  { "date": "2026-03-13", "reference": "11584/26", "product": "Nexus KIS Medikationsmodul", "manufacturer": "NEXUS / CMC GmbH" },
+  { "date": "2026-03-04", "reference": "09377/26", "product": "ID MEDICS", "manufacturer": "ID GmbH & Co. KGaA" },
+  { "date": "2026-03-03", "reference": "08190/26", "product": "CGM CLINICAL Medication", "manufacturer": "CompuGroup Medical Deutschland AG" },
+  { "date": "2026-02-27", "reference": "02682/26", "product": "CGM CLINICAL Medication", "manufacturer": "CompuGroup Medical Deutschland AG" },
+  { "date": "2026-02-20", "reference": "01737/26", "product": "ORBIS Medication", "manufacturer": "DH Healthcare GmbH" },
+  { "date": "2026-02-20", "reference": "00269/26", "product": "CGM CLINICAL Assessments", "manufacturer": "CompuGroup Medical Deutschland AG" },
+  { "date": "2026-02-19", "reference": "48934/25", "product": "CGM CLINICAL Medication", "manufacturer": "CompuGroup Medical Deutschland AG" },
+  { "date": "2026-02-19", "reference": "04304/26", "product": "ORBIS Anesthesia", "manufacturer": "DH Healthcare GmbH" },
+  { "date": "2026-01-26", "reference": "03131/26", "product": "REHA.Complete (Version 5.x.y.z)", "manufacturer": "T-Systems Austria GesmbH" },
+  { "date": "2026-01-23", "reference": "50598/25", "product": "VIDAL Sécurisation", "manufacturer": "VIDAL France" },
+  { "date": "2026-01-19", "reference": "61735/25", "product": "M-Medikation", "manufacturer": "Meierhofer Medizintechnik GmbH" }
+]

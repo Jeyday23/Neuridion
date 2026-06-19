@@ -1,4 +1,5 @@
 import { escHtml } from '@/lib/utils/html'
+import type { ScraperOutcome } from '@/lib/scrapers/bfarm'
 
 export async function sendFeedbackNotification(feedback: {
   rating: number
@@ -164,6 +165,7 @@ export async function sendSearchRunNotification(
 export interface ScraperHealthResult {
   source: string
   healthy: boolean
+  outcome: ScraperOutcome
   itemCount: number
   error?: string
   warnings?: string[]
@@ -189,7 +191,7 @@ export async function sendScraperHealthAlert(
         r.warnings && r.warnings.length > 0
           ? r.warnings.map((w) => escHtml(w)).join('<br>')
           : ''
-      const detail = [errorCell, warningCell].filter(Boolean).join('<br>')
+      const detail = [`Outcome: ${escHtml(r.outcome)}`, errorCell, warningCell].filter(Boolean).join('<br>')
 
       return `<tr>
       <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0">${status}</td>

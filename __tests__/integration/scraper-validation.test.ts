@@ -47,7 +47,9 @@ describeLive('BfArM live validation', () => {
     for (const item of nonStandard.slice(0, 3)) {
       console.log(`  NEW: ${item.title.slice(0, 80)}`)
     }
-    expect(result.items.length).toBeGreaterThanOrEqual(0)
+    // A successful HTTP response with zero parsed rows can indicate selector
+    // drift, so this live canary must prove that real notices were extracted.
+    expect(result.items.length).toBeGreaterThan(0)
     for (const item of result.items) {
       expect(item.external_id).toBeTruthy()
       expect(item.source_db).toBe('bfarm')

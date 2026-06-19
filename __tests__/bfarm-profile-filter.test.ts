@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterByKeywordRelevance } from '@/lib/pipeline/stages/scrape'
+import { auditKeywordRelevance, filterByKeywordRelevance } from '@/lib/pipeline/stages/scrape'
 import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
 
 function makeFsn(overrides: Partial<ScrapedFsn> & { external_id: string; title: string }): ScrapedFsn {
@@ -24,6 +24,29 @@ const MIXED_ITEMS: ScrapedFsn[] = [
 ]
 
 describe('filterByKeywordRelevance', () => {
+  it('explains a zero-result filter without treating acquisition as empty', () => {
+    const audit = auditKeywordRelevance(
+      [
+        makeFsn({ external_id: '1', title: 'Acme surgical instrument', manufacturer: 'Acme Ltd' }),
+        makeFsn({ external_id: '2', title: 'Unrelated infusion pump', manufacturer: 'Other Ltd' }),
+      ],
+      { manufacturer: 'Acme Ltd', device_name: 'CardioWidget 7' },
+      [],
+    )
+
+    expect(audit.items).toEqual([])
+    expect(audit.counts).toMatchObject({
+      total: 2,
+      kept: 0,
+      manufacturerMatches: 1,
+      deviceMatches: 0,
+      manufacturerOnlyRejected: 1,
+      noSignalRejected: 1,
+    })
+    expect(audit.terms.manufacturer).toEqual(['acme'])
+    expect(audit.terms.device).toEqual(['cardiowidget'])
+  })
+
   it('keeps manufacturer+device (tier 0) items', () => {
     const result = filterByKeywordRelevance(
       MIXED_ITEMS,

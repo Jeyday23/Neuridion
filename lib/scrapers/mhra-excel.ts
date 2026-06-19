@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
 import ExcelJS from 'exceljs'
-import type { ScrapedFsn, ScraperParams, ScraperResult } from './bfarm'
+import { scraperResult, type ScrapedFsn, type ScraperParams, type ScraperResult } from './bfarm'
 import { sanitizeContent } from './sanitize'
 import { fetchWithRetry } from './fetch-with-retry'
 
@@ -38,6 +38,22 @@ function getCellString(row: ExcelJS.Row, col: number): string {
     if ('result' in v) return String((v as { result: unknown }).result ?? '').trim()
   }
   return String(v).trim()
+}
+
+function getCellHyperlink(row: ExcelJS.Row, col: number): string | null {
+  if (col <= 0) return null
+  const value = row.getCell(col).value
+  if (!value || typeof value !== 'object' || !('hyperlink' in value)) return null
+
+  const hyperlink = String((value as { hyperlink?: unknown }).hyperlink ?? '').trim()
+  if (!hyperlink) return null
+
+  try {
+    const parsed = new URL(hyperlink)
+    return parsed.protocol === 'https:' ? parsed.toString() : null
+  } catch {
+    return null
+  }
 }
 
 function getCellDate(row: ExcelJS.Row, col: number): string | null {
@@ -207,6 +223,7 @@ export async function parseMhraExcelBuffer(
       if (!manufacturer && !brand) return
 
       const dateOrRefOnFsn = getCellString(row, columns.dateOrRefOnFsn)
+      const evidenceUrl = getCellHyperlink(row, columns.dateOrRefOnFsn)
       const deviceDescription = getCellString(row, columns.deviceDescription)
       const model = getCellString(row, columns.model)
       const haloReference = getCellString(row, columns.haloReference)
@@ -236,6 +253,7 @@ export async function parseMhraExcelBuffer(
         deviceDescription && `Device: ${deviceDescription}`,
         model && `Model: ${model}`,
         dateOrRefOnFsn && `FSN date/reference: ${dateOrRefOnFsn}`,
+        evidenceUrl && `FSN document: ${evidenceUrl}`,
         mhraReference && `MHRA reference: ${mhraReference}`,
         haloReference && `Halo: ${haloReference}`,
         comment && `Comment: ${comment}`,
@@ -247,7 +265,7 @@ export async function parseMhraExcelBuffer(
         manufacturer: manufacturer || null,
         product_name: deviceDescription || null,
         fsn_date: dateAdded,
-        source_url: 'https://www.gov.uk/drug-device-alerts',
+        source_url: evidenceUrl ?? 'https://www.gov.uk/drug-device-alerts',
         raw_content: sanitizeContent(rawParts.join('\n')),
         source_db: 'mhra',
       })
@@ -339,7 +357,7 @@ async function readResponseWithLimit(res: Response): Promise<Uint8Array> {
   return out
 }
 
-export async function downloadMhraExcel(): Promise<Uint8Array> {
+export async function downloadMhraExcel(signal?: AbortSignal): Promise<Uint8Array> {
   const url = assertAllowedMhraExcelUrl(process.env.MHRA_EXCEL_URL || FILECAMP_URL)
 
   const res = await fetchWithRetry(url, {
@@ -347,6 +365,7 @@ export async function downloadMhraExcel(): Promise<Uint8Array> {
       'User-Agent': UA,
       Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/octet-stream, */*',
     },
+    signal,
   }, { timeoutMs: DOWNLOAD_TIMEOUT_MS, maxAttempts: 1 })
 
   if (!res.ok) {
@@ -371,6 +390,7 @@ export async function downloadMhraExcel(): Promise<Uint8Array> {
 }
 
 export async function scrapeMhraExcel(params: ScraperParams): Promise<ScraperResult> {
-  const buffer = await downloadMhraExcel()
-  return await parseMhraExcelBuffer(buffer, params.fromDate, params.toDate)
+  const buffer = await downloadMhraExcel(params.signal)
+  const parsed = await parseMhraExcelBuffer(buffer, params.fromDate, params.toDate)
+  return scraperResult(parsed.items, parsed.warnings)
 }

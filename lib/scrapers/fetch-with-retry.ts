@@ -4,6 +4,22 @@ interface RetryOptions {
   timeoutMs?: number
 }
 
+function wait(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
 export async function fetchWithRetry(
   url: string | URL,
   init?: RequestInit,
@@ -16,10 +32,10 @@ export async function fetchWithRetry(
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const controller = new AbortController()
-    const existing = init?.signal
-    if (existing) {
-      existing.addEventListener('abort', () => controller.abort(existing.reason))
-    }
+    const existing = init?.signal ?? undefined
+    const abortFromParent = () => controller.abort(existing?.reason)
+    if (existing?.aborted) controller.abort(existing.reason)
+    else existing?.addEventListener('abort', abortFromParent, { once: true })
     const timeout = setTimeout(() => controller.abort(), timeoutMs)
     try {
       const res = await fetch(url, { ...init, signal: controller.signal })
@@ -29,21 +45,23 @@ export async function fetchWithRetry(
       if (res.status >= 500 && attempt < maxAttempts - 1) {
         lastError = `HTTP ${res.status}`
         clearTimeout(timeout)
-        await new Promise(r => setTimeout(r, backoffs[attempt]))
+        await wait(backoffs[attempt], existing)
         continue
       }
 
       return res
     } catch (err) {
       lastError = err instanceof Error ? err.message : String(err)
+      if (existing?.aborted) throw (existing.reason ?? err)
       if (attempt < maxAttempts - 1) {
         clearTimeout(timeout)
-        await new Promise(r => setTimeout(r, backoffs[attempt]))
+        await wait(backoffs[attempt], existing)
         continue
       }
       throw new Error(`Fetch failed after ${maxAttempts} attempts for ${String(url)}: ${lastError}`)
     } finally {
       clearTimeout(timeout)
+      existing?.removeEventListener('abort', abortFromParent)
     }
   }
 

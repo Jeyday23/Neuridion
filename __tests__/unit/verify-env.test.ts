@@ -7,6 +7,7 @@ const validProductionEnv: EnvSource = {
   NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon-real',
   SUPABASE_SERVICE_ROLE_KEY: 'service-real',
   ANTHROPIC_API_KEY: 'sk-ant-real',
+  OPENFDA_API_KEY: 'openfda-real',
   AUDIT_HMAC_KEY: 'a'.repeat(64),
   UPSTASH_REDIS_REST_URL: 'https://redis.upstash.io',
   UPSTASH_REDIS_REST_TOKEN: 'redis-token',
@@ -41,6 +42,16 @@ describe('verifyEnvironment', () => {
 
     expect(result.ok).toBe(false)
     expect(result.missingRequired).toContainEqual(expect.objectContaining({ name: 'AUDIT_HMAC_KEY' }))
+  })
+
+  it('requires an openFDA API key for production completeness', () => {
+    const result = verifyEnvironment(
+      { ...validProductionEnv, OPENFDA_API_KEY: undefined },
+      { mode: 'production' },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.missingRequired).toContainEqual(expect.objectContaining({ name: 'OPENFDA_API_KEY' }))
   })
 
   it('fails on placeholders without leaking the value', () => {

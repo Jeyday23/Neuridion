@@ -1,8 +1,5 @@
-import { scrapeBfarm, type ScrapedFsn, type ScraperResult, type ScraperParams } from '@/lib/scrapers/bfarm'
-import { scrapeMhra }       from '@/lib/scrapers/mhra'
-import { scrapeMhraExcel }  from '@/lib/scrapers/mhra-excel'
-import { scrapeFdaMaude }   from '@/lib/scrapers/fda-maude'
-import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
+import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
+import { getProductionScraper } from '@/lib/scrapers/registry'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
 import { extractManufacturerTerms, buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
@@ -17,41 +14,17 @@ const SOURCE_TIMEOUTS_MS: Record<string, number> = {
 
 const DEFAULT_TIMEOUT_MS = 120_000
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number, label: string): Promise<T> {
+  const controller = new AbortController()
+
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      controller.abort(new Error(`${label} timed out after ${ms / 1000}s`))
+      reject(new Error(`${label} timed out after ${ms / 1000}s`))
+    }, ms)
+
+    run(controller.signal).then(resolve, reject).finally(() => clearTimeout(timer))
   })
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
-}
-
-async function scrapeMhraWithFallback(params: ScraperParams): Promise<ScraperResult> {
-  try {
-    return await scrapeMhraExcel(params)
-  } catch (err) {
-    try {
-      const fallback = await scrapeMhra(params)
-      fallback.warnings.push(
-        `MHRA Excel scraper failed (${err instanceof Error ? err.message : String(err)}) — results via HTML fallback`,
-      )
-      return fallback
-    } catch (fallbackErr) {
-      return {
-        items: [],
-        warnings: [
-          `MHRA Excel scraper failed: ${err instanceof Error ? err.message : String(err)}`,
-          `MHRA HTML fallback also failed: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`,
-        ],
-      }
-    }
-  }
-}
-
-const SCRAPERS: Record<string, (p: ScraperParams) => Promise<ScraperResult>> = {
-  bfarm:      scrapeBfarm,
-  mhra:       scrapeMhraWithFallback,
-  fda:        scrapeFdaMaude,
-  swissmedic: scrapeSwissmedic,
 }
 
 function prevDay(date: string): string {
@@ -115,36 +88,100 @@ export function filterByKeywordRelevance(
   profile: { manufacturer: string; device_name: string },
   competitorTerms: string[],
 ): ScrapedFsn[] {
+  return auditKeywordRelevance(items, profile, competitorTerms).items
+}
+
+export interface KeywordFilterAudit {
+  items: ScrapedFsn[]
+  terms: {
+    manufacturer: string[]
+    device: string[]
+    domain: string[]
+    competitor: string[]
+  }
+  counts: {
+    total: number
+    kept: number
+    manufacturerMatches: number
+    deviceMatches: number
+    domainMatches: number
+    competitorMatches: number
+    manufacturerOnlyRejected: number
+    domainOnlyRejected: number
+    noSignalRejected: number
+  }
+}
+
+export function auditKeywordRelevance(
+  items: ScrapedFsn[],
+  profile: { manufacturer: string; device_name: string },
+  competitorTerms: string[],
+): KeywordFilterAudit {
   const mfrTerms = extractManufacturerTerms(profile.manufacturer)
   const allTerms = buildManufacturerSearchTerms(profile.manufacturer, profile.device_name)
   const devTerms = allTerms.filter(t => !mfrTerms.includes(t))
   const domainTerms = buildDomainTerms(profile)
+  const counts = {
+    total: items.length,
+    kept: 0,
+    manufacturerMatches: 0,
+    deviceMatches: 0,
+    domainMatches: 0,
+    competitorMatches: 0,
+    manufacturerOnlyRejected: 0,
+    domainOnlyRejected: 0,
+    noSignalRejected: 0,
+  }
+  const terms = {
+    manufacturer: mfrTerms,
+    device: devTerms,
+    domain: domainTerms,
+    competitor: competitorTerms,
+  }
 
   if (mfrTerms.length === 0 && devTerms.length === 0 && domainTerms.length === 0) {
-    return items
+    counts.kept = items.length
+    return { items, terms, counts }
   }
 
   const hasDeviceOrDomainTerms = devTerms.length > 0 || domainTerms.length > 0
+  const kept: ScrapedFsn[] = []
 
-  return items.filter(item => {
+  for (const item of items) {
     const hay = `${item.title} ${item.manufacturer ?? ''} ${item.product_name ?? ''} ${item.raw_content}`.toLowerCase()
 
     const mfrMatch = includesAny(hay, mfrTerms)
     const devMatch = includesAny(hay, devTerms)
     const domainMatch = includesAny(hay, domainTerms)
     const competitorMatch = includesAny(hay, competitorTerms)
+    if (mfrMatch) counts.manufacturerMatches++
+    if (devMatch) counts.deviceMatches++
+    if (domainMatch) counts.domainMatches++
+    if (competitorMatch) counts.competitorMatches++
 
+    let keep = false
     if (!hasDeviceOrDomainTerms) {
-      return mfrMatch
+      keep = mfrMatch
+    } else {
+      keep = (mfrMatch && devMatch)
+        || (mfrMatch && domainMatch)
+        || devMatch
+        || (domainMatch && competitorMatch)
     }
 
-    if (mfrMatch && devMatch) return true
-    if (mfrMatch && domainMatch) return true
-    if (devMatch) return true
-    if (domainMatch && competitorMatch) return true
+    if (keep) {
+      kept.push(item)
+      counts.kept++
+    } else if (mfrMatch && !devMatch && !domainMatch) {
+      counts.manufacturerOnlyRejected++
+    } else if (domainMatch && !competitorMatch && !mfrMatch) {
+      counts.domainOnlyRejected++
+    } else {
+      counts.noSignalRejected++
+    }
+  }
 
-    return false
-  })
+  return { items: kept, terms, counts }
 }
 
 export async function scrapeStage(ctx: PipelineContext): Promise<void> {
@@ -160,7 +197,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
 
   if (ctx.onProgress) await ctx.onProgress({ ...progressState })
 
-  async function processSource(sourceId: string): Promise<{
+  async function processSource(sourceId: string, signal?: AbortSignal): Promise<{
     items: ScrapedFsn[]; warnings: string[]; contentChanged: Set<string>; canonicalIds: Map<string, string>
   }> {
     // Check cancellation before starting each source's scrape work
@@ -173,12 +210,15 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     const warnings:       string[]            = []
     const contentChanged: Set<string>         = new Set()
     const canonicalIds:   Map<string, string> = new Map()
-    const fetchedRanges:  { from: string; to: string }[] = []
+    const coverageEligibleRanges: { from: string; to: string }[] = []
 
     const localSearchTerms = buildSourceSearchTerms(sourceId, searchTerms, competitorTerms)
 
     async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
-      const result = await SCRAPERS[sourceId]({
+      const scraper = getProductionScraper(sourceId)
+      if (!scraper) throw new Error(`Unsupported scraper source: ${sourceId}`)
+
+      const result = await scraper({
         fromDate:    range.from,
         toDate:      range.to,
         searchTerms: localSearchTerms.length > 0 ? localSearchTerms : undefined,
@@ -186,10 +226,13 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
           manufacturer: profile.manufacturer ?? '',
           device_name:  profile.device_name  ?? '',
         },
+        signal,
       })
       items.push(...result.items)
       warnings.push(...result.warnings)
-      if (result.items.length > 0) fetchedRanges.push(range)
+      if (result.outcome === 'complete' || result.outcome === 'empty') {
+        coverageEligibleRanges.push(range)
+      }
     }
 
     const overlapFrom = overlapWindowStart(period_to)
@@ -243,13 +286,18 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     }
 
     if (canonicalPersisted && !forceRefresh) {
-      await Promise.all(fetchedRanges.map((range) => mergeCoverage(sourceId, range)))
+      await Promise.all(coverageEligibleRanges.map((range) => mergeCoverage(sourceId, range)))
     }
 
-    const filtered = filterByKeywordRelevance(deduped, profile, competitorTerms)
+    const filterAudit = auditKeywordRelevance(deduped, profile, competitorTerms)
+    const filtered = filterAudit.items
     if (filtered.length < deduped.length) {
       console.error(`[scrape] ${sourceId} keyword filter: ${deduped.length} → ${filtered.length} items`)
     }
+    console.error(`[scrape] ${sourceId} keyword audit: ${JSON.stringify({
+      terms: filterAudit.terms,
+      counts: filterAudit.counts,
+    })}`)
 
     const keptIds = new Set(filtered.map(i => i.external_id))
 
@@ -273,7 +321,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
         return processSource(id)
       }
       const timeoutMs = SOURCE_TIMEOUTS_MS[id] ?? DEFAULT_TIMEOUT_MS
-      return withTimeout(processSource(id), timeoutMs, id.toUpperCase())
+      return withTimeout(signal => processSource(id, signal), timeoutMs, id.toUpperCase())
     }),
   )
 

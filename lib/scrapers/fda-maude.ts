@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import type { ScrapedFsn, ScraperResult } from './bfarm'
+import { scraperResult, type ScrapedFsn, type ScraperResult } from './bfarm'
 import { sanitizeContent } from './sanitize'
 import { extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 
@@ -24,6 +24,7 @@ export async function scrapeFdaMaude(params: {
   toDate:       string
   searchTerms?: string[]
   profile?:     { manufacturer: string; device_name: string }
+  signal?:      AbortSignal
 }): Promise<ScraperResult> {
   const apiKey    = process.env.OPENFDA_API_KEY
   const quarters  = splitIntoQuarters(params.fromDate, params.toDate)
@@ -31,7 +32,7 @@ export async function scrapeFdaMaude(params: {
 
   // Fetch all quarters simultaneously — one bad quarter does not abort others
   const settled = await Promise.allSettled(
-    quarters.map(q => fetchQuarter(q.from, q.to, termClause, apiKey))
+    quarters.map(q => fetchQuarter(q.from, q.to, termClause, apiKey, 0, params.signal))
   )
 
   const allItems:    ScrapedFsn[] = []
@@ -53,7 +54,9 @@ export async function scrapeFdaMaude(params: {
 
   const deduped = dedup(allItems)
 
-  return { items: deduped, warnings: allWarnings }
+  return scraperResult(deduped, allWarnings, {
+    failed: settled.length > 0 && settled.every(result => result.status === 'rejected'),
+  })
 }
 
 // ─── Quarter splitter ─────────────────────────────────────────────────────────
@@ -95,6 +98,7 @@ async function fetchQuarter(
   termClause:  string,
   apiKey:      string | undefined,
   depth:       number = 0,
+  signal?:      AbortSignal,
 ): Promise<ScraperResult> {
   const from = fromDate.replace(/-/g, '')
   const to   = toDate.replace(/-/g, '')
@@ -114,8 +118,21 @@ async function fetchQuarter(
       apiKey ? `api_key=${apiKey}` : '',
     ].filter(Boolean).join('&')
 
-    const url    = `${BASE_URL}?${qs}`
-    const result = await fetchPageWithRetry(url)
+    const url = `${BASE_URL}?${qs}`
+    let result = await fetchPageWithRetry(url, 3, signal)
+
+    // A stale/revoked optional key must not take the public openFDA endpoint
+    // down with it. Retry once without credentials before declaring data loss.
+    const authCode = !result.ok && !result.retriable ? result.data?.error?.code : undefined
+    if (apiKey && (authCode === '401' || authCode === '403')) {
+      const publicQs = [
+        `search=${searchClause}`,
+        `limit=${RESULTS_PER_PAGE}`,
+        `skip=${skip}`,
+      ].join('&')
+      console.error(`[fda] configured API key was rejected (${authCode}); retrying public endpoint`)
+      result = await fetchPageWithRetry(`${BASE_URL}?${publicQs}`, 3, signal)
+    }
 
     if (!result.ok && result.retriable) {
       warnings.push(
@@ -130,7 +147,10 @@ async function fetchQuarter(
       if (data.error.code === 'NOT_FOUND') {
         // no results for this date range
       } else {
-        console.error(`[fda] ${fromDate}→${toDate}: API error ${data.error.code}`)
+        const code = data.error.code ?? 'unknown'
+        const msg = `FDA MAUDE: API error ${code} for ${fromDate}–${toDate}. Results for this period are unavailable.`
+        console.error('[fda]', msg)
+        warnings.push(msg)
       }
       break
     }
@@ -148,9 +168,10 @@ async function fetchQuarter(
     if (items.length >= MAX_ITEMS) {
       const gap = total - items.length
       const msg =
-        `FDA MAUDE: item cap reached (${MAX_ITEMS.toLocaleString()} of ` +
+        `FDA MAUDE: interactive-search cap reached (${MAX_ITEMS.toLocaleString()} of ` +
         `${total.toLocaleString()} records retrieved for ${fromDate}–${toDate}). ` +
         `${gap.toLocaleString()} records not fetched. ` +
+        `This range is partial and will not be certified as complete coverage. ` +
         `Pass searchTerms to narrow the query, or use the openFDA bulk download for full coverage: ` +
         `https://open.fda.gov/apis/device/event/download/`
       console.error('[fda]', msg)
@@ -167,14 +188,14 @@ async function fetchQuarter(
         if (midDate) {
           console.error(`[fda] Adaptive split: ${fromDate}–${toDate} (${total.toLocaleString()} total) → splitting at ${midDate} (depth=${depth + 1})`)
           const [firstHalf, secondHalf] = await Promise.all([
-            fetchQuarter(fromDate, midDate, termClause, apiKey, depth + 1),
-            fetchQuarter(nextDay(midDate), toDate, termClause, apiKey, depth + 1),
+            fetchQuarter(fromDate, midDate, termClause, apiKey, depth + 1, signal),
+            fetchQuarter(nextDay(midDate), toDate, termClause, apiKey, depth + 1, signal),
           ])
           const combined = dedup([...items, ...firstHalf.items, ...secondHalf.items])
-          return {
-            items: combined.slice(0, MAX_ITEMS),
-            warnings: [...warnings, ...firstHalf.warnings, ...secondHalf.warnings],
-          }
+          return scraperResult(
+            combined.slice(0, MAX_ITEMS),
+            [...warnings, ...firstHalf.warnings, ...secondHalf.warnings],
+          )
         }
       }
       const gap = total - items.length
@@ -191,7 +212,7 @@ async function fetchQuarter(
     await new Promise(r => setTimeout(r, PAGE_DELAY_MS))
   }
 
-  return { items, warnings }
+  return scraperResult(items, warnings)
 }
 
 // ─── Field mapping ────────────────────────────────────────────────────────────
@@ -255,12 +276,30 @@ type FetchResult =
   | { ok: false; retriable: false; data: OpenFdaResponse }
   | { ok: false; retriable: true; error: string }
 
-async function fetchPageWithRetry(url: string, maxAttempts = 3): Promise<FetchResult> {
+function wait(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'))
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+async function fetchPageWithRetry(url: string, maxAttempts = 3, signal?: AbortSignal): Promise<FetchResult> {
   const backoffs = [1000, 3000, 9000]
   let lastError = ''
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const controller = new AbortController()
+    const abortFromParent = () => controller.abort(signal?.reason)
+    if (signal?.aborted) controller.abort(signal.reason)
+    else signal?.addEventListener('abort', abortFromParent, { once: true })
     const timeout = setTimeout(() => controller.abort(), 30_000)
     try {
       const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: controller.signal })
@@ -283,29 +322,34 @@ async function fetchPageWithRetry(url: string, maxAttempts = 3): Promise<FetchRe
         lastError = `HTTP 429 (rate limited)`
         if (attempt < maxAttempts - 1) {
           console.error(`[fda] 429 on attempt ${attempt + 1}/${maxAttempts} for ${redactUrl(url)}, waiting ${retryAfter}ms`)
-          await new Promise(r => setTimeout(r, retryAfter))
+          await wait(retryAfter, signal)
           continue
         }
       } else if (res.status >= 500) {
         lastError = `HTTP ${res.status}`
         if (attempt < maxAttempts - 1) {
           console.error(`[fda] ${res.status} on attempt ${attempt + 1}/${maxAttempts} for ${redactUrl(url)}, retrying in ${backoffs[attempt]}ms`)
-          await new Promise(r => setTimeout(r, backoffs[attempt]))
+          await wait(backoffs[attempt], signal)
           continue
         }
       } else {
         lastError = `HTTP ${res.status}`
-        return { ok: false, retriable: false, data: { error: { code: String(res.status), message: lastError } } }
+        const data = await res.json().catch(() => ({
+          error: { code: String(res.status), message: lastError },
+        })) as OpenFdaResponse
+        return { ok: false, retriable: false, data }
       }
     } catch (err) {
+      if (signal?.aborted) throw (signal.reason ?? err)
       lastError = err instanceof Error ? err.message : 'Network error'
       if (attempt < maxAttempts - 1) {
         console.error(`[fda] Fetch error on attempt ${attempt + 1}/${maxAttempts} for ${redactUrl(url)}, retrying in ${backoffs[attempt]}ms`)
-        await new Promise(r => setTimeout(r, backoffs[attempt]))
+        await wait(backoffs[attempt], signal)
         continue
       }
     } finally {
       clearTimeout(timeout)
+      signal?.removeEventListener('abort', abortFromParent)
     }
   }
 

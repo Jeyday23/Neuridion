@@ -1,4 +1,5 @@
 import type { ScraperParams, ScraperResult } from '@/lib/scrapers/bfarm'
+import { PRODUCTION_SCRAPERS, type ProductionSourceId } from '@/lib/scrapers/registry'
 import { sendScraperHealthAlert, type ScraperHealthResult } from '@/lib/email'
 import { safeCompare } from '@/lib/utils/auth'
 
@@ -8,13 +9,17 @@ function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number, label: string): Promise<T> {
+  const controller = new AbortController()
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(
-      () => reject(new Error(`${label} timed out after ${ms}ms`)),
+      () => {
+        controller.abort(new Error(`${label} timed out after ${ms}ms`))
+        reject(new Error(`${label} timed out after ${ms}ms`))
+      },
       ms,
     )
-    promise
+    run(controller.signal)
       .then((val) => {
         clearTimeout(timer)
         resolve(val)
@@ -28,18 +33,19 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 
 async function checkScraper(
   name: string,
-  run: () => Promise<ScraperResult>,
+  run: (signal: AbortSignal) => Promise<ScraperResult>,
 ): Promise<ScraperHealthResult> {
   const start = Date.now()
   try {
-    const result = await withTimeout(run(), TIMEOUT_MS, name)
+    const result = await withTimeout(run, TIMEOUT_MS, name)
     const durationMs = Date.now() - start
     const hasWarnings = result.warnings.length > 0
-    const healthy = result.items.length > 0 && !hasWarnings
+    const healthy = result.outcome === 'complete' || result.outcome === 'empty'
 
     return {
       source: name,
       healthy,
+      outcome: result.outcome,
       itemCount: result.items.length,
       warnings: hasWarnings ? result.warnings : undefined,
       durationMs,
@@ -49,6 +55,7 @@ async function checkScraper(
     return {
       source: name,
       healthy: false,
+      outcome: 'failed',
       itemCount: 0,
       error: 'Scraper check failed',
       durationMs: Date.now() - start,
@@ -70,24 +77,10 @@ export async function GET(req: Request) {
 
   const params: ScraperParams = { fromDate, toDate }
 
-  const results = await Promise.all([
-    checkScraper('bfarm', async () => {
-      const { scrapeBfarm } = await import('@/lib/scrapers/bfarm')
-      return scrapeBfarm(params)
-    }),
-    checkScraper('fda', async () => {
-      const { scrapeFdaMaude } = await import('@/lib/scrapers/fda-maude')
-      return scrapeFdaMaude({ fromDate, toDate })
-    }),
-    checkScraper('mhra', async () => {
-      const { scrapeMhra } = await import('@/lib/scrapers/mhra')
-      return scrapeMhra(params)
-    }),
-    checkScraper('swissmedic', async () => {
-      const { scrapeSwissmedic } = await import('@/lib/scrapers/swissmedic')
-      return scrapeSwissmedic(params)
-    }),
-  ])
+  const sources = Object.keys(PRODUCTION_SCRAPERS) as ProductionSourceId[]
+  const results = await Promise.all(
+    sources.map(source => checkScraper(source, signal => PRODUCTION_SCRAPERS[source]({ ...params, signal }))),
+  )
 
   const degradedCount = results.filter((r) => !r.healthy).length
 

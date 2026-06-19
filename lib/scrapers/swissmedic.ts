@@ -1,4 +1,4 @@
-import type { ScrapedFsn, ScraperResult, ScraperParams } from './bfarm'
+import { scraperResult, type ScrapedFsn, type ScraperResult, type ScraperParams } from './bfarm'
 import { buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
 import { sanitizeContent } from './sanitize'
 import { fetchWithRetry } from './fetch-with-retry'
@@ -54,7 +54,7 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
   let hitItemsCap = false
 
   for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber++) {
-    const page = await fetchPublicationPage(params, pageNumber)
+    const page = await fetchPublicationPage(params, pageNumber, params.signal)
 
     if (!page) {
       warnings.push(`Swissmedic: publication API request failed on page ${pageNumber}. Results may be incomplete.`)
@@ -105,7 +105,9 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
 
   const deduped = dedup(filtered)
 
-  return { items: deduped, warnings }
+  return scraperResult(deduped, warnings, {
+    failed: items.length === 0 && warnings.some(warning => warning.includes('request failed on page 0')),
+  })
 }
 
 function isRelevantToProfile(publication: SwissmedicPublication, terms: string[]): boolean {
@@ -121,6 +123,7 @@ function isRelevantToProfile(publication: SwissmedicPublication, terms: string[]
 async function fetchPublicationPage(
   params: { fromDate: string; toDate: string },
   pageNumber: number,
+  signal?: AbortSignal,
 ): Promise<SwissmedicPage | null> {
   const url = new URL(`${API_BASE}/search`)
   url.searchParams.set('pageNumber', String(pageNumber))
@@ -140,6 +143,7 @@ async function fetchPublicationPage(
         fromDate: params.fromDate,
         toDate: params.toDate,
       }),
+      signal,
     })
 
     if (!res.ok) {
@@ -149,6 +153,7 @@ async function fetchPublicationPage(
 
     return await res.json() as SwissmedicPage
   } catch (err) {
+    if (signal?.aborted) throw (signal.reason ?? err)
     console.error(`[swissmedic] Fetch failed for page ${pageNumber}: ${err instanceof Error ? err.message : String(err)}`)
     return null
   }

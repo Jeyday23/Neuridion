@@ -1,4 +1,4 @@
-import type { ScraperParams, ScraperResult, ScrapedFsn } from './bfarm'
+import { scraperResult, type ScraperParams, type ScraperResult, type ScrapedFsn } from './bfarm'
 import { parsePage, BFARM_ORIGIN } from './bfarm'
 import { sanitizeContent } from './sanitize'
 
@@ -45,7 +45,7 @@ export async function firecrawlFallback(
 ): Promise<ScraperResult> {
   const apiKey = process.env.FIRECRAWL_API_KEY
   if (!apiKey) {
-    return { items: [], warnings: ['FIRECRAWL_API_KEY not set — BfArM fallback unavailable'] }
+    return scraperResult([], ['FIRECRAWL_API_KEY not set — BfArM fallback unavailable'], { failed: true })
   }
 
   const deadlineMs = options?.deadlineMs ?? (Date.now() + 120_000)
@@ -81,10 +81,10 @@ export async function firecrawlFallback(
 
     if (startRes.status === 402) {
       console.error('[firecrawl] fallback skipped: no credits')
-      return { items: [], warnings: ['Firecrawl fallback skipped: no credits (HTTP 402)'] }
+      return scraperResult([], ['Firecrawl fallback skipped: no credits (HTTP 402)'], { failed: true })
     }
     if (startRes.status === 401 || startRes.status === 403) {
-      return { items: [], warnings: [`Firecrawl auth failed: ${startRes.status}`] }
+      return scraperResult([], [`Firecrawl auth failed: ${startRes.status}`], { failed: true })
     }
     if (!startRes.ok) {
       const body = await startRes.text().catch(() => '')
@@ -92,18 +92,18 @@ export async function firecrawlFallback(
         .replace(/(?:sk-|fc-|Bearer\s+)[A-Za-z0-9_-]+/g, '[REDACTED]')
         .replace(/[0-9a-f]{32,}/gi, '[REDACTED]')
       console.error(`[firecrawl] crawl start failed: HTTP ${startRes.status} — ${safeBody}`)
-      return { items: [], warnings: [`Firecrawl crawl start failed (HTTP ${startRes.status})`] }
+      return scraperResult([], [`Firecrawl crawl start failed (HTTP ${startRes.status})`], { failed: true })
     }
 
     const startData = await startRes.json() as { id?: string }
     if (!startData.id) {
-      return { items: [], warnings: ['Firecrawl returned no crawl ID'] }
+      return scraperResult([], ['Firecrawl returned no crawl ID'], { failed: true })
     }
     crawlId = startData.id
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`[firecrawl] start request failed: ${msg}`)
-    return { items: [], warnings: [`Firecrawl request failed: ${msg}`] }
+    return scraperResult([], [`Firecrawl request failed: ${msg}`], { failed: true })
   }
 
   const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
@@ -116,7 +116,7 @@ export async function firecrawlFallback(
     await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
 
     if (parentSignal?.aborted) {
-      return { items: [], warnings: ['Firecrawl polling aborted'] }
+      return scraperResult([], ['Firecrawl polling aborted'], { failed: true })
     }
 
     let pollData: FirecrawlStatus
@@ -126,7 +126,7 @@ export async function firecrawlFallback(
         signal: parentSignal,
       }, deadlineMs)
       if (!pollRes.ok) {
-        return { items: [], warnings: [`Firecrawl poll failed: HTTP ${pollRes.status}`] }
+        return scraperResult([], [`Firecrawl poll failed: HTTP ${pollRes.status}`], { failed: true })
       }
       pollData = await pollRes.json() as FirecrawlStatus
     } catch (err) {
@@ -159,19 +159,16 @@ export async function firecrawlFallback(
 
   if (items.length > 0) {
     console.error(`[firecrawl] returning ${items.length} items from ${bestPartialData.length} pages (${elapsed}s)`)
-    return {
-      items,
-      warnings: ['BfArM primary scraper returned empty — results via Firecrawl fallback'],
-    }
+    return scraperResult(items, ['BfArM primary scraper returned empty — results via Firecrawl fallback'])
   }
 
   if (bestPartialData.length === 0) {
     console.error(`[firecrawl] 0 pages crawled after ${elapsed}s — bfarm.de may be blocking Firecrawl IPs`)
-    return { items: [], warnings: [`Firecrawl returned 0 pages after ${elapsed}s — bfarm.de may be unreachable from cloud`] }
+    return scraperResult([], [`Firecrawl returned 0 pages after ${elapsed}s — bfarm.de may be unreachable from cloud`], { failed: true })
   }
 
   console.error(`[firecrawl] ${bestPartialData.length} pages crawled but 0 parseable items (${elapsed}s)`)
-  return { items: [], warnings: [`Firecrawl crawled ${bestPartialData.length} pages but 0 items matched the date range`] }
+  return scraperResult([], [`Firecrawl crawled ${bestPartialData.length} pages but 0 items matched the date range`])
 }
 
 function extractItems(
