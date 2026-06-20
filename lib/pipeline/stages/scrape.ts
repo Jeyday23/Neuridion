@@ -5,6 +5,13 @@ import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
 import { extractManufacturerTerms, buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
 import { insertResultsStage } from './insert-results'
 import type { PipelineContext, ProgressUpdate } from '../types'
+import {
+  captureAdapterOutput,
+  getLatestAuthorityRevisionIds,
+  type FetchCapture,
+} from '@/lib/evidence/store'
+import { sha256Hex } from '@/lib/evidence/hash'
+import type { SourceName } from '@/lib/evidence/types'
 
 const SOURCE_TIMEOUTS_MS: Record<string, number> = {
   fda:        90_000,
@@ -13,6 +20,14 @@ const SOURCE_TIMEOUTS_MS: Record<string, number> = {
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000
+const EVIDENCE_CAPTURE_ENABLED = process.env.REGULATORY_EVIDENCE_CAPTURE === 'true'
+const EVIDENCE_CAPTURE_SOURCES = new Set(
+  (process.env.REGULATORY_EVIDENCE_SOURCES ?? '').split(',').map((source) => source.trim()).filter(Boolean),
+)
+
+function evidenceCaptureEnabledFor(source: string): boolean {
+  return EVIDENCE_CAPTURE_ENABLED && EVIDENCE_CAPTURE_SOURCES.has(source)
+}
 
 function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number, label: string): Promise<T> {
   const controller = new AbortController()
@@ -198,22 +213,32 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
   if (ctx.onProgress) await ctx.onProgress({ ...progressState })
 
   async function processSource(sourceId: string, signal?: AbortSignal): Promise<{
-    items: ScrapedFsn[]; warnings: string[]; contentChanged: Set<string>; canonicalIds: Map<string, string>
+    items: ScrapedFsn[]
+    warnings: string[]
+    contentChanged: Set<string>
+    canonicalIds: Map<string, string>
+    authorityRevisionIds: Map<string, string>
   }> {
     // Check cancellation before starting each source's scrape work
     if (await ctx.isCancelled()) {
       console.error(`[pipeline] run_id=${ctx.runId} scrape stage: cancellation detected before starting ${sourceId}`)
-      return { items: [], warnings: [], contentChanged: new Set(), canonicalIds: new Map() }
+      return {
+        items: [], warnings: [], contentChanged: new Set(),
+        canonicalIds: new Map(), authorityRevisionIds: new Map(),
+      }
     }
 
     const items:          ScrapedFsn[]        = []
     const warnings:       string[]            = []
     const contentChanged: Set<string>         = new Set()
     const canonicalIds:   Map<string, string> = new Map()
+    const authorityRevisionIds: Map<string, string> = new Map()
+    const pendingEvidenceCaptures: FetchCapture[] = []
     const coverageEligibleRanges: { from: string; to: string }[] = []
     const sourceOutcomes: string[]             = []
     let fetchedItemCount = 0
     let cachedItemCount  = 0
+    const captureEvidence = evidenceCaptureEnabledFor(sourceId)
 
     const localSearchTerms = buildSourceSearchTerms(sourceId, searchTerms, competitorTerms)
     // FDA acquisition is profile-specific because search terms are pushed into
@@ -227,6 +252,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       const scraper = getProductionScraper(sourceId)
       if (!scraper) throw new Error(`Unsupported scraper source: ${sourceId}`)
 
+      const startedAt = new Date().toISOString()
       const result = await scraper({
         fromDate:    range.from,
         toDate:      range.to,
@@ -237,6 +263,19 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
         },
         signal,
       })
+      const completedAt = new Date().toISOString()
+      if (captureEvidence) {
+        const queryFingerprint = sha256Hex([...localSearchTerms].sort().join('\u0000'))
+        pendingEvidenceCaptures.push({
+          source: sourceId as SourceName,
+          requestLocator: `adapter://${sourceId}?from=${range.from}&to=${range.to}&query_sha256=${queryFingerprint}`,
+          startedAt,
+          completedAt,
+          outcome: result.outcome,
+          warnings: result.warnings,
+          items: result.items,
+        })
+      }
       fetchedItemCount += result.items.length
       sourceOutcomes.push(`${range.from}..${range.to}:${result.outcome}`)
       console.error(
@@ -288,6 +327,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     })
 
     let canonicalPersisted = deduped.length === 0
+    let evidencePersisted = !captureEvidence
     if (deduped.length > 0) {
       try {
         const results = await upsertCanonical(deduped)
@@ -301,7 +341,27 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       }
     }
 
-    if (canonicalPersisted && !forceRefresh) {
+    if (canonicalPersisted && captureEvidence) {
+      try {
+        for (const capture of pendingEvidenceCaptures) {
+          const captured = await captureAdapterOutput(capture, canonicalIds)
+          captured.authorityRevisionIds.forEach((revisionId, externalId) => {
+            authorityRevisionIds.set(externalId, revisionId)
+          })
+        }
+        const latestRevisionIds = await getLatestAuthorityRevisionIds(canonicalIds)
+        latestRevisionIds.forEach((revisionId, externalId) => {
+          if (!authorityRevisionIds.has(externalId)) authorityRevisionIds.set(externalId, revisionId)
+        })
+        evidencePersisted = true
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err)
+        console.error(`[pipeline] ${sourceId}: evidence capture failed: ${detail}`)
+        warnings.push(`${sourceId.toUpperCase()} evidence capture was incomplete; source coverage was not advanced.`)
+      }
+    }
+
+    if (canonicalPersisted && evidencePersisted && !forceRefresh) {
       await Promise.all(coverageEligibleRanges.map((range) => mergeCoverage(sourceId, range)))
     }
 
@@ -333,6 +393,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       warnings,
       contentChanged: new Set([...contentChanged].filter(id => keptIds.has(id))),
       canonicalIds: new Map([...canonicalIds].filter(([eid]) => keptIds.has(eid))),
+      authorityRevisionIds: new Map([...authorityRevisionIds].filter(([eid]) => keptIds.has(eid))),
     }
   }
 
@@ -355,6 +416,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       ctx.items = r.value.items
       r.value.contentChanged.forEach((id) => ctx.contentChanged.add(id))
       r.value.canonicalIds.forEach((cid, eid) => ctx.canonicalIds.set(eid, cid))
+      r.value.authorityRevisionIds.forEach((rid, eid) => ctx.authorityRevisionIds?.set(eid, rid))
       ctx.warnings.push(...r.value.warnings)
 
       if (ctx.items.length > 0) {

@@ -112,9 +112,11 @@ export type Database = {
       }
       filter_decisions: {
         Row: {
+          authority_revision_id: string | null
           confidence: number | null
           decided_at: string
           decision: string
+          evidence_parser_version: string | null
           flagged_uncertain: boolean
           fsn_result_id: string
           id: string
@@ -125,9 +127,11 @@ export type Database = {
           stage: string
         }
         Insert: {
+          authority_revision_id?: string | null
           confidence?: number | null
           decided_at?: string
           decision: string
+          evidence_parser_version?: string | null
           flagged_uncertain?: boolean
           fsn_result_id: string
           id?: string
@@ -138,9 +142,11 @@ export type Database = {
           stage: string
         }
         Update: {
+          authority_revision_id?: string | null
           confidence?: number | null
           decided_at?: string
           decision?: string
+          evidence_parser_version?: string | null
           flagged_uncertain?: boolean
           fsn_result_id?: string
           id?: string
@@ -217,6 +223,7 @@ export type Database = {
       }
       fsn_results: {
         Row: {
+          authority_revision_id: string | null
           canonical_id: string | null
           content_hash: string | null
           created_at: string
@@ -233,6 +240,7 @@ export type Database = {
           title: string
         }
         Insert: {
+          authority_revision_id?: string | null
           canonical_id?: string | null
           content_hash?: string | null
           created_at?: string
@@ -249,6 +257,7 @@ export type Database = {
           title: string
         }
         Update: {
+          authority_revision_id?: string | null
           canonical_id?: string | null
           content_hash?: string | null
           created_at?: string

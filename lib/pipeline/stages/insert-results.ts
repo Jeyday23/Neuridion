@@ -15,6 +15,7 @@ export async function insertResultsStage(ctx: PipelineContext): Promise<void> {
     source_db:    item.source_db,
     content_hash: computeContentHash(item),
     canonical_id: ctx.canonicalIds.get(item.external_id) ?? null,
+    authority_revision_id: ctx.authorityRevisionIds?.get(item.external_id) ?? null,
   }))
 
   const CHUNK = 200
@@ -25,7 +26,7 @@ export async function insertResultsStage(ctx: PipelineContext): Promise<void> {
     const { data: inserted, error: insertError } = await ctx.db
       .from('fsn_results')
       .insert(chunk)
-      .select('id, external_id, title, manufacturer, raw_content, fsn_date, source_db, source_url')
+      .select('id, authority_revision_id, external_id, title, manufacturer, raw_content, fsn_date, source_db, source_url')
 
     if (insertError) throw new Error(`fsn_results insert: ${insertError.message} (code=${insertError.code})`)
     if (inserted) allInserted.push(...inserted)

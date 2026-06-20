@@ -87,7 +87,7 @@ export async function runSearchPipeline(
 
   const ctx: PipelineContext = {
     runId, payload, db, profile: profile as ProfileRow, aiOptOut, searchTerms, competitorTerms, activeSources,
-    items: [], contentChanged: new Set(), canonicalIds: new Map(),
+    items: [], contentChanged: new Set(), canonicalIds: new Map(), authorityRevisionIds: new Map(),
     insertedRows: [], decisions: [], warnings: [], timing: {},
     onProgress,
     isCancelled,

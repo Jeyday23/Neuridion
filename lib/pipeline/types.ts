@@ -33,6 +33,7 @@ export interface ProfileRow {
 
 export interface InsertedFsnRow {
   id:           string
+  authority_revision_id?: string | null
   external_id:  string | null
   title:        string
   manufacturer: string | null
@@ -59,6 +60,7 @@ export interface PipelineContext {
   items:           ScrapedFsn[]
   contentChanged:  Set<string>
   canonicalIds:    Map<string, string>
+  authorityRevisionIds?: Map<string, string>
   insertedRows:    InsertedFsnRow[]
   decisions:       DecisionRow[]
   warnings:        string[]
