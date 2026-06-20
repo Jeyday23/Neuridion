@@ -290,6 +290,105 @@ export type Database = {
           },
         ]
       }
+      ingestion_runs: {
+        Row: {
+          adapter_version: string
+          attempt_count: number
+          created_at: string
+          error_code: string | null
+          finished_at: string | null
+          id: string
+          lease_expires_at: string
+          new_revisions: number
+          observations: number
+          source: string
+          started_at: string
+          status: string
+          warnings: Json
+          window_from: string
+          window_to: string
+        }
+        Insert: {
+          adapter_version: string
+          attempt_count?: number
+          created_at?: string
+          error_code?: string | null
+          finished_at?: string | null
+          id: string
+          lease_expires_at: string
+          new_revisions?: number
+          observations?: number
+          source: string
+          started_at?: string
+          status: string
+          warnings?: Json
+          window_from: string
+          window_to: string
+        }
+        Update: {
+          adapter_version?: string
+          attempt_count?: number
+          created_at?: string
+          error_code?: string | null
+          finished_at?: string | null
+          id?: string
+          lease_expires_at?: string
+          new_revisions?: number
+          observations?: number
+          source?: string
+          started_at?: string
+          status?: string
+          warnings?: Json
+          window_from?: string
+          window_to?: string
+        }
+        Relationships: []
+      }
+      shadow_comparisons: {
+        Row: {
+          agreement: number
+          common_count: number
+          created_at: string
+          id: string
+          live_count: number
+          mirror_count: number
+          only_live: number
+          only_mirror: number
+          query_fingerprint: string
+          source: string
+          window_from: string
+          window_to: string
+        }
+        Insert: {
+          agreement: number
+          common_count: number
+          created_at?: string
+          id?: string
+          live_count: number
+          mirror_count: number
+          only_live: number
+          only_mirror: number
+          query_fingerprint: string
+          source: string
+          window_from: string
+          window_to: string
+        }
+        Update: {
+          agreement?: number
+          common_count?: number
+          created_at?: string
+          id?: string
+          live_count?: number
+          mirror_count?: number
+          only_live?: number
+          only_mirror?: number
+          query_fingerprint?: string
+          source?: string
+          window_from?: string
+          window_to?: string
+        }
+        Relationships: []
+      }
       login_attempts: {
         Row: {
           attempted_at: string
@@ -886,6 +985,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_ingestion_run: {
+        Args: {
+          p_adapter_version: string
+          p_id: string
+          p_source: string
+          p_window_from: string
+          p_window_to: string
+        }
+        Returns: boolean
+      }
       check_and_insert_search_run: {
         Args: {
           p_period_from: string

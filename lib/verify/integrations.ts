@@ -33,6 +33,10 @@ const TABLE_SENTINELS: Array<{ table: string; columns: string }> = [
   { table: 'filter_decision_cache', columns: 'fsn_external_id,profile_fingerprint,decision' },
   { table: 'reports', columns: 'id,user_id,search_run_id' },
   { table: 'search_drafts', columns: 'id,user_id' },
+  { table: 'source_fetches', columns: 'id,source,outcome,adapter_version' },
+  { table: 'authority_record_revisions', columns: 'id,authority_record_id,revision_number' },
+  { table: 'ingestion_runs', columns: 'id,source,status,window_from,window_to' },
+  { table: 'shadow_comparisons', columns: 'id,source,agreement,created_at' },
 ]
 
 function pass(name: IntegrationCheck['name'], message = 'passed'): IntegrationCheck {
