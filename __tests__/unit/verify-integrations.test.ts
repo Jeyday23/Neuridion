@@ -42,10 +42,17 @@ function passingClients(): IntegrationClients {
 
 describe('verifyIntegrations', () => {
   it('passes when all integration probes pass', async () => {
-    const result = await verifyIntegrations(env, passingClients())
+    const clients = passingClients()
+    const result = await verifyIntegrations(env, clients)
 
     expect(result.ok).toBe(true)
     expect(result.checks.every((check) => check.status === 'passed')).toBe(true)
+    expect(clients.supabase.queryTable).toHaveBeenCalledWith(
+      'fsn_results', 'id,source_db,title,authority_revision_id',
+    )
+    expect(clients.supabase.queryTable).toHaveBeenCalledWith(
+      'filter_decisions', 'id,decision,model_used,authority_revision_id,evidence_parser_version',
+    )
   })
 
   it('reports database schema failures without leaking credentials', async () => {
