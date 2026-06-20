@@ -50,6 +50,8 @@ export interface ScraperResult {
   diagnostics?: {
     mhraParityDelta?: number
     channelItemCounts?: Record<string, number>
+    bfarmRssOutcome?: ScraperOutcome
+    bfarmOutageSuspected?: boolean
   }
 }
 
@@ -635,11 +637,15 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
 export async function scrapeRssFeed(options: ScraperOptions = {}): Promise<ScrapedFsn[]> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 30_000)
+  const abortFromParent = () => controller.abort(options.signal?.reason)
+  if (options.signal?.aborted) controller.abort(options.signal.reason)
+  else options.signal?.addEventListener('abort', abortFromParent, { once: true })
   let response: Response
   try {
-    response = await fetch(RSS_URL, { signal: controller.signal })
+    response = await fetch(RSS_URL, { headers: { 'User-Agent': UA }, signal: controller.signal })
   } finally {
     clearTimeout(timeout)
+    options.signal?.removeEventListener('abort', abortFromParent)
   }
   if (!response.ok) {
     throw new Error(`BfArM RSS fetch failed: ${response.status} ${response.statusText}`)

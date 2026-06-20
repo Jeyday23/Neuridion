@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { captureAdapterOutput } from '@/lib/evidence/store'
 import { EVIDENCE_ADAPTER_VERSIONS } from '@/lib/evidence/constants'
 import { getProductionScraper } from '@/lib/scrapers/registry'
+import { fetchBfarmRss, mergeBfarmFreshness } from '@/lib/scrapers/bfarm-rss'
 import { upsertCanonical } from '@/lib/sync/canonical'
 import { getCoveredRanges, mergeCoverage } from '@/lib/sync/coverage'
 import type { Json } from '@/types/supabase'
@@ -76,7 +77,13 @@ export async function ingestSource(input: {
   try {
     const scraper = getProductionScraper(input.source)
     if (!scraper) throw new Error(`No production adapter for ${input.source}`)
-    const result = await scraper({ fromDate: effectiveWindow.from, toDate: effectiveWindow.to })
+    const primaryResult = await scraper({ fromDate: effectiveWindow.from, toDate: effectiveWindow.to })
+    const result = input.source === 'bfarm'
+      ? mergeBfarmFreshness(primaryResult, await fetchBfarmRss({
+        fromDate: effectiveWindow.from,
+        toDate: effectiveWindow.to,
+      }))
+      : primaryResult
     const seen = new Set<string>()
     const items = result.items.filter((item) => {
       if (seen.has(item.external_id)) return false

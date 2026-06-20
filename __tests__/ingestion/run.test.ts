@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getProductionScraper: vi.fn(),
   upsertCanonical: vi.fn(),
   captureAdapterOutput: vi.fn(),
+  fetchBfarmRss: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/admin', () => ({
@@ -20,6 +21,10 @@ vi.mock('@/lib/sync/coverage', () => ({
 vi.mock('@/lib/scrapers/registry', () => ({ getProductionScraper: mocks.getProductionScraper }))
 vi.mock('@/lib/sync/canonical', () => ({ upsertCanonical: mocks.upsertCanonical }))
 vi.mock('@/lib/evidence/store', () => ({ captureAdapterOutput: mocks.captureAdapterOutput }))
+vi.mock('@/lib/scrapers/bfarm-rss', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/scrapers/bfarm-rss')>()
+  return { ...actual, fetchBfarmRss: mocks.fetchBfarmRss }
+})
 
 import { ingestSource } from '@/lib/ingestion/run'
 
@@ -53,6 +58,7 @@ describe('scheduled ingestion orchestration', () => {
     mocks.getCoveredRanges.mockResolvedValue([])
     mocks.upsertCanonical.mockResolvedValue([{ canonical_id: '00000000-0000-4000-8000-000000000001' }])
     mocks.captureAdapterOutput.mockResolvedValue({ observations: 1, revisions: 1, authorityRevisionIds: new Map(), fetchId: 'fetch' })
+    mocks.fetchBfarmRss.mockResolvedValue({ items: [], warnings: ['freshness only'], outcome: 'partial', archiveLimitationHit: true })
   })
 
   it('uses the production adapter, captures evidence, and atomically advances complete coverage', async () => {
@@ -95,6 +101,44 @@ describe('scheduled ingestion orchestration', () => {
       asOfDate: '2026-06-20',
     })
     expect(result.outcome).toBe('partial')
+    expect(mocks.mergeCoverage).not.toHaveBeenCalled()
+  })
+
+  it('uses RSS as a BfArM freshness supplement without letting it certify coverage', async () => {
+    mocks.from.mockImplementation((table: string) => {
+      if (table === 'ingestion_runs') return {
+        update: vi.fn(() => updateBuilder()),
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: { source: 'bfarm', window_from: '2026-05-21', window_to: '2026-06-20' },
+              error: null,
+            }),
+          }),
+        }),
+      }
+      throw new Error(`Unexpected table ${table}`)
+    })
+    mocks.getProductionScraper.mockReturnValue(vi.fn().mockResolvedValue({
+      items: [], warnings: [], outcome: 'empty',
+    }))
+    mocks.fetchBfarmRss.mockResolvedValue({
+      items: [{ ...item, external_id: 'rss-1', source_db: 'bfarm' }],
+      warnings: ['freshness only'],
+      outcome: 'partial',
+      archiveLimitationHit: true,
+    })
+    mocks.upsertCanonical.mockResolvedValue([{ canonical_id: '00000000-0000-4000-8000-000000000002' }])
+
+    const result = await ingestSource({
+      runId: '00000000-0000-4000-8000-000000000012',
+      source: 'bfarm',
+      asOfDate: '2026-06-20',
+    })
+
+    expect(result.outcome).toBe('partial')
+    expect(mocks.fetchBfarmRss).toHaveBeenCalledWith({ fromDate: '2026-05-21', toDate: '2026-06-20' })
+    expect(mocks.captureAdapterOutput.mock.calls[0][0].items).toHaveLength(1)
     expect(mocks.mergeCoverage).not.toHaveBeenCalled()
   })
 })
