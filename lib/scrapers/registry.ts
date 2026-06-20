@@ -16,7 +16,7 @@ function normalizeIdentity(value: string | null | undefined): string {
 }
 
 function extractMhraReference(item: ScrapedFsn): string | null {
-  const match = item.raw_content.match(/(?:MHRA\s+reference|Reference):\s*([A-Za-z0-9./-]+)/i)
+  const match = item.raw_content.match(/(?:^|[\s.;])(?:MHRA\s+reference|Reference):\s*([A-Za-z0-9][A-Za-z0-9./-]*)/i)
   return match?.[1] ? normalizeIdentity(match[1]) : null
 }
 
@@ -25,6 +25,9 @@ function normalizeEvidenceUrl(raw: string): string | null {
     const url = new URL(raw)
     url.hash = ''
     url.search = ''
+    if (/^(?:www\.)?gov\.uk$/i.test(url.hostname) && /^\/drug-device-alerts(?:\/|$)/i.test(url.pathname)) {
+      return null
+    }
     return `${url.hostname.toLowerCase()}${url.pathname.replace(/\/$/, '')}`
   } catch {
     return null

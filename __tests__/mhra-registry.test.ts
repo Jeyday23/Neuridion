@@ -97,4 +97,22 @@ describe('mergeMhraEvidence', () => {
 
     expect(merged).toHaveLength(2)
   })
+
+  it('does not use the generic GOV.UK alerts index as a record identity', () => {
+    const merged = mergeMhraEvidence([[
+      item({ external_id: 'excel-one', source_url: 'https://www.gov.uk/drug-device-alerts', raw_content: 'First notice without a reference' }),
+      item({ external_id: 'excel-two', source_url: 'https://www.gov.uk/drug-device-alerts', raw_content: 'Second notice without a reference' }),
+    ]])
+
+    expect(merged).toHaveLength(2)
+  })
+
+  it('does not mistake FSN date/reference text for an MHRA reference', () => {
+    const merged = mergeMhraEvidence([[
+      item({ external_id: 'excel-one', source_url: 'https://www.gov.uk/drug-device-alerts', raw_content: 'FSN date/reference: 11 June 2026 MHRA reference: 2026/006/005/601/076' }),
+      item({ external_id: 'excel-two', source_url: 'https://www.gov.uk/drug-device-alerts', raw_content: 'FSN date/reference: 11 June 2026 MHRA reference: 2026/006/005/601/124' }),
+    ]])
+
+    expect(merged).toHaveLength(2)
+  })
 })

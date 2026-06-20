@@ -134,6 +134,18 @@ describe('MHRA roundup parsing', () => {
       expect(results[0].product_name).toBe('FreeStyle Libre 2 Sensor')
     })
 
+    it('prefers the formal MHRA reference over the internal numeric reference', () => {
+      const html = [
+        '<h3>Boston Scientific: SCS Infinion CX Lead</h3>',
+        '<p>MHRA reference: 39816022 2026/006/011/601/083</p>',
+      ].join('\n')
+
+      const results = splitRoundupSections(html, '/roundup', '2026-06-16')
+
+      expect(results).toHaveLength(1)
+      expect(results[0].external_id).toBe('mhra-ref-2026/006/011/601/083')
+    })
+
     it('handles h2, h3, and h4 heading variants', () => {
       const html = [
         '<h2>Abbott: Device Alpha</h2>',

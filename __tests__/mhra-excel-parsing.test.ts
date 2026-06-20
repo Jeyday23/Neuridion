@@ -243,12 +243,12 @@ describe('MHRA Excel parsing', () => {
     expect(items).toHaveLength(2)
   })
 
-  it('skips rows missing "Date added to gov.uk" with warning', async () => {
+  it('skips rows with no publication or FSN date with warning', async () => {
     const buf = await buildBuffer([{
       name: '2026',
       rows: [
         HEADERS,
-        makeRow({ dateAdded: null }),
+        makeRow({ dateAdded: null, dateOrRef: 'FSN-REFERENCE-ONLY' }),
         makeRow({ brand: 'Has Date', dateAdded: new Date('2026-04-15T00:00:00Z') }),
       ],
     }])
@@ -257,7 +257,21 @@ describe('MHRA Excel parsing', () => {
 
     expect(items).toHaveLength(1)
     expect(items[0].title).toContain('Has Date')
-    expect(warnings.some(w => w.includes('skipped, missing "Date added to gov.uk"'))).toBe(true)
+    expect(warnings.some(w => w.includes('no usable publication or FSN date'))).toBe(true)
+  })
+
+  it('uses a parseable FSN document date when publication date is unavailable', async () => {
+    const buf = await buildBuffer([{
+      name: '2026',
+      rows: [HEADERS, makeRow({ dateAdded: null, dateOrRef: new Date('2026-04-01T00:00:00Z') })],
+    }])
+
+    const { items, warnings } = await parseMhraExcelBuffer(buf, '2026-01-01', '2026-12-31')
+
+    expect(items).toHaveLength(1)
+    expect(items[0].fsn_date).toBe('2026-04-01')
+    expect(items[0].raw_content).toContain('FSN document date used')
+    expect(warnings).toEqual([])
   })
 
   it('parses "Date added to gov.uk" as both Date object and string', async () => {
@@ -598,5 +612,38 @@ describe('downloadMhraExcel hardening', () => {
     const result = await downloadMhraExcel()
     expect(result).toBeInstanceOf(Uint8Array)
     expect(result.byteLength).toBeGreaterThan(100)
+  })
+
+  it('resolves the current Filecamp sharing page to its workbook download', async () => {
+    const wb = new ExcelJS.Workbook()
+    wb.addWorksheet('2026')
+    const buf = await wb.xlsx.writeBuffer()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        url: 'https://mhra-gov.filecamp.com/s/d/9g5cLjjFatXruS5U',
+        headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+      })
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        Share: { Refuniq: 'UGUAFsveK41CwTtE', Refname: 'Rolling List - FSNs.xlsx' },
+      }), { status: 200, headers: { 'content-type': 'application/json' } }))
+      .mockResolvedValueOnce({
+        ok: true,
+        url: 'https://mhra-gov.filecamp.com/api/download/file/UGUAFsveK41CwTtE/original/undefined/undefined',
+        headers: new Headers({
+          'content-type': 'application/octet-stream',
+          'content-length': String(buf.byteLength),
+        }),
+        body: null,
+        arrayBuffer: () => Promise.resolve(buf),
+      })
+    globalThis.fetch = fetchMock
+
+    const result = await downloadMhraExcel()
+
+    expect(result.byteLength).toBe(buf.byteLength)
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(String(fetchMock.mock.calls[1][0])).toBe('https://mhra-gov.filecamp.com/api/shares/9g5cLjjFatXruS5U')
+    expect(String(fetchMock.mock.calls[2][0])).toBe('https://mhra-gov.filecamp.com/api/download/file/UGUAFsveK41CwTtE/original/undefined/undefined')
   })
 })

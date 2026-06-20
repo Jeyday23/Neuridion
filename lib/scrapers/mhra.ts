@@ -340,6 +340,8 @@ function extractFirstGovUkNoticePath(html: string): string | null {
 }
 
 function extractMhraRef(html: string): string | null {
+  const formalReference = html.match(/\b20\d{2}\/\d{3}\/\d{3}\/\d{3}\/\d{3}\b/)
+  if (formalReference) return formalReference[0]
   const match = html.match(/MHRA reference:.*?(\d{7,10})/i)
   return match ? match[1] : null
 }

@@ -8,6 +8,7 @@ const FILECAMP_URL = 'https://mhra-gov.filecamp.com/s/d/9g5cLjjFatXruS5U'
 const DOWNLOAD_TIMEOUT_MS = 20_000
 const MAX_ITEMS = 500
 const MAX_EXCEL_DOWNLOAD_BYTES = 50 * 1024 * 1024
+const MAX_SHARE_METADATA_BYTES = 100 * 1024
 const ALLOWED_MHRA_EXCEL_HOSTS = new Set(['mhra-gov.filecamp.com'])
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
@@ -202,6 +203,7 @@ export async function parseMhraExcelBuffer(
 
   workbook.eachSheet((sheet) => {
     if (!sheetOverlapsDateRange(sheet.name, fromYear, toYear)) return
+    if (sheet.actualRowCount === 0) return
 
     const detected = detectColumns(sheet)
     if (!detected) {
@@ -211,7 +213,7 @@ export async function parseMhraExcelBuffer(
 
     sheetsWithHeaders++
     const { headerRow, columns } = detected
-    let skippedNoDate = 0
+    let skippedNoUsableDate = 0
     let capHit = false
 
     sheet.eachRow((row, rowNumber) => {
@@ -230,13 +232,15 @@ export async function parseMhraExcelBuffer(
       const mhraReference = getCellString(row, columns.mhraReference)
       const comment = getCellString(row, columns.comment)
 
-      const dateAdded = getCellDate(row, columns.dateAddedToGovUk)
+      const publishedDate = getCellDate(row, columns.dateAddedToGovUk)
+      const fsnDocumentDate = getCellDate(row, columns.dateOrRefOnFsn)
+      const evidenceDate = publishedDate ?? fsnDocumentDate
 
-      if (!dateAdded) {
-        skippedNoDate++
+      if (!evidenceDate) {
+        skippedNoUsableDate++
         return
       }
-      if (dateAdded < fromDate || dateAdded > toDate) {
+      if (evidenceDate < fromDate || evidenceDate > toDate) {
         return
       }
 
@@ -244,7 +248,7 @@ export async function parseMhraExcelBuffer(
       const externalId = buildMhraExternalId(
         mhraReference, haloReference, sheet.name,
         manufacturer, brand, deviceDescription, model,
-        dateAdded, dateOrRefOnFsn, comment,
+        evidenceDate, dateOrRefOnFsn, comment,
       )
 
       const rawParts = [
@@ -257,6 +261,7 @@ export async function parseMhraExcelBuffer(
         mhraReference && `MHRA reference: ${mhraReference}`,
         haloReference && `Halo: ${haloReference}`,
         comment && `Comment: ${comment}`,
+        !publishedDate && fsnDocumentDate && 'Date provenance: FSN document date used because publication date was unavailable',
       ].filter(Boolean) as string[]
 
       items.push({
@@ -264,15 +269,15 @@ export async function parseMhraExcelBuffer(
         title,
         manufacturer: manufacturer || null,
         product_name: deviceDescription || null,
-        fsn_date: dateAdded,
+        fsn_date: evidenceDate,
         source_url: evidenceUrl ?? 'https://www.gov.uk/drug-device-alerts',
         raw_content: sanitizeContent(rawParts.join('\n')),
         source_db: 'mhra',
       })
     })
 
-    if (skippedNoDate > 0) {
-      warnings.push(`MHRA Excel: sheet "${sheet.name}" — ${skippedNoDate} row(s) skipped, missing "Date added to gov.uk"`)
+    if (skippedNoUsableDate > 0) {
+      warnings.push(`MHRA Excel: sheet "${sheet.name}" — ${skippedNoUsableDate} row(s) skipped, no usable publication or FSN date`)
     }
     if (capHit) {
       warnings.push(`MHRA Excel: result cap hit at ${MAX_ITEMS} items`)
@@ -304,6 +309,55 @@ function assertAllowedMhraExcelUrl(rawUrl: string): string {
   }
 
   return parsed.toString()
+}
+
+function extractFilecampShareId(rawUrl: string): string | null {
+  const url = new URL(rawUrl)
+  const match = url.pathname.match(/^\/s\/(?:d\/([^/]+)|([^/]+)\/d)\/?$/)
+  return match?.[1] ?? match?.[2] ?? null
+}
+
+async function resolveFilecampDownloadUrl(shareUrl: string, signal?: AbortSignal): Promise<string> {
+  const shareId = extractFilecampShareId(shareUrl)
+  if (!shareId) throw new Error('MHRA Excel source returned HTML instead of a spreadsheet')
+
+  const parsedShareUrl = new URL(shareUrl)
+  const metadataUrl = assertAllowedMhraExcelUrl(
+    new URL(`/api/shares/${encodeURIComponent(shareId)}`, parsedShareUrl.origin).toString(),
+  )
+  const metadataRes = await fetchWithRetry(metadataUrl, {
+    headers: { 'User-Agent': UA, Accept: 'application/json' },
+    signal,
+  }, { timeoutMs: DOWNLOAD_TIMEOUT_MS, maxAttempts: 2 })
+
+  if (!metadataRes.ok) {
+    throw new Error(`MHRA Excel share metadata failed: HTTP ${metadataRes.status}`)
+  }
+  const metadataText = await metadataRes.text()
+  if (metadataText.length > MAX_SHARE_METADATA_BYTES) {
+    throw new Error('MHRA Excel share metadata response too large')
+  }
+
+  let metadata: unknown
+  try {
+    metadata = JSON.parse(metadataText)
+  } catch {
+    throw new Error('MHRA Excel share metadata was not valid JSON')
+  }
+
+  const share = (metadata as { Share?: { Refuniq?: unknown; Refname?: unknown } }).Share
+  const fileId = typeof share?.Refuniq === 'string' ? share.Refuniq.trim() : ''
+  const fileName = typeof share?.Refname === 'string' ? share.Refname.trim() : ''
+  if (!/^[A-Za-z0-9_-]{8,128}$/.test(fileId)) {
+    throw new Error('MHRA Excel share metadata did not contain a valid file identifier')
+  }
+  if (!/\.xlsx?$/i.test(fileName)) {
+    throw new Error('MHRA Excel share does not reference an Excel workbook')
+  }
+
+  return assertAllowedMhraExcelUrl(
+    new URL(`/api/download/file/${encodeURIComponent(fileId)}/original/undefined/undefined`, parsedShareUrl.origin).toString(),
+  )
 }
 
 async function readResponseWithLimit(res: Response): Promise<Uint8Array> {
@@ -360,7 +414,7 @@ async function readResponseWithLimit(res: Response): Promise<Uint8Array> {
 export async function downloadMhraExcel(signal?: AbortSignal): Promise<Uint8Array> {
   const url = assertAllowedMhraExcelUrl(process.env.MHRA_EXCEL_URL || FILECAMP_URL)
 
-  const res = await fetchWithRetry(url, {
+  let res = await fetchWithRetry(url, {
     headers: {
       'User-Agent': UA,
       Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/octet-stream, */*',
@@ -372,12 +426,28 @@ export async function downloadMhraExcel(signal?: AbortSignal): Promise<Uint8Arra
     throw new Error(`MHRA Excel download failed: HTTP ${res.status}`)
   }
 
-  const finalUrl = res.url || url
+  let finalUrl = res.url || url
   assertAllowedMhraExcelUrl(finalUrl)
 
-  const contentType = res.headers.get('content-type') ?? ''
+  let contentType = res.headers.get('content-type') ?? ''
   if (contentType.includes('text/html')) {
-    throw new Error('MHRA Excel source returned HTML instead of a spreadsheet')
+    const downloadUrl = await resolveFilecampDownloadUrl(url, signal)
+    res = await fetchWithRetry(downloadUrl, {
+      headers: {
+        'User-Agent': UA,
+        Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/octet-stream',
+      },
+      signal,
+    }, { timeoutMs: DOWNLOAD_TIMEOUT_MS, maxAttempts: 2 })
+    if (!res.ok) {
+      throw new Error(`MHRA Excel resolved download failed: HTTP ${res.status}`)
+    }
+    finalUrl = res.url || downloadUrl
+    assertAllowedMhraExcelUrl(finalUrl)
+    contentType = res.headers.get('content-type') ?? ''
+    if (contentType.includes('text/html')) {
+      throw new Error('MHRA Excel resolved download returned HTML instead of a spreadsheet')
+    }
   }
 
   const bytes = await readResponseWithLimit(res)
