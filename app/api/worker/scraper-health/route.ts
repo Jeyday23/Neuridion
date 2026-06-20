@@ -2,6 +2,7 @@ import type { ScraperParams, ScraperResult } from '@/lib/scrapers/bfarm'
 import { PRODUCTION_SCRAPERS, type ProductionSourceId } from '@/lib/scrapers/registry'
 import { sendScraperHealthAlert, type ScraperHealthResult } from '@/lib/email'
 import { safeCompare } from '@/lib/utils/auth'
+import { SOURCE_AUTHORITY } from '@/lib/evidence/source-authority'
 
 const TIMEOUT_MS = 30_000
 
@@ -31,25 +32,45 @@ function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number, la
   })
 }
 
+export function assessScraperResult(
+  source: ProductionSourceId,
+  result: ScraperResult,
+  durationMs: number,
+): ScraperHealthResult {
+  const contract = SOURCE_AUTHORITY[source]
+  const hasWarnings = result.warnings.length > 0
+  const parityDelta = result.diagnostics?.mhraParityDelta ?? null
+  const parityThreshold = contract.parityWarningThreshold
+  const parityDegraded = parityThreshold != null && parityDelta != null && parityDelta > parityThreshold
+  return {
+    source,
+    healthy: (result.outcome === 'complete' || result.outcome === 'empty') && !parityDegraded,
+    outcome: result.outcome,
+    itemCount: result.items.length,
+    warnings: hasWarnings ? result.warnings : undefined,
+    durationMs,
+    evidenceClass: contract.evidenceClass,
+    completenessSemantics: contract.completeness,
+    freshnessTargetHours: contract.freshnessSloHours,
+    // A live availability probe cannot measure publication-to-ingestion lag.
+    freshnessLagHours: null,
+    freshnessMeasurement: 'not_available_from_live_probe',
+    // Reconciliation happens after acquisition and is not visible to this probe.
+    fuzzyReconcileRatio: null,
+    parityDelta,
+    channelItemCounts: result.diagnostics?.channelItemCounts,
+  }
+}
+
 async function checkScraper(
-  name: string,
+  name: ProductionSourceId,
   run: (signal: AbortSignal) => Promise<ScraperResult>,
 ): Promise<ScraperHealthResult> {
   const start = Date.now()
   try {
     const result = await withTimeout(run, TIMEOUT_MS, name)
     const durationMs = Date.now() - start
-    const hasWarnings = result.warnings.length > 0
-    const healthy = result.outcome === 'complete' || result.outcome === 'empty'
-
-    return {
-      source: name,
-      healthy,
-      outcome: result.outcome,
-      itemCount: result.items.length,
-      warnings: hasWarnings ? result.warnings : undefined,
-      durationMs,
-    }
+    return assessScraperResult(name, result, durationMs)
   } catch (err) {
     console.error(`[scraper-health] ${name} failed:`, err instanceof Error ? err.message : String(err))
     return {
@@ -59,6 +80,13 @@ async function checkScraper(
       itemCount: 0,
       error: 'Scraper check failed',
       durationMs: Date.now() - start,
+      evidenceClass: SOURCE_AUTHORITY[name].evidenceClass,
+      completenessSemantics: SOURCE_AUTHORITY[name].completeness,
+      freshnessTargetHours: SOURCE_AUTHORITY[name].freshnessSloHours,
+      freshnessLagHours: null,
+      freshnessMeasurement: 'not_available_from_live_probe',
+      fuzzyReconcileRatio: null,
+      parityDelta: null,
     }
   }
 }

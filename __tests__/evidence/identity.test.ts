@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { identityConfidence, issuerReferenceKey, normalizeManufacturerKey } from '@/lib/evidence/identity'
-import { identityMethodBySourceRecord } from '@/lib/evidence/types'
+import { identityMethodForSourceRecord } from '@/lib/evidence/source-authority'
 
 describe('issuer identity', () => {
   it('uses manufacturer plus reference to avoid cross-issuer reference collisions', () => {
@@ -20,9 +20,9 @@ describe('issuer identity', () => {
   })
 
   it('classifies known generated source identifiers honestly', () => {
-    expect(identityMethodBySourceRecord('bfarm', '0123456789abcdef')).toBe('url_hash_low_stability')
-    expect(identityMethodBySourceRecord('fda', 'maude-generated-value')).toBe('generated_low_stability')
-    expect(identityMethodBySourceRecord('swissmedic', 'Vk_20260101_01')).toBe('national_reference')
+    expect(identityMethodForSourceRecord('bfarm', '0123456789abcdef')).toBe('url_hash_low_stability')
+    expect(identityMethodForSourceRecord('fda', 'maude-generated-value')).toBe('generated_low_stability')
+    expect(identityMethodForSourceRecord('swissmedic', 'Vk_20260101_01')).toBe('authority_reference')
   })
 
   it('normalizes common company suffixes without erasing the issuer', () => {

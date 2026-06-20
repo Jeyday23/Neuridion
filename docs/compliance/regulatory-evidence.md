@@ -37,7 +37,8 @@ completion or failure, and writes the operator event to `audit_log`. The hash
 and provenance row remain.
 
 FDA adapter output is marked as potentially containing personal data. Enabling
-capture therefore requires an approved retention and access-control policy.
+capture therefore requires an approved retention and access-control policy plus
+the separate `REGULATORY_EVIDENCE_ALLOW_SENSITIVE=true` gate.
 
 ## Rollout
 

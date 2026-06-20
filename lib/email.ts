@@ -170,6 +170,14 @@ export interface ScraperHealthResult {
   error?: string
   warnings?: string[]
   durationMs: number
+  evidenceClass?: string
+  completenessSemantics?: string
+  freshnessTargetHours?: number | null
+  freshnessLagHours?: number | null
+  freshnessMeasurement?: 'not_available_from_live_probe'
+  fuzzyReconcileRatio?: number | null
+  parityDelta?: number | null
+  channelItemCounts?: Record<string, number>
 }
 
 export async function sendScraperHealthAlert(
@@ -191,7 +199,15 @@ export async function sendScraperHealthAlert(
         r.warnings && r.warnings.length > 0
           ? r.warnings.map((w) => escHtml(w)).join('<br>')
           : ''
-      const detail = [`Outcome: ${escHtml(r.outcome)}`, errorCell, warningCell].filter(Boolean).join('<br>')
+      const evidenceClass = r.evidenceClass ? `Class: ${escHtml(r.evidenceClass)}` : ''
+      const parity = r.parityDelta != null ? `Parity delta: ${(r.parityDelta * 100).toFixed(1)}%` : ''
+      const detail = [
+        `Outcome: ${escHtml(r.outcome)}`,
+        evidenceClass,
+        parity,
+        errorCell,
+        warningCell,
+      ].filter(Boolean).join('<br>')
 
       return `<tr>
       <td style="padding:6px 10px;border-bottom:1px solid #E2E8F0">${status}</td>

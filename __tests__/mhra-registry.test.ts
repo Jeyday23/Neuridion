@@ -63,6 +63,8 @@ describe('MHRA production source registry', () => {
     expect(merged.items[0].raw_content).toContain('Corrective action details')
     expect(merged.items[0].raw_content).toContain('MHRA evidence sources:')
     expect(merged.outcome).toBe('complete')
+    expect(merged.diagnostics?.channelItemCounts).toEqual({ Excel: 1, 'GOV.UK API': 2 })
+    expect(merged.diagnostics?.mhraParityDelta).toBeCloseTo(0.5)
   })
 
   it('returns partial evidence with a warning when one official source fails', async () => {
@@ -74,6 +76,7 @@ describe('MHRA production source registry', () => {
     expect(merged.items).toHaveLength(1)
     expect(merged.outcome).toBe('partial')
     expect(merged.warnings).toContain('MHRA Excel source failed: download unavailable')
+    expect(merged.diagnostics?.mhraParityDelta).toBeUndefined()
   })
 
   it('returns failed only when both official sources fail', async () => {

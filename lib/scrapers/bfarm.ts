@@ -47,12 +47,20 @@ export interface ScraperResult {
   warnings:              string[]
   outcome:               ScraperOutcome
   archiveLimitationHit?: boolean   // true when results are empty due to a known archive limit, not a scraper error
+  diagnostics?: {
+    mhraParityDelta?: number
+    channelItemCounts?: Record<string, number>
+  }
 }
 
 export function scraperResult(
   items: ScrapedFsn[],
   warnings: string[] = [],
-  options: { failed?: boolean; archiveLimitationHit?: boolean } = {},
+  options: {
+    failed?: boolean
+    archiveLimitationHit?: boolean
+    diagnostics?: ScraperResult['diagnostics']
+  } = {},
 ): ScraperResult {
   const outcome: ScraperOutcome = options.failed
     ? 'failed'
@@ -69,6 +77,7 @@ export function scraperResult(
     ...(options.archiveLimitationHit !== undefined
       ? { archiveLimitationHit: options.archiveLimitationHit }
       : {}),
+    ...(options.diagnostics ? { diagnostics: options.diagnostics } : {}),
   }
 }
 

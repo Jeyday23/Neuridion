@@ -95,7 +95,7 @@ export async function scrapeMhraProduction(params: ScraperParams): Promise<Scrap
     scrapeMhra(params),
   ])
   const labels = ['Excel', 'GOV.UK API'] as const
-  const successful: ScraperResult[] = []
+  const successful: Array<{ label: typeof labels[number]; result: ScraperResult }> = []
   const warnings: string[] = []
 
   settled.forEach((result, index) => {
@@ -104,7 +104,7 @@ export async function scrapeMhraProduction(params: ScraperParams): Promise<Scrap
       if (result.value.outcome === 'failed') {
         warnings.push(`MHRA ${labels[index]} source reported a failed outcome`)
       } else {
-        successful.push(result.value)
+        successful.push({ label: labels[index], result: result.value })
       }
     } else {
       warnings.push(`MHRA ${labels[index]} source failed: ${message(result.reason)}`)
@@ -115,8 +115,23 @@ export async function scrapeMhraProduction(params: ScraperParams): Promise<Scrap
     return scraperResult([], warnings, { failed: true })
   }
 
-  const items = mergeMhraEvidence(successful.map(result => result.items))
-  return scraperResult(items, [...new Set(warnings)])
+  const items = mergeMhraEvidence(successful.map(({ result }) => result.items))
+  const channelItemCounts = Object.fromEntries(
+    successful.map(({ label, result }) => [label, result.items.length]),
+  )
+  let mhraParityDelta: number | undefined
+  if (successful.length === 2) {
+    const [first, second] = successful
+    const unionCount = items.length
+    const intersectionCount = Math.max(0, first.result.items.length + second.result.items.length - unionCount)
+    mhraParityDelta = unionCount === 0 ? 0 : 1 - (intersectionCount / unionCount)
+  }
+  return scraperResult(items, [...new Set(warnings)], {
+    diagnostics: {
+      channelItemCounts,
+      ...(mhraParityDelta !== undefined ? { mhraParityDelta } : {}),
+    },
+  })
 }
 
 export const PRODUCTION_SCRAPERS: Record<ProductionSourceId, ProductionScraper> = {

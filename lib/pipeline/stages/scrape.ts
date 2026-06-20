@@ -12,6 +12,7 @@ import {
 } from '@/lib/evidence/store'
 import { sha256Hex } from '@/lib/evidence/hash'
 import type { SourceName } from '@/lib/evidence/types'
+import { sourceCaptureAllowed } from '@/lib/evidence/source-authority'
 
 const SOURCE_TIMEOUTS_MS: Record<string, number> = {
   fda:        90_000,
@@ -24,9 +25,11 @@ const EVIDENCE_CAPTURE_ENABLED = process.env.REGULATORY_EVIDENCE_CAPTURE === 'tr
 const EVIDENCE_CAPTURE_SOURCES = new Set(
   (process.env.REGULATORY_EVIDENCE_SOURCES ?? '').split(',').map((source) => source.trim()).filter(Boolean),
 )
+const SENSITIVE_EVIDENCE_APPROVED = process.env.REGULATORY_EVIDENCE_ALLOW_SENSITIVE === 'true'
 
 function evidenceCaptureEnabledFor(source: string): boolean {
-  return EVIDENCE_CAPTURE_ENABLED && EVIDENCE_CAPTURE_SOURCES.has(source)
+  if (!EVIDENCE_CAPTURE_ENABLED || !EVIDENCE_CAPTURE_SOURCES.has(source)) return false
+  return sourceCaptureAllowed(source as SourceName, SENSITIVE_EVIDENCE_APPROVED)
 }
 
 function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number, label: string): Promise<T> {

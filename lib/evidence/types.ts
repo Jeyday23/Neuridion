@@ -39,13 +39,3 @@ export interface ReconciliationCandidate {
   confidence: number
   autoConfirm: boolean
 }
-
-export const identityMethodBySourceRecord = (
-  source: SourceName,
-  sourceRecordId: string,
-): IdentityMethod => {
-  if (source === 'bfarm' && /^[0-9a-f]{16}$/.test(sourceRecordId)) return 'url_hash_low_stability'
-  if (source === 'fda' && sourceRecordId.startsWith('maude-')) return 'generated_low_stability'
-  if (source === 'fda') return 'authority_reference'
-  return 'national_reference'
-}

@@ -8,11 +8,11 @@ import { canonicalJson, normalizedObservationHash, sha256Hex } from './hash'
 import { identityConfidence, normalizeManufacturerKey } from './identity'
 import { diffFields, revisionHash, shouldCreateAuthorityRevision } from './revision'
 import {
-  identityMethodBySourceRecord,
   normalizedObservationSchema,
   type NormalizedObservation,
   type SourceName,
 } from './types'
+import { identityMethodForSourceRecord } from './source-authority'
 
 type EvidenceClient = SupabaseClient<EvidenceDatabase>
 
@@ -99,7 +99,7 @@ async function storeAdapterEvidence(
     media_type: 'application/vnd.neuridion.adapter-output+json',
     byte_size: bytes.byteLength,
     artifact_kind: 'adapter_output',
-    contains_personal_data: PERSONAL_DATA_SOURCES.has(source as 'fda'),
+    contains_personal_data: PERSONAL_DATA_SOURCES.has(source),
   }).select('id').single()
 
   if (!error) return { id: data.id, contentHash }
@@ -175,7 +175,7 @@ async function recordItem(
     source,
     sourceRecordId: item.external_id,
     authorityRecordId,
-    identityMethod: identityMethodBySourceRecord(source, item.external_id),
+    identityMethod: identityMethodForSourceRecord(source, item.external_id),
     fscaReference: null,
     basicUdiDi: null,
     title: item.title,
