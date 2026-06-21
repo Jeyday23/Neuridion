@@ -31,6 +31,30 @@ describe('BfArM reviewed PMS golden set', () => {
     expect(parsed[0].href).toContain('__blob=publicationFile&v=1')
   })
 
+  it('separates BfArM download metadata from title/manufacturer and uses the notice date', () => {
+    const parsed = parsePage(`
+      <li class="l-teaser-list__item">
+        <h3 class="c-icon-teaser__headline">
+          Dringende Sicherheitsinformation zu ORBIS Medication von DH Healthcare GmbH
+          PDF, 687KB, Datei ist nicht barrierefrei Datum: 13. April 2026
+          Themen: Medizinprodukte Dokumenttyp: Kundeninformation
+        </h3>
+        <span class="c-icon-teaser__date">30. April 2026</span>
+        <span class="c-icon-teaser__reference">11546/26</span>
+        <a class="c-icon-teaser__link--download" href="/SharedDocs/Kundeninfos/DE/09/2026/11546-26_kundeninfo_de.pdf">PDF</a>
+      </li>
+    `)
+
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]).toMatchObject({
+      title: 'Dringende Sicherheitsinformation zu ORBIS Medication von DH Healthcare GmbH',
+      manufacturer: 'DH Healthcare GmbH',
+      productName: 'ORBIS Medication',
+      externalId: '11546-26',
+    })
+    expect(parsed[0].date?.toISOString().slice(0, 10)).toBe('2026-04-13')
+  })
+
   it('extracts and decodes the forward navigation href', () => {
     const html = `<li class="is-forward extra c-navindex__item"><a aria-label="Weiter" href="/search?gtp=469344_list%3D2&amp;foo=bar">Weiter</a></li>`
     expect(parseNextPageHref(html)).toBe('/search?gtp=469344_list%3D2&foo=bar')

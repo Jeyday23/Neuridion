@@ -138,6 +138,24 @@ function parseGermanDate(block: string): Date | null {
   return new Date(Date.UTC(parseInt(m[3], 10), month, parseInt(m[1], 10)))
 }
 
+function parseTeaserMetadataDate(title: string): Date | null {
+  const match = title.match(/\bDatum:\s*(\d{1,2})\.\s+([A-Za-zÄÖÜäöüß&;]+)\s+(\d{4})\b/i)
+  if (!match) return null
+  const monthName = match[2]
+    .replace(/&auml;/gi, 'ä')
+    .replace(/&ouml;/gi, 'ö')
+    .replace(/&uuml;/gi, 'ü')
+  const canonicalMonth = Object.keys(GERMAN_MONTHS).find(name => name.toLowerCase() === monthName.toLowerCase())
+  if (!canonicalMonth) return null
+  return new Date(Date.UTC(Number(match[3]), GERMAN_MONTHS[canonicalMonth], Number(match[1])))
+}
+
+function cleanTeaserTitle(title: string): string {
+  // BfArM places download metadata inside the headline container. It is not
+  // part of the notice title or manufacturer name.
+  return title.replace(/\s+PDF,\s*[\s\S]*$/i, '').trim()
+}
+
 function stripTags(html: string): string {
   return decodeHtml(html.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim()
 }
@@ -286,9 +304,12 @@ export function parsePage(html: string): ParsedItem[] {
       ?? decodeHtml(block.match(/href=["']([^"']*\/SharedDocs\/Kundeninfos[^"']+)["']/i)?.[1] ?? '')
     if (!href) continue
 
-    const title = elementTextByClass(block, 'c-icon-teaser__headline')
-    if (!title) continue
-    const date = parseGermanDate(block)
+    const rawTitle = elementTextByClass(block, 'c-icon-teaser__headline')
+    if (!rawTitle) continue
+    const title = cleanTeaserTitle(rawTitle)
+    // The explicit "Datum" attached to the notice is the customer-information
+    // date. The teaser date can instead be a page/update timestamp.
+    const date = parseTeaserMetadataDate(rawTitle) ?? parseGermanDate(block)
     const referenceText = elementTextByClass(block, 'c-icon-teaser__reference') ?? block
     const referenceMatch = stripTags(referenceText).match(/\b(\d{4,6})\s*\/\s*(\d{2})\b/)
       ?? href.match(/\/(\d{4,6})-(\d{2})_kundeninfo/i)

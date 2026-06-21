@@ -98,10 +98,15 @@ describeLive('FDA MAUDE live validation', () => {
 
     const result = await scrapeFdaMaude({ fromDate: fdaFrom, toDate: '2024-10-07' })
     console.log(`[FDA] Scraper total (${fdaFrom}–2024-10-07): ${result.items.length}`)
-    const captureRate = uniqueApiIds.size > 0 ? (result.items.length / uniqueApiIds.size * 100).toFixed(1) : 'N/A'
+    const scraperIds = new Set(result.items.map(item => item.external_id))
+    const missing = [...uniqueApiIds].filter(id => !scraperIds.has(id))
+    const unexpected = [...scraperIds].filter(id => !uniqueApiIds.has(id))
+    const captureRate = uniqueApiIds.size > 0 ? ((uniqueApiIds.size - missing.length) / uniqueApiIds.size * 100).toFixed(1) : 'N/A'
     console.log(`[FDA] Unique-record capture rate: ${captureRate}% (interactive cap)`)
+    console.log(`[FDA] Identity mismatch: missing=${missing.length}, unexpected=${unexpected.length}`)
 
-    expect(result.items.length).toBe(uniqueApiIds.size)
+    expect(missing).toEqual([])
+    expect(unexpected).toEqual([])
     expect(result.outcome).toBe(apiTotal > 500 ? 'partial' : 'complete')
   }, 120_000)
 
@@ -134,17 +139,66 @@ describeLive('MHRA live validation', () => {
     }
   }, 180_000)
 
-  it('direct API comparison: filter_format total vs scraper', async () => {
-    const apiRes = await fetch('https://www.gov.uk/api/search.json?filter_format=medical_safety_alert&count=100&order=-public_timestamp&fields[]=alert_type')
-      .then(r => r.json()).catch(() => null) as { results?: { alert_type?: string[] }[], total?: number } | null
-    const total = apiRes?.total ?? 0
-    const deviceItems = (apiRes?.results ?? []).filter(r =>
-      (r.alert_type ?? []).some(t => t === 'field-safety-notices' || t === 'device-safety-information')
-    )
-    console.log(`[MHRA] API total (all alerts): ${total}`)
-    console.log(`[MHRA] API device FSNs in first 100: ${deviceItems.length} of 100`)
-    expect(total).toBeGreaterThan(0)
-  }, 30_000)
+  it('covers direct device listings and roundup references returned by GOV.UK', async () => {
+    const d14 = new Date(now); d14.setDate(d14.getDate() - 14)
+    const from = fmt(d14)
+    const expectedUrls = new Set<string>()
+    const roundupPaths = new Set<string>()
+    let start = 0
+
+    while (true) {
+      const url = new URL('https://www.gov.uk/api/search.json')
+      url.searchParams.set('filter_format', 'medical_safety_alert')
+      url.searchParams.set('count', '100')
+      url.searchParams.set('start', String(start))
+      url.searchParams.set('order', '-public_timestamp')
+      for (const field of ['title', 'link', 'public_timestamp', 'alert_type']) url.searchParams.append('fields[]', field)
+      const page = await fetch(url).then(r => r.json()) as {
+        results?: Array<{ title?: string; link?: string; public_timestamp?: string; alert_type?: string[] }>
+        total?: number
+      }
+      const rows = page.results ?? []
+      let reachedBoundary = false
+      for (const row of rows) {
+        const date = row.public_timestamp?.slice(0, 10)
+        if (date && date < from) { reachedBoundary = true; continue }
+        if (!date || date > fmt(now)) continue
+        const isDevice = (row.alert_type ?? []).some(type => type === 'field-safety-notices' || type === 'device-safety-information')
+        const isRoundup = /field safety notices/i.test(row.title ?? '')
+        if (isDevice && isRoundup && row.link) roundupPaths.add(row.link)
+        if (isDevice && !isRoundup && row.link) expectedUrls.add(`https://www.gov.uk${row.link}`)
+      }
+      start += rows.length
+      if (reachedBoundary || rows.length === 0 || start >= (page.total ?? 0)) break
+    }
+
+    const expectedRoundupIds = new Set<string>()
+    for (const path of roundupPaths) {
+      const detail = await fetch(`https://www.gov.uk/api/content${path}`).then(r => r.json()) as { details?: { body?: string } }
+      const sections = (detail.details?.body ?? '').split(/<h3[^>]*>/i).slice(1)
+      for (const section of sections) {
+        const firstParagraphs = (section.match(/<p[^>]*>[\s\S]*?<\/p>/gi) ?? []).slice(0, 3).join(' ')
+        const plainText = firstParagraphs.replace(/<[^>]+>/g, ' ')
+        const dateMatch = plainText.match(/\b(\d{1,2}\s+[A-Za-z]+\s+\d{4})\b/)
+        const formalRef = section.match(/\b20\d{2}\/\d{3}\/\d{3}\/\d{3}\/\d{3}\b/)?.[0]
+        const numericRef = section.match(/MHRA reference:[\s\S]*?(\d{7,10})/i)?.[1]
+        if (!dateMatch || (!formalRef && !numericRef)) continue
+        const date = new Date(`${dateMatch[1]} UTC`).toISOString().slice(0, 10)
+        if (date >= from && date <= fmt(now)) expectedRoundupIds.add(`mhra-ref-${formalRef ?? numericRef}`)
+      }
+    }
+
+    const result = await scrapeMhra({ fromDate: from, toDate: fmt(now) })
+    const actualUrls = new Set(result.items.map(item => item.source_url))
+    const actualIds = new Set(result.items.map(item => item.external_id))
+    const missingUrls = [...expectedUrls].filter(url => !actualUrls.has(url))
+    const missingRoundupIds = [...expectedRoundupIds].filter(id => !actualIds.has(id))
+    console.log(`[MHRA] Direct listings=${expectedUrls.size}; roundup references=${expectedRoundupIds.size}; missing=${missingUrls.length + missingRoundupIds.length}`)
+    expect(expectedUrls.size + expectedRoundupIds.size).toBeGreaterThan(0)
+    expect(result.outcome).toBe('complete')
+    expect(missingUrls).toEqual([])
+    expect(missingRoundupIds).toEqual([])
+  }, 180_000)
 })
 
 describeLive('Swissmedic live validation', () => {
@@ -160,25 +214,32 @@ describeLive('Swissmedic live validation', () => {
     }
   }, 120_000)
 
-  it('direct API comparison: size=100 vs default', async () => {
+  it('matches every direct API identity for the requested window', async () => {
     const body = JSON.stringify({ fromDate: fmt(d30), toDate: fmt(now) })
     const headers = { 'Content-Type': 'application/json', 'Accept': 'application/json' }
 
-    const [withSize, withoutSize] = await Promise.all([
-      fetch('https://fsca.swissmedic.ch/mep/api/publications/search?pageNumber=0&sortingProperty=PUBLICATION_DATE&direction=DESC&size=100', { method: 'POST', headers, body }).then(r => r.json()).catch(() => null),
-      fetch('https://fsca.swissmedic.ch/mep/api/publications/search?pageNumber=0&sortingProperty=PUBLICATION_DATE&direction=DESC', { method: 'POST', headers, body }).then(r => r.json()).catch(() => null),
-    ]) as [{ content?: unknown[], totalPages?: number } | null, { content?: unknown[], totalPages?: number } | null]
+    const expectedIds = new Set<string>()
+    let pageNumber = 0
+    let totalPages = 1
+    do {
+      const page = await fetch(`https://fsca.swissmedic.ch/mep/api/publications/search?pageNumber=${pageNumber}&sortingProperty=PUBLICATION_DATE&direction=DESC&size=100`, { method: 'POST', headers, body })
+        .then(r => r.json()) as { content?: Array<{ swissmedicRef?: string; publikationsDatum?: string; statusDatum?: string }>; totalPages?: number }
+      totalPages = page.totalPages ?? 1
+      for (const publication of page.content ?? []) {
+        const date = publication.publikationsDatum ?? publication.statusDatum
+        if (publication.swissmedicRef && date && date >= fmt(d30) && date <= fmt(now)) expectedIds.add(publication.swissmedicRef.trim())
+      }
+      pageNumber++
+    } while (pageNumber < totalPages)
 
-    const sizeItems  = withSize?.content?.length ?? 0
-    const sizePages  = withSize?.totalPages ?? 0
-    const defItems   = withoutSize?.content?.length ?? 0
-    const defPages   = withoutSize?.totalPages ?? 0
-
-    console.log(`[Swissmedic] With size=100: ${sizeItems} items/page, ${sizePages} pages`)
-    console.log(`[Swissmedic] Default:       ${defItems} items/page, ${defPages} pages`)
-    console.log(`[Swissmedic] size=100 effective: ${sizeItems > defItems || (sizeItems === defItems && sizePages <= defPages) ? 'YES' : 'NO (same count — may be fewer than default page size)'}`)
-
-    expect(sizeItems).toBeGreaterThanOrEqual(defItems)
+    const result = await scrapeSwissmedic({ fromDate: fmt(d30), toDate: fmt(now) })
+    const actualIds = new Set(result.items.map(item => item.external_id))
+    const missing = [...expectedIds].filter(id => !actualIds.has(id))
+    const unexpected = [...actualIds].filter(id => !expectedIds.has(id))
+    console.log(`[Swissmedic] Direct identities=${expectedIds.size}; scraper=${actualIds.size}; missing=${missing.length}; unexpected=${unexpected.length}`)
+    expect(result.outcome).toBe('complete')
+    expect(missing).toEqual([])
+    expect(unexpected).toEqual([])
   }, 30_000)
 
   it('180-day window with no duplicates', async () => {
