@@ -45,6 +45,24 @@ openssl rand -hex 32
 
 ## Pre-Deploy Verification
 
+### Apply database migrations
+
+Run the GitHub Actions workflow `Production Database Migrations` manually from
+`main` with confirmation `APPLY_PRODUCTION_MIGRATIONS`. The workflow is bound to
+the `production` GitHub Environment and requires:
+
+- Repository variable: `SUPABASE_PROJECT_REF`
+- Environment secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`
+
+It lists remote migration state, performs `supabase db push --dry-run`, applies
+pending migrations, and lists the final state. Do not apply production schema
+changes directly in the Supabase SQL editor; that bypasses migration history.
+
+For the current evidence rollout, confirm migrations `068` and `069` are shown
+as applied before deploying the application.
+
+### Verify application integrations
+
 Run with production env loaded:
 
 ```bash
