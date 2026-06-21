@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { extractManufacturerTerms, buildManufacturerSearchTerms, extractCompetitorTokens } from '../lib/search/manufacturer-terms'
+import { extractManufacturerTerms, extractDeviceTerms, buildManufacturerSearchTerms, extractCompetitorTokens } from '../lib/search/manufacturer-terms'
 
 describe('extractManufacturerTerms', () => {
   // Examples from spec
@@ -26,6 +26,9 @@ describe('extractManufacturerTerms', () => {
   })
   it('"Acme Medical GmbH" → ["acme"] (medical is generic)', () => {
     expect(extractManufacturerTerms('Acme Medical GmbH')).toEqual(['acme'])
+  })
+  it('"COPRA System GmbH" → ["copra"] (system is generic)', () => {
+    expect(extractManufacturerTerms('COPRA System GmbH')).toEqual(['copra'])
   })
 
   // Edge cases
@@ -61,6 +64,16 @@ describe('extractManufacturerTerms', () => {
   })
   it('2-char non-distinctive tokens are filtered', () => {
     expect(extractManufacturerTerms('AB Medical GmbH')).toEqual([])
+  })
+})
+
+describe('extractDeviceTerms', () => {
+  it('derives a stable product-family alias from a trailing model digit', () => {
+    expect(extractDeviceTerms('COPRA6')).toEqual(['copra6', 'copra'])
+  })
+
+  it('does not turn generic model names into device aliases', () => {
+    expect(extractDeviceTerms('System6')).toEqual([])
   })
 })
 

@@ -1,136 +1,48 @@
-import { describe, it, expect } from 'vitest'
-import { buildManufacturerSearchTerms, extractManufacturerTerms } from '../manufacturer-terms'
+import { describe, expect, it } from 'vitest'
+import { auditKeywordRelevance } from '@/lib/pipeline/stages/scrape'
+import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
 
-// Mirrors the pre-filter logic in app/api/search-runs/route.ts Step 3 FIX 2.
-// Keep in sync if the route logic changes.
-function applyPreFilter(
-  profile: { manufacturer: string; device_name: string },
-  rows: Array<{ title: string; manufacturer: string; raw_content: string }>,
-): { passed: typeof rows; excluded: typeof rows } {
-  const filterSearchTerms = buildManufacturerSearchTerms(profile.manufacturer, profile.device_name)
-  const manufacturerTerms = extractManufacturerTerms(profile.manufacturer)
-  const deviceTerms       = filterSearchTerms.filter(t => !manufacturerTerms.includes(t))
-
-  if (filterSearchTerms.length === 0) {
-    return { passed: rows, excluded: [] }
+function notice(overrides: Partial<ScrapedFsn> & { external_id: string; title: string }): ScrapedFsn {
+  return {
+    manufacturer: null,
+    product_name: null,
+    fsn_date: null,
+    source_url: 'https://example.test/notice',
+    raw_content: '',
+    source_db: 'mhra',
+    ...overrides,
   }
-
-  const passed:   typeof rows = []
-  const excluded: typeof rows = []
-
-  for (const row of rows) {
-    const hay = `${row.title} ${row.manufacturer} ${row.raw_content}`.toLowerCase()
-
-    let matches: boolean
-    if (deviceTerms.length === 0) {
-      matches = manufacturerTerms.some(t => hay.includes(t.toLowerCase()))
-    } else {
-      const mfrMatch = manufacturerTerms.length === 0 || manufacturerTerms.some(t => hay.includes(t.toLowerCase()))
-      const devMatch = deviceTerms.some(t => hay.includes(t.toLowerCase()))
-      matches = mfrMatch && devMatch
-    }
-
-    if (matches) {
-      passed.push(row)
-    } else {
-      excluded.push(row)
-    }
-  }
-
-  return { passed, excluded }
 }
 
-const MICRA_PROFILE = { manufacturer: 'Medtronic', device_name: 'Micra AV' }
+describe('production keyword pre-filter', () => {
+  it('retains a COPRA company-level notice for a COPRA6 profile', () => {
+    const result = auditKeywordRelevance(
+      [notice({
+        external_id: 'copra-notice',
+        title: 'Field safety notice for COPRA patient data management software',
+        manufacturer: 'COPRA System GmbH',
+      })],
+      { manufacturer: 'COPRA System GmbH', device_name: 'COPRA6' },
+      [],
+    )
 
-describe('pre-filter: Micra AV / Medtronic profile', () => {
-  it('buildManufacturerSearchTerms produces expected terms', () => {
-    expect(buildManufacturerSearchTerms('Medtronic', 'Micra AV')).toEqual(['medtronic', 'micra'])
+    expect(result.terms.manufacturer).toEqual(['copra'])
+    expect(result.terms.device).toEqual(['copra6', 'copra'])
+    expect(result.items.map((item) => item.external_id)).toEqual(['copra-notice'])
+    expect(result.counts.deviceMatches).toBe(1)
   })
 
-  it('manufacturerTerms = ["medtronic"], deviceTerms = ["micra"]', () => {
-    const mfrTerms = extractManufacturerTerms('Medtronic')
-    const allTerms = buildManufacturerSearchTerms('Medtronic', 'Micra AV')
-    const devTerms = allTerms.filter(t => !mfrTerms.includes(t))
-    expect(mfrTerms).toEqual(['medtronic'])
-    expect(devTerms).toEqual(['micra'])
-  })
+  it('still rejects unrelated products from the same manufacturer', () => {
+    const result = auditKeywordRelevance(
+      [
+        notice({ external_id: 'micra', title: 'Micra AV safety notice', manufacturer: 'Medtronic' }),
+        notice({ external_id: 'minimed', title: 'MiniMed insulin pump notice', manufacturer: 'Medtronic' }),
+      ],
+      { manufacturer: 'Medtronic', device_name: 'Micra AV' },
+      [],
+    )
 
-  it('scenario 1: manufacturer=Medtronic title="Micra AV recall" → PASS (both match)', () => {
-    const { passed, excluded } = applyPreFilter(MICRA_PROFILE, [
-      { title: 'Micra AV recall', manufacturer: 'Medtronic', raw_content: '' },
-    ])
-    expect(passed).toHaveLength(1)
-    expect(excluded).toHaveLength(0)
-  })
-
-  it('scenario 2: manufacturer=Medtronic title="Insulin pump recall" → FAIL (mfr matches, device does not)', () => {
-    const { passed, excluded } = applyPreFilter(MICRA_PROFILE, [
-      { title: 'Insulin pump recall', manufacturer: 'Medtronic', raw_content: '' },
-    ])
-    expect(passed).toHaveLength(0)
-    expect(excluded).toHaveLength(1)
-  })
-
-  it('scenario 3: manufacturer=Roche title="Micra AV something" → FAIL (device matches, mfr does not)', () => {
-    const { passed, excluded } = applyPreFilter(MICRA_PROFILE, [
-      { title: 'Micra AV something', manufacturer: 'Roche', raw_content: '' },
-    ])
-    expect(passed).toHaveLength(0)
-    expect(excluded).toHaveLength(1)
-  })
-
-  it('scenario 4: manufacturer=Roche title="Blood glucose monitor" → FAIL (neither matches)', () => {
-    const { passed, excluded } = applyPreFilter(MICRA_PROFILE, [
-      { title: 'Blood glucose monitor', manufacturer: 'Roche', raw_content: '' },
-    ])
-    expect(passed).toHaveLength(0)
-    expect(excluded).toHaveLength(1)
-  })
-
-  it('device term in raw_content (not title) still passes', () => {
-    const { passed } = applyPreFilter(MICRA_PROFILE, [
-      { title: 'Cardiac device issue', manufacturer: 'Medtronic', raw_content: 'This concerns the Micra AV leadless pacemaker.' },
-    ])
-    expect(passed).toHaveLength(1)
-  })
-})
-
-describe('pre-filter: fallback when no device terms extractable', () => {
-  // "Pump" is 4 chars — fails the length > 4 filter — so deviceTerms = []
-  const PUMP_PROFILE = { manufacturer: 'Medtronic', device_name: 'Pump' }
-
-  it('buildManufacturerSearchTerms with short device name returns only mfr terms', () => {
-    expect(buildManufacturerSearchTerms('Medtronic', 'Pump')).toEqual(['medtronic'])
-  })
-
-  it('scenario 5: falls back to manufacturer-only match — Medtronic row PASSES', () => {
-    const { passed, excluded } = applyPreFilter(PUMP_PROFILE, [
-      { title: 'Pump malfunction report', manufacturer: 'Medtronic', raw_content: '' },
-    ])
-    expect(passed).toHaveLength(1)
-    expect(excluded).toHaveLength(0)
-  })
-
-  it('scenario 5: Roche row FAILS even in fallback mode', () => {
-    const { passed, excluded } = applyPreFilter(PUMP_PROFILE, [
-      { title: 'Pump malfunction report', manufacturer: 'Roche', raw_content: '' },
-    ])
-    expect(passed).toHaveLength(0)
-    expect(excluded).toHaveLength(1)
-  })
-})
-
-describe('pre-filter: mixed batch', () => {
-  it('correctly splits a batch of 4 rows into 1 passed and 3 excluded', () => {
-    const rows = [
-      { title: 'Micra AV recall',        manufacturer: 'Medtronic', raw_content: '' }, // PASS
-      { title: 'Insulin pump recall',     manufacturer: 'Medtronic', raw_content: '' }, // FAIL
-      { title: 'Micra AV something',      manufacturer: 'Roche',     raw_content: '' }, // FAIL
-      { title: 'Blood glucose monitor',   manufacturer: 'Roche',     raw_content: '' }, // FAIL
-    ]
-    const { passed, excluded } = applyPreFilter(MICRA_PROFILE, rows)
-    expect(passed).toHaveLength(1)
-    expect(excluded).toHaveLength(3)
-    expect(passed[0].title).toBe('Micra AV recall')
+    expect(result.items.map((item) => item.external_id)).toEqual(['micra'])
+    expect(result.counts.manufacturerOnlyRejected).toBe(1)
   })
 })

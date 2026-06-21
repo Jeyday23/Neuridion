@@ -2,7 +2,7 @@ import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
 import { getProductionScraper } from '@/lib/scrapers/registry'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
-import { extractManufacturerTerms, buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
+import { extractManufacturerTerms, extractDeviceTerms } from '@/lib/search/manufacturer-terms'
 import { insertResultsStage } from './insert-results'
 import type { PipelineContext, ProgressUpdate } from '../types'
 import {
@@ -136,8 +136,7 @@ export function auditKeywordRelevance(
   competitorTerms: string[],
 ): KeywordFilterAudit {
   const mfrTerms = extractManufacturerTerms(profile.manufacturer)
-  const allTerms = buildManufacturerSearchTerms(profile.manufacturer, profile.device_name)
-  const devTerms = allTerms.filter(t => !mfrTerms.includes(t))
+  const devTerms = extractDeviceTerms(profile.device_name)
   const domainTerms = buildDomainTerms(profile)
   const counts = {
     total: items.length,

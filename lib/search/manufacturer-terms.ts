@@ -8,7 +8,7 @@ const LEGAL_SUFFIXES = new Set([
 const SHORT_BUT_DISTINCTIVE = new Set(['3m', 'ge', 'bd', 'hp', 'lg'])
 
 const GENERIC_MFR_WORDS = new Set([
-  'medical', 'healthcare', 'health', 'care', 'systems', 'technologies', 'technology',
+  'medical', 'healthcare', 'health', 'care', 'system', 'systems', 'technologies', 'technology',
   'solutions', 'international', 'global', 'corporation', 'industries',
   'instruments', 'devices', 'products', 'services', 'group', 'company',
 ])
@@ -60,7 +60,19 @@ export function buildManufacturerSearchTerms(
 
   if (!deviceName?.trim()) return mfrTerms
 
-  const deviceTokens = deviceName
+  const deviceTokens = extractDeviceTerms(deviceName)
+
+  const extras = deviceTokens
+    .filter(t => !mfrTerms.includes(t))
+    .slice(0, 2)
+  if (extras.length > 0) return [...new Set([...mfrTerms, ...extras])]
+  return mfrTerms
+}
+
+export function extractDeviceTerms(deviceName: string): string[] {
+  if (!deviceName.trim()) return []
+
+  const tokens = deviceName
     // Keep ASCII hyphen so "Accu-Chek" stays as one token; normalise everything else
     .replace(/[^\p{L}\p{N}\s\-]/gu, ' ')
     .replace(/\s+/g, ' ')
@@ -68,17 +80,23 @@ export function buildManufacturerSearchTerms(
     .split(/\s+/)
     .filter(Boolean)
     .map(t => t.toLowerCase())
-    .filter(t =>
-      (t.length > 4 || (t.length >= 3 && /\d/.test(t) && /[a-zA-Z]/.test(t))) &&
-      !LEGAL_SUFFIXES.has(t) &&
-      !GENERIC_DEVICE_WORDS.has(t),
-    )
+  const terms = new Set<string>()
+  for (const token of tokens) {
+    const family = token.match(/^([\p{L}][\p{L}-]{4,})\d+$/u)?.[1]
+    const genericFamily = family != null && GENERIC_DEVICE_WORDS.has(family)
+    const usable =
+      (token.length > 4 || (token.length >= 3 && /\d/.test(token) && /[a-zA-Z]/.test(token))) &&
+      !LEGAL_SUFFIXES.has(token) &&
+      !GENERIC_DEVICE_WORDS.has(token) &&
+      !genericFamily
 
-  const extras = deviceTokens
-    .filter(t => !mfrTerms.includes(t))
-    .slice(0, 2)
-  if (extras.length > 0) return [...new Set([...mfrTerms, ...extras])]
-  return mfrTerms
+    if (!usable) continue
+    terms.add(token)
+    if (family) terms.add(family)
+    if (terms.size >= 2) break
+  }
+
+  return [...terms].slice(0, 2)
 }
 
 const MAX_TOKENS_PER_ENTRY = 3
