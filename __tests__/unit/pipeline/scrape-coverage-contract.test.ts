@@ -96,6 +96,25 @@ describe('scrape coverage completeness contract', () => {
     expect(mergeCoverage).not.toHaveBeenCalled()
   })
 
+  it('distinguishes the requested window from fresh source ranges in logs', async () => {
+    nextResult = { items: [], warnings: [], outcome: 'empty' }
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
+
+    try {
+      await scrapeStage(context())
+
+      expect(log).toHaveBeenCalledWith(expect.stringContaining(
+        '[scrape] fda fresh range 2026-06-01..2026-06-01:',
+      ))
+      expect(log).toHaveBeenCalledWith(expect.stringContaining(
+        'source summary: requested=2026-06-01..2026-06-01',
+      ))
+    } finally {
+      log.mockRestore()
+    }
+  })
+
   it('does not certify a profile-specific FDA range even when the result is empty', async () => {
     nextResult = { items: [], warnings: [], outcome: 'empty' }
     const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')

@@ -281,7 +281,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       fetchedItemCount += result.items.length
       sourceOutcomes.push(`${range.from}..${range.to}:${result.outcome}`)
       console.error(
-        `[scrape] ${sourceId} range ${range.from}..${range.to}: ` +
+        `[scrape] ${sourceId} fresh range ${range.from}..${range.to}: ` +
         `outcome=${result.outcome} raw=${result.items.length} warnings=${result.warnings.length}`,
       )
       items.push(...result.items)
@@ -370,9 +370,10 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     const filterAudit = auditKeywordRelevance(deduped, profile, competitorTerms)
     const filtered = filterAudit.items
     console.error(
-      `[scrape] ${sourceId} source summary: fetched=${fetchedItemCount} cached=${cachedItemCount} ` +
+      `[scrape] ${sourceId} source summary: requested=${period_from}..${period_to} ` +
+      `fetched=${fetchedItemCount} cached=${cachedItemCount} ` +
       `deduped=${deduped.length} kept=${filtered.length} warnings=${warnings.length} ` +
-      `outcomes=${sourceOutcomes.join(',') || 'cache-only'}`,
+      `fresh_outcomes=${sourceOutcomes.join(',') || 'cache-only'}`,
     )
     if (filtered.length < deduped.length) {
       console.error(`[scrape] ${sourceId} keyword filter: ${deduped.length} → ${filtered.length} items`)
