@@ -39,13 +39,24 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: 2.75.0
+          version: 2.107.0
 
       - name: Link production project
         run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
       - name: Show migration state before apply
         run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Capture remote public schema for drift analysis
+        run: supabase db dump --linked --password "$SUPABASE_DB_PASSWORD" --schema public --file remote-public-schema.sql
+
+      - name: Upload remote schema snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-public-schema-${{ github.run_id }}
+          path: remote-public-schema.sql
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Dry run pending migrations
         run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --dry-run
