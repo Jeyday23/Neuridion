@@ -12,7 +12,8 @@
     "verify:integrations": "tsx scripts/verify-integrations.ts",
     "verify:release": "tsx scripts/verify-release.ts",
     "benchmark:accuracy": "tsx benchmark/cli.ts",
-    "benchmark:live": "tsx benchmark/cli.ts --live"
+    "benchmark:live": "tsx benchmark/cli.ts --live",
+    "benchmark:reviewed-pms": "tsx benchmark/reviewed-pms.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.95.1",

@@ -39,6 +39,10 @@ function saveFixture(profileSlug: string, source: string, items: ScrapedFsn[]): 
   writeFileSync(fixturePath(profileSlug, source), JSON.stringify(items, null, 2))
 }
 
+export function isCertifiableFixture(result: ScraperResult): boolean {
+  return result.outcome === 'complete' || result.outcome === 'empty'
+}
+
 export class MissingFixtureError extends Error {
   constructor(profileSlug: string, source: string) {
     super(
@@ -80,6 +84,13 @@ async function scrapeSource(
       profile:     { manufacturer: profile.manufacturer, device_name: profile.device_name },
     })
 
+    if (!isCertifiableFixture(result)) {
+      throw new Error(
+        `${source} returned ${result.outcome} coverage; existing fixtures were preserved and no accuracy score was produced. ` +
+        `${result.warnings.join(' | ') || 'Source completeness could not be certified.'}`,
+      )
+    }
+
     saveFixture(profile.slug, source, result.items)
     console.error(`  [${source}] Saved fixture: ${fixtureKey(profile.slug, source)}`)
 
@@ -87,7 +98,7 @@ async function scrapeSource(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`  [${source}] Scrape failed: ${msg}`)
-    return { source, items: [], warnings: [`${source} failed: ${msg}`], duration_ms: Date.now() - start }
+    throw new Error(`${source} benchmark failed: ${msg}`)
   }
 }
 

@@ -59,7 +59,6 @@ describeLive('BfArM live validation', () => {
 })
 
 describeLive('FDA MAUDE live validation', () => {
-  // openFDA device/event data lags 2-6 months behind real-time.
   // Use a known historical window where data definitely exists.
   const fdaFrom = '2024-10-01'
   const fdaTo   = '2024-12-31'
@@ -82,27 +81,36 @@ describeLive('FDA MAUDE live validation', () => {
     }
   }, 120_000)
 
-  it('direct API total matches scraper (historical 7-day window)', async () => {
+  it('matches the direct API unique records within the interactive cap', async () => {
     const from8 = fdaFrom.replace(/-/g, '').slice(0, 8)
     const to7   = '20241007'
-    const apiUrl = `https://api.fda.gov/device/event.json?search=date_received:[${from8}+TO+${to7}]&limit=1`
-    const apiRes = await fetch(apiUrl).then(r => r.json()).catch(() => null) as { meta?: { results?: { total?: number } } } | null
+    const apiKey = process.env.OPENFDA_API_KEY
+    const apiUrl = `https://api.fda.gov/device/event.json?search=date_received:[${from8}+TO+${to7}]&limit=500${apiKey ? `&api_key=${encodeURIComponent(apiKey)}` : ''}`
+    const apiRes = await fetch(apiUrl).then(r => r.json()).catch(() => null) as {
+      meta?: { results?: { total?: number } }
+      results?: Array<{ report_number?: string; mdr_report_key?: string }>
+    } | null
     const apiTotal = apiRes?.meta?.results?.total ?? 0
+    const uniqueApiIds = new Set((apiRes?.results ?? []).map(record =>
+      record.report_number || (record.mdr_report_key ? `maude-${record.mdr_report_key}` : ''),
+    ).filter(Boolean))
     console.log(`[FDA] Direct API total (${fdaFrom}–2024-10-07): ${apiTotal}`)
 
     const result = await scrapeFdaMaude({ fromDate: fdaFrom, toDate: '2024-10-07' })
     console.log(`[FDA] Scraper total (${fdaFrom}–2024-10-07): ${result.items.length}`)
-    const captureRate = apiTotal > 0 ? (result.items.length / Math.min(apiTotal, 500) * 100).toFixed(1) : 'N/A'
-    console.log(`[FDA] Capture rate: ${captureRate}% (capped at 500)`)
+    const captureRate = uniqueApiIds.size > 0 ? (result.items.length / uniqueApiIds.size * 100).toFixed(1) : 'N/A'
+    console.log(`[FDA] Unique-record capture rate: ${captureRate}% (interactive cap)`)
 
-    expect(result.items.length).toBeGreaterThan(0)
+    expect(result.items.length).toBe(uniqueApiIds.size)
+    expect(result.outcome).toBe(apiTotal > 500 ? 'partial' : 'complete')
   }, 120_000)
 
-  it('recent date range returns 0 gracefully (data lag)', async () => {
+  it('reports recent-window completeness explicitly', async () => {
     const result = await scrapeFdaMaude({ fromDate: fmt(d30), toDate: fmt(now) })
-    console.log(`[FDA] Recent 30d: ${result.items.length} items (0 expected due to FDA data lag)`)
+    console.log(`[FDA] Recent 30d: ${result.items.length} items | outcome=${result.outcome}`)
     expect(result.items.length).toBeGreaterThanOrEqual(0)
-    expect(result.warnings.length).toBeGreaterThanOrEqual(0)
+    if (result.warnings.length > 0) expect(result.outcome).toBe('partial')
+    else expect(['complete', 'empty']).toContain(result.outcome)
   }, 30_000)
 })
 

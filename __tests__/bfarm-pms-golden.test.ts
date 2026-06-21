@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import golden from './fixtures/bfarm-pms-2026.json'
-import { parseNextPageHref, parsePage, scrapeBfArM } from '@/lib/scrapers/bfarm'
+import { parseNextPageHref, parsePage, scrapeBfArM, scrapeBfarm } from '@/lib/scrapers/bfarm'
 
 function teaser(record: (typeof golden)[number]): string {
   const [year, month, day] = record.date.split('-')
@@ -50,5 +50,57 @@ describe('BfArM reviewed PMS golden set', () => {
     })
 
     expect(result.items).toEqual([])
+  })
+
+  it('combines targeted discovery with archive discovery for long profile windows', async () => {
+    const copra = golden.find(record => record.reference === '14727/26')!
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      const html = url.includes('templateQueryString=COPRA6')
+        ? `<ul>${teaser(copra)}</ul>`
+        : '<ul></ul>'
+      return new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await scrapeBfarm({
+      fromDate: '2026-01-01',
+      toDate: '2026-12-31',
+      profile: { manufacturer: 'COPRA System GmbH', device_name: 'COPRA6' },
+      searchTerms: ['copra', 'copra6'],
+    })
+
+    expect(result.items.map(item => item.external_id)).toContain('14727-26')
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('dateOfIssue_dt=current_year'))).toBe(true)
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('templateQueryString=COPRA6'))).toBe(true)
+  })
+
+  it('uses exact-date discovery for medium profile windows', async () => {
+    const copra = golden.find(record => record.reference === '14727/26')!
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input)
+      const html = url.includes('templateQueryString=COPRA6')
+        ? `<ul>${teaser(copra)}</ul>`
+        : '<ul></ul>'
+      return new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await scrapeBfarm({
+      fromDate: '2026-01-01',
+      toDate: '2026-04-30',
+      profile: { manufacturer: 'COPRA System GmbH', device_name: 'COPRA6' },
+      searchTerms: ['copra', 'copra6'],
+    })
+
+    expect(result.items.map(item => item.external_id)).toContain('14727-26')
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('dateOfIssue_dt='))).toBe(false)
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('input_Datum_VON=01.01.2026'))).toBe(true)
   })
 })

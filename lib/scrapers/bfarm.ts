@@ -185,7 +185,10 @@ function absoluteBfarmUrl(href: string): string {
 
 function getBfarmPrimaryTimeoutMs(): number {
   const raw = Number(process.env.BFARM_PRIMARY_TIMEOUT_MS)
-  return Number.isFinite(raw) && raw > 0 ? raw : 30_000
+  // Long-window archive discovery regularly needs more than 30 seconds, while
+  // the source still owns a bounded 170-second end-to-end budget. Keep enough
+  // time for fallback without aborting a healthy official-source response.
+  return Number.isFinite(raw) && raw > 0 ? raw : 90_000
 }
 
 function getBfarmSourceBudgetMs(): number {
@@ -566,17 +569,23 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
   const primaryStart = Date.now()
   try {
     primary = await withPrimaryBudget(async (signal) => {
-      if (total > 90) return scrapeBfarmYearShortcuts(params, signal)
-
       const targetedQuery = params.profile?.device_name?.trim()
         || params.profile?.manufacturer?.trim()
         || ''
-      if (!targetedQuery) return scrapeBfArM({ fromDate: from, toDate: to, signal })
+      // Exact date-filtered discovery is materially faster for medium review
+      // windows and preserves the authority's current record dates. Reserve
+      // year shortcuts for genuinely long searches.
+      const broadDiscovery = total > 180
+        ? scrapeBfarmYearShortcuts(params, signal)
+        : scrapeBfArM({ fromDate: from, toDate: to, signal })
+      if (!targetedQuery) return broadDiscovery
 
       // Broad discovery protects recall; the targeted query protects against
-      // category/indexing gaps. Neither is trusted for date accuracy.
+      // category/indexing gaps, including long-window archive searches where
+      // the year shortcut can omit product-family notices. Neither is trusted
+      // for date accuracy; both paths re-apply the requested range locally.
       const searches = await Promise.allSettled([
-        scrapeBfArM({ fromDate: from, toDate: to, signal }),
+        broadDiscovery,
         scrapeBfArM({ fromDate: from, toDate: to, signal, query: targetedQuery }),
       ])
       const successful = searches
