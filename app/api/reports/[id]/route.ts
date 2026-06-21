@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { isReportApproved } from '@/lib/reports/review-gate'
 import { z } from 'zod'
 
 export async function GET(
@@ -25,13 +26,32 @@ export async function GET(
 
   const { data: report, error } = await supabase
     .from('reports')
-    .select('pdf_storage_path, excel_storage_path')
+    .select('run_id, pdf_storage_path, excel_storage_path')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
 
   if (error || !report) {
     return Response.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const { data: run, error: runError } = await supabase
+    .from('search_runs')
+    .select('review_status')
+    .eq('id', report.run_id)
+    .eq('user_id', user.id)
+    .is('deleted_at', null)
+    .single()
+
+  if (runError || !run) {
+    return Response.json({ error: 'Run not found' }, { status: 404 })
+  }
+
+  if (!isReportApproved(run.review_status)) {
+    return Response.json(
+      { error: 'This search must be reviewed and approved before downloading a report.' },
+      { status: 422 },
+    )
   }
 
   const [pdfSigned, excelSigned] = await Promise.all([

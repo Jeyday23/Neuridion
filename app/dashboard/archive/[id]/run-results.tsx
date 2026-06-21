@@ -9,6 +9,7 @@ import { useToast } from '@/app/components/ui/ToastProvider'
 import { messageFromError } from '@/lib/ui/api-error-message'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
 import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
+import { isReportApproved } from '@/lib/reports/review-gate'
 
 export interface FsnResult {
   id: string
@@ -365,7 +366,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         </div>
       )}
 
-      {reviewStatus !== 'draft' && !reportGenerated && (runStatus === 'complete' || runStatus === 'degraded') && (
+      {isReportApproved(reviewStatus) && !reportGenerated && (runStatus === 'complete' || runStatus === 'degraded') && (
         <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 flex items-center gap-3 text-sm">
           <span className="text-violet-700 flex-1">
             Results approved — you can now generate your compliance report.
@@ -381,7 +382,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         </div>
       )}
 
-      {reportGenerated && (
+      {reportGenerated && isReportApproved(reviewStatus) && (
         <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-3 text-sm">
           <span className="text-green-700 flex-1">
             Report generated. Download it from the archive.

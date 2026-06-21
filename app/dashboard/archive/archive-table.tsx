@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { DownloadButton, GenerateReportButton, CancelRunButton, DeleteRunButton } from './archive-actions'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
+import { isReportApproved } from '@/lib/reports/review-gate'
 
 interface RunRow {
   id: string
@@ -198,6 +199,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                 const hasHtml    = !!run.report_html_path
                 const hasExcel   = !!run.report_excel_path
                 const hasDocx    = !!run.report_docx_path
+                const reportApproved = isReportApproved(run.review_status)
 
                 const rel  = run.relevant_count  ?? 0
                 const unc  = run.uncertain_count  ?? 0
@@ -315,19 +317,19 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                         >
                           View Results
                         </a>
-                        {hasPdf && (
+                        {reportApproved && hasPdf && (
                           <DownloadButton runId={run.id} format="pdf" label="↓ PDF" />
                         )}
-                        {!hasPdf && hasHtml && (
+                        {reportApproved && !hasPdf && hasHtml && (
                           <DownloadButton runId={run.id} format="html" label="↓ HTML" />
                         )}
-                        {hasExcel && (
+                        {reportApproved && hasExcel && (
                           <DownloadButton runId={run.id} format="excel" label="↓ Excel" />
                         )}
-                        {hasDocx && (
+                        {reportApproved && hasDocx && (
                           <DownloadButton runId={run.id} format="docx" label="↓ Word" />
                         )}
-                        {!hasReport && (run.status === 'complete' || run.status === 'degraded') && run.review_status && run.review_status !== 'draft' && (
+                        {!hasReport && (run.status === 'complete' || run.status === 'degraded') && reportApproved && (
                           <GenerateReportButton runId={run.id} />
                         )}
                         {['running', 'filtering', 'queued'].includes(run.status) && (

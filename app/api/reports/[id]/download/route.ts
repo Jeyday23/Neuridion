@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
+import { isReportApproved } from '@/lib/reports/review-gate'
 import { z } from 'zod'
 
 export async function GET(
@@ -52,9 +53,9 @@ export async function GET(
     return Response.json({ error: 'Run not found' }, { status: 404 })
   }
 
-  if (!run.review_status || run.review_status === 'draft') {
+  if (!isReportApproved(run.review_status)) {
     return Response.json(
-      { error: 'Results must be reviewed before downloading a report.' },
+      { error: 'This search must be reviewed and approved before downloading a report.' },
       { status: 422 },
     )
   }
