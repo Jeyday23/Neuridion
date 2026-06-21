@@ -71,7 +71,7 @@ describe('scrapeStage source timeouts', () => {
         selected_dbs:  ['bfarm'],
         force_refresh: true,
       },
-      db:              {},
+      db:              {} as PipelineContext['db'],
       profile:         { device_name: 'Device', manufacturer: 'Acme', intended_use: null, emdn_code: null, device_class: null, search_strategy: null },
       aiOptOut:        false,
       searchTerms:     ['device'],

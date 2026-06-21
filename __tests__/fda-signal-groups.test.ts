@@ -76,7 +76,7 @@ describe('FDA signal grouping', () => {
       device: 'Infusomat', manufacturer: 'B. Braun', period_from: '2026-01-01', period_to: '2026-12-31',
     }, null)
     const workbook = new ExcelJS.Workbook()
-    await workbook.xlsx.load(buffer)
+    await workbook.xlsx.load(Uint8Array.from(buffer).buffer)
 
     expect(workbook.getWorksheet('FDA MAUDE')?.rowCount).toBe(3)
     expect(workbook.getWorksheet('FDA Signal Summary')?.getRow(2).getCell(4).value).toBe(2)

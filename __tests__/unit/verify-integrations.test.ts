@@ -26,16 +26,16 @@ const env = {
 function passingClients(): IntegrationClients {
   return {
     supabase: {
-      queryTable: vi.fn(() => Promise.resolve({ ok: true })),
+      queryTable: vi.fn(() => Promise.resolve({ ok: true } as const)),
     },
     redis: {
-      probe: vi.fn(() => Promise.resolve({ ok: true })),
+      probe: vi.fn(() => Promise.resolve({ ok: true } as const)),
     },
     stripe: {
       retrievePrice: vi.fn(() => Promise.resolve({ id: 'price_starter', active: true, recurring: { interval: 'month' } })),
     },
     anthropic: {
-      probe: vi.fn(() => Promise.resolve({ ok: true })),
+      probe: vi.fn(() => Promise.resolve({ ok: true } as const)),
     },
   }
 }
@@ -59,8 +59,8 @@ describe('verifyIntegrations', () => {
     const clients = passingClients()
     clients.supabase.queryTable = vi.fn((table: string) =>
       table === 'search_runs'
-        ? Promise.resolve({ ok: false, reason: 'relation does not exist' })
-        : Promise.resolve({ ok: true }),
+        ? Promise.resolve({ ok: false, reason: 'relation does not exist' } as const)
+        : Promise.resolve({ ok: true } as const),
     )
 
     const result = await verifyIntegrations(env, clients)

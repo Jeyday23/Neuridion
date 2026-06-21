@@ -33,7 +33,7 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npx next lint
+      - run: npm run lint
 
   test:
     name: Tests
