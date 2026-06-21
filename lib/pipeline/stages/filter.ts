@@ -1,6 +1,6 @@
 import { createHash } from 'crypto'
 import pLimit from 'p-limit'
-import { stage1Filter, getProfileFingerprint } from '@/lib/claude/filter-pipeline'
+import { stage1Filter, getProfileFingerprint, type FilterDecision } from '@/lib/claude/filter-pipeline'
 import { buildManufacturerSearchTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 import { fetchBfarmDetail } from '@/lib/scrapers/bfarm'
 import { sanitizeForLlm } from '@/lib/scrapers/sanitize'
@@ -14,6 +14,12 @@ export function normalizeCachedConfidence(value: string | number | null): number
   if (!Number.isFinite(parsed)) return null
   const normalized = parsed > 1 ? parsed / 100 : parsed
   return Math.max(0, Math.min(1, normalized))
+}
+
+export function isTerminalAiAvailabilityFailure(decision: FilterDecision): boolean {
+  if (decision.decision !== 'filter_failed') return false
+  const detail = `${decision.error ?? ''} ${decision.rationale}`.toLowerCase()
+  return /credit_exhausted|credit balance|insufficient_quota|billing|authentication|invalid api key/.test(detail)
 }
 
 function fsnIdOf(fsn: { title: string; manufacturer?: string | null; source_db?: string | null }): string {
@@ -152,45 +158,73 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   const filterLimit = pLimit(6)
   let cancelledDuringFilter = false
   let itemsProcessed = 0
-  const filterResults = await Promise.all(
-    toFilter.map((row) => filterLimit(async () => {
-      if (cancelledDuringFilter) {
+  let terminalAiFailure: FilterDecision | null = null
+
+  const filterRow = async (row: InsertedFsnRow) => {
+    if (terminalAiFailure) {
+      return {
+        fsn_result_id: row.id,
+        decision: 'filter_failed' as const,
+        rationale: 'AI filtering unavailable for this run — manual review required.',
+        confidence: null,
+        model: null,
+      }
+    }
+    if (cancelledDuringFilter) {
+      return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Run cancelled by user.', confidence: null, model: null }
+    }
+
+    const myIndex = itemsProcessed++
+
+    if (myIndex > 0 && myIndex % 20 === 0) {
+      if (await ctx.isCancelled()) {
+        cancelledDuringFilter = true
+        console.error(`[pipeline] run_id=${ctx.runId} filter stage: cancellation detected at item ${myIndex}/${toFilter.length}`)
         return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Run cancelled by user.', confidence: null, model: null }
       }
+    }
 
-      const myIndex = itemsProcessed++
+    if (Date.now() - filterStartMs > FILTER_DEADLINE_MS) {
+      console.error(`[pipeline] run_id=${ctx.runId} filter deadline reached at item ${myIndex}/${toFilter.length}`)
+      return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Filter time limit reached — manual review required.', confidence: null, model: null }
+    }
 
-      if (myIndex > 0 && myIndex % 20 === 0) {
-        if (await ctx.isCancelled()) {
-          cancelledDuringFilter = true
-          console.error(`[pipeline] run_id=${ctx.runId} filter stage: cancellation detected at item ${myIndex}/${toFilter.length}`)
-          return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Run cancelled by user.', confidence: null, model: null }
-        }
+    if (myIndex > 0 && myIndex % 10 === 0 && ctx.onProgress) {
+      await ctx.onProgress({
+        current_source: null,
+        sources_done: ctx.activeSources,
+        sources_total: ctx.activeSources,
+        items_found: ctx.insertedRows.length,
+        filter_progress: { done: myIndex, total: toFilter.length, cached: alreadyCached.length },
+      })
+    }
+
+    const d = await stage1Filter(
+      { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date, source_db: row.source_db },
+      profile,
+      { skipCache: true },
+    )
+    if (isTerminalAiAvailabilityFailure(d)) terminalAiFailure = d
+    return { ...d, fsn_result_id: row.id }
+  }
+
+  // Probe one item before opening concurrency. This prevents an exhausted or
+  // invalid API account from producing one failed request per worker slot.
+  const filterResults = [] as Array<Awaited<ReturnType<typeof filterRow>>>
+  if (toFilter.length > 0) {
+    filterResults.push(await filterRow(toFilter[0]))
+    if (terminalAiFailure) {
+      ctx.warnings.push('AI filtering unavailable; unassessed results require manual review.')
+      for (const row of toFilter.slice(1)) filterResults.push(await filterRow(row))
+    } else {
+      filterResults.push(...await Promise.all(
+        toFilter.slice(1).map((row) => filterLimit(() => filterRow(row))),
+      ))
+      if (terminalAiFailure) {
+        ctx.warnings.push('AI filtering became unavailable; unassessed results require manual review.')
       }
-
-      if (Date.now() - filterStartMs > FILTER_DEADLINE_MS) {
-        console.error(`[pipeline] run_id=${ctx.runId} filter deadline reached at item ${myIndex}/${toFilter.length}`)
-        return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Filter time limit reached — manual review required.', confidence: null, model: null }
-      }
-
-      if (myIndex > 0 && myIndex % 10 === 0 && ctx.onProgress) {
-        await ctx.onProgress({
-          current_source: null,
-          sources_done: ctx.activeSources,
-          sources_total: ctx.activeSources,
-          items_found: ctx.insertedRows.length,
-          filter_progress: { done: myIndex, total: toFilter.length, cached: alreadyCached.length },
-        })
-      }
-
-      const d = await stage1Filter(
-        { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: row.raw_content ?? '', fsn_date: row.fsn_date, source_db: row.source_db },
-        profile,
-        { skipCache: true },
-      )
-      return { ...d, fsn_result_id: row.id }
-    }))
-  )
+    }
+  }
   ctx.decisions.push(...filterResults)
 
   // 4. BfArM detail enrichment for uncertain items
