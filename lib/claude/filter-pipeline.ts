@@ -33,7 +33,9 @@ function isCreditExhaustionError(err: unknown): boolean {
   if (err instanceof Anthropic.APIError) {
     if (err.status === 402) return true
     const msg = String(err.message).toLowerCase()
-    return msg.includes('credit balance') || msg.includes('insufficient_quota') || msg.includes('billing')
+    if (msg.includes('credit balance') || msg.includes('insufficient_quota') || msg.includes('billing')) return true
+    // Anthropic returns HTTP 400 for credit exhaustion — detect by status + message
+    if (err.status === 400 && (msg.includes('credit') || msg.includes('quota') || msg.includes('payment'))) return true
   }
   return false
 }
