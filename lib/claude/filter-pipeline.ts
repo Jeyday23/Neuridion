@@ -12,7 +12,9 @@ const SONNET_MODEL = 'claude-sonnet-4-6'
 
 // ── Module-level singleton — avoids re-initialising HTTP client per call ──────
 
-const anthropic = new Anthropic()
+// Retry only through rate-limiter.ts. The SDK otherwise retries a terminal
+// billing/authentication response before the run-level circuit breaker sees it.
+const anthropic = new Anthropic({ maxRetries: 0 })
 
 // ── Credit exhaustion guard ───────────────────────────────────────────────────
 // Set on first credit exhaustion error; prevents cascade spend within a process.
