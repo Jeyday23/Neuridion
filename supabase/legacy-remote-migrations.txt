@@ -1,0 +1,15 @@
+# Production migration versions created by a legacy deployment path.
+# Their SQL is not present in this repository. The production-evidence workflow
+# uses these identifiers only to reconcile the CLI history view; it never marks
+# local migrations 023-067 as applied and never executes placeholder SQL.
+20260428215144
+20260505120150
+20260505120633
+20260505121205
+20260505122125
+20260505144009
+20260505195640
+20260507105819
+20260508172155
+20260508172217
+20260508172231

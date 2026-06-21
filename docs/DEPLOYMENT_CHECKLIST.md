@@ -58,6 +58,13 @@ It lists remote migration state, performs `supabase db push --dry-run`, applies
 pending migrations, and lists the final state. Do not apply production schema
 changes directly in the Supabase SQL editor; that bypasses migration history.
 
+Production contains legacy timestamped migration-history entries whose original
+SQL is not in this repository. The workflow records those identifiers from
+`supabase/legacy-remote-migrations.txt` as ephemeral no-op placeholders and
+temporarily defers local migrations 023-067. This allows the evidence rollout to
+apply only 068-069 without replaying or falsely marking the older local files.
+Reconciling 023-067 remains separate migration-governance work.
+
 For the current evidence rollout, confirm migrations `068` and `069` are shown
 as applied before deploying the application.
 

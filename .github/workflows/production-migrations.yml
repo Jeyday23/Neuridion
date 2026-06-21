@@ -58,11 +58,28 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Prepare evidence-only migration view
+        run: |
+          mkdir -p /tmp/deferred-local-migrations
+          for file in supabase/migrations/[0-9][0-9][0-9]_*.sql; do
+            version="$(basename "$file")"
+            version="${version%%_*}"
+            number=$((10#$version))
+            if (( number >= 23 && number <= 67 )); then
+              mv "$file" /tmp/deferred-local-migrations/
+            fi
+          done
+          while IFS= read -r version; do
+            [[ -z "$version" || "$version" == \#* ]] && continue
+            printf '%s\n' '-- Legacy production migration; SQL unavailable in this repository.' \
+              > "supabase/migrations/${version}_legacy_remote_history.sql"
+          done < supabase/legacy-remote-migrations.txt
+
       - name: Dry run pending migrations
-        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --dry-run
+        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --include-all --dry-run
 
       - name: Apply pending migrations
-        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --yes
+        run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --include-all --yes
 
       - name: Show migration state after apply
         run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
