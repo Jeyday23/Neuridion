@@ -81,5 +81,48 @@ jobs:
       - name: Apply pending migrations
         run: supabase db push --linked --password "$SUPABASE_DB_PASSWORD" --include-all --yes
 
+      - name: Verify evidence schema and private bucket
+        run: |
+          query=$(cat <<'SQL'
+          select
+            to_regclass('public.source_fetches') is not null as source_fetches,
+            to_regclass('public.authority_record_revisions') is not null as authority_record_revisions,
+            to_regclass('public.ingestion_runs') is not null as ingestion_runs,
+            to_regclass('public.shadow_comparisons') is not null as shadow_comparisons,
+            to_regprocedure('public.claim_ingestion_run(uuid,text,text,date,date)') is not null as claim_ingestion_run,
+            exists (
+              select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'fsn_results'
+                and column_name = 'authority_revision_id'
+            ) as fsn_results_revision_link,
+            exists (
+              select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'filter_decisions'
+                and column_name = 'evidence_parser_version'
+            ) as filter_decisions_parser_version,
+            exists (
+              select 1 from storage.buckets
+              where id = 'regulatory-evidence' and public = false
+            ) as evidence_bucket_private;
+          SQL
+          )
+          jq -n --arg query "$query" '{query: $query, read_only: true}' \
+            | curl --fail --silent --show-error \
+                -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+                -H "Content-Type: application/json" \
+                --data @- \
+                "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_REF/database/query" \
+            | jq -e '
+                (if type == "array" then .[0] elif .result then .result[0] else . end) as $r
+                | ($r.source_fetches == true)
+                  and ($r.authority_record_revisions == true)
+                  and ($r.ingestion_runs == true)
+                  and ($r.shadow_comparisons == true)
+                  and ($r.claim_ingestion_run == true)
+                  and ($r.fsn_results_revision_link == true)
+                  and ($r.filter_decisions_parser_version == true)
+                  and ($r.evidence_bucket_private == true)
+              '
+
       - name: Show migration state after apply
         run: supabase migration list --linked --password "$SUPABASE_DB_PASSWORD"
