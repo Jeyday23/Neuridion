@@ -187,7 +187,7 @@ export function NeuridionSignIn() {
               </div>
 
               <div className="bg-white border border-[#E2E8F0] rounded p-6">
-                <form onSubmit={handleEmailSubmit} className="space-y-4">
+                <form method="post" onSubmit={handleEmailSubmit} className="space-y-4">
                   <div>
                     <label htmlFor="email" className="block text-sm font-medium text-[#134E4A] mb-1.5">
                       Email address
