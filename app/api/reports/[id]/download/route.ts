@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { isReportApproved } from '@/lib/reports/review-gate'
+import { isReportReleaseAuthorized } from '@/lib/reports/review-gate'
 import { z } from 'zod'
 
 export async function GET(
@@ -39,7 +39,7 @@ export async function GET(
   const { data: run, error: runError } = await adminClient
     .from('search_runs')
     .select(`
-      id, user_id, review_status,
+      id, user_id, review_status, reviewed_by, reviewed_at,
       report_html_path, report_pdf_path, report_excel_path, report_docx_path,
       period_from, period_to,
       product_profiles ( device_name )
@@ -53,7 +53,7 @@ export async function GET(
     return Response.json({ error: 'Run not found' }, { status: 404 })
   }
 
-  if (!isReportApproved(run.review_status)) {
+  if (!isReportReleaseAuthorized(run.review_status, run.reviewed_by, run.reviewed_at)) {
     return Response.json(
       { error: 'This search must be reviewed and approved before downloading a report.' },
       { status: 422 },

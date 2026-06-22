@@ -68,7 +68,7 @@ export async function PATCH(
     )
   }
 
-  const { data: updated, error } = await db
+  let updateQuery = db
     .from('search_runs')
     .update({
       review_status: parsed.data.review_status,
@@ -77,12 +77,21 @@ export async function PATCH(
     })
     .eq('id', id)
     .eq('user_id', user.id)
-    .select('id, review_status, reviewed_by, reviewed_at')
-    .single()
 
-  if (error || !updated) {
+  updateQuery = existing.review_status == null
+    ? updateQuery.is('review_status', null)
+    : updateQuery.eq('review_status', currentStatus)
+
+  const { data: updated, error } = await updateQuery
+    .select('id, review_status, reviewed_by, reviewed_at')
+    .maybeSingle()
+
+  if (error) {
     console.error('[search-runs/review]', error?.message ?? 'Update failed')
     return Response.json({ error: 'Something went wrong' }, { status: 500 })
+  }
+  if (!updated) {
+    return Response.json({ error: 'Review status changed concurrently. Refresh and try again.' }, { status: 409 })
   }
 
   // Self-approval detection: the query filters by user_id, so existing.user_id === user.id

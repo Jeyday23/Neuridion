@@ -350,15 +350,36 @@ function extractDateFromParagraphs(html: string): string | null {
   const paragraphs = html.match(/<p>(.*?)<\/p>/gi) ?? []
   for (const p of paragraphs.slice(0, 3)) {
     const text = stripHtmlTags(p).trim()
-    const dateMatch = text.match(/(\d{1,2}\s+\w+\s+\d{4})/)
-    if (dateMatch) {
-      const parsed = new Date(dateMatch[1])
-      if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10)
+    const parsed = parseEnglishCalendarDate(text)
+    if (parsed) return parsed
+  }
+  return null
+}
+
+const ENGLISH_MONTHS: Record<string, number> = {
+  january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+  july: 6, august: 7, september: 8, october: 9, november: 10, december: 11,
+}
+
+function parseEnglishCalendarDate(text: string): string | null {
+  const full = text.match(/\b(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/i)
+  if (full) {
+    const month = ENGLISH_MONTHS[full[2].toLowerCase()]
+    const day = Number(full[1])
+    const year = Number(full[3])
+    const parsed = new Date(Date.UTC(year, month, day))
+    if (day >= 1 && day <= 31
+      && parsed.getUTCFullYear() === year
+      && parsed.getUTCMonth() === month
+      && parsed.getUTCDate() === day) {
+      return parsed.toISOString().slice(0, 10)
     }
-    if (/^(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}/i.test(text)) {
-      const parsed = new Date(text.match(/\w+\s+\d{4}/)?.[0] ?? '')
-      if (!isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10)
-    }
+  }
+
+  const monthYear = text.match(/^\s*(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\b/i)
+  if (monthYear) {
+    const month = ENGLISH_MONTHS[monthYear[1].toLowerCase()]
+    return new Date(Date.UTC(Number(monthYear[2]), month, 1)).toISOString().slice(0, 10)
   }
   return null
 }

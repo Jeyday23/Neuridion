@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   reviewStatus: 'reviewed' as string | null,
+  reviewedBy: 'reviewer-1' as string | null,
+  reviewedAt: '2026-06-22T10:00:00.000Z' as string | null,
   createAdminClient: vi.fn(),
   createSignedUrl: vi.fn(),
 }))
@@ -26,6 +28,8 @@ function queryResult(table: string) {
         id: '22222222-2222-4222-8222-222222222222',
         user_id: 'user-1',
         review_status: state.reviewStatus,
+        reviewed_by: state.reviewedBy,
+        reviewed_at: state.reviewedAt,
         report_pdf_path: 'reports/report.pdf',
         report_html_path: 'reports/report.html',
         report_excel_path: 'reports/report.xlsx',
@@ -87,6 +91,8 @@ const RUN_ID = '22222222-2222-4222-8222-222222222222'
 describe('report API approval gates', () => {
   beforeEach(() => {
     state.reviewStatus = 'reviewed'
+    state.reviewedBy = 'reviewer-1'
+    state.reviewedAt = '2026-06-22T10:00:00.000Z'
     state.createSignedUrl.mockReset()
     state.createAdminClient.mockReset()
     state.createAdminClient.mockImplementation(() => createDb())
@@ -160,5 +166,34 @@ describe('report API approval gates', () => {
       pdf_url: 'https://storage.example.test/report',
       excel_url: 'https://storage.example.test/report',
     })
+  })
+
+  it.each([
+    ['missing reviewer', null, '2026-06-22T10:00:00.000Z'],
+    ['missing timestamp', 'reviewer-1', null],
+    ['invalid timestamp', 'reviewer-1', 'not-a-date'],
+  ])('blocks approved runs with %s', async (_label, reviewedBy, reviewedAt) => {
+    state.reviewStatus = 'approved'
+    state.reviewedBy = reviewedBy
+    state.reviewedAt = reviewedAt
+
+    const generation = await generateReport(new Request('https://example.test/api/reports', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ run_id: RUN_ID }),
+    }))
+    const download = await downloadReport(
+      new Request(`https://example.test/api/reports/${RUN_ID}/download?format=pdf`),
+      { params: Promise.resolve({ id: RUN_ID }) },
+    )
+    const legacy = await getReportUrls(
+      new Request(`https://example.test/api/reports/${RUN_ID}`),
+      { params: Promise.resolve({ id: RUN_ID }) },
+    )
+
+    expect(generation.status).toBe(422)
+    expect(download.status).toBe(422)
+    expect(legacy.status).toBe(422)
+    expect(state.createSignedUrl).not.toHaveBeenCalled()
   })
 })

@@ -7,7 +7,7 @@ import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { buildReportHtml } from '@/lib/reports/html-builder'
 import { buildExcel } from '@/lib/reports/excel-builder'
-import { isReportApproved } from '@/lib/reports/review-gate'
+import { isReportReleaseAuthorized } from '@/lib/reports/review-gate'
 import { withTimeout } from '@/lib/utils/timeout'
 import type { FsnReportRow } from '@/lib/domain/types'
 
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Run not found' }, { status: 404 })
   }
 
-  if (!isReportApproved(run.review_status)) {
+  if (!isReportReleaseAuthorized(run.review_status, run.reviewed_by, run.reviewed_at)) {
     return Response.json(
       { error: 'This search must be reviewed and approved before generating a report.' },
       { status: 422 },

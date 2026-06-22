@@ -146,6 +146,33 @@ describe('MHRA roundup parsing', () => {
       expect(results[0].external_id).toBe('mhra-ref-2026/006/011/601/083')
     })
 
+    it('parses notice dates as UTC calendar dates at a search boundary', () => {
+      const html = [
+        '<h3>ArcRoyal: BD Connecta Stopcock in ArcRoyal procedure packs</h3>',
+        '<p>08 June 2026</p>',
+        '<p>MHRA reference: 39785276 2026/006/009/601/057</p>',
+      ].join('\n')
+
+      const results = splitRoundupSections(html, '/roundup', '2026-06-15')
+
+      expect(results).toHaveLength(1)
+      expect(results[0].fsn_date).toBe('2026-06-08')
+      expect(results[0].external_id).toBe('mhra-ref-2026/006/009/601/057')
+    })
+
+    it('does not roll an invalid authority date into the next month', () => {
+      const html = [
+        '<h3>Example Medical: Test Device</h3>',
+        '<p>31 June 2026</p>',
+        '<p>MHRA reference: 2026001234</p>',
+      ].join('\n')
+
+      const results = splitRoundupSections(html, '/roundup', '2026-06-15')
+
+      expect(results).toHaveLength(1)
+      expect(results[0].fsn_date).toBe('2026-06-15')
+    })
+
     it('handles h2, h3, and h4 heading variants', () => {
       const html = [
         '<h2>Abbott: Device Alpha</h2>',

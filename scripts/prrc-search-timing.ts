@@ -213,7 +213,6 @@ async function main() {
   console.log('[4/6] Search completion polling')
   const searchStart = Date.now()
   let searchStatus = 'pending'
-  let fsnCount = 0
   let relevantCount = 0
   let uncertainCount = 0
   let excludedCount = 0
@@ -231,7 +230,6 @@ async function main() {
     }
     const data = await res.json()
     searchStatus = data.status ?? data.run?.status ?? 'unknown'
-    fsnCount = data.fsn_count ?? data.results?.length ?? 0
     relevantCount = data.relevant_count ?? 0
     uncertainCount = data.uncertain_count ?? 0
     excludedCount = data.excluded_count ?? 0
@@ -257,7 +255,7 @@ async function main() {
   {
     const { data: fsnResults } = await adminDb
       .from('fsn_results')
-      .select('id, title, manufacturer, fsn_date, source_db')
+      .select('id, external_id, title, manufacturer, product_name, fsn_date, source_url, source_db')
       .eq('run_id', runId)
 
     const actualFsnCount = fsnResults?.length ?? 0
@@ -269,17 +267,39 @@ async function main() {
 
     // Check source distribution
     const sources = new Set(fsnResults?.map(r => r.source_db) ?? [])
-    pass('Source databases', `Sources: ${[...sources].join(', ') || 'none'}`)
+    const unexpectedSources = [...sources].filter(source => source !== 'bfarm')
+    if (sources.size === 1 && sources.has('bfarm')) {
+      pass('Source database accuracy', 'All stored results are from requested source bfarm')
+    } else {
+      fail('Source database accuracy', `Expected only bfarm; got ${[...sources].join(', ') || 'none'}${unexpectedSources.length ? ` (unexpected: ${unexpectedSources.join(', ')})` : ''}`)
+    }
+
+    const missingRequiredFields = (fsnResults ?? []).filter(row =>
+      !row.external_id || !row.title || !row.manufacturer || !row.fsn_date || !row.source_url
+    )
+    if (missingRequiredFields.length === 0) {
+      pass('Required evidence fields', `All ${actualFsnCount} rows have ID, title, manufacturer, date, and authority URL`)
+    } else {
+      fail('Required evidence fields', `${missingRequiredFields.length}/${actualFsnCount} rows have missing evidence fields`)
+    }
+
+    const externalIds = (fsnResults ?? []).map(row => row.external_id).filter(Boolean)
+    const duplicateCount = externalIds.length - new Set(externalIds).size
+    if (duplicateCount === 0) pass('Duplicate control', 'No duplicate authority IDs')
+    else fail('Duplicate control', `${duplicateCount} duplicate authority ID(s) stored`)
 
     // Check date range accuracy
     const dates = (fsnResults ?? [])
       .map(r => r.fsn_date)
       .filter((d): d is string => !!d)
       .sort()
-    if (dates.length > 0) {
-      pass('Date range coverage', `FSN dates: ${dates[0]} to ${dates[dates.length - 1]}`)
+    const outOfRangeDates = dates.filter(date => date < periodFrom || date > periodTo)
+    if (dates.length === actualFsnCount && outOfRangeDates.length === 0) {
+      pass('Date range accuracy', `All dates are inside ${periodFrom} to ${periodTo}; observed ${dates[0]} to ${dates[dates.length - 1]}`)
+    } else if (dates.length > 0) {
+      fail('Date range accuracy', `${outOfRangeDates.length} out-of-range and ${actualFsnCount - dates.length} missing date(s)`)
     } else {
-      skip('Date range coverage', 'No dated FSNs found')
+      fail('Date range accuracy', 'No dated FSNs found')
     }
 
     // Check for filter decisions (AI may not have run)
@@ -298,19 +318,52 @@ async function main() {
   // ── 6. Report generation (Word + Excel) ──────────────────────────────────
   console.log('[6/6] Report generation')
 
-  // Check review_status — reports require non-draft status
+  // Reports require an attributed draft -> reviewed -> approved API workflow.
   const { data: runData } = await adminDb
     .from('search_runs')
-    .select('review_status, status')
+    .select('review_status, reviewed_by, reviewed_at, status')
     .eq('id', runId)
     .single()
 
   const reviewStatus = runData?.review_status
 
-  if (!reviewStatus || reviewStatus === 'draft') {
-    // Set review_status to 'approved' so we can generate reports
-    console.log('    Setting review_status to "approved" for report generation test...')
-    await adminDb.from('search_runs').update({ review_status: 'approved', reviewed_by: null, reviewed_at: new Date().toISOString() }).eq('id', runId)
+  if (reviewStatus && reviewStatus !== 'draft') {
+    fail('PRRC initial state', `Expected a new draft run; found ${reviewStatus}. Refusing to bypass or reset review state.`)
+    throw new Error('PRRC workflow test requires a newly created draft run')
+  }
+  pass('PRRC initial state', 'New search is draft')
+
+  const blockedReport = await fetch(`${BASE_URL}/api/reports`, {
+    method: 'POST', headers, body: JSON.stringify({ run_id: runId }),
+  })
+  if (blockedReport.status === 422) pass('Draft report gate', 'Report generation blocked before PRRC review')
+  else fail('Draft report gate', `Expected HTTP 422, received ${blockedReport.status}`)
+
+  for (const target of ['reviewed', 'approved'] as const) {
+    const transition = await fetch(`${BASE_URL}/api/search-runs/${runId}/review`, {
+      method: 'PATCH', headers, body: JSON.stringify({ review_status: target }),
+    })
+    if (transition.ok) {
+      const payload = await transition.json()
+      if (payload.review_status === target && payload.reviewed_by && payload.reviewed_at) {
+        pass(`PRRC transition to ${target}`, `Attributed to reviewer ${payload.reviewed_by}`)
+      } else {
+        fail(`PRRC transition to ${target}`, 'Response lacked status, reviewer identity, or timestamp')
+      }
+    } else {
+      fail(`PRRC transition to ${target}`, `HTTP ${transition.status}: ${await transition.text()}`)
+    }
+  }
+
+  const { data: approvedRun } = await adminDb
+    .from('search_runs')
+    .select('review_status, reviewed_by, reviewed_at')
+    .eq('id', runId)
+    .single()
+  if (approvedRun?.review_status === 'approved' && approvedRun.reviewed_by && approvedRun.reviewed_at) {
+    pass('PRRC approval persistence', `Approved with reviewer and timestamp ${approvedRun.reviewed_at}`)
+  } else {
+    fail('PRRC approval persistence', 'Approved state or reviewer attribution was not persisted')
   }
 
   {

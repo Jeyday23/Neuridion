@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { isReportApproved } from '@/lib/reports/review-gate'
+import { isReportReleaseAuthorized } from '@/lib/reports/review-gate'
 import { z } from 'zod'
 
 export async function GET(
@@ -37,7 +37,7 @@ export async function GET(
 
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('review_status')
+    .select('review_status, reviewed_by, reviewed_at')
     .eq('id', report.run_id)
     .eq('user_id', user.id)
     .is('deleted_at', null)
@@ -47,7 +47,7 @@ export async function GET(
     return Response.json({ error: 'Run not found' }, { status: 404 })
   }
 
-  if (!isReportApproved(run.review_status)) {
+  if (!isReportReleaseAuthorized(run.review_status, run.reviewed_by, run.reviewed_at)) {
     return Response.json(
       { error: 'This search must be reviewed and approved before downloading a report.' },
       { status: 422 },
