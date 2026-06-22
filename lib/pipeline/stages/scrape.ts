@@ -101,6 +101,25 @@ function includesAny(hay: string, terms: string[]): boolean {
   return terms.some(t => hay.includes(t.toLowerCase()))
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function matchesDeviceTerm(hay: string, rawTerm: string): boolean {
+  const compact = rawTerm
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, '')
+  if (!compact) return false
+
+  const flexible = [...compact].map(escapeRegex).join('[\\s._/\\-]*')
+  const hasDigit = /\p{N}/u.test(compact)
+  const suffix = hasDigit
+    ? '(?=$|[^\\p{L}\\p{N}])'
+    : '(?=$|[^\\p{L}\\p{N}]|\\p{N})'
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${flexible}${suffix}`, 'iu').test(hay.normalize('NFKC'))
+}
+
 function matchesDeviceSignature(hay: string, terms: string[]): boolean {
   if (terms.length === 0) return false
 
@@ -117,7 +136,7 @@ function matchesDeviceSignature(hay: string, terms: string[]): boolean {
     else groups.push([term])
   }
 
-  return groups.every(group => group.some(term => hay.includes(term)))
+  return groups.every(group => group.some(term => matchesDeviceTerm(hay, term)))
 }
 
 export function filterByKeywordRelevance(
@@ -191,8 +210,11 @@ export function auditKeywordRelevance(
     // module token. Matching only one token made generic words such as
     // "Medication" retain unrelated products and manufacturers.
     const devMatch = matchesDeviceSignature(hay, devTerms)
-    const domainMatch = includesAny(hay, domainTerms)
-    const competitorMatch = includesAny(hay, competitorTerms)
+    // Domain and competitor signals must respect token boundaries too. Plain
+    // substring matching made near-prefix noise such as "HeartStarter" count
+    // as the "HeartStart" device domain.
+    const domainMatch = domainTerms.some(term => matchesDeviceTerm(hay, term))
+    const competitorMatch = competitorTerms.some(term => matchesDeviceTerm(hay, term))
     if (mfrMatch) counts.manufacturerMatches++
     if (devMatch) counts.deviceMatches++
     if (domainMatch) counts.domainMatches++

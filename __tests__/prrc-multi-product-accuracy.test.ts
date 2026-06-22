@@ -80,4 +80,47 @@ describe('PRRC multi-product title accuracy', () => {
 
     expect(actualIds).toEqual(expectedIds)
   })
+
+  it.each([
+    {
+      name: 'spaced model number',
+      profile: { manufacturer: 'Medtronic', device_name: 'MiniMed 780G' },
+      title: 'Urgent safety notice for MiniMed 780 G insulin pump',
+      expected: true,
+    },
+    {
+      name: 'punctuation-normalized product',
+      profile: { manufacturer: 'T-Systems Austria GesmbH', device_name: 'REHA.Complete' },
+      title: 'Field correction for REHA Complete rehabilitation software',
+      expected: true,
+    },
+    {
+      name: 'family-level authority title',
+      profile: { manufacturer: 'COPRA System GmbH', device_name: 'COPRA6' },
+      title: 'Field safety notice for COPRA patient data software',
+      expected: true,
+    },
+    {
+      name: 'near-prefix collision',
+      profile: { manufacturer: 'Philips', device_name: 'HeartStart FRx' },
+      title: 'Philips HeartStarter training application update',
+      expected: false,
+    },
+    {
+      name: 'same manufacturer wrong product',
+      profile: { manufacturer: 'B. Braun Melsungen AG', device_name: 'Infusomat Space' },
+      title: 'B. Braun Dialog+ dialysis machine correction',
+      expected: false,
+    },
+  ])('handles adversarial title variant: $name', ({ profile, title, expected }) => {
+    const item: ScrapedFsn = {
+      external_id: 'variant', title, manufacturer: profile.manufacturer,
+      product_name: title, fsn_date: '2026-06-01',
+      source_url: 'https://authority.example/variant', raw_content: '', source_db: 'test-authority',
+    }
+
+    const retained = auditKeywordRelevance([item], profile, []).items.length === 1
+
+    expect(retained).toBe(expected)
+  })
 })
