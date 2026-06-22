@@ -51,7 +51,7 @@ jobs:
         run: supabase db dump --linked --password "$SUPABASE_DB_PASSWORD" --schema public --file remote-public-schema.sql
 
       - name: Upload remote schema snapshot
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: remote-public-schema-${{ github.run_id }}
           path: remote-public-schema.sql
