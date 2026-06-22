@@ -101,6 +101,25 @@ function includesAny(hay: string, terms: string[]): boolean {
   return terms.some(t => hay.includes(t.toLowerCase()))
 }
 
+function matchesDeviceSignature(hay: string, terms: string[]): boolean {
+  if (terms.length === 0) return false
+
+  // extractDeviceTerms may emit a model token and its family alias, e.g.
+  // COPRA6 + COPRA. Those are alternatives within one signature component;
+  // independent components such as ORBIS + Medication must all be present.
+  const groups: string[][] = []
+  for (const rawTerm of terms) {
+    const term = rawTerm.toLowerCase()
+    const group = groups.find(candidate => candidate.some(existing =>
+      existing.startsWith(term) || term.startsWith(existing),
+    ))
+    if (group) group.push(term)
+    else groups.push([term])
+  }
+
+  return groups.every(group => group.some(term => hay.includes(term)))
+}
+
 export function filterByKeywordRelevance(
   items: ScrapedFsn[],
   profile: { manufacturer: string; device_name: string },
@@ -168,7 +187,10 @@ export function auditKeywordRelevance(
     const hay = `${item.title} ${item.manufacturer ?? ''} ${item.product_name ?? ''} ${item.raw_content}`.toLowerCase()
 
     const mfrMatch = includesAny(hay, mfrTerms)
-    const devMatch = includesAny(hay, devTerms)
+    // A product signature may contain a family plus a distinguishing model or
+    // module token. Matching only one token made generic words such as
+    // "Medication" retain unrelated products and manufacturers.
+    const devMatch = matchesDeviceSignature(hay, devTerms)
     const domainMatch = includesAny(hay, domainTerms)
     const competitorMatch = includesAny(hay, competitorTerms)
     if (mfrMatch) counts.manufacturerMatches++

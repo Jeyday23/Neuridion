@@ -52,6 +52,22 @@ async function main(): Promise<void> {
   const snapshotDateMatches = fieldAudit.filter(({ record, item }) => item?.fsn_date === record.date).length
   const snapshotManufacturerMatches = fieldAudit.filter(({ record, item }) => item?.manufacturer === record.manufacturer).length
   const metadataPollution = result.items.filter(item => /(?:\bPDF,|\bDatum:)/i.test(item.manufacturer ?? ''))
+  const reviewedItems = result.items.filter(item => actualIds.has(item.external_id) && expectedIds.includes(item.external_id))
+  const reviewedProfiles = [...new Map(golden.map(record => [
+    `${record.manufacturer}|${record.product}`,
+    { manufacturer: record.manufacturer, device_name: record.product },
+  ])).values()]
+  const profileAudits = reviewedProfiles.map(profile => {
+    const expected = golden
+      .filter(record => record.manufacturer === profile.manufacturer && record.product === profile.device_name)
+      .map(record => record.reference.replace('/', '-'))
+      .sort()
+    const actual = auditKeywordRelevance(reviewedItems, profile, []).items
+      .map(item => item.external_id)
+      .sort()
+    return { profile, expected, actual, exact: JSON.stringify(expected) === JSON.stringify(actual) }
+  })
+  const exactProfileMatches = profileAudits.filter(audit => audit.exact).length
 
   console.error(`Source outcome:       ${result.outcome}`)
   console.error(`Source warnings:      ${result.warnings.length}`)
@@ -62,6 +78,7 @@ async function main(): Promise<void> {
   console.error(`Date fields:          ${currentDateMatches}/${golden.length} current; ${snapshotDateMatches}/${golden.length} original snapshot`)
   console.error(`Manufacturer fields:  ${currentManufacturerMatches}/${golden.length} current; ${snapshotManufacturerMatches}/${golden.length} original snapshot`)
   console.error(`Metadata pollution:   ${metadataPollution.length}`)
+  console.error(`Product-title profiles:${exactProfileMatches}/${profileAudits.length} exact reviewed-ID sets`)
   console.error(`COPRA snapshot date:  ${reviewedCopra?.date ?? 'unknown'}`)
   console.error(`COPRA authority date: ${currentCopra?.fsn_date ?? 'missing'}`)
   for (const [reference, revision] of Object.entries(AUTHORITY_REVISIONS)) {
@@ -78,6 +95,9 @@ async function main(): Promise<void> {
   if (currentDateMatches !== golden.length) failures.push(`current-authority date agreement was ${currentDateMatches}/${golden.length}`)
   if (currentManufacturerMatches !== golden.length) failures.push(`current-authority manufacturer agreement was ${currentManufacturerMatches}/${golden.length}`)
   if (metadataPollution.length > 0) failures.push(`${metadataPollution.length} manufacturer field(s) contained teaser metadata`)
+  if (exactProfileMatches !== profileAudits.length) {
+    failures.push(`multi-product title accuracy was ${exactProfileMatches}/${profileAudits.length}: ${profileAudits.filter(audit => !audit.exact).map(audit => audit.profile.device_name).join(', ')}`)
+  }
 
   if (failures.length > 0) {
     throw new Error(`Reviewed PMS accuracy gate failed: ${failures.join('; ')}`)
