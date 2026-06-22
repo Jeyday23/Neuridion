@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { adapterOutputBytes } from '@/lib/evidence/store'
+import { adapterOutputBytes, evidenceSafeLocator } from '@/lib/evidence/store'
 import { sha256Hex } from '@/lib/evidence/hash'
 import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
 
@@ -30,5 +30,18 @@ describe('adapter evidence contract', () => {
     }))
     expect(after).not.toBe(before)
   })
-})
 
+  it('replaces request query values with a deterministic fingerprint', () => {
+    const safe = evidenceSafeLocator('https://authority.example/search?api_key=secret&query=Device+Name')
+
+    expect(safe).toMatch(/^https:\/\/authority\.example\/search\?query_sha256=[0-9a-f]{64}$/)
+    expect(safe).not.toContain('secret')
+    expect(safe).not.toContain('Device')
+    expect(evidenceSafeLocator('https://authority.example/search?api_key=secret&query=Device+Name'))
+      .toBe(safe)
+  })
+
+  it('does not pass malformed locators into evidence storage', () => {
+    expect(evidenceSafeLocator('not a URL')).toBe('redacted://invalid-locator')
+  })
+})

@@ -57,7 +57,10 @@ describe('scheduled ingestion orchestration', () => {
     })
     mocks.getCoveredRanges.mockResolvedValue([])
     mocks.upsertCanonical.mockResolvedValue([{ canonical_id: '00000000-0000-4000-8000-000000000001' }])
-    mocks.captureAdapterOutput.mockResolvedValue({ observations: 1, revisions: 1, authorityRevisionIds: new Map(), fetchId: 'fetch' })
+    mocks.captureAdapterOutput.mockResolvedValue({
+      observations: 1, revisions: 1, rawArtifacts: 0,
+      authorityRevisionIds: new Map(), fetchId: 'fetch',
+    })
     mocks.fetchBfarmRss.mockResolvedValue({ items: [], warnings: ['freshness only'], outcome: 'partial', archiveLimitationHit: true })
   })
 

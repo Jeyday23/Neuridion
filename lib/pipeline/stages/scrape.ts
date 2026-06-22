@@ -308,6 +308,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
           device_name:  profile.device_name  ?? '',
         },
         signal,
+        captureRawEvidence: captureEvidence && sourceId === 'bfarm',
       })
       const completedAt = new Date().toISOString()
       if (captureEvidence) {
@@ -320,6 +321,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
           outcome: result.outcome,
           warnings: result.warnings,
           items: result.items,
+          rawArtifacts: result.rawArtifacts,
         })
       }
       fetchedItemCount += result.items.length

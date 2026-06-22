@@ -16,8 +16,9 @@ reserved until an official machine-readable Vigilance interface is verified.
 - Coverage advances only for `complete` or trustworthy `empty` outcomes through
   the existing advisory-lock `merge_coverage_for_source` RPC.
 - Partial evidence is retained and observable but never certified as coverage.
-- The worker stores exact adapter output. It does not claim raw HTTP or attachment
-  retention.
+- The worker stores exact adapter output. BfArM additionally stores exact HTML
+  response bytes in private evidence storage; other sources do not yet claim raw
+  HTTP or attachment retention.
 - All production worker calls require QStash signatures. The worker-secret bypass
   is limited to non-production development/test environments.
 
@@ -41,4 +42,3 @@ Shadow comparisons use `(source, source_record_id)` identity. Mirror mode also
 requires complete `sync_coverage`; otherwise the resolver falls back to live.
 
 FDA never enters mirror mode under this architecture.
-

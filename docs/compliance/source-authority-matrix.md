@@ -5,7 +5,7 @@ explains the boundaries; tests prevent the high-risk columns from drifting.
 
 | Source | Evidence role | Official acquisition | Current retained object | Cross-source action key | Personal-data posture |
 |---|---|---|---|---|---|
-| BfArM | Field safety notices | HTML primary; RSS supplement; Firecrawl fallback | Exact adapter output | Manufacturer/issuer reference composite, when validated | Public-record risk considered low |
+| BfArM | Field safety notices | HTML primary; RSS supplement; Firecrawl fallback | Exact HTML responses plus adapter output when evidence capture is enabled | Manufacturer/issuer reference composite, when validated | Public-record risk considered low |
 | MHRA | Field safety notices | GOV.UK API plus official Excel cross-check | Exact merged adapter output | Manufacturer/issuer reference composite, when validated | Public-record risk considered low |
 | Swissmedic | Corrective actions | Structured REST API | Exact adapter output | Manufacturer/issuer reference composite, when validated | Public-record risk considered low |
 | FDA MAUDE | Adverse-event signals, not FSNs | Live openFDA query | Adapter output only after separate sensitive-data approval | None; link as corroborating signal only | Third-party personal data possible |
@@ -20,9 +20,9 @@ explains the boundaries; tests prevent the high-risk columns from drifting.
 - MHRA API/Excel divergence is a diagnostic. The two official channels are not
   required to have identical counts, and no alert threshold is claimed until a
   representative baseline establishes one.
-- The evidence layer currently stores exact adapter output. Raw HTTP responses
-  and linked files are not yet retained, so documentation must not call the
-  current objects raw regulator evidence.
+- BfArM retains exact HTML responses when evidence capture is enabled. MHRA,
+  Swissmedic, and FDA currently retain adapter output only; linked files are not
+  yet retained. Raw-response claims must remain source-specific.
 - A live health probe measures availability and source outcome. It cannot
   calculate publication-to-ingestion freshness or reconciliation quality; those
   require scheduled-ingestion and observation-ledger data.
@@ -48,4 +48,3 @@ Evidence capture requires all of:
 4. for FDA, `REGULATORY_EVIDENCE_ALLOW_SENSITIVE=true` after policy approval.
 
 Start with one EU source. Do not enable FDA merely to test the feature.
-

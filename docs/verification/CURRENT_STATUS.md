@@ -27,6 +27,15 @@ formats must be added to the reviewed fixture and regression matrix.
 - PRRC release requires explicit approval, reviewer identity, and a valid review
   timestamp; review transitions use optimistic compare-and-set behavior.
 
+## BfArM evidence capture
+
+When BfArM is enabled through the regulatory-evidence capture allow-list, the
+pipeline retains both exact adapter output and exact HTML response bytes in the
+private evidence bucket. Stored request locators replace query values with a
+SHA-256 fingerprint. Individual artifacts are limited to 50 MiB and one fetch
+is limited to 100 MiB. MHRA, Swissmedic, and FDA do not yet claim raw-response
+retention.
+
 ## Scraper interpretation
 
 Source acquisition and profile filtering are separate. A source can fetch

@@ -25,10 +25,12 @@ describe('source authority contract', () => {
     expect(SOURCE_AUTHORITY.eudamed.crossSourceActionKey).toBe('issuer_reference_composite')
   })
 
-  it('does not claim raw regulator responses are currently retained', () => {
-    for (const contract of Object.values(SOURCE_AUTHORITY)) {
-      expect(contract.rawResponseRetentionImplemented).toBe(false)
-    }
+  it('claims raw-response retention only for the implemented BfArM path', () => {
+    expect(SOURCE_AUTHORITY.bfarm.rawResponseRetentionImplemented).toBe(true)
+    expect(SOURCE_AUTHORITY.mhra.rawResponseRetentionImplemented).toBe(false)
+    expect(SOURCE_AUTHORITY.swissmedic.rawResponseRetentionImplemented).toBe(false)
+    expect(SOURCE_AUTHORITY.fda.rawResponseRetentionImplemented).toBe(false)
+    expect(SOURCE_AUTHORITY.eudamed.rawResponseRetentionImplemented).toBe(false)
   })
 
   it('requires a second explicit approval before capturing FDA adapter output', () => {
@@ -51,4 +53,3 @@ describe('source authority contract', () => {
     }
   })
 })
-

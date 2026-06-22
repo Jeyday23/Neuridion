@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import pLimit from 'p-limit'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { ScrapedFsn, ScraperOutcome } from '@/lib/scrapers/bfarm'
+import type { RawSourceArtifact, ScrapedFsn, ScraperOutcome } from '@/lib/scrapers/bfarm'
 import { EVIDENCE_ADAPTER_VERSIONS, EVIDENCE_BUCKET, PERSONAL_DATA_SOURCES } from './constants'
 import type { EvidenceDatabase } from './db-types'
 import { canonicalJson, normalizedObservationHash, sha256Hex } from './hash'
@@ -28,13 +28,30 @@ export interface FetchCapture {
   outcome: ScraperOutcome
   warnings: string[]
   items: ScrapedFsn[]
+  rawArtifacts?: RawSourceArtifact[]
 }
 
 export interface CaptureResult {
   fetchId: string
   observations: number
   revisions: number
+  rawArtifacts: number
   authorityRevisionIds: Map<string, string>
+}
+
+const MAX_RAW_ARTIFACT_BYTES = 50 * 1024 * 1024
+const MAX_RAW_CAPTURE_BYTES = 100 * 1024 * 1024
+
+export function evidenceSafeLocator(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl)
+    if (!url.search) return url.toString()
+    const fingerprint = sha256Hex(url.searchParams.toString())
+    url.search = `query_sha256=${fingerprint}`
+    return url.toString()
+  } catch {
+    return 'redacted://invalid-locator'
+  }
 }
 
 export function adapterOutputBytes(item: ScrapedFsn): Uint8Array {
@@ -59,11 +76,77 @@ async function recordFetch(capture: FetchCapture): Promise<string> {
     adapter_version: EVIDENCE_ADAPTER_VERSIONS[capture.source],
     fetch_started_at: capture.startedAt,
     fetch_completed_at: capture.completedAt,
+    http_status: capture.rawArtifacts?.[0]?.httpStatus ?? null,
     outcome: capture.outcome,
     warnings: capture.warnings,
   }).select('id').single()
   if (error) throw new Error(`Evidence fetch insert failed: ${error.message}`)
   return data.id
+}
+
+async function storeRawEvidence(
+  db: EvidenceClient,
+  source: SourceName,
+  artifact: RawSourceArtifact,
+): Promise<string> {
+  if (artifact.bytes.byteLength > MAX_RAW_ARTIFACT_BYTES) {
+    throw new Error(`Raw evidence artifact exceeds ${MAX_RAW_ARTIFACT_BYTES} byte limit`)
+  }
+  const contentHash = sha256Hex(artifact.bytes)
+  const existingId = await findEvidenceByHash(db, contentHash)
+  if (existingId) return existingId
+
+  const storagePath = `${source}/raw-response/${contentHash}.bin`
+  const { error: uploadError } = await db.storage.from(EVIDENCE_BUCKET).upload(storagePath, artifact.bytes, {
+    // The private evidence bucket already permits octet-stream. The exact
+    // authority media type remains on evidence_objects.media_type.
+    contentType: 'application/octet-stream',
+    upsert: false,
+  })
+  if (uploadError && !/already exists|duplicate/i.test(uploadError.message)) {
+    throw new Error(`Raw evidence upload failed: ${uploadError.message}`)
+  }
+
+  const { data, error } = await db.from('evidence_objects').insert({
+    content_hash: contentHash,
+    storage_bucket: EVIDENCE_BUCKET,
+    storage_path: storagePath,
+    media_type: artifact.mediaType,
+    byte_size: artifact.bytes.byteLength,
+    artifact_kind: 'raw_response',
+    contains_personal_data: PERSONAL_DATA_SOURCES.has(source),
+  }).select('id').single()
+  if (!error) return data.id
+  if (error.code === '23505') {
+    const racedId = await findEvidenceByHash(db, contentHash)
+    if (racedId) return racedId
+  }
+  throw new Error(`Raw evidence object insert failed: ${error.message}`)
+}
+
+async function recordRawArtifacts(
+  db: EvidenceClient,
+  fetchId: string,
+  capture: FetchCapture,
+): Promise<number> {
+  const artifacts = capture.rawArtifacts ?? []
+  const totalBytes = artifacts.reduce((total, artifact) => total + artifact.bytes.byteLength, 0)
+  if (totalBytes > MAX_RAW_CAPTURE_BYTES) {
+    throw new Error(`Raw evidence capture exceeds ${MAX_RAW_CAPTURE_BYTES} byte limit`)
+  }
+  let recorded = 0
+  for (const artifact of artifacts) {
+    const evidenceId = await storeRawEvidence(db, capture.source, artifact)
+    const { error } = await db.from('fetch_artifacts').insert({
+      fetch_id: fetchId,
+      evidence_id: evidenceId,
+      source_url: evidenceSafeLocator(artifact.sourceUrl),
+      artifact_role: 'response',
+    })
+    if (error && error.code !== '23505') throw new Error(`Raw evidence link failed: ${error.message}`)
+    if (!error) recorded++
+  }
+  return recorded
 }
 
 async function findEvidenceByHash(db: EvidenceClient, contentHash: string): Promise<string | null> {
@@ -218,6 +301,7 @@ export async function captureAdapterOutput(
 ): Promise<CaptureResult> {
   const db = evidenceClient()
   const fetchId = await recordFetch(capture)
+  const rawArtifacts = await recordRawArtifacts(db, fetchId, capture)
   let observations = 0
   let revisions = 0
   const authorityRevisionIds = new Map<string, string>()
@@ -243,7 +327,7 @@ export async function captureAdapterOutput(
   if (failures.length > 0) {
     throw new Error(`Evidence capture failed for ${failures.length}/${capture.items.length} records: ${failures[0]}`)
   }
-  return { fetchId, observations, revisions, authorityRevisionIds }
+  return { fetchId, observations, revisions, rawArtifacts, authorityRevisionIds }
 }
 
 export async function getLatestAuthorityRevisionIds(

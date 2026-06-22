@@ -9,9 +9,11 @@ pipeline. It deliberately preserves two different identities:
 
 `REGULATORY_EVIDENCE_CAPTURE=true` plus the explicit
 `REGULATORY_EVIDENCE_SOURCES` allow-list records the exact canonical JSON emitted by
-the current source adapter. These objects are labelled `adapter_output`; they
-must not be described as raw regulator HTTP responses. Future source adapters
-may additionally retain `raw_response` and `attachment` objects.
+the current source adapter. These objects are labelled `adapter_output`. The
+BfArM adapter additionally retains the exact HTML response bytes as private
+`raw_response` objects; query values are replaced by a SHA-256 fingerprint in
+the stored request locator. Other sources must still be described as adapter
+output until their raw-response paths are implemented and validated.
 
 ## Integrity boundaries
 
@@ -48,3 +50,5 @@ the separate `REGULATORY_EVIDENCE_ALLOW_SENSITIVE=true` gate.
    storage, and redaction behavior.
 4. Enable one production source at a time through
    `REGULATORY_EVIDENCE_SOURCES` after retention approval.
+5. For BfArM, verify that every captured fetch links both response artifacts and
+   normalized record artifacts before treating the raw-evidence path as active.

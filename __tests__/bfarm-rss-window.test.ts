@@ -31,7 +31,15 @@ describe('BfArM RSS freshness reconciliation', () => {
   })
 
   it('adds and deduplicates RSS records while primary controls coverage outcome', () => {
-    const primary = scraperResult([item('shared'), item('html-only')])
+    const rawArtifact = {
+      sourceUrl: 'https://www.bfarm.de/search?page=1',
+      mediaType: 'text/html',
+      bytes: new TextEncoder().encode('<html>authority response</html>'),
+      httpStatus: 200,
+    }
+    const primary = scraperResult([item('shared'), item('html-only')], [], {
+      rawArtifacts: [rawArtifact],
+    })
     const rssDuplicate = {
       ...item('rss-guid-differs'),
       source_url: `${item('shared').source_url}?nn=123#document`,
@@ -46,6 +54,7 @@ describe('BfArM RSS freshness reconciliation', () => {
       'HTML primary': 2,
       'RSS freshness': 2,
     })
+    expect(merged.rawArtifacts).toEqual([rawArtifact])
   })
 
   it('does not turn a healthy primary into partial coverage when RSS is unavailable', () => {

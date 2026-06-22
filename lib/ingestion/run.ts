@@ -77,7 +77,11 @@ export async function ingestSource(input: {
   try {
     const scraper = getProductionScraper(input.source)
     if (!scraper) throw new Error(`No production adapter for ${input.source}`)
-    const primaryResult = await scraper({ fromDate: effectiveWindow.from, toDate: effectiveWindow.to })
+    const primaryResult = await scraper({
+      fromDate: effectiveWindow.from,
+      toDate: effectiveWindow.to,
+      captureRawEvidence: input.source === 'bfarm',
+    })
     const result = input.source === 'bfarm'
       ? mergeBfarmFreshness(primaryResult, await fetchBfarmRss({
         fromDate: effectiveWindow.from,
@@ -106,6 +110,7 @@ export async function ingestSource(input: {
       outcome: result.outcome,
       warnings: result.warnings,
       items,
+      rawArtifacts: result.rawArtifacts,
     }, authorityIds)
 
     if (result.outcome === 'complete' || result.outcome === 'empty') {

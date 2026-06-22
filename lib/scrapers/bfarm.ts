@@ -23,6 +23,13 @@ export interface ScrapedFsn {
   source_db:    string
 }
 
+export interface RawSourceArtifact {
+  sourceUrl: string
+  mediaType: string
+  bytes: Uint8Array
+  httpStatus: number
+}
+
 /** @deprecated use ScrapedFsn */
 export type FsnItem = ScrapedFsn
 
@@ -35,6 +42,7 @@ export interface ScraperParams {
     manufacturer: string
     device_name:  string
   }
+  captureRawEvidence?: boolean
 }
 
 export type ScraperOutcome = 'complete' | 'empty' | 'partial' | 'failed'
@@ -53,6 +61,7 @@ export interface ScraperResult {
     bfarmRssOutcome?: ScraperOutcome
     bfarmOutageSuspected?: boolean
   }
+  rawArtifacts?: RawSourceArtifact[]
 }
 
 export function scraperResult(
@@ -62,6 +71,7 @@ export function scraperResult(
     failed?: boolean
     archiveLimitationHit?: boolean
     diagnostics?: ScraperResult['diagnostics']
+    rawArtifacts?: RawSourceArtifact[]
   } = {},
 ): ScraperResult {
   const outcome: ScraperOutcome = options.failed
@@ -80,6 +90,7 @@ export function scraperResult(
       ? { archiveLimitationHit: options.archiveLimitationHit }
       : {}),
     ...(options.diagnostics ? { diagnostics: options.diagnostics } : {}),
+    ...(options.rawArtifacts?.length ? { rawArtifacts: options.rawArtifacts } : {}),
   }
 }
 
@@ -88,6 +99,7 @@ interface ScraperOptions {
   toDate?: Date
   signal?: AbortSignal
   query?: string
+  captureRawEvidence?: boolean
 }
 
 // Keys are German month names, values are 0-based month indices.
@@ -341,8 +353,9 @@ export function parseNextPageHref(html: string): string | null {
 }
 
 export async function scrapeBfArM(options: ScraperOptions = {}): Promise<ScraperResult> {
-  const { fromDate, toDate, signal, query } = options
+  const { fromDate, toDate, signal, query, captureRawEvidence = false } = options
   const warnings: string[] = []
+  const rawArtifacts: RawSourceArtifact[] = []
 
   try {
     const raw: ScrapedFsn[] = []
@@ -367,6 +380,14 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraper
       if (html.length > 5 * 1024 * 1024) {
         warnings.push(`BfArM: response too large on page ${page}: ${html.length} bytes`)
         return scraperResult([], warnings)
+      }
+      if (captureRawEvidence) {
+        rawArtifacts.push({
+          sourceUrl: url,
+          mediaType: contentType.split(';')[0] || 'text/html',
+          bytes: new TextEncoder().encode(html),
+          httpStatus: res.status,
+        })
       }
 
       const pageItems = parsePage(html)
@@ -437,10 +458,10 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraper
     // RSS ignores the date filter and would pollute results with out-of-range
     // items. Zero results is a valid state: BfArM does not publish daily.
     if (deduped.length === 0) {
-      return scraperResult([], warnings)
+      return scraperResult([], warnings, { rawArtifacts })
     }
 
-    return scraperResult(deduped, warnings)
+    return scraperResult(deduped, warnings, { rawArtifacts })
   } catch (err) {
     console.error('[BfArM] HTML scraper error:', err instanceof Error ? err.message : String(err))
     // Re-throw so the search run is marked as error rather than silently
@@ -463,7 +484,11 @@ export function yearToShortcut(year: number, currentYear: number): string | null
   return null
 }
 
-async function scrapeYearShortcut(shortcut: string, signal?: AbortSignal): Promise<ParsedItem[]> {
+async function scrapeYearShortcut(
+  shortcut: string,
+  signal?: AbortSignal,
+  rawArtifacts?: RawSourceArtifact[],
+): Promise<ParsedItem[]> {
   const items: ParsedItem[] = []
   let pageNum = 1
   let url: string | null = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&dateOfIssue_dt=${shortcut}&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
@@ -488,6 +513,14 @@ async function scrapeYearShortcut(shortcut: string, signal?: AbortSignal): Promi
       console.error('[bfarm]', `${shortcut} page ${pageNum}: response too large (${html.length} bytes), stopping`)
       break
     }
+    if (rawArtifacts) {
+      rawArtifacts.push({
+        sourceUrl: url,
+        mediaType: contentType.split(';')[0] || 'text/html',
+        bytes: new TextEncoder().encode(html),
+        httpStatus: res.status,
+      })
+    }
 
     const pageItems = parsePage(html)
     const nextHref = parseNextPageHref(html)
@@ -504,13 +537,17 @@ async function scrapeYearShortcut(shortcut: string, signal?: AbortSignal): Promi
   return items
 }
 
-async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: string }, signal?: AbortSignal): Promise<ScraperResult> {
+async function scrapeBfarmYearShortcuts(
+  params: { fromDate: string; toDate: string; captureRawEvidence?: boolean },
+  signal?: AbortSignal,
+): Promise<ScraperResult> {
   const fromYear    = new Date(params.fromDate + 'T00:00:00.000Z').getUTCFullYear()
   const toYear      = new Date(params.toDate   + 'T00:00:00.000Z').getUTCFullYear()
   const currentYear = new Date().getUTCFullYear()
 
   const yearsToScrape: string[] = []
   const warnings: string[]      = []
+  const rawArtifacts: RawSourceArtifact[] | undefined = params.captureRawEvidence ? [] : undefined
 
   for (let year = fromYear; year <= toYear; year++) {
     const shortcut = yearToShortcut(year, currentYear)
@@ -531,7 +568,7 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
 
   const allParsed: ParsedItem[] = []
   const yearResults = await Promise.all(yearsToScrape.map(async (shortcut) => {
-    return scrapeYearShortcut(shortcut, signal)
+    return scrapeYearShortcut(shortcut, signal, rawArtifacts)
   }))
   for (const items of yearResults) allParsed.push(...items)
 
@@ -571,7 +608,10 @@ async function scrapeBfarmYearShortcuts(params: { fromDate: string; toDate: stri
     seen.add(item.external_id)
     return true
   })
-  return scraperResult(deduped, warnings, { archiveLimitationHit: warnings.length > 0 })
+  return scraperResult(deduped, warnings, {
+    archiveLimitationHit: warnings.length > 0,
+    rawArtifacts,
+  })
 }
 
 export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult> {
@@ -598,7 +638,7 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
       // year shortcuts for genuinely long searches.
       const broadDiscovery = total > 180
         ? scrapeBfarmYearShortcuts(params, signal)
-        : scrapeBfArM({ fromDate: from, toDate: to, signal })
+        : scrapeBfArM({ fromDate: from, toDate: to, signal, captureRawEvidence: params.captureRawEvidence })
       if (!targetedQuery) return broadDiscovery
 
       // Broad discovery protects recall; the targeted query protects against
@@ -607,7 +647,13 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
       // for date accuracy; both paths re-apply the requested range locally.
       const searches = await Promise.allSettled([
         broadDiscovery,
-        scrapeBfArM({ fromDate: from, toDate: to, signal, query: targetedQuery }),
+        scrapeBfArM({
+          fromDate: from,
+          toDate: to,
+          signal,
+          query: targetedQuery,
+          captureRawEvidence: params.captureRawEvidence,
+        }),
       ])
       const successful = searches
         .filter((result): result is PromiseFulfilledResult<ScraperResult> => result.status === 'fulfilled')
@@ -626,6 +672,7 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
       }
       return scraperResult([...byId.values()], [...new Set(warnings)], {
         failed: successful.every(result => result.outcome === 'failed'),
+        rawArtifacts: successful.flatMap(result => result.rawArtifacts ?? []),
       })
     }, params.signal)
   } catch (err) {
@@ -643,7 +690,10 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
   const remainingMs = sourceDeadline - Date.now()
   if (remainingMs < 10_000) {
     console.error(`[bfarm] skipping Firecrawl fallback — only ${Math.round(remainingMs / 1000)}s remaining`)
-    return scraperResult(primary.items, [...primary.warnings, 'BfArM Firecrawl fallback skipped: insufficient budget remaining'], { failed: primary.outcome === 'failed' })
+    return scraperResult(primary.items, [...primary.warnings, 'BfArM Firecrawl fallback skipped: insufficient budget remaining'], {
+      failed: primary.outcome === 'failed',
+      rawArtifacts: primary.rawArtifacts,
+    })
   }
 
   console.error(`[bfarm] Firecrawl fallback started with ${Math.round(remainingMs / 1000)}s remaining`)
@@ -651,14 +701,23 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
 
   if (fallback.items.length > 0) {
     console.error(`[bfarm] Firecrawl fallback returned ${fallback.items.length} items`)
-    return fallback
+    return scraperResult(fallback.items, fallback.warnings, {
+      failed: fallback.outcome === 'failed',
+      archiveLimitationHit: fallback.archiveLimitationHit,
+      diagnostics: fallback.diagnostics,
+      rawArtifacts: primary.rawArtifacts,
+    })
   }
 
   console.error(`[bfarm] Firecrawl fallback returned 0 items`)
   return scraperResult(
     primary.items,
     [...primary.warnings, ...fallback.warnings],
-    { failed: primary.outcome === 'failed' && fallback.outcome === 'failed', archiveLimitationHit: primary.archiveLimitationHit },
+    {
+      failed: primary.outcome === 'failed' && fallback.outcome === 'failed',
+      archiveLimitationHit: primary.archiveLimitationHit,
+      rawArtifacts: primary.rawArtifacts,
+    },
   )
 }
 

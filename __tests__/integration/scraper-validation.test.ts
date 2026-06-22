@@ -37,7 +37,7 @@ const fmt = (d: Date) => d.toISOString().slice(0, 10)
 
 describeLive('BfArM live validation', () => {
   it('returns items for a 90-day window with correct fields', async () => {
-    const result = await scrapeBfArM({ fromDate: d90, toDate: now })
+    const result = await scrapeBfArM({ fromDate: d90, toDate: now, captureRawEvidence: true })
     console.log(`[BfArM] Items: ${result.items.length} | Warnings: ${result.warnings.length}`)
     for (const item of result.items.slice(0, 5)) {
       console.log(`  ${item.fsn_date} | ${item.title.slice(0, 80)}`)
@@ -50,6 +50,12 @@ describeLive('BfArM live validation', () => {
     // A successful HTTP response with zero parsed rows can indicate selector
     // drift, so this live canary must prove that real notices were extracted.
     expect(result.items.length).toBeGreaterThan(0)
+    expect(result.rawArtifacts?.length).toBeGreaterThan(0)
+    expect(result.rawArtifacts?.every(artifact =>
+      artifact.httpStatus === 200
+      && artifact.mediaType === 'text/html'
+      && artifact.bytes.byteLength > 0
+    )).toBe(true)
     for (const item of result.items) {
       expect(item.external_id).toBeTruthy()
       expect(item.source_db).toBe('bfarm')

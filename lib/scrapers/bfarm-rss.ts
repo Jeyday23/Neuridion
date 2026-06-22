@@ -104,5 +104,6 @@ export function mergeBfarmFreshness(primary: ScraperResult, rss: ScraperResult):
       bfarmRssOutcome: rss.outcome,
       bfarmOutageSuspected: outageSuspected,
     },
+    ...(primary.rawArtifacts?.length ? { rawArtifacts: primary.rawArtifacts } : {}),
   }
 }

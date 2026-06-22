@@ -49,4 +49,33 @@ describe('scrapeBfArM pagination bounds', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(result.items.map((item) => item.external_id)).toEqual(['26008-26', '26007-26'])
   })
+
+  it('retains exact HTML bytes only when raw evidence capture is requested', async () => {
+    const html = page([teaser('26008-26', '17. Juni 2026')])
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(html, {
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    })))
+
+    const captured = await scrapeBfArM({
+      fromDate: new Date('2026-06-11T00:00:00.000Z'),
+      toDate: new Date('2026-06-18T23:59:59.999Z'),
+      query: 'Test Device',
+      captureRawEvidence: true,
+    })
+    const ordinary = await scrapeBfArM({
+      fromDate: new Date('2026-06-11T00:00:00.000Z'),
+      toDate: new Date('2026-06-18T23:59:59.999Z'),
+      query: 'Test Device',
+    })
+
+    expect(captured.rawArtifacts).toHaveLength(1)
+    expect(new TextDecoder().decode(captured.rawArtifacts![0].bytes)).toBe(html)
+    expect(captured.rawArtifacts![0]).toMatchObject({
+      mediaType: 'text/html',
+      httpStatus: 200,
+    })
+    expect(captured.rawArtifacts![0].sourceUrl).toContain('templateQueryString=Test%20Device')
+    expect(ordinary.rawArtifacts).toBeUndefined()
+  })
 })

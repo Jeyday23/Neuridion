@@ -48,7 +48,7 @@ export const SOURCE_AUTHORITY = {
     crossSourceActionKey: 'issuer_reference_composite',
     basicUdiRole: 'unavailable',
     currentCaptureKind: 'adapter_output',
-    rawResponseRetentionImplemented: false,
+    rawResponseRetentionImplemented: true,
     containsPersonalData: 'unlikely_public_record',
     requiresSensitiveDataApproval: false,
     pollCadenceHours: 24,
