@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { Ratelimit } from '@upstash/ratelimit'
 import { Redis } from '@upstash/redis'
 import { buildCspHeader } from '@/lib/security/csp'
+import { isUnsupportedPageMethod } from '@/lib/security/http-methods'
 import { isStaleSessionAuthError } from '@/lib/auth/stale-session'
 
 const encoder = new TextEncoder()
@@ -129,8 +130,16 @@ const IDLE_COOKIE        = '_neuridion_active'
 const IDLE_TIMEOUT_MS    = 30 * 60 * 1000 // 30 minutes
 
 export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl
+
+  if (isUnsupportedPageMethod(pathname, request.method)) {
+    return addSecurityHeaders(NextResponse.json(
+      { error: 'Method not allowed' },
+      { status: 405, headers: { Allow: 'GET, HEAD, POST, OPTIONS' } },
+    ))
+  }
+
   if (process.env.MAINTENANCE_MODE === 'true') {
-    const { pathname } = request.nextUrl
     const bypassMaintenance = pathname.startsWith('/api/webhooks/')
       || pathname.startsWith('/api/worker/health')
     if (!bypassMaintenance) {
@@ -147,7 +156,6 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const { pathname } = request.nextUrl
   const requestId = globalThis.crypto.randomUUID()
   const SESSION_HMAC_KEY = await getSessionHmacKey()
 

@@ -26,12 +26,12 @@ export type IntegrationClients = {
 
 const TABLE_SENTINELS: Array<{ table: string; columns: string }> = [
   { table: 'users', columns: 'id,email,plan' },
-  { table: 'profiles', columns: 'id,user_id,manufacturer,device_name' },
+  { table: 'product_profiles', columns: 'id,user_id,manufacturer,device_name' },
   { table: 'search_runs', columns: 'id,user_id,status,created_at' },
   { table: 'fsn_results', columns: 'id,source_db,title,authority_revision_id' },
   { table: 'filter_decisions', columns: 'id,decision,model_used,authority_revision_id,evidence_parser_version' },
   { table: 'filter_decision_cache', columns: 'fsn_external_id,profile_fingerprint,decision' },
-  { table: 'reports', columns: 'id,user_id,search_run_id' },
+  { table: 'reports', columns: 'id,user_id,run_id' },
   { table: 'search_drafts', columns: 'id,user_id' },
   { table: 'source_fetches', columns: 'id,source,outcome,adapter_version' },
   { table: 'authority_record_revisions', columns: 'id,authority_record_id,revision_number' },
