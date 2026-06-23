@@ -185,6 +185,11 @@ async function enrichItem(item: ScrapedFsn, signal?: AbortSignal): Promise<Scrap
 
     return [{
       ...item,
+      title:        cleanTitle(originalTitle),
+      manufacturer: item.manufacturer
+        ?? extractManufacturerFromDetail(originalTitle, body)
+        ?? 'Not specified by MHRA',
+      product_name: item.product_name ?? extractProductName(originalTitle),
       fsn_date:    issuedDate ?? item.fsn_date ?? null,
       raw_content: sanitizeContent(rawParts.join('\n\n')),
     }]
@@ -192,6 +197,23 @@ async function enrichItem(item: ScrapedFsn, signal?: AbortSignal): Promise<Scrap
     console.error('[mhra]', `Detail fetch failed for ${linkPath}:`, err instanceof Error ? err.message : String(err))
     return [item]
   }
+}
+
+export function extractManufacturerFromDetail(title: string, bodyHtml: string): string | null {
+  const text = stripHtmlTags(bodyHtml).replace(/\s+/g, ' ').trim()
+  const company = String.raw`[A-Z][A-Za-z0-9&'’.,()/-]*(?:\s+[A-Z][A-Za-z0-9&'’.,()/-]*){0,7}`
+  const suffix = String.raw`(?:Inc\.?|Incorporated|Ltd\.?|Limited|GmbH|AG|S\.?A\.?|Corporation|Corp\.?|LLC|plc)`
+  const patterns = [
+    new RegExp(`\\b(${company}\\s+${suffix})\\s+(?:have|has|are|is|at)\\b`),
+    new RegExp(`\\b(?:return(?:ed)?\\s+to|report\\s+details[^.]{0,80}?\\s+to)\\s+(${company}\\s+${suffix})\\b`, 'i'),
+  ]
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (match?.[1]) return match[1].replace(/[.,;:]+$/, '').trim()
+  }
+
+  return extractManufacturer(title, '') || null
 }
 
 export function extractGovUkAttachmentUrls(detail: GovUkContentItem): string[] {
@@ -215,24 +237,19 @@ export function extractGovUkAttachmentUrls(detail: GovUkContentItem): string[] {
 
 const MHRA_DATE_RANGE = /\b\d{1,2}\s+(?:[A-Za-z]+\s+)?to\s+\d{1,2}\s+[A-Za-z]+(?:\s+\d{4})?\b/i
 
-const STRUCTURAL_HEADINGS = /^(?:problem|action|advice|background|summary|description|details|overview|introduction|conclusion|update|further information|related)$/i
+const STRUCTURAL_HEADINGS = /^(?:problem|action|advice(?:\s+for\s+.+)?|background|summary|description|details|overview|introduction|conclusion|update|further information|related):?$/i
 
 export function isMhraRoundupPage(
   title: string,
   url: string,
-  body: string,
+  _body: string,
   refNumber: string,
 ): boolean {
   if (refNumber.trim()) return false
   if (/field safety notices/i.test(title) && MHRA_DATE_RANGE.test(title)) return true
   if (/\/field-safety-notices--?\d/i.test(url)) return true
   if (MHRA_DATE_RANGE.test(title)) return true
-  const headings = [...(body.matchAll(/<h[234][^>]*>([\s\S]*?)<\/h[234]>/gi))]
-  const fsnHeadings = headings.filter(m => {
-    const text = stripHtmlTags(m[1]).trim()
-    return !STRUCTURAL_HEADINGS.test(text) && /:\s/.test(text)
-  })
-  return fsnHeadings.length >= 2
+  return false
 }
 
 export function cleanMhraRoundupTitle(raw: string): string {
@@ -487,6 +504,7 @@ interface GovUkSearchItem {
 
 interface GovUkContentItem {
   title?:   string
+  description?: string
   details?: {
     body?:         string
     ref_number?:   string

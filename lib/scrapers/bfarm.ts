@@ -165,7 +165,13 @@ function parseTeaserMetadataDate(title: string): Date | null {
 function cleanTeaserTitle(title: string): string {
   // BfArM places download metadata inside the headline container. It is not
   // part of the notice title or manufacturer name.
-  return title.replace(/\s+PDF,\s*[\s\S]*$/i, '').trim()
+  return title
+    .replace(/\\u0020/gi, ' ')
+    .replace(/\bz\.u0020(?=\S)/gi, 'zu ')
+    .replace(/\.u0020/gi, '. ')
+    .replace(/\s+PDF,\s*[\s\S]*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function stripTags(html: string): string {

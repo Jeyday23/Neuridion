@@ -34,6 +34,7 @@ function getArg(name: string, fallback: string): string {
 
 const BASE_URL = getArg('base-url', 'http://localhost:3000')
 const TEST_EMAIL = getArg('email', '')
+const PRESERVE_SESSION = args.includes('--preserve-session')
 const SCREENSHOT_DIR = path.resolve('docs/prrc-review/screenshots')
 const REPORT_DIR = path.resolve('docs/prrc-review')
 
@@ -236,7 +237,7 @@ function generateReport(): string {
 
   let md = `# PRRC Quality Assurance Report\n\n`
   md += `**Date:** ${today}\n`
-  md += `**Environment:** Local dev (${BASE_URL})\n`
+  md += `**Environment:** ${BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1') ? 'Local dev' : 'Deployed production'} (${BASE_URL})\n`
   md += `**App Version:** ${gitHash}\n`
   const redactedEmail = TEST_EMAIL.replace(/^(.{2}).*(@.{2}).*$/, '$1***$2***')
   md += `**Test Account:** ${redactedEmail}\n\n`
@@ -393,7 +394,10 @@ async function testAuth(page: Page, browser: Browser): Promise<{ authedPage: Pag
 
   if (!authedPage) return null
 
-  await test(section, 'Logout works', authedPage, async () => {
+  if (PRESERVE_SESSION) {
+    skip(section, 'Logout works', 'Skipped because --preserve-session was requested')
+  } else {
+    await test(section, 'Logout works', authedPage, async () => {
     // Dismiss cookie banner if it overlaps the logout button
     const cookieBanner = authedPage!.locator('.fixed.bottom-0')
     if (await cookieBanner.isVisible({ timeout: 1000 }).catch(() => false)) {
@@ -413,7 +417,8 @@ async function testAuth(page: Page, browser: Browser): Promise<{ authedPage: Pag
       return { detail: `Logged out, redirected to ${url}` }
     }
     throw new Error('Logout button not found')
-  })
+    })
+  }
 
   // Re-establish session for remaining authenticated tests
   if (authedContext) await authedContext.close()
@@ -572,13 +577,11 @@ async function testArchive(page: Page): Promise<void> {
   })
 
   await test(section, 'Table has expected columns', page, async () => {
-    const expectedCols = ['Date', 'Profile', 'Period', 'Status', 'Results', 'Report', 'Actions']
-    const found: string[] = []
-    for (const col of expectedCols) {
-      const th = page.locator(`th:has-text("${col}")`).or(page.locator(`text=${col}`))
-      if (await th.first().isVisible().catch(() => false)) found.push(col)
+    const expectedCols = ['Date', 'Profile', 'Period', 'DBs', 'Status', 'Results', 'Review', 'Report', 'Actions']
+    const found = (await page.locator('thead th').allTextContents()).map((text) => text.trim())
+    if (found.length !== expectedCols.length) {
+      throw new Error(`Missing columns: ${expectedCols.filter((col) => !found.includes(col)).join(', ')}`)
     }
-    if (found.length < 4) throw new Error(`Only found ${found.length} columns: ${found.join(', ')}`)
     return { detail: `${found.length}/${expectedCols.length} columns: ${found.join(', ')}` }
   })
 
@@ -643,7 +646,7 @@ async function testBilling(page: Page): Promise<void> {
   })
 
   await test(section, 'Current plan displayed', page, async () => {
-    const plan = page.locator('text=Free').or(page.locator('text=Trial')).or(page.locator('text=Starter')).or(page.locator('text=Pro'))
+    const plan = page.locator('[data-testid="current-plan-label"]')
     if (!(await plan.first().isVisible().catch(() => false))) throw new Error('Current plan label not found')
     const text = await plan.first().textContent()
     return { detail: `Current plan: ${text}` }
@@ -685,10 +688,9 @@ async function testErrorHandling(page: Page): Promise<void> {
     const res = await page.goto(`${BASE_URL}/this-page-does-not-exist-xyz`, { waitUntil: 'domcontentloaded' })
     const status = res?.status() ?? 0
     const body = await page.locator('body').textContent()
-    if (status === 404 || body?.includes('404') || body?.toLowerCase().includes('not found')) {
-      return { detail: `404 handled (HTTP ${status})` }
-    }
-    return { detail: `Returned HTTP ${status}`, suggestion: 'Consider adding a custom 404 page' }
+    if (status !== 404) throw new Error(`Expected HTTP 404, received ${status}`)
+    if (!body?.toLowerCase().includes('not found')) throw new Error('404 response did not render the not-found message')
+    return { detail: '404 handled with HTTP 404 and a user-facing not-found page' }
   })
 
   await test(section, 'Rate limit returns 429', page, async () => {
@@ -750,7 +752,7 @@ async function main() {
     await testAdmin(authedPage)
 
     console.log('[11/11] Error Handling')
-    await testErrorHandling(page)
+    await testErrorHandling(authedPage)
 
     if (authResult?.authedContext) await authResult.authedContext.close()
   } finally {

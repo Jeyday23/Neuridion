@@ -22,7 +22,7 @@ export default async function BillingPage({
   const admin = createAdminClient()
   const { data: userData, error: userDataError } = await admin
     .from('users')
-    .select('plan, stripe_customer_id')
+    .select('plan')
     .eq('id', user.id)
     .single()
 
@@ -44,7 +44,7 @@ export default async function BillingPage({
   return (
     <BillingClient
       currentPlan={currentPlan}
-      hasCustomer={!!userData.stripe_customer_id}
+      hasCustomer={false}
       successParam={!!params.success}
       canceledParam={!!params.canceled}
       upgradePlans={UPGRADE_PLANS}

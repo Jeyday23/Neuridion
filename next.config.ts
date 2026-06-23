@@ -4,6 +4,9 @@ const isDev = process.env.NODE_ENV === 'development';
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  experimental: {
+    globalNotFound: true,
+  },
   async headers() {
     if (isDev) return [];
     return [

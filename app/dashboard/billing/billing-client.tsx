@@ -49,7 +49,7 @@ export function BillingClient({
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-zinc-400 mb-1">{t.billing.currentPlan}</p>
             <div className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-zinc-900">{planInfo.label}</span>
+              <span data-testid="current-plan-label" className="text-2xl font-bold text-zinc-900">{planInfo.label}</span>
               <span className="text-lg text-zinc-500">{planInfo.priceMonthly}{currentPlan !== 'free' ? '/mo' : ''}</span>
             </div>
             {isActive && (

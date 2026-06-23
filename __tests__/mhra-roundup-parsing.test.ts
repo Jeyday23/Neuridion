@@ -6,6 +6,7 @@ import {
   isValidRoundupSection,
   cleanTitle,
   extractGovUkAttachmentUrls,
+  extractManufacturerFromDetail,
 } from '@/lib/scrapers/mhra'
 
 describe('MHRA roundup parsing', () => {
@@ -77,6 +78,22 @@ describe('MHRA roundup parsing', () => {
       expect(isMhraRoundupPage(
         'Medtronic: Micra AV Pacemaker Safety Notice',
         '/drug-device-alerts/medtronic-micra-av',
+        body,
+        '',
+      )).toBe(false)
+    })
+
+    it('does not infer a roundup solely from colon headings in an individual safety page', () => {
+      const body = [
+        '<h3>For Namic RA syringe:</h3>',
+        '<p>Follow the emergency-use instructions.</p>',
+        '<h3>For Namic manifolds:</h3>',
+        '<p>Inspect the device before use.</p>',
+      ].join('\n')
+
+      expect(isMhraRoundupPage(
+        'Kimal procedure packs containing recalled components: important guidance',
+        '/drug-device-alerts/kimal-procedure-packs-containing-recalled-components',
         body,
         '',
       )).toBe(false)
@@ -208,6 +225,37 @@ describe('MHRA roundup parsing', () => {
       expect(titles).not.toContain('Background')
       expect(titles).not.toContain('Summary')
       expect(results.some(r => r.title.includes('Micra'))).toBe(true)
+    })
+
+    it('does not emit healthcare-professional advice as an FSN', () => {
+      const html = [
+        '<h3>Advice for Healthcare Professionals:</h3>',
+        '<p>MHRA reference: 2026/004/017/601/048</p>',
+        '<p>Use the correct device and follow local procedures.</p>',
+        '<h3>Medtronic: Micra AV Pacemaker</h3>',
+        '<p>MHRA reference: 2025001234</p>',
+      ].join('\n')
+
+      const results = splitRoundupSections(html, '/roundup', '2026-05-22')
+
+      expect(results).toHaveLength(1)
+      expect(results[0].title).toContain('Micra')
+    })
+  })
+
+  describe('manufacturer enrichment', () => {
+    it('extracts a legal manufacturer named in the authoritative detail body', () => {
+      expect(extractManufacturerFromDetail(
+        'Allurion Gastric Balloon: Updated safety information',
+        '<p>Allurion Technologies Inc. have updated documentation with new safety information.</p>',
+      )).toBe('Allurion Technologies Inc')
+    })
+
+    it('returns null for generic multi-manufacturer guidance', () => {
+      expect(extractManufacturerFromDetail(
+        'Risk of severe harm from use of incorrect giving set',
+        '<p>Always use a blood transfusion giving set for a blood transfusion.</p>',
+      )).toBeNull()
     })
   })
 
