@@ -119,7 +119,7 @@ describe('filterByKeywordRelevance', () => {
     expect(result).toHaveLength(0)
   })
 
-  it('keeps same-domain competitor items only when domain matches', () => {
+  it('does not return competitor-only items as product PRRC candidates', () => {
     const items = [
       makeFsn({
         external_id: 'competitor-good',
@@ -139,7 +139,7 @@ describe('filterByKeywordRelevance', () => {
       ['abbott'],
     )
 
-    expect(result.map(i => i.external_id)).toEqual(['competitor-good'])
+    expect(result.map(i => i.external_id)).toEqual([])
   })
 
   it('keeps manufacturer-only only when profile has no usable device/domain terms', () => {
@@ -232,7 +232,7 @@ describe('filterByKeywordRelevance', () => {
     expect(result.length).toBeLessThan(10)
     const ids = result.map(i => i.external_id)
     expect(ids).toContain('target-1')
-    expect(ids).toContain('target-2')
+    expect(ids).not.toContain('target-2')
     expect(ids).not.toContain('noise-1')
   })
 
@@ -251,7 +251,7 @@ describe('filterByKeywordRelevance', () => {
       [],
     )
     expect(result.map(i => i.external_id)).toContain('fresh-1')
-    expect(result.map(i => i.external_id)).toContain('cached-2')
+    expect(result.map(i => i.external_id)).not.toContain('cached-2')
     expect(result.map(i => i.external_id)).not.toContain('cached-1')
   })
 })
