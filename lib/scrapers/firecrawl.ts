@@ -154,12 +154,17 @@ export async function firecrawlFallback(
     }
   }
 
-  const items = extractItems(bestPartialData, fromDate, toDate)
+  const coverage = extractCoverage(bestPartialData, fromDate, toDate)
+  const items = coverage.items
   const elapsed = Math.round((Date.now() - startMs) / 1000)
 
   if (items.length > 0) {
     console.error(`[firecrawl] returning ${items.length} items from ${bestPartialData.length} pages (${elapsed}s)`)
-    return scraperResult(items, ['BfArM primary scraper returned empty — results via Firecrawl fallback'])
+    if (coverage.coverageComplete) {
+      console.error('[firecrawl] fallback coverage complete for requested BfArM date range')
+      return scraperResult(items)
+    }
+    return scraperResult(items, ['BfArM fallback returned items but could not prove complete date-range coverage'])
   }
 
   if (bestPartialData.length === 0) {
@@ -171,11 +176,11 @@ export async function firecrawlFallback(
   return scraperResult([], [`Firecrawl crawled ${bestPartialData.length} pages but 0 items matched the date range`])
 }
 
-function extractItems(
+function extractCoverage(
   pages: Array<{ url?: string; html?: string }>,
   fromDate: Date,
   toDate: Date,
-): ScrapedFsn[] {
+): { items: ScrapedFsn[]; coverageComplete: boolean } {
   const allParsed = pages.flatMap(page =>
     page.html ? parsePage(page.html) : []
   )
@@ -194,11 +199,19 @@ function extractItems(
     }))
 
   const seen = new Set<string>()
-  return inRange.filter(item => {
+  const items = inRange.filter(item => {
     if (seen.has(item.external_id)) return false
     seen.add(item.external_id)
     return true
   })
+
+  const crossedBelowFromDate = allParsed.some(item => item.date !== null && item.date < fromDate)
+  const likelyReachedEnd = pages.length > 0 && pages.length < CRAWL_PAGE_LIMIT
+
+  return {
+    items,
+    coverageComplete: crossedBelowFromDate || likelyReachedEnd,
+  }
 }
 
 interface FirecrawlStatus {
