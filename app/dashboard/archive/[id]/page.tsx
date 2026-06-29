@@ -143,7 +143,7 @@ export default async function RunDetailPage({
 
   const dbsArray = Array.isArray(run.dbs_searched) ? run.dbs_searched : []
   const mhraSearched = dbsArray.some((db) => db.toLowerCase() === 'mhra')
-  const showMhraWarning = mhraSearched && run.status === 'complete' &&
+  const showMhraNoMatches = mhraSearched && run.status === 'complete' &&
     !results.some(r => r.source_db === 'mhra')
 
   const rel  = run.relevant_count      ?? 0
@@ -249,9 +249,9 @@ export default async function RunDetailPage({
         </div>
       </div>
 
-      {showMhraWarning && (
-        <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <strong>MHRA data unavailable</strong> — the MHRA (UK) source returned no results for this search. The source may be temporarily offline. Results from other databases are unaffected.
+      {showMhraNoMatches && (
+        <div className="mb-4 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          <strong>No MHRA matches</strong> — the MHRA (UK) source was searched, but no records matched this profile after product-specific filtering. Results from other databases are unaffected.
         </div>
       )}
 
