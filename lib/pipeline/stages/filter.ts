@@ -82,15 +82,29 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
 
   const alreadyCached: InsertedFsnRow[] = []
   const needsFilter: InsertedFsnRow[] = []
+  let contentChangedCount = 0
 
   for (const row of insertedRows) {
     const skipCache = contentChanged.has(row.external_id ?? '')
+    if (skipCache) contentChangedCount += 1
     if (!skipCache && cacheMap.has(fsnIdOf(row))) {
       alreadyCached.push(row)
     } else {
       needsFilter.push(row)
     }
   }
+
+  ctx.timing.filter_total_items = insertedRows.length
+  ctx.timing.filter_cache_hits = alreadyCached.length
+  ctx.timing.filter_needs_filter = needsFilter.length
+  ctx.timing.filter_content_changed = contentChangedCount
+
+  console.error(
+    '[pipeline]',
+    `run_id=${ctx.runId} filter audit: total=${insertedRows.length} ` +
+    `cache_hits=${alreadyCached.length} needs_filter=${needsFilter.length} ` +
+    `content_changed=${contentChangedCount}`,
+  )
 
   for (const row of alreadyCached) {
     const hit = cacheMap.get(fsnIdOf(row))!
@@ -122,7 +136,13 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   }
 
   const boostedCount = [...priorityScores.values()].filter(s => s < 4).length
-  console.error('[pipeline]', `run_id=${ctx.runId} keyword_boost: ${boostedCount}/${needsFilter.length} items matched keyword terms`)
+  ctx.timing.filter_keyword_boosted = boostedCount
+  console.error(
+    '[pipeline]',
+    `run_id=${ctx.runId} keyword_boost: ${boostedCount}/${needsFilter.length} ` +
+    `items needing fresh filtering matched keyword terms ` +
+    `(total=${insertedRows.length} cache_hits=${alreadyCached.length})`,
+  )
 
   if (ctx.onProgress) {
     await ctx.onProgress({
@@ -156,6 +176,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   const MAX_FILTER_ITEMS = Number.isFinite(n) && n > 0 ? n : 300
   if (needsFilter.length > MAX_FILTER_ITEMS) {
     const skipped = needsFilter.slice(MAX_FILTER_ITEMS)
+    ctx.timing.filter_cap_skipped = skipped.length
     console.error('[pipeline]', `item cap: ${skipped.length} items skipped (limit=${MAX_FILTER_ITEMS})`)
     for (const row of skipped) {
       ctx.decisions.push({
@@ -168,6 +189,13 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
     }
   }
   const toFilter = needsFilter.slice(0, MAX_FILTER_ITEMS)
+  ctx.timing.filter_to_filter = toFilter.length
+  if (needsFilter.length <= MAX_FILTER_ITEMS) ctx.timing.filter_cap_skipped = 0
+  console.error(
+    '[pipeline]',
+    `run_id=${ctx.runId} filter execution: ai_candidates=${toFilter.length} ` +
+    `cap_skipped=${ctx.timing.filter_cap_skipped} cache_hits=${alreadyCached.length}`,
+  )
 
   const FILTER_DEADLINE_MS = 660_000
   const filterStartMs = Date.now()
