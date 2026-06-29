@@ -10,6 +10,10 @@ const RESULTS_PER_PAGE = 30
 const MAX_PAGES  = 50
 const MAX_ITEMS  = 500
 const MAX_PAGES_YEAR = 50  // 50 pages × 30 items = 1,500 max per year shortcut
+const ARCHIVE_PAGE_TIMEOUT_MS = 30_000
+const ARCHIVE_PAGE_MAX_RETRIES = 4
+const ARCHIVE_PAGE_BASE_BACKOFF_MS = 1_000
+const ARCHIVE_PAGE_MAX_BACKOFF_MS = 10_000
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
 export interface ScrapedFsn {
@@ -221,10 +225,11 @@ function absoluteBfarmUrl(href: string): string {
 
 function getBfarmPrimaryTimeoutMs(): number {
   const raw = Number(process.env.BFARM_PRIMARY_TIMEOUT_MS)
-  // Long-window archive discovery regularly needs more than 30 seconds, while
-  // the source still owns a bounded 170-second end-to-end budget. Keep enough
-  // time for fallback without aborting a healthy official-source response.
-  return Number.isFinite(raw) && raw > 0 ? raw : 90_000
+  // Long-window archive discovery can take close to 90 seconds while remaining
+  // healthy. The source owns a bounded 170-second end-to-end budget, so allow
+  // 120 seconds for official-source retrieval and retain 50 seconds for the
+  // fallback path instead of aborting a nearly complete authority scan.
+  return Number.isFinite(raw) && raw > 0 ? raw : 120_000
 }
 
 function getBfarmSourceBudgetMs(): number {
@@ -253,6 +258,100 @@ function fetchWithTimeout(url: string, timeoutMs: number, signal?: AbortSignal):
       clearTimeout(timeout)
       signal?.removeEventListener('abort', abort)
     })
+}
+
+function isRetriableArchiveStatus(status: number): boolean {
+  return status === 429 || status === 408 || status >= 500
+}
+
+function retryAfterMs(response: Response): number | null {
+  const header = response.headers.get('retry-after')
+  if (!header) return null
+
+  const seconds = Number(header)
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1_000, ARCHIVE_PAGE_MAX_BACKOFF_MS)
+  }
+
+  const dateMs = Date.parse(header)
+  if (!Number.isNaN(dateMs)) {
+    return Math.min(Math.max(dateMs - Date.now(), 0), ARCHIVE_PAGE_MAX_BACKOFF_MS)
+  }
+
+  return null
+}
+
+function archiveBackoffMs(attempt: number, response?: Response): number {
+  const fromHeader = response ? retryAfterMs(response) : null
+  if (fromHeader !== null) return fromHeader
+  return Math.min(ARCHIVE_PAGE_BASE_BACKOFF_MS * (2 ** attempt), ARCHIVE_PAGE_MAX_BACKOFF_MS)
+}
+
+async function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  if (ms <= 0) return
+  if (signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError')
+
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve()
+    }, ms)
+    const abort = () => {
+      clearTimeout(timeout)
+      reject(new DOMException('The operation was aborted.', 'AbortError'))
+    }
+    signal?.addEventListener('abort', abort, { once: true })
+  })
+}
+
+async function fetchArchivePageWithRetry(
+  url: string,
+  pageNum: number,
+  shortcut: string,
+  signal?: AbortSignal,
+): Promise<{ response?: Response; warnings: string[] }> {
+  const warnings: string[] = []
+
+  for (let attempt = 0; attempt <= ARCHIVE_PAGE_MAX_RETRIES; attempt++) {
+    let response: Response
+    try {
+      response = await fetchWithTimeout(url, ARCHIVE_PAGE_TIMEOUT_MS, signal)
+    } catch (err) {
+      if (attempt >= ARCHIVE_PAGE_MAX_RETRIES || isAbortError(err)) {
+        warnings.push(
+          `BfArM ${shortcut} archive stopped at page ${pageNum}: ` +
+          `${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`,
+        )
+        return { warnings }
+      }
+
+      const waitMs = archiveBackoffMs(attempt)
+      console.warn(
+        `BfArM ${shortcut} archive page ${pageNum} retry ${attempt + 1}/${ARCHIVE_PAGE_MAX_RETRIES} ` +
+        `after fetch error: ${err instanceof Error ? err.message : String(err)}`,
+      )
+      await delay(waitMs, signal)
+      continue
+    }
+
+    if (response.ok || !isRetriableArchiveStatus(response.status)) {
+      return { response, warnings }
+    }
+
+    if (attempt >= ARCHIVE_PAGE_MAX_RETRIES) {
+      warnings.push(`BfArM ${shortcut} archive stopped at page ${pageNum}: HTTP ${response.status}`)
+      return { warnings }
+    }
+
+    const waitMs = archiveBackoffMs(attempt, response)
+    console.warn(
+      `BfArM ${shortcut} archive page ${pageNum} retry ${attempt + 1}/${ARCHIVE_PAGE_MAX_RETRIES} ` +
+      `after HTTP ${response.status}`,
+    )
+    await delay(waitMs, signal)
+  }
+
+  return { warnings }
 }
 
 async function withPrimaryBudget<T>(fn: (signal: AbortSignal) => Promise<T>, parentSignal?: AbortSignal): Promise<T> {
@@ -492,10 +591,13 @@ export function yearToShortcut(year: number, currentYear: number): string | null
 
 async function scrapeYearShortcut(
   shortcut: string,
+  fromDate: Date,
+  toDate: Date,
   signal?: AbortSignal,
   rawArtifacts?: RawSourceArtifact[],
-): Promise<ParsedItem[]> {
+): Promise<{ items: ParsedItem[]; warnings: string[] }> {
   const items: ParsedItem[] = []
+  const warnings: string[] = []
   let pageNum = 1
   let url: string | null = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&dateOfIssue_dt=${shortcut}&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
   const visited = new Set<string>()
@@ -503,9 +605,17 @@ async function scrapeYearShortcut(
   while (pageNum <= MAX_PAGES_YEAR && url) {
     if (visited.has(url)) break
     visited.add(url)
-    const res = await fetchWithTimeout(url, 30_000, signal)
+    // Preserve already parsed authority records if a later archive page stalls
+    // or is throttled. BfArM archive pages occasionally return transient 429s
+    // under heavy scans; retry boundedly before declaring partial coverage.
+    const fetched = await fetchArchivePageWithRetry(url, pageNum, shortcut, signal)
+    warnings.push(...fetched.warnings)
+    const res = fetched.response
+    if (!res) {
+      break
+    }
     if (!res.ok) {
-      console.error('[bfarm]', `${shortcut} page ${pageNum}: HTTP ${res.status}, stopping`)
+      warnings.push(`BfArM ${shortcut} archive stopped at page ${pageNum}: HTTP ${res.status}`)
       break
     }
 
@@ -532,7 +642,19 @@ async function scrapeYearShortcut(
     const nextHref = parseNextPageHref(html)
 
     if (pageItems.length === 0) break
-    items.push(...pageItems)
+    const relevantItems = pageItems.filter(item => {
+      if (!item.date) return true
+      return item.date >= fromDate && item.date <= toDate
+    })
+    items.push(...relevantItems)
+
+    const datedItems = pageItems.filter(
+      (item): item is ParsedItem & { date: Date } => item.date !== null,
+    )
+    // BfArM archive pages are newest-first. Once a page contains dates below
+    // the requested lower bound, later pages cannot add in-range records.
+    const crossedBelowFromDate = datedItems.some(item => item.date < fromDate)
+    if (crossedBelowFromDate) break
     if (!nextHref) break
 
     pageNum++
@@ -540,7 +662,7 @@ async function scrapeYearShortcut(
     await new Promise(r => setTimeout(r, 200))
   }
 
-  return items
+  return { items, warnings }
 }
 
 async function scrapeBfarmYearShortcuts(
@@ -573,13 +695,15 @@ async function scrapeBfarmYearShortcuts(
   }
 
   const allParsed: ParsedItem[] = []
-  const yearResults = await Promise.all(yearsToScrape.map(async (shortcut) => {
-    return scrapeYearShortcut(shortcut, signal, rawArtifacts)
-  }))
-  for (const items of yearResults) allParsed.push(...items)
-
   const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
   const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
+  const yearResults = await Promise.all(yearsToScrape.map(async (shortcut) => {
+    return scrapeYearShortcut(shortcut, fromDate, toDate, signal, rawArtifacts)
+  }))
+  for (const result of yearResults) {
+    allParsed.push(...result.items)
+    warnings.push(...result.warnings)
+  }
 
   const raw: ScrapedFsn[] = allParsed.map(item => ({
     external_id:  item.externalId,

@@ -19,7 +19,7 @@ const GENERIC_DEVICE_WORDS = new Set([
   'healthcare', 'plus', 'pro', 'type', 'class', 'series', 'model',
   'protect', 'surgical', 'sterile', 'disposable', 'reusable',
   'ultra', 'guide', 'advanced', 'digital', 'smart', 'connect',
-  'scanner', 'scanners', 'new', 'one', 'two', 'three',
+  'scanner', 'scanners', 'blood', 'glucose', 'monitoring', 'new', 'one', 'two', 'three',
 ])
 
 // Normalise a manufacturer name for tokenisation:

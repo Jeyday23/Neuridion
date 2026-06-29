@@ -1,5 +1,23 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Branch strategy
+
+NEURIDION uses a protected branch flow:
+
+- `feature/*` for new features
+- `fix/*` for bug fixes
+- `chore/*` for maintenance and dependency updates
+
+All working branches should be cut from `dev`, and all feature/fix/chore pull requests should target `dev`.
+
+Release promotion flow:
+
+```text
+feature/* or fix/* or chore/* → dev → staging → main
+```
+
+Do not push directly to `main`, `staging`, or `dev`. Use pull requests for branch promotion and review.
+
 ## Getting Started
 
 First, run the development server:

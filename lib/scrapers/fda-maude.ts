@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { scraperResult, type ScrapedFsn, type ScraperResult } from './bfarm'
 import { sanitizeContent } from './sanitize'
-import { extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
+import { extractDeviceTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 
 // openFDA device/event endpoint — no auth required, API key raises daily quota
 // Docs: https://open.fda.gov/apis/device/event/
@@ -19,9 +19,7 @@ function safeFetchError(err: unknown, timedOut: boolean): string {
 }
 const RESULTS_PER_PAGE = 1000           // API max per request
 const MAX_SKIP         = 25000          // API hard limit: skip + limit ≤ 26000
-const MAX_ITEMS        = 500            // Per-quarter cap. Quarterly chunking means a 1-year search
-                                        // can return up to 4 × 500 = 2,000 records instead of 500.
-                                        // Callers should pass searchTerms to narrow the Lucene query.
+const CERTIFIABLE_RANGE_LIMIT = MAX_SKIP + RESULTS_PER_PAGE
 const PAGE_DELAY_MS    = 400            // ~150 req/min — well under 240 RPM limit
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
@@ -35,10 +33,19 @@ export async function scrapeFdaMaude(params: {
   const apiKey    = process.env.OPENFDA_API_KEY
   const quarters  = splitIntoQuarters(params.fromDate, params.toDate)
   const termClause = buildTermClause(params.searchTerms, params.profile)
+  const preferredDeviceTerms = extractDeviceTerms(params.profile?.device_name ?? '')
 
   // Fetch all quarters simultaneously — one bad quarter does not abort others
   const settled = await Promise.allSettled(
-    quarters.map(q => fetchQuarter(q.from, q.to, termClause, apiKey, 0, params.signal))
+    quarters.map(q => fetchQuarter(
+      q.from,
+      q.to,
+      termClause,
+      apiKey,
+      preferredDeviceTerms,
+      0,
+      params.signal,
+    ))
   )
 
   const allItems:    ScrapedFsn[] = []
@@ -94,15 +101,19 @@ function splitIntoQuarters(fromDate: string, toDate: string): Array<{ from: stri
 
 // ─── Single-quarter fetch ─────────────────────────────────────────────────────
 
-const ADAPTIVE_SPLIT_THRESHOLD = 20_000
-const MAX_SPLIT_DEPTH          = 4
+const MAX_SPLIT_DEPTH = 10
 
-// Paginates through one date range up to MAX_ITEMS. Called once per quarter.
+// Paginates through one date range. If the range is too broad to certify via
+// the interactive API, it recursively splits by date until each subrange can be
+// fetched completely. This avoids the old "first N rows" cap for high-volume
+// products such as MiniMed while still refusing to certify genuinely incomplete
+// coverage.
 async function fetchQuarter(
   fromDate:    string,
   toDate:      string,
   termClause:  string,
   apiKey:      string | undefined,
+  preferredDeviceTerms: string[],
   depth:       number = 0,
   signal?:      AbortSignal,
 ): Promise<ScraperResult> {
@@ -166,40 +177,55 @@ async function fetchQuarter(
 
     if (pageResults.length === 0) break
 
-    for (const r of pageResults) {
-      if (items.length >= MAX_ITEMS) break
-      items.push(mapMaudeRecord(r))
-    }
+    if (skip === 0 && total > CERTIFIABLE_RANGE_LIMIT) {
+      const midDate = midpoint(fromDate, toDate)
+      if (midDate && depth < MAX_SPLIT_DEPTH) {
+        console.error(
+          `[fda] Adaptive split: ${fromDate}–${toDate} ` +
+          `(${total.toLocaleString()} total) → splitting at ${midDate} ` +
+          `(depth=${depth + 1})`,
+        )
+        const [firstHalf, secondHalf] = await Promise.all([
+          fetchQuarter(fromDate, midDate, termClause, apiKey, preferredDeviceTerms, depth + 1, signal),
+          fetchQuarter(nextDay(midDate), toDate, termClause, apiKey, preferredDeviceTerms, depth + 1, signal),
+        ])
+        return scraperResult(
+          dedup([...firstHalf.items, ...secondHalf.items]),
+          [...warnings, ...firstHalf.warnings, ...secondHalf.warnings],
+        )
+      }
 
-    if (items.length >= MAX_ITEMS) {
-      const gap = total - items.length
+      const gap = Math.max(total - pageResults.length, 0)
       const msg =
-        `FDA MAUDE: interactive-search cap reached (${MAX_ITEMS.toLocaleString()} of ` +
-        `${total.toLocaleString()} records retrieved for ${fromDate}–${toDate}). ` +
+        `FDA MAUDE: interactive-search date range remains too broad ` +
+        `(${pageResults.length.toLocaleString()} of ${total.toLocaleString()} ` +
+        `records retrieved for ${fromDate}–${toDate}). ` +
         `${gap.toLocaleString()} records not fetched. ` +
-        `This range is partial and will not be certified as complete coverage. ` +
-        `Pass searchTerms to narrow the query, or use the openFDA bulk download for full coverage: ` +
+        `Use the openFDA bulk download for full coverage: ` +
         `https://open.fda.gov/apis/device/event/download/`
       console.error('[fda]', msg)
       warnings.push(msg)
       break
     }
 
+    for (const r of pageResults) items.push(mapMaudeRecord(r, preferredDeviceTerms))
+    if (items.length >= total) break
+
     skip += RESULTS_PER_PAGE
     if (pageResults.length < RESULTS_PER_PAGE) break
 
     if (skip > MAX_SKIP) {
-      if (total > ADAPTIVE_SPLIT_THRESHOLD && depth < MAX_SPLIT_DEPTH) {
+      if (total > CERTIFIABLE_RANGE_LIMIT && depth < MAX_SPLIT_DEPTH) {
         const midDate = midpoint(fromDate, toDate)
         if (midDate) {
           console.error(`[fda] Adaptive split: ${fromDate}–${toDate} (${total.toLocaleString()} total) → splitting at ${midDate} (depth=${depth + 1})`)
           const [firstHalf, secondHalf] = await Promise.all([
-            fetchQuarter(fromDate, midDate, termClause, apiKey, depth + 1, signal),
-            fetchQuarter(nextDay(midDate), toDate, termClause, apiKey, depth + 1, signal),
+            fetchQuarter(fromDate, midDate, termClause, apiKey, preferredDeviceTerms, depth + 1, signal),
+            fetchQuarter(nextDay(midDate), toDate, termClause, apiKey, preferredDeviceTerms, depth + 1, signal),
           ])
           const combined = dedup([...items, ...firstHalf.items, ...secondHalf.items])
           return scraperResult(
-            combined.slice(0, MAX_ITEMS),
+            combined,
             [...warnings, ...firstHalf.warnings, ...secondHalf.warnings],
           )
         }
@@ -223,8 +249,31 @@ async function fetchQuarter(
 
 // ─── Field mapping ────────────────────────────────────────────────────────────
 
-function mapMaudeRecord(r: MaudeRecord): ScrapedFsn {
-  const device      = r.device?.[0]
+function normalizeDeviceText(value: string | undefined): string {
+  return (value ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+}
+
+function selectProfileDevice(
+  devices: MaudeRecord['device'],
+  preferredTerms: string[],
+): NonNullable<MaudeRecord['device']>[number] | undefined {
+  if (!devices?.length || preferredTerms.length === 0) return devices?.[0]
+  const normalizedTerms = preferredTerms.map(normalizeDeviceText).filter(Boolean)
+
+  return devices.reduce((best, candidate) => {
+    const score = normalizedTerms.filter(term => {
+      const hay = normalizeDeviceText(
+        `${candidate.brand_name ?? ''} ${candidate.generic_name ?? ''} ${candidate.manufacturer_d_name ?? ''}`,
+      )
+      return hay.includes(term)
+    }).length
+    if (score > best.score) return { device: candidate, score }
+    return best
+  }, { device: devices[0], score: -1 }).device
+}
+
+function mapMaudeRecord(r: MaudeRecord, preferredDeviceTerms: string[] = []): ScrapedFsn {
+  const device      = selectProfileDevice(r.device, preferredDeviceTerms)
   const brandName   = device?.brand_name?.trim()
   const genericName = device?.generic_name?.trim()
   const deviceLabel = brandName || genericName || 'Medical Device'
@@ -402,7 +451,19 @@ function sanitizeLucene(t: string): string {
 // device manufacturer) rather than manufacturer_name (which is the MDR reporter).
 // When profile is provided and manufacturer/device terms can be distinguished,
 // uses AND grouping to dramatically reduce result volume for large manufacturers.
-function buildTermClause(
+function groupDeviceTokens(tokens: string[]): string[][] {
+  const groups: string[][] = []
+  for (const token of tokens) {
+    const group = groups.find(candidate => candidate.some(existing =>
+      existing.startsWith(token) || token.startsWith(existing),
+    ))
+    if (group) group.push(token)
+    else groups.push([token])
+  }
+  return groups
+}
+
+export function buildTermClause(
   terms?: string[],
   profile?: { manufacturer: string; device_name: string },
 ): string {
@@ -421,11 +482,14 @@ function buildTermClause(
 
     if (mfrTokens.length > 0 && devTokens.length > 0) {
       const mfrClauses = mfrTokens.map(t => `device.manufacturer_d_name:${t}`)
-      const devClauses = devTokens.flatMap(t => [
-        `device.brand_name:${t}`,
-        `device.generic_name:${t}`,
-      ])
-      return `(${mfrClauses.join('+OR+')})+AND+(${devClauses.join('+OR+')})`
+      const deviceGroups = groupDeviceTokens(devTokens).map(group => {
+        const clauses = group.flatMap(t => [
+          `device.brand_name:${t}`,
+          `device.generic_name:${t}`,
+        ])
+        return `(${clauses.join('+OR+')})`
+      })
+      return `(${mfrClauses.join('+OR+')})+AND+${deviceGroups.join('+AND+')}`
     }
   }
 
