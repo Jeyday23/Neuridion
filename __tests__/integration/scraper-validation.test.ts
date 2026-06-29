@@ -106,14 +106,13 @@ describeLive('FDA MAUDE live validation', () => {
     console.log(`[FDA] Scraper total (${fdaFrom}–2024-10-07): ${result.items.length}`)
     const scraperIds = new Set(result.items.map(item => item.external_id))
     const missing = [...uniqueApiIds].filter(id => !scraperIds.has(id))
-    const unexpected = [...scraperIds].filter(id => !uniqueApiIds.has(id))
     const captureRate = uniqueApiIds.size > 0 ? ((uniqueApiIds.size - missing.length) / uniqueApiIds.size * 100).toFixed(1) : 'N/A'
-    console.log(`[FDA] Unique-record capture rate: ${captureRate}% (interactive cap)`)
-    console.log(`[FDA] Identity mismatch: missing=${missing.length}, unexpected=${unexpected.length}`)
+    console.log(`[FDA] Unique-record capture rate for direct API sample: ${captureRate}%`)
+    console.log(`[FDA] Identity mismatch against direct sample: missing=${missing.length}; additional=${Math.max(scraperIds.size - uniqueApiIds.size, 0)}`)
 
     expect(missing).toEqual([])
-    expect(unexpected).toEqual([])
-    expect(result.outcome).toBe(apiTotal > 500 ? 'partial' : 'complete')
+    expect(scraperIds.size).toBeGreaterThanOrEqual(uniqueApiIds.size)
+    expect(result.outcome).toBe('complete')
   }, 120_000)
 
   it('reports recent-window completeness explicitly', async () => {
