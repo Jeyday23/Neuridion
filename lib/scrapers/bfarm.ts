@@ -221,10 +221,11 @@ function absoluteBfarmUrl(href: string): string {
 
 function getBfarmPrimaryTimeoutMs(): number {
   const raw = Number(process.env.BFARM_PRIMARY_TIMEOUT_MS)
-  // Long-window archive discovery regularly needs more than 30 seconds, while
-  // the source still owns a bounded 170-second end-to-end budget. Keep enough
-  // time for fallback without aborting a healthy official-source response.
-  return Number.isFinite(raw) && raw > 0 ? raw : 90_000
+  // Long-window archive discovery can take close to 90 seconds while remaining
+  // healthy. The source owns a bounded 170-second end-to-end budget, so allow
+  // 120 seconds for official-source retrieval and retain 50 seconds for the
+  // fallback path instead of aborting a nearly complete authority scan.
+  return Number.isFinite(raw) && raw > 0 ? raw : 120_000
 }
 
 function getBfarmSourceBudgetMs(): number {
@@ -492,10 +493,13 @@ export function yearToShortcut(year: number, currentYear: number): string | null
 
 async function scrapeYearShortcut(
   shortcut: string,
+  fromDate: Date,
+  toDate: Date,
   signal?: AbortSignal,
   rawArtifacts?: RawSourceArtifact[],
-): Promise<ParsedItem[]> {
+): Promise<{ items: ParsedItem[]; warnings: string[] }> {
   const items: ParsedItem[] = []
+  const warnings: string[] = []
   let pageNum = 1
   let url: string | null = `${SEARCH_BASE}?cl2Categories_Format=kundeninfo&dateOfIssue_dt=${shortcut}&cl2Categories_Rubrik=medizinprodukte&resultsPerPage=${RESULTS_PER_PAGE}`
   const visited = new Set<string>()
@@ -503,9 +507,21 @@ async function scrapeYearShortcut(
   while (pageNum <= MAX_PAGES_YEAR && url) {
     if (visited.has(url)) break
     visited.add(url)
-    const res = await fetchWithTimeout(url, 30_000, signal)
+    let res: Response
+    try {
+      // Preserve already parsed authority records if a later archive page
+      // stalls. Fifteen seconds is enough for the official HTML response and
+      // prevents one page from consuming the entire source budget.
+      res = await fetchWithTimeout(url, 15_000, signal)
+    } catch (err) {
+      warnings.push(
+        `BfArM ${shortcut} archive stopped at page ${pageNum}: ` +
+        `${err instanceof Error ? `${err.name}: ${err.message}` : String(err)}`,
+      )
+      break
+    }
     if (!res.ok) {
-      console.error('[bfarm]', `${shortcut} page ${pageNum}: HTTP ${res.status}, stopping`)
+      warnings.push(`BfArM ${shortcut} archive stopped at page ${pageNum}: HTTP ${res.status}`)
       break
     }
 
@@ -532,7 +548,19 @@ async function scrapeYearShortcut(
     const nextHref = parseNextPageHref(html)
 
     if (pageItems.length === 0) break
-    items.push(...pageItems)
+    const relevantItems = pageItems.filter(item => {
+      if (!item.date) return true
+      return item.date >= fromDate && item.date <= toDate
+    })
+    items.push(...relevantItems)
+
+    const datedItems = pageItems.filter(
+      (item): item is ParsedItem & { date: Date } => item.date !== null,
+    )
+    // BfArM archive pages are newest-first. Once a page contains dates below
+    // the requested lower bound, later pages cannot add in-range records.
+    const crossedBelowFromDate = datedItems.some(item => item.date < fromDate)
+    if (crossedBelowFromDate) break
     if (!nextHref) break
 
     pageNum++
@@ -540,7 +568,7 @@ async function scrapeYearShortcut(
     await new Promise(r => setTimeout(r, 200))
   }
 
-  return items
+  return { items, warnings }
 }
 
 async function scrapeBfarmYearShortcuts(
@@ -573,13 +601,15 @@ async function scrapeBfarmYearShortcuts(
   }
 
   const allParsed: ParsedItem[] = []
-  const yearResults = await Promise.all(yearsToScrape.map(async (shortcut) => {
-    return scrapeYearShortcut(shortcut, signal, rawArtifacts)
-  }))
-  for (const items of yearResults) allParsed.push(...items)
-
   const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
   const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
+  const yearResults = await Promise.all(yearsToScrape.map(async (shortcut) => {
+    return scrapeYearShortcut(shortcut, fromDate, toDate, signal, rawArtifacts)
+  }))
+  for (const result of yearResults) {
+    allParsed.push(...result.items)
+    warnings.push(...result.warnings)
+  }
 
   const raw: ScrapedFsn[] = allParsed.map(item => ({
     external_id:  item.externalId,
