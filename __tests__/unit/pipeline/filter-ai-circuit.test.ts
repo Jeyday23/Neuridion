@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createHash } from 'node:crypto'
 import type { PipelineContext } from '@/lib/pipeline/types'
 
 const mocks = vi.hoisted(() => ({
@@ -13,11 +14,16 @@ vi.mock('@/lib/scrapers/bfarm', () => ({ fetchBfarmDetail: vi.fn() }))
 
 import { filterStage, isTerminalAiAvailabilityFailure } from '@/lib/pipeline/stages/filter'
 
-function context(): PipelineContext {
+function fsnCacheId(row: { title: string; manufacturer?: string | null; source_db?: string | null }) {
+  const key = [row.title, row.manufacturer ?? '', row.source_db ?? ''].join('|').toLowerCase().trim()
+  return createHash('sha256').update(key).digest('hex').slice(0, 32)
+}
+
+function context(cacheHits: Array<{ fsn_external_id: string; decision: string; reasoning: string | null; confidence: string | null }> = []): PipelineContext {
   const cacheQuery = {
     select: vi.fn().mockReturnValue({
       in: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+        eq: vi.fn().mockResolvedValue({ data: cacheHits, error: null }),
       }),
     }),
   }
@@ -41,7 +47,7 @@ function context(): PipelineContext {
     canonicalIds: new Map(),
     insertedRows: Array.from({ length: 8 }, (_, index) => ({
       id: `result-${index}`, external_id: `external-${index}`, title: `Notice ${index}`,
-      manufacturer: 'Acme', raw_content: 'Pump notice', fsn_date: '2026-06-19',
+      manufacturer: 'Acme', raw_content: 'Infusomat Space pump notice', fsn_date: '2026-06-19',
       source_db: 'bfarm', source_url: `https://example.test/${index}`,
     })),
     decisions: [],
@@ -84,5 +90,37 @@ describe('AI filtering circuit breaker', () => {
     expect(ctx.decisions.every((decision) => decision.confidence === 0.5)).toBe(true)
     expect(ctx.decisions[0].rationale).toContain('No AI relevance classification was applied')
     expect(ctx.warnings).toEqual([])
+  })
+
+  it('records audit metrics that explain total rows versus fresh filter candidates', async () => {
+    mocks.stage1Filter.mockResolvedValue({
+      decision: 'uncertain',
+      rationale: 'needs manual review',
+      confidence: 0.5,
+      model: 'test-model',
+    })
+    const baseCtx = context()
+    const cachedRows = baseCtx.insertedRows.slice(0, 5)
+    const cacheHits = cachedRows.map((row) => ({
+      fsn_external_id: fsnCacheId(row),
+      decision: 'excluded',
+      reasoning: 'cached decision',
+      confidence: '90',
+    }))
+    const ctx = context(cacheHits)
+
+    await filterStage(ctx)
+
+    expect(mocks.stage1Filter).toHaveBeenCalledTimes(3)
+    expect(ctx.decisions).toHaveLength(8)
+    expect(ctx.timing).toMatchObject({
+      filter_total_items: 8,
+      filter_cache_hits: 5,
+      filter_needs_filter: 3,
+      filter_content_changed: 0,
+      filter_keyword_boosted: 3,
+      filter_to_filter: 3,
+      filter_cap_skipped: 0,
+    })
   })
 })
