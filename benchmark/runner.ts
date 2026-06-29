@@ -3,7 +3,7 @@ import { scrapeMhra } from '@/lib/scrapers/mhra'
 import { scrapeFdaMaude } from '@/lib/scrapers/fda-maude'
 import { scrapeSwissmedic } from '@/lib/scrapers/swissmedic'
 import { buildManufacturerSearchTerms, extractCompetitorTokens } from '@/lib/search/manufacturer-terms'
-import { buildSourceSearchTerms } from '@/lib/pipeline/stages/scrape'
+import { auditKeywordRelevance, buildSourceSearchTerms } from '@/lib/pipeline/stages/scrape'
 import { computeKeywordPriority } from '@/lib/pipeline/stages/filter'
 import { matchExpected, computeRecall, measureNoiseDominance, samplePrecision } from './metrics'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
@@ -133,18 +133,21 @@ export async function benchmarkProfile(
     return true
   })
 
+  const filterAudit = auditKeywordRelevance(deduped, profile, competitorTerms)
+  const reviewCandidates = filterAudit.items
+
   const { extractManufacturerTerms } = await import('@/lib/search/manufacturer-terms')
   const mfrTerms = extractManufacturerTerms(profile.manufacturer)
   const ownFilterTerms = buildManufacturerSearchTerms(profile.manufacturer, profile.device_name)
   const devTerms = ownFilterTerms.filter((t) => !mfrTerms.includes(t))
 
   const keywordScores = new Map<string, number>()
-  for (const item of deduped) {
+  for (const item of reviewCandidates) {
     const hay = `${item.title} ${item.manufacturer ?? ''} ${item.raw_content}`.toLowerCase()
     keywordScores.set(item.external_id, computeKeywordPriority(hay, mfrTerms, devTerms, competitorTerms))
   }
 
-  const sorted = [...deduped].sort(
+  const sorted = [...reviewCandidates].sort(
     (a, b) => (keywordScores.get(a.external_id) ?? 4) - (keywordScores.get(b.external_id) ?? 4),
   )
 
@@ -158,6 +161,7 @@ export async function benchmarkProfile(
 
   const recallDisplay = recall.rate != null ? `${(recall.rate * 100).toFixed(0)}%` : 'N/A'
   console.error(`  total: ${deduped.length} unique items`)
+  console.error(`  review candidates: ${sorted.length} after production keyword filter`)
   console.error(`  priority: T0=${tierCounts[0]} T1=${tierCounts[1]} T2=${tierCounts[2]} T3=${tierCounts[3]} T4=${tierCounts[4]}`)
   console.error(`  recall: ${recall.found}/${recall.expected} (${recallDisplay})`)
   console.error(`  keyword precision sample: ${precision.relevant_looking}/${precision.sampled} (${(precision.rate * 100).toFixed(0)}%)`)
@@ -165,7 +169,7 @@ export async function benchmarkProfile(
   return {
     profile,
     sources: sourceResults,
-    total_scraped: deduped.length,
+    total_scraped: sorted.length,
     keyword_scores: keywordScores,
     recall,
     precision_sample: precision,

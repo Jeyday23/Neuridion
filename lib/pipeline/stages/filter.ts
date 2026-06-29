@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import pLimit from 'p-limit'
 import { stage1Filter, getProfileFingerprint, type FilterDecision } from '@/lib/claude/filter-pipeline'
 import { buildManufacturerSearchTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
+import { matchesKeywordSignature, matchesKeywordTerm } from '@/lib/search/keyword-match'
 import { fetchBfarmDetail } from '@/lib/scrapers/bfarm'
 import { sanitizeForLlm } from '@/lib/scrapers/sanitize'
 import type { PipelineContext, InsertedFsnRow } from '../types'
@@ -51,9 +52,9 @@ export function computeKeywordPriority(
   competitorTerms: string[],
 ): number {
   const h = hay.toLowerCase()
-  const mfrMatch = manufacturerTerms.length > 0 && manufacturerTerms.some((t) => h.includes(t.toLowerCase()))
-  const devMatch = deviceTerms.some((t) => h.includes(t.toLowerCase()))
-  const compMatch = competitorTerms.some((t) => h.includes(t.toLowerCase()))
+  const mfrMatch = manufacturerTerms.length > 0 && manufacturerTerms.some((t) => matchesKeywordTerm(h, t))
+  const devMatch = matchesKeywordSignature(h, deviceTerms)
+  const compMatch = competitorTerms.some((t) => matchesKeywordTerm(h, t))
 
   if (mfrMatch && devMatch) return 0
   if (devMatch)             return 1
