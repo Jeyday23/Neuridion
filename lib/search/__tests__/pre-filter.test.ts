@@ -45,4 +45,70 @@ describe('production keyword pre-filter', () => {
     expect(result.items.map((item) => item.external_id)).toEqual(['micra'])
     expect(result.counts.manufacturerOnlyRejected).toBe(1)
   })
+
+  it('does not treat a generic domain term as a competitor identity', () => {
+    const result = auditKeywordRelevance(
+      [
+        notice({
+          external_id: 'magnetom',
+          title: 'MAGNETOM VIDA safety notice',
+          manufacturer: 'Siemens Healthineers AG',
+        }),
+        notice({
+          external_id: 'signa',
+          title: 'SIGNA MRI system safety notice',
+          manufacturer: 'GE Healthcare',
+        }),
+        notice({
+          external_id: 'pacemaker',
+          title: 'MRI compatible pacemaker safety notice',
+          manufacturer: 'Other Medical Inc',
+        }),
+      ],
+      { manufacturer: 'Siemens Healthineers', device_name: 'MAGNETOM' },
+      ['signa', 'mri', 'ge', 'philips'],
+    )
+
+    expect(result.items.map((item) => item.external_id)).toEqual(['magnetom', 'signa'])
+    expect(result.counts.domainOnlyRejected).toBe(1)
+  })
+
+  it('requires the named product signature for FDA manufacturer-domain records', () => {
+    const result = auditKeywordRelevance(
+      [
+        notice({
+          external_id: 'accu-chek',
+          title: 'ACCU-CHEK GUIDE — Malfunction',
+          manufacturer: 'Roche Diabetes Care',
+          product_name: 'ACCU-CHEK GUIDE',
+          raw_content: 'Blood glucose monitoring system',
+          source_db: 'fda',
+        }),
+        notice({
+          external_id: 'other-roche-meter',
+          title: 'Other glucose meter — Malfunction',
+          manufacturer: 'Roche Diabetes Care',
+          product_name: 'Other glucose meter',
+          raw_content: 'Blood glucose monitoring system',
+          source_db: 'fda',
+        }),
+        notice({
+          external_id: 'accu-check-variant',
+          title: 'ACCU-CHECK AVIVA PLUS TEST STRIPS — Malfunction',
+          manufacturer: 'Roche Diabetes Care',
+          product_name: 'ACCU-CHECK AVIVA PLUS TEST STRIPS',
+          raw_content: 'Blood glucose test strips',
+          source_db: 'fda',
+        }),
+      ],
+      { manufacturer: 'Roche Diabetes Care', device_name: 'Accu-Chek Blood Glucose Monitoring System' },
+      [],
+    )
+
+    expect(result.terms.device).toEqual(['accu-chek'])
+    expect(result.items.map((item) => item.external_id)).toEqual([
+      'accu-chek',
+      'accu-check-variant',
+    ])
+  })
 })

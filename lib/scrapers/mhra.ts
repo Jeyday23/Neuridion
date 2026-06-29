@@ -7,7 +7,10 @@ const SEARCH_API      = 'https://www.gov.uk/api/search.json'
 const CONTENT_API_BASE = 'https://www.gov.uk/api/content'
 const PAGE_SIZE        = 100
 const DETAIL_CONCURRENCY = 3
-const MAX_ITEMS        = 500
+// A one-year window currently exceeds 500 notices. The former cap silently
+// dropped valid authority records after retrieval. Keep a defensive ceiling,
+// but set it above the supported three-year search volume.
+const MAX_ITEMS        = 5_000
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
 async function scrapeMhraChunk(fromDate: Date, toDate: Date, signal?: AbortSignal): Promise<ScraperResult> {

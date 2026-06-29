@@ -106,6 +106,12 @@ describe('buildManufacturerSearchTerms', () => {
     // mfr terms = ['roche','diabetes']; 'guide' is now generic → blocked; 'accu-chek' is still added
     expect(buildManufacturerSearchTerms('Roche Diabetes Care GmbH', 'Accu-Chek Guide')).toEqual(['roche', 'diabetes', 'accu-chek'])
   })
+  it('domain words do not dilute the Accu-Chek product signature', () => {
+    expect(buildManufacturerSearchTerms(
+      'Roche Diabetes Care GmbH',
+      'Accu-Chek Blood Glucose Monitoring System',
+    )).toEqual(['roche', 'diabetes', 'accu-chek'])
+  })
   it('"Micra AV" appends "micra"; "av" is ≤4 chars and filtered', () => {
     expect(buildManufacturerSearchTerms('Medtronic', 'Micra AV')).toEqual(['medtronic', 'micra'])
   })
