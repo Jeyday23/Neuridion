@@ -65,7 +65,7 @@ describe('AI filtering circuit breaker', () => {
     })).toBe(false)
   })
 
-  it('uses one probe request and marks the remaining items without more API calls', async () => {
+  it('uses one probe request and falls back to deterministic manual-review decisions without degrading the run', async () => {
     mocks.stage1Filter.mockResolvedValue({
       decision: 'filter_failed',
       rationale: 'AI filter could not be applied due to API error. This item requires manual review.',
@@ -79,9 +79,10 @@ describe('AI filtering circuit breaker', () => {
 
     expect(mocks.stage1Filter).toHaveBeenCalledOnce()
     expect(ctx.decisions).toHaveLength(8)
-    expect(ctx.decisions.every((decision) => decision.decision === 'filter_failed')).toBe(true)
-    expect(ctx.warnings).toEqual([
-      'AI filtering unavailable; unassessed results require manual review.',
-    ])
+    expect(ctx.decisions.every((decision) => decision.decision === 'uncertain')).toBe(true)
+    expect(ctx.decisions.every((decision) => decision.model === 'deterministic-ai-unavailable')).toBe(true)
+    expect(ctx.decisions.every((decision) => decision.confidence === 0.5)).toBe(true)
+    expect(ctx.decisions[0].rationale).toContain('No AI relevance classification was applied')
+    expect(ctx.warnings).toEqual([])
   })
 })
