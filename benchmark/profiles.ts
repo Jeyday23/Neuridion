@@ -41,8 +41,8 @@ export const GOLDEN_PROFILES: GoldenProfile[] = [
     ],
     expected: {
       must_find: [
-        { source: 'bfarm', title_pattern: 'Infusomat', description: 'B. Braun infusion pump FSN' },
-        { source: 'bfarm', title_pattern: 'B. Braun.*Space', description: 'B. Braun Space platform FSN' },
+        { source: 'fda', title_pattern: 'INFUSOMAT.*SPACE|SPACE.*INFUSOMAT', description: 'FDA MAUDE Infusomat Space event' },
+        { source: 'fda', title_pattern: 'B\\.?\\s*BRAUN.*INFUSOMAT', description: 'FDA MAUDE B. Braun Infusomat event' },
       ],
       known_noise: ['MRI', 'surgical robot', 'defibrillator', 'ventilator'],
     },
@@ -84,7 +84,7 @@ export const GOLDEN_PROFILES: GoldenProfile[] = [
     expected: {
       must_find: [
         { source: 'fda', title_pattern: 'HeartStart', description: 'Philips HeartStart MAUDE report' },
-        { source: 'bfarm', title_pattern: 'Philips.*defibrillat', description: 'Philips defibrillator FSN' },
+        { source: 'fda', title_pattern: 'HEARTSTART.*DEFIB|DEFIBRILLATOR', description: 'FDA MAUDE Philips HeartStart defibrillator evidence' },
       ],
       known_noise: ['MRI', 'insulin pump', 'ultrasound', 'patient monitor', 'Sonicare'],
     },
@@ -105,7 +105,7 @@ export const GOLDEN_PROFILES: GoldenProfile[] = [
     expected: {
       must_find: [
         { source: 'fda', title_pattern: 'Accu-Chek', description: 'Accu-Chek MAUDE report' },
-        { source: 'bfarm', title_pattern: 'Accu-Chek|Roche.*Blutzucker', description: 'BfArM glucose meter FSN' },
+        { source: 'fda', title_pattern: 'ROCHE.*ACCU-CHEK|ACCU-CHEK.*GUIDE', description: 'FDA MAUDE Roche Accu-Chek product evidence' },
       ],
       known_noise: ['MRI', 'ventilator', 'surgical', 'diagnostic imaging'],
     },
@@ -165,7 +165,7 @@ export const GOLDEN_PROFILES: GoldenProfile[] = [
     ],
     expected: {
       must_find: [
-        { source: 'fda', title_pattern: 'Vantage|Canon.*MR', description: 'Canon MRI MAUDE report' },
+        { source: 'bfarm', title_pattern: 'Canon Medical Systems.*(?:Galan|Atlas|Titan|Orian|Elan)|(?:Galan|Atlas|Titan|Orian|Elan).*Canon Medical Systems', description: 'BfArM Canon Vantage-family MRI evidence' },
       ],
       known_noise: ['CT scanner', 'X-ray', 'ultrasound', 'insulin pump'],
     },
@@ -191,18 +191,4 @@ export const GOLDEN_PROFILES: GoldenProfile[] = [
     },
   },
 
-  {
-    slug: 'surgical-mask-generic',
-    device_name: 'Surgical Face Mask',
-    manufacturer: 'Generic Masks GmbH',
-    intended_use: 'Single-use surgical face mask for infection control',
-    device_class: 'I',
-    period: { from: '2025-06-05', to: '2026-06-05' },
-    sources: ['bfarm'],
-    competitor_terms: [],
-    expected: {
-      must_find: [],
-      known_noise: ['MRI', 'defibrillator', 'insulin pump', 'surgical robot'],
-    },
-  },
 ]

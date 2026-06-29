@@ -19,9 +19,7 @@ function safeFetchError(err: unknown, timedOut: boolean): string {
 }
 const RESULTS_PER_PAGE = 1000           // API max per request
 const MAX_SKIP         = 25000          // API hard limit: skip + limit ≤ 26000
-const MAX_ITEMS        = 500            // Per-quarter cap. Quarterly chunking means a 1-year search
-                                        // can return up to 4 × 500 = 2,000 records instead of 500.
-                                        // Callers should pass searchTerms to narrow the Lucene query.
+const CERTIFIABLE_RANGE_LIMIT = MAX_SKIP + RESULTS_PER_PAGE
 const PAGE_DELAY_MS    = 400            // ~150 req/min — well under 240 RPM limit
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
@@ -103,10 +101,13 @@ function splitIntoQuarters(fromDate: string, toDate: string): Array<{ from: stri
 
 // ─── Single-quarter fetch ─────────────────────────────────────────────────────
 
-const ADAPTIVE_SPLIT_THRESHOLD = 20_000
-const MAX_SPLIT_DEPTH          = 4
+const MAX_SPLIT_DEPTH = 10
 
-// Paginates through one date range up to MAX_ITEMS. Called once per quarter.
+// Paginates through one date range. If the range is too broad to certify via
+// the interactive API, it recursively splits by date until each subrange can be
+// fetched completely. This avoids the old "first N rows" cap for high-volume
+// products such as MiniMed while still refusing to certify genuinely incomplete
+// coverage.
 async function fetchQuarter(
   fromDate:    string,
   toDate:      string,
@@ -176,30 +177,45 @@ async function fetchQuarter(
 
     if (pageResults.length === 0) break
 
-    for (const r of pageResults) {
-      if (items.length >= MAX_ITEMS) break
-      items.push(mapMaudeRecord(r, preferredDeviceTerms))
-    }
+    if (skip === 0 && total > CERTIFIABLE_RANGE_LIMIT) {
+      const midDate = midpoint(fromDate, toDate)
+      if (midDate && depth < MAX_SPLIT_DEPTH) {
+        console.error(
+          `[fda] Adaptive split: ${fromDate}–${toDate} ` +
+          `(${total.toLocaleString()} total) → splitting at ${midDate} ` +
+          `(depth=${depth + 1})`,
+        )
+        const [firstHalf, secondHalf] = await Promise.all([
+          fetchQuarter(fromDate, midDate, termClause, apiKey, preferredDeviceTerms, depth + 1, signal),
+          fetchQuarter(nextDay(midDate), toDate, termClause, apiKey, preferredDeviceTerms, depth + 1, signal),
+        ])
+        return scraperResult(
+          dedup([...firstHalf.items, ...secondHalf.items]),
+          [...warnings, ...firstHalf.warnings, ...secondHalf.warnings],
+        )
+      }
 
-    if (items.length >= MAX_ITEMS) {
-      const gap = total - items.length
+      const gap = Math.max(total - pageResults.length, 0)
       const msg =
-        `FDA MAUDE: interactive-search cap reached (${MAX_ITEMS.toLocaleString()} of ` +
-        `${total.toLocaleString()} records retrieved for ${fromDate}–${toDate}). ` +
+        `FDA MAUDE: interactive-search date range remains too broad ` +
+        `(${pageResults.length.toLocaleString()} of ${total.toLocaleString()} ` +
+        `records retrieved for ${fromDate}–${toDate}). ` +
         `${gap.toLocaleString()} records not fetched. ` +
-        `This range is partial and will not be certified as complete coverage. ` +
-        `Pass searchTerms to narrow the query, or use the openFDA bulk download for full coverage: ` +
+        `Use the openFDA bulk download for full coverage: ` +
         `https://open.fda.gov/apis/device/event/download/`
       console.error('[fda]', msg)
       warnings.push(msg)
       break
     }
 
+    for (const r of pageResults) items.push(mapMaudeRecord(r, preferredDeviceTerms))
+    if (items.length >= total) break
+
     skip += RESULTS_PER_PAGE
     if (pageResults.length < RESULTS_PER_PAGE) break
 
     if (skip > MAX_SKIP) {
-      if (total > ADAPTIVE_SPLIT_THRESHOLD && depth < MAX_SPLIT_DEPTH) {
+      if (total > CERTIFIABLE_RANGE_LIMIT && depth < MAX_SPLIT_DEPTH) {
         const midDate = midpoint(fromDate, toDate)
         if (midDate) {
           console.error(`[fda] Adaptive split: ${fromDate}–${toDate} (${total.toLocaleString()} total) → splitting at ${midDate} (depth=${depth + 1})`)
@@ -209,7 +225,7 @@ async function fetchQuarter(
           ])
           const combined = dedup([...items, ...firstHalf.items, ...secondHalf.items])
           return scraperResult(
-            combined.slice(0, MAX_ITEMS),
+            combined,
             [...warnings, ...firstHalf.warnings, ...secondHalf.warnings],
           )
         }

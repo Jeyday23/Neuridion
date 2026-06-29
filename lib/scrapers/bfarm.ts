@@ -10,6 +10,7 @@ const RESULTS_PER_PAGE = 30
 const MAX_PAGES  = 50
 const MAX_ITEMS  = 500
 const MAX_PAGES_YEAR = 50  // 50 pages × 30 items = 1,500 max per year shortcut
+const ARCHIVE_PAGE_TIMEOUT_MS = 30_000
 const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
 
 export interface ScrapedFsn {
@@ -510,9 +511,10 @@ async function scrapeYearShortcut(
     let res: Response
     try {
       // Preserve already parsed authority records if a later archive page
-      // stalls. Fifteen seconds is enough for the official HTML response and
-      // prevents one page from consuming the entire source budget.
-      res = await fetchWithTimeout(url, 15_000, signal)
+      // stalls. BfArM archive pages occasionally take longer than normal under
+      // load; thirty seconds avoids false partial coverage while keeping the
+      // source inside its bounded end-to-end budget.
+      res = await fetchWithTimeout(url, ARCHIVE_PAGE_TIMEOUT_MS, signal)
     } catch (err) {
       warnings.push(
         `BfArM ${shortcut} archive stopped at page ${pageNum}: ` +
