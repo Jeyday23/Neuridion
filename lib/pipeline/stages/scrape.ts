@@ -106,10 +106,12 @@ function escapeRegex(value: string): string {
 }
 
 function matchesDeviceTerm(hay: string, rawTerm: string): boolean {
-  const compact = rawTerm
+  const normalizeKnownVariants = (value: string) =>
+    value.replace(/accu[\s._/-]*check/g, 'accuchek')
+  const compact = normalizeKnownVariants(rawTerm
     .normalize('NFKC')
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, '')
+    .replace(/[^\p{L}\p{N}]/gu, ''))
   if (!compact) return false
 
   const flexible = [...compact].map(escapeRegex).join('[\\s._/\\-]*')
@@ -117,7 +119,8 @@ function matchesDeviceTerm(hay: string, rawTerm: string): boolean {
   const suffix = hasDigit
     ? '(?=$|[^\\p{L}\\p{N}])'
     : '(?=$|[^\\p{L}\\p{N}]|\\p{N})'
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${flexible}${suffix}`, 'iu').test(hay.normalize('NFKC'))
+  const normalizedHay = normalizeKnownVariants(hay.normalize('NFKC').toLowerCase())
+  return new RegExp(`(^|[^\\p{L}\\p{N}])${flexible}${suffix}`, 'iu').test(normalizedHay)
 }
 
 function matchesDeviceSignature(hay: string, terms: string[]): boolean {
@@ -193,6 +196,16 @@ export function auditKeywordRelevance(
     domain: domainTerms,
     competitor: competitorTerms,
   }
+  // Competitor profiles often contain the same generic domain word as the
+  // monitored device (for example "MRI"). That word proves only that a notice
+  // is in the same clinical domain; it does not prove that it belongs to a
+  // named competitor. Require a competitor-specific token such as SIGNA,
+  // Philips, or Canon before retaining a domain-only competitor notice.
+  const competitorSpecificTerms = competitorTerms.filter(term =>
+    !domainTerms.some(domainTerm =>
+      domainTerm.toLowerCase() === term.toLowerCase(),
+    ),
+  )
 
   if (mfrTerms.length === 0 && devTerms.length === 0 && domainTerms.length === 0) {
     counts.kept = items.length
@@ -214,7 +227,7 @@ export function auditKeywordRelevance(
     // substring matching made near-prefix noise such as "HeartStarter" count
     // as the "HeartStart" device domain.
     const domainMatch = domainTerms.some(term => matchesDeviceTerm(hay, term))
-    const competitorMatch = competitorTerms.some(term => matchesDeviceTerm(hay, term))
+    const competitorMatch = competitorSpecificTerms.some(term => matchesDeviceTerm(hay, term))
     if (mfrMatch) counts.manufacturerMatches++
     if (devMatch) counts.deviceMatches++
     if (domainMatch) counts.domainMatches++
@@ -223,6 +236,12 @@ export function auditKeywordRelevance(
     let keep = false
     if (!hasDeviceOrDomainTerms) {
       keep = mfrMatch
+    } else if (item.source_db === 'fda' && devTerms.length > 0) {
+      // MAUDE can contain thousands of same-manufacturer reports in one
+      // clinical domain. For a named product profile, deterministic fallback
+      // must require its complete device signature; manufacturer + generic
+      // domain alone is not product evidence.
+      keep = devMatch || (domainMatch && competitorMatch)
     } else {
       keep = (mfrMatch && devMatch)
         || (mfrMatch && domainMatch)

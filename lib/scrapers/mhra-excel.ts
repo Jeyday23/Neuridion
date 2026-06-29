@@ -6,7 +6,10 @@ import { fetchWithRetry } from './fetch-with-retry'
 
 const FILECAMP_URL = 'https://mhra-gov.filecamp.com/s/d/9g5cLjjFatXruS5U'
 const DOWNLOAD_TIMEOUT_MS = 20_000
-const MAX_ITEMS = 500
+// The official workbook contains more than 500 in-range rows for common
+// one-year searches. A 500-row ceiling made otherwise successful retrievals
+// partial and omitted valid notices.
+const MAX_ITEMS = 5_000
 const MAX_EXCEL_DOWNLOAD_BYTES = 50 * 1024 * 1024
 const MAX_SHARE_METADATA_BYTES = 100 * 1024
 const ALLOWED_MHRA_EXCEL_HOSTS = new Set(['mhra-gov.filecamp.com'])

@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { scraperResult, type ScrapedFsn, type ScraperResult } from './bfarm'
 import { sanitizeContent } from './sanitize'
-import { extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
+import { extractDeviceTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 
 // openFDA device/event endpoint — no auth required, API key raises daily quota
 // Docs: https://open.fda.gov/apis/device/event/
@@ -35,10 +35,19 @@ export async function scrapeFdaMaude(params: {
   const apiKey    = process.env.OPENFDA_API_KEY
   const quarters  = splitIntoQuarters(params.fromDate, params.toDate)
   const termClause = buildTermClause(params.searchTerms, params.profile)
+  const preferredDeviceTerms = extractDeviceTerms(params.profile?.device_name ?? '')
 
   // Fetch all quarters simultaneously — one bad quarter does not abort others
   const settled = await Promise.allSettled(
-    quarters.map(q => fetchQuarter(q.from, q.to, termClause, apiKey, 0, params.signal))
+    quarters.map(q => fetchQuarter(
+      q.from,
+      q.to,
+      termClause,
+      apiKey,
+      preferredDeviceTerms,
+      0,
+      params.signal,
+    ))
   )
 
   const allItems:    ScrapedFsn[] = []
@@ -103,6 +112,7 @@ async function fetchQuarter(
   toDate:      string,
   termClause:  string,
   apiKey:      string | undefined,
+  preferredDeviceTerms: string[],
   depth:       number = 0,
   signal?:      AbortSignal,
 ): Promise<ScraperResult> {
@@ -168,7 +178,7 @@ async function fetchQuarter(
 
     for (const r of pageResults) {
       if (items.length >= MAX_ITEMS) break
-      items.push(mapMaudeRecord(r))
+      items.push(mapMaudeRecord(r, preferredDeviceTerms))
     }
 
     if (items.length >= MAX_ITEMS) {
@@ -194,8 +204,8 @@ async function fetchQuarter(
         if (midDate) {
           console.error(`[fda] Adaptive split: ${fromDate}–${toDate} (${total.toLocaleString()} total) → splitting at ${midDate} (depth=${depth + 1})`)
           const [firstHalf, secondHalf] = await Promise.all([
-            fetchQuarter(fromDate, midDate, termClause, apiKey, depth + 1, signal),
-            fetchQuarter(nextDay(midDate), toDate, termClause, apiKey, depth + 1, signal),
+            fetchQuarter(fromDate, midDate, termClause, apiKey, preferredDeviceTerms, depth + 1, signal),
+            fetchQuarter(nextDay(midDate), toDate, termClause, apiKey, preferredDeviceTerms, depth + 1, signal),
           ])
           const combined = dedup([...items, ...firstHalf.items, ...secondHalf.items])
           return scraperResult(
@@ -223,8 +233,31 @@ async function fetchQuarter(
 
 // ─── Field mapping ────────────────────────────────────────────────────────────
 
-function mapMaudeRecord(r: MaudeRecord): ScrapedFsn {
-  const device      = r.device?.[0]
+function normalizeDeviceText(value: string | undefined): string {
+  return (value ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '')
+}
+
+function selectProfileDevice(
+  devices: MaudeRecord['device'],
+  preferredTerms: string[],
+): NonNullable<MaudeRecord['device']>[number] | undefined {
+  if (!devices?.length || preferredTerms.length === 0) return devices?.[0]
+  const normalizedTerms = preferredTerms.map(normalizeDeviceText).filter(Boolean)
+
+  return devices.reduce((best, candidate) => {
+    const score = normalizedTerms.filter(term => {
+      const hay = normalizeDeviceText(
+        `${candidate.brand_name ?? ''} ${candidate.generic_name ?? ''} ${candidate.manufacturer_d_name ?? ''}`,
+      )
+      return hay.includes(term)
+    }).length
+    if (score > best.score) return { device: candidate, score }
+    return best
+  }, { device: devices[0], score: -1 }).device
+}
+
+function mapMaudeRecord(r: MaudeRecord, preferredDeviceTerms: string[] = []): ScrapedFsn {
+  const device      = selectProfileDevice(r.device, preferredDeviceTerms)
   const brandName   = device?.brand_name?.trim()
   const genericName = device?.generic_name?.trim()
   const deviceLabel = brandName || genericName || 'Medical Device'
@@ -402,7 +435,19 @@ function sanitizeLucene(t: string): string {
 // device manufacturer) rather than manufacturer_name (which is the MDR reporter).
 // When profile is provided and manufacturer/device terms can be distinguished,
 // uses AND grouping to dramatically reduce result volume for large manufacturers.
-function buildTermClause(
+function groupDeviceTokens(tokens: string[]): string[][] {
+  const groups: string[][] = []
+  for (const token of tokens) {
+    const group = groups.find(candidate => candidate.some(existing =>
+      existing.startsWith(token) || token.startsWith(existing),
+    ))
+    if (group) group.push(token)
+    else groups.push([token])
+  }
+  return groups
+}
+
+export function buildTermClause(
   terms?: string[],
   profile?: { manufacturer: string; device_name: string },
 ): string {
@@ -421,11 +466,14 @@ function buildTermClause(
 
     if (mfrTokens.length > 0 && devTokens.length > 0) {
       const mfrClauses = mfrTokens.map(t => `device.manufacturer_d_name:${t}`)
-      const devClauses = devTokens.flatMap(t => [
-        `device.brand_name:${t}`,
-        `device.generic_name:${t}`,
-      ])
-      return `(${mfrClauses.join('+OR+')})+AND+(${devClauses.join('+OR+')})`
+      const deviceGroups = groupDeviceTokens(devTokens).map(group => {
+        const clauses = group.flatMap(t => [
+          `device.brand_name:${t}`,
+          `device.generic_name:${t}`,
+        ])
+        return `(${clauses.join('+OR+')})`
+      })
+      return `(${mfrClauses.join('+OR+')})+AND+${deviceGroups.join('+AND+')}`
     }
   }
 
