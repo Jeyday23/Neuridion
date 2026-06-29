@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { scrapeBfArM } from '@/lib/scrapers/bfarm'
+import { scrapeBfarm, scrapeBfArM } from '@/lib/scrapers/bfarm'
 
 function teaser(id: string, dateText: string, title = 'Dringende Sicherheitsinformation zu Test Device von Acme GmbH'): string {
   return `
@@ -77,5 +77,45 @@ describe('scrapeBfArM pagination bounds', () => {
     })
     expect(captured.rawArtifacts![0].sourceUrl).toContain('templateQueryString=Test%20Device')
     expect(ordinary.rawArtifacts).toBeUndefined()
+  })
+
+  it('retries transient BfArM archive rate limits without downgrading recovered coverage', async () => {
+    const pageOne = `
+      <html><body>
+        <ul>
+          ${teaser('26008-26', '17. Juni 2026')}
+          <li class="c-navindex__item is-forward">
+            <a href="/SiteGlobals/Forms/Suche/Expertensuche_Formular.html?cl2Categories_Format=kundeninfo&amp;dateOfIssue_dt=current_year&amp;cl2Categories_Rubrik=medizinprodukte&amp;resultsPerPage=30&amp;gtp=469344_list%3D2">Weiter</a>
+          </li>
+        </ul>
+      </body></html>
+    `
+    const pageTwo = page([
+      teaser('26007-26', '16. Juni 2026'),
+    ])
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url)
+      if (href.includes('gtp=469344_list%3D2') && fetchMock.mock.calls.filter(([callUrl]) => String(callUrl).includes('gtp=469344_list%3D2')).length === 1) {
+        return new Response('rate limited', {
+          status: 429,
+          headers: { 'retry-after': '0' },
+        })
+      }
+      if (href.includes('gtp=469344_list%3D2')) {
+        return new Response(pageTwo, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } })
+      }
+      return new Response(pageOne, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await scrapeBfarm({
+      fromDate: '2026-01-01',
+      toDate: '2026-07-02',
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(result.outcome).toBe('complete')
+    expect(result.warnings).toEqual([])
+    expect(result.items.map((item) => item.external_id)).toEqual(['26008-26', '26007-26'])
   })
 })
