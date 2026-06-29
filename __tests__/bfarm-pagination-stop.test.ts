@@ -81,10 +81,14 @@ describe('scrapeBfArM pagination bounds', () => {
 
   it('sends browser-grade headers to reduce BfArM production 403 responses', async () => {
     const html = page([teaser('26008-26', '17. Juni 2026')])
-    const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response(html, {
-      status: 200,
-      headers: { 'content-type': 'text/html; charset=utf-8' },
-    }))
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toContain('Expertensuche_Formular.html')
+      expect(init).toBeDefined()
+      return new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      })
+    })
     vi.stubGlobal('fetch', fetchMock)
 
     await scrapeBfArM({
