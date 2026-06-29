@@ -79,6 +79,28 @@ describe('scrapeBfArM pagination bounds', () => {
     expect(ordinary.rawArtifacts).toBeUndefined()
   })
 
+  it('sends browser-grade headers to reduce BfArM production 403 responses', async () => {
+    const html = page([teaser('26008-26', '17. Juni 2026')])
+    const fetchMock = vi.fn(async (_url: string | URL | Request, _init?: RequestInit) => new Response(html, {
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await scrapeBfArM({
+      fromDate: new Date('2026-06-11T00:00:00.000Z'),
+      toDate: new Date('2026-06-18T23:59:59.999Z'),
+    })
+
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined
+    expect(init?.headers).toMatchObject({
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+      Referer: 'https://www.bfarm.de/',
+    })
+    expect(String((init?.headers as Record<string, string>)?.['User-Agent'])).toContain('Mozilla/5.0')
+  })
+
   it('retries transient BfArM archive rate limits without downgrading recovered coverage', async () => {
     const pageOne = `
       <html><body>

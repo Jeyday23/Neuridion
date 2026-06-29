@@ -14,7 +14,15 @@ const ARCHIVE_PAGE_TIMEOUT_MS = 30_000
 const ARCHIVE_PAGE_MAX_RETRIES = 4
 const ARCHIVE_PAGE_BASE_BACKOFF_MS = 1_000
 const ARCHIVE_PAGE_MAX_BACKOFF_MS = 10_000
-const UA = 'Mozilla/5.0 (compatible; Neuridion/1.0; +https://neuridion.eu)'
+const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+const BFARM_HEADERS: HeadersInit = {
+  'User-Agent': UA,
+  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Cache-Control': 'no-cache',
+  Pragma: 'no-cache',
+  Referer: `${BFARM_ORIGIN}/`,
+}
 
 export interface ScrapedFsn {
   external_id:  string
@@ -253,7 +261,7 @@ function fetchWithTimeout(url: string, timeoutMs: number, signal?: AbortSignal):
     signal?.addEventListener('abort', abort, { once: true })
   }
 
-  return fetch(url, { headers: { 'User-Agent': UA }, signal: controller.signal })
+  return fetch(url, { headers: BFARM_HEADERS, signal: controller.signal })
     .finally(() => {
       clearTimeout(timeout)
       signal?.removeEventListener('abort', abort)
@@ -861,7 +869,7 @@ export async function scrapeRssFeed(options: ScraperOptions = {}): Promise<Scrap
   else options.signal?.addEventListener('abort', abortFromParent, { once: true })
   let response: Response
   try {
-    response = await fetch(RSS_URL, { headers: { 'User-Agent': UA }, signal: controller.signal })
+    response = await fetch(RSS_URL, { headers: BFARM_HEADERS, signal: controller.signal })
   } finally {
     clearTimeout(timeout)
     options.signal?.removeEventListener('abort', abortFromParent)
