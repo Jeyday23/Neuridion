@@ -22,6 +22,23 @@ export function isTerminalAiAvailabilityFailure(decision: FilterDecision): boole
   return /credit_exhausted|credit balance|insufficient_quota|billing|authentication|invalid api key/.test(detail)
 }
 
+function deterministicAiUnavailableDecision(row: InsertedFsnRow, reason: 'credit_or_auth' | 'run_circuit_open') {
+  const explanation = reason === 'credit_or_auth'
+    ? 'AI review unavailable because the Anthropic provider account is not currently usable. '
+    : 'AI review unavailable for this run after an earlier provider availability failure. '
+
+  return {
+    fsn_result_id: row.id,
+    decision: 'uncertain' as const,
+    rationale:
+      explanation +
+      'Deterministic source retrieval and keyword filtering retained this item for PRRC manual review. ' +
+      'No AI relevance classification was applied.',
+    confidence: 0.5,
+    model: 'deterministic-ai-unavailable',
+  }
+}
+
 function fsnIdOf(fsn: { title: string; manufacturer?: string | null; source_db?: string | null }): string {
   const key = [fsn.title, fsn.manufacturer ?? '', fsn.source_db ?? ''].join('|').toLowerCase().trim()
   return createHash('sha256').update(key).digest('hex').slice(0, 32)
@@ -162,13 +179,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
 
   const filterRow = async (row: InsertedFsnRow) => {
     if (terminalAiFailure) {
-      return {
-        fsn_result_id: row.id,
-        decision: 'filter_failed' as const,
-        rationale: 'AI filtering unavailable for this run — manual review required.',
-        confidence: null,
-        model: null,
-      }
+      return deterministicAiUnavailableDecision(row, 'run_circuit_open')
     }
     if (cancelledDuringFilter) {
       return { fsn_result_id: row.id, decision: 'filter_failed' as const, rationale: 'Run cancelled by user.', confidence: null, model: null }
@@ -204,7 +215,10 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
       profile,
       { skipCache: true },
     )
-    if (isTerminalAiAvailabilityFailure(d)) terminalAiFailure = d
+    if (isTerminalAiAvailabilityFailure(d)) {
+      terminalAiFailure = d
+      return deterministicAiUnavailableDecision(row, 'credit_or_auth')
+    }
     return { ...d, fsn_result_id: row.id }
   }
 
@@ -214,15 +228,11 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   if (toFilter.length > 0) {
     filterResults.push(await filterRow(toFilter[0]))
     if (terminalAiFailure) {
-      ctx.warnings.push('AI filtering unavailable; unassessed results require manual review.')
       for (const row of toFilter.slice(1)) filterResults.push(await filterRow(row))
     } else {
       filterResults.push(...await Promise.all(
         toFilter.slice(1).map((row) => filterLimit(() => filterRow(row))),
       ))
-      if (terminalAiFailure) {
-        ctx.warnings.push('AI filtering became unavailable; unassessed results require manual review.')
-      }
     }
   }
   ctx.decisions.push(...filterResults)
