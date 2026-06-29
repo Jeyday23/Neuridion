@@ -1,4 +1,6 @@
 import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
+import { extractDeviceTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
+import { matchesKeywordSignature, matchesKeywordTerm } from '@/lib/search/keyword-match'
 import type { ExpectedRecord, MatchResult, RecallResult } from './types'
 
 export function matchExpected(
@@ -60,12 +62,14 @@ export function samplePrecision(
   const sample = items.slice(0, sampleSize)
   if (sample.length === 0) return { relevant_looking: 0, sampled: 0, rate: 0 }
 
-  const mfrLower = profileManufacturer.toLowerCase()
-  const devLower = profileDeviceName.toLowerCase()
+  const mfrTerms = extractManufacturerTerms(profileManufacturer)
+  const devTerms = extractDeviceTerms(profileDeviceName)
 
   const relevantLooking = sample.filter((item) => {
     const hay = `${item.title} ${item.manufacturer ?? ''} ${item.raw_content}`.toLowerCase()
-    return hay.includes(mfrLower) || hay.includes(devLower)
+    const mfrMatch = mfrTerms.some(term => matchesKeywordTerm(hay, term))
+    const devMatch = matchesKeywordSignature(hay, devTerms)
+    return mfrMatch || devMatch
   }).length
 
   return { relevant_looking: relevantLooking, sampled: sample.length, rate: relevantLooking / sample.length }

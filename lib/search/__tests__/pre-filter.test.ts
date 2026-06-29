@@ -46,7 +46,7 @@ describe('production keyword pre-filter', () => {
     expect(result.counts.manufacturerOnlyRejected).toBe(1)
   })
 
-  it('does not treat a generic domain term as a competitor identity', () => {
+  it('does not return competitor-only records as product PRRC candidates', () => {
     const result = auditKeywordRelevance(
       [
         notice({
@@ -69,7 +69,7 @@ describe('production keyword pre-filter', () => {
       ['signa', 'mri', 'ge', 'philips'],
     )
 
-    expect(result.items.map((item) => item.external_id)).toEqual(['magnetom', 'signa'])
+    expect(result.items.map((item) => item.external_id)).toEqual(['magnetom'])
     expect(result.counts.domainOnlyRejected).toBe(1)
   })
 

@@ -3,6 +3,7 @@ import { getProductionScraper } from '@/lib/scrapers/registry'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
 import { extractManufacturerTerms, extractDeviceTerms } from '@/lib/search/manufacturer-terms'
+import { matchesKeywordSignature, matchesKeywordTerm } from '@/lib/search/keyword-match'
 import { insertResultsStage } from './insert-results'
 import type { PipelineContext, ProgressUpdate } from '../types'
 import {
@@ -97,51 +98,6 @@ function buildDomainTerms(profile: { device_name: string }): string[] {
   )]
 }
 
-function includesAny(hay: string, terms: string[]): boolean {
-  return terms.some(t => hay.includes(t.toLowerCase()))
-}
-
-function escapeRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function matchesDeviceTerm(hay: string, rawTerm: string): boolean {
-  const normalizeKnownVariants = (value: string) =>
-    value.replace(/accu[\s._/-]*check/g, 'accuchek')
-  const compact = normalizeKnownVariants(rawTerm
-    .normalize('NFKC')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]/gu, ''))
-  if (!compact) return false
-
-  const flexible = [...compact].map(escapeRegex).join('[\\s._/\\-]*')
-  const hasDigit = /\p{N}/u.test(compact)
-  const suffix = hasDigit
-    ? '(?=$|[^\\p{L}\\p{N}])'
-    : '(?=$|[^\\p{L}\\p{N}]|\\p{N})'
-  const normalizedHay = normalizeKnownVariants(hay.normalize('NFKC').toLowerCase())
-  return new RegExp(`(^|[^\\p{L}\\p{N}])${flexible}${suffix}`, 'iu').test(normalizedHay)
-}
-
-function matchesDeviceSignature(hay: string, terms: string[]): boolean {
-  if (terms.length === 0) return false
-
-  // extractDeviceTerms may emit a model token and its family alias, e.g.
-  // COPRA6 + COPRA. Those are alternatives within one signature component;
-  // independent components such as ORBIS + Medication must all be present.
-  const groups: string[][] = []
-  for (const rawTerm of terms) {
-    const term = rawTerm.toLowerCase()
-    const group = groups.find(candidate => candidate.some(existing =>
-      existing.startsWith(term) || term.startsWith(existing),
-    ))
-    if (group) group.push(term)
-    else groups.push([term])
-  }
-
-  return groups.every(group => group.some(term => matchesDeviceTerm(hay, term)))
-}
-
 export function filterByKeywordRelevance(
   items: ScrapedFsn[],
   profile: { manufacturer: string; device_name: string },
@@ -196,11 +152,10 @@ export function auditKeywordRelevance(
     domain: domainTerms,
     competitor: competitorTerms,
   }
-  // Competitor profiles often contain the same generic domain word as the
-  // monitored device (for example "MRI"). That word proves only that a notice
-  // is in the same clinical domain; it does not prove that it belongs to a
-  // named competitor. Require a competitor-specific token such as SIGNA,
-  // Philips, or Canon before retaining a domain-only competitor notice.
+  // Competitor terms are source-discovery hints, not product evidence. A
+  // competitor-only match can help pull source pages into the acquisition set,
+  // but the PRRC review candidate set must remain scoped to the monitored
+  // product/manufacturer signature.
   const competitorSpecificTerms = competitorTerms.filter(term =>
     !domainTerms.some(domainTerm =>
       domainTerm.toLowerCase() === term.toLowerCase(),
@@ -218,16 +173,16 @@ export function auditKeywordRelevance(
   for (const item of items) {
     const hay = `${item.title} ${item.manufacturer ?? ''} ${item.product_name ?? ''} ${item.raw_content}`.toLowerCase()
 
-    const mfrMatch = includesAny(hay, mfrTerms)
+    const mfrMatch = mfrTerms.some(term => matchesKeywordTerm(hay, term))
     // A product signature may contain a family plus a distinguishing model or
     // module token. Matching only one token made generic words such as
     // "Medication" retain unrelated products and manufacturers.
-    const devMatch = matchesDeviceSignature(hay, devTerms)
+    const devMatch = matchesKeywordSignature(hay, devTerms)
     // Domain and competitor signals must respect token boundaries too. Plain
     // substring matching made near-prefix noise such as "HeartStarter" count
     // as the "HeartStart" device domain.
-    const domainMatch = domainTerms.some(term => matchesDeviceTerm(hay, term))
-    const competitorMatch = competitorSpecificTerms.some(term => matchesDeviceTerm(hay, term))
+    const domainMatch = domainTerms.some(term => matchesKeywordTerm(hay, term))
+    const competitorMatch = competitorSpecificTerms.some(term => matchesKeywordTerm(hay, term))
     if (mfrMatch) counts.manufacturerMatches++
     if (devMatch) counts.deviceMatches++
     if (domainMatch) counts.domainMatches++
@@ -241,12 +196,14 @@ export function auditKeywordRelevance(
       // clinical domain. For a named product profile, deterministic fallback
       // must require its complete device signature; manufacturer + generic
       // domain alone is not product evidence.
-      keep = devMatch || (domainMatch && competitorMatch)
+      keep = devMatch
+    } else if (devTerms.length > 0) {
+      // Product-level PRRC searches must not retain same-manufacturer,
+      // same-domain records for a different named product. Example:
+      // B. Braun Spaceplus Perfusor is not Infusomat Space.
+      keep = devMatch
     } else {
-      keep = (mfrMatch && devMatch)
-        || (mfrMatch && domainMatch)
-        || devMatch
-        || (domainMatch && competitorMatch)
+      keep = mfrMatch && domainMatch
     }
 
     if (keep) {
