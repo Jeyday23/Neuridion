@@ -72,7 +72,7 @@ describe('AI filtering circuit breaker', () => {
     })).toBe(false)
   })
 
-  it('uses one probe request and falls back to deterministic manual-review decisions without degrading the run', async () => {
+  it('uses one probe request and marks all fresh candidates unprocessed when AI billing is unavailable', async () => {
     mocks.stage1Filter.mockResolvedValue({
       decision: 'filter_failed',
       rationale: 'AI filter could not be applied due to API error. This item requires manual review.',
@@ -86,11 +86,17 @@ describe('AI filtering circuit breaker', () => {
 
     expect(mocks.stage1Filter).toHaveBeenCalledOnce()
     expect(ctx.decisions).toHaveLength(8)
-    expect(ctx.decisions.every((decision) => decision.decision === 'uncertain')).toBe(true)
+    expect(ctx.decisions.every((decision) => decision.decision === 'filter_failed')).toBe(true)
     expect(ctx.decisions.every((decision) => decision.model === 'deterministic-ai-unavailable')).toBe(true)
-    expect(ctx.decisions.every((decision) => decision.confidence === 0.5)).toBe(true)
+    expect(ctx.decisions.every((decision) => decision.confidence === null)).toBe(true)
     expect(ctx.decisions[0].rationale).toContain('No AI relevance classification was applied')
-    expect(ctx.warnings).toEqual([])
+    expect(ctx.warnings).toEqual([
+      'AI relevance review was unavailable because the AI provider rejected the request for billing/authentication reasons; manual PRRC review is required.',
+    ])
+    expect(ctx.timing).toMatchObject({
+      ai_review_status: 'provider_unavailable',
+      ai_review_provider_error: 'billing_or_authentication',
+    })
   })
 
   it('records audit metrics that explain total rows versus fresh filter candidates', async () => {
@@ -122,6 +128,38 @@ describe('AI filtering circuit breaker', () => {
       filter_keyword_boosted: 3,
       filter_to_filter: 3,
       filter_cap_skipped: 0,
+    })
+  })
+
+  it('marks records skipped by the AI review cap as unprocessed and warns PRRC users', async () => {
+    const previousCap = process.env.MAX_FILTER_ITEMS_PER_RUN
+    process.env.MAX_FILTER_ITEMS_PER_RUN = '3'
+    mocks.stage1Filter.mockResolvedValue({
+      decision: 'excluded',
+      rationale: 'not relevant',
+      confidence: 0.9,
+      model: 'test-model',
+    })
+    const ctx = context()
+
+    try {
+      await filterStage(ctx)
+    } finally {
+      if (previousCap === undefined) delete process.env.MAX_FILTER_ITEMS_PER_RUN
+      else process.env.MAX_FILTER_ITEMS_PER_RUN = previousCap
+    }
+
+    expect(mocks.stage1Filter).toHaveBeenCalledTimes(3)
+    expect(ctx.decisions).toHaveLength(8)
+    expect(ctx.decisions.filter((decision) => decision.decision === 'filter_failed')).toHaveLength(5)
+    expect(ctx.warnings).toEqual([
+      '5 raw source records were not AI-reviewed because the run review cap is 3; manual PRRC review is required.',
+    ])
+    expect(ctx.timing).toMatchObject({
+      filter_to_filter: 3,
+      filter_cap_skipped: 5,
+      ai_review_cap: 3,
+      ai_review_status: 'incomplete_cap',
     })
   })
 })

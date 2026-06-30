@@ -30,7 +30,7 @@ const DECISION_LABELS: Record<string, string> = {
   relevant:      'Potentially Relevant',
   uncertain:     'Requires Further Review',
   excluded:      'Not Relevant',
-  filter_failed: 'AI Filter Unavailable',
+  filter_failed: 'Unprocessed — Manual Review Required',
 }
 function fmtDate(iso: string | null): string {
   if (!iso) return '—'
@@ -232,7 +232,7 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
   }
 
   if (filterFailed.length > 0) {
-    children.push(sectionHeader(`AI Filter Unavailable (${filterFailed.length})`, 'C62828'))
+    children.push(sectionHeader(`Unprocessed — Manual Review Required (${filterFailed.length})`, 'C62828'))
     children.push(buildFsnTable(filterFailed, true))
   }
 

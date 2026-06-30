@@ -605,10 +605,10 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                         <span className="text-xs text-zinc-400">
                           {state.preFilterCount ?? state.totalScraped} raw source result{(state.preFilterCount ?? state.totalScraped) !== 1 ? 's' : ''}
                           {` → ${counts.relevant + counts.uncertain + counts.excluded} AI-assessed`}
-                          {counts.filter_failed > 0 && ` · ${counts.filter_failed} unfiltered`}
+                          {counts.filter_failed > 0 && ` · ${counts.filter_failed} unprocessed`}
                         </span>
                       )}
-                      <span className="text-xs text-zinc-400 ml-auto">AI-filtered · {MODEL_LABEL}</span>
+                      <span className="text-xs text-zinc-400 ml-auto">AI relevance review · {MODEL_LABEL}</span>
                     </div>
 
                     {/* Filter tabs */}

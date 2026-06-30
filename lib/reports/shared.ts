@@ -2,7 +2,7 @@ export const DECISION_LABEL: Record<string, string> = {
   relevant:      'Potentially Relevant',
   uncertain:     'Requires Further Review',
   excluded:      'Not Relevant',
-  filter_failed: 'AI Filter Unavailable',
+  filter_failed: 'Unprocessed — Manual Review Required',
 }
 
 export function fmtDate(iso: string | null): string {

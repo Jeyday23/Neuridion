@@ -226,7 +226,7 @@ export function ReportDocument({ data }: { data: ReportData }) {
           <StatBox num={relevant.length} label="Potentially Relevant" color={GREEN} />
           <StatBox num={uncertain.length} label="Requires Review" color={AMBER} />
           <StatBox num={excluded.length} label="Not Relevant" color="#9ca3af" />
-          {filterFailed.length > 0 && <StatBox num={filterFailed.length} label="AI Filter Unavailable" color={RED} />}
+          {filterFailed.length > 0 && <StatBox num={filterFailed.length} label="Unprocessed" color={RED} />}
         </View>
 
         <FdaSignalTable rows={rows} />
@@ -243,13 +243,13 @@ export function ReportDocument({ data }: { data: ReportData }) {
         </View>
         <ResultsTable items={uncertain} bgColor="#fffbeb" />
 
-        {/* 6. AI Filter Unavailable (conditional) */}
+        {/* 6. Unprocessed / manual review required (conditional) */}
         {filterFailed.length > 0 && (
           <>
             <View style={[s.sectionBar, { backgroundColor: RED }]}>
-              <Text>AI FILTER UNAVAILABLE — {filterFailed.length} item{filterFailed.length !== 1 ? 's' : ''}</Text>
+              <Text>UNPROCESSED — MANUAL REVIEW REQUIRED — {filterFailed.length} item{filterFailed.length !== 1 ? 's' : ''}</Text>
             </View>
-            <Text style={s.warningBanner}>⚠ These items could not be AI-filtered. Manual review required.</Text>
+            <Text style={s.warningBanner}>⚠ These items did not receive an AI relevance classification. Manual PRRC review required.</Text>
             <ResultsTable items={filterFailed} bgColor="#fef2f2" />
           </>
         )}
