@@ -295,16 +295,26 @@ export async function firecrawlFallback(
 
   const sequential = await firecrawlSequentialBfarmPages(params, { apiKey, deadlineMs, signal: parentSignal })
   let sequentialZeroWarnings: string[] = []
+  let sequentialPartial: ScraperResult | null = null
   if (sequential) {
     console.error(`[firecrawl] sequential fallback returned ${sequential.items.length} items (outcome=${sequential.outcome})`)
-    if (sequential.items.length > 0 || sequential.outcome === 'complete' || sequential.outcome === 'failed') {
+    if (sequential.outcome === 'complete' || sequential.outcome === 'failed') {
       return sequential
     }
+    if (sequential.items.length > 0) {
+      sequentialPartial = sequential
+      sequentialZeroWarnings = [
+        ...sequential.warnings,
+        'BfArM sequential Firecrawl fallback was partial; tried crawl fallback for additional coverage.',
+      ]
+      console.error('[firecrawl] sequential fallback was partial; trying crawl fallback for additional coverage')
+    } else {
     sequentialZeroWarnings = [
       ...sequential.warnings,
       'BfArM sequential Firecrawl fallback returned 0 items; used crawl fallback instead.',
     ]
     console.error('[firecrawl] sequential fallback returned 0 partial items; trying crawl fallback before giving up')
+    }
   }
 
   const seedUrl = seedBfarmUrl(params)
@@ -329,9 +339,11 @@ export async function firecrawlFallback(
 
     if (startRes.status === 402) {
       console.error('[firecrawl] fallback skipped: no credits')
+      if (sequentialPartial) return sequentialPartial
       return scraperResult([], ['Firecrawl fallback skipped: no credits (HTTP 402)'], { failed: true })
     }
     if (startRes.status === 401 || startRes.status === 403) {
+      if (sequentialPartial) return sequentialPartial
       return scraperResult([], [`Firecrawl auth failed: ${startRes.status}`], { failed: true })
     }
     if (!startRes.ok) {
@@ -340,17 +352,20 @@ export async function firecrawlFallback(
         .replace(/(?:sk-|fc-|Bearer\s+)[A-Za-z0-9_-]+/g, '[REDACTED]')
         .replace(/[0-9a-f]{32,}/gi, '[REDACTED]')
       console.error(`[firecrawl] crawl start failed: HTTP ${startRes.status} — ${safeBody}`)
+      if (sequentialPartial) return sequentialPartial
       return scraperResult([], [`Firecrawl crawl start failed (HTTP ${startRes.status})`], { failed: true })
     }
 
     const startData = await startRes.json() as { id?: string }
     if (!startData.id) {
+      if (sequentialPartial) return sequentialPartial
       return scraperResult([], ['Firecrawl returned no crawl ID'], { failed: true })
     }
     crawlId = startData.id
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error(`[firecrawl] start request failed: ${msg}`)
+    if (sequentialPartial) return sequentialPartial
     return scraperResult([], [`Firecrawl request failed: ${msg}`], { failed: true })
   }
 
@@ -408,11 +423,21 @@ export async function firecrawlFallback(
 
   if (items.length > 0) {
     console.error(`[firecrawl] returning ${items.length} items from ${bestPartialData.length} pages (${elapsed}s)`)
+    const mergedItems = mergeBfarmItems(sequentialPartial?.items ?? [], items)
+    const mergedWarnings = [...sequentialZeroWarnings]
+    if (sequentialPartial && mergedItems.length > sequentialPartial.items.length) {
+      mergedWarnings.push(`BfArM crawl fallback added ${mergedItems.length - sequentialPartial.items.length} item(s) beyond sequential fallback.`)
+    }
     if (coverage.coverageComplete) {
       console.error('[firecrawl] fallback coverage complete for requested BfArM date range')
-      return scraperResult(items, sequentialZeroWarnings)
+      return scraperResult(mergedItems, mergedWarnings)
     }
-    return scraperResult(items, [...sequentialZeroWarnings, 'BfArM fallback returned items but could not prove complete date-range coverage'])
+    return scraperResult(mergedItems, [...mergedWarnings, 'BfArM fallback returned items but could not prove complete date-range coverage'])
+  }
+
+  if (sequentialPartial) {
+    console.error(`[firecrawl] crawl fallback returned no usable items; keeping sequential partial (${sequentialPartial.items.length} items)`)
+    return sequentialPartial
   }
 
   if (bestPartialData.length === 0) {
@@ -468,6 +493,16 @@ function toScrapedCoverage(
   })
 
   return { items }
+}
+
+function mergeBfarmItems(...groups: ScrapedFsn[][]): ScrapedFsn[] {
+  const byId = new Map<string, ScrapedFsn>()
+  for (const group of groups) {
+    for (const item of group) {
+      byId.set(item.external_id, item)
+    }
+  }
+  return [...byId.values()]
 }
 
 interface FirecrawlStatus {
