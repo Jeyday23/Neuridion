@@ -146,7 +146,8 @@ describe('Firecrawl BfArM fallback coverage', () => {
     expect(result.items).toHaveLength(4)
   })
 
-  it('synthesizes the next BfArM page when a full Firecrawl page has no next link', async () => {
+  it('uses BfArM archive shortcuts for long Firecrawl ranges and synthesizes missing next pages', async () => {
+    vi.useFakeTimers({ now: new Date('2026-06-30T00:00:00.000Z') })
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
     vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
     const requests: string[] = []
@@ -156,14 +157,30 @@ describe('Firecrawl BfArM fallback coverage', () => {
       if (href.endsWith('/scrape')) {
         const body = JSON.parse(String(init?.body ?? '{}')) as { url: string }
         requests.push(body.url)
+        const isCurrentYear = body.url.includes('dateOfIssue_dt=current_year')
+        const isLastYear = body.url.includes('dateOfIssue_dt=lastyear')
         const isPage2 = body.url.includes('gtp=469344_list%253D2')
+        if (isCurrentYear && isPage2) {
+          return new Response(JSON.stringify({
+            data: { html: page([teaser('26100-26', '01. Juni 2026')]) },
+          }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        if (isLastYear && isPage2) {
+          return new Response(JSON.stringify({
+            data: { html: page([teaser('18999-25', '29. Juni 2025')]) },
+          }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
         return new Response(JSON.stringify({
           data: {
-            html: isPage2
-              ? page([teaser('18000-26', '29. Juni 2025')])
-              : page(Array.from({ length: 30 }, (_, index) =>
-                  teaser(`${26000 + index}-26`, '19. Juni 2026'),
-                )),
+            html: page(Array.from({ length: 30 }, (_, index) =>
+              teaser(`${(isLastYear ? 25000 : 26000) + index}-${isLastYear ? '25' : '26'}`, isLastYear ? '15. Dezember 2025' : '19. Juni 2026'),
+            )),
           },
         }), {
           status: 200,
@@ -178,14 +195,18 @@ describe('Firecrawl BfArM fallback coverage', () => {
       toDate: '2026-06-30',
     })
 
-    expect(result.items).toHaveLength(30)
+    expect(result.items).toHaveLength(61)
     expect(result.outcome).toBe('complete')
     expect(result.warnings).toEqual([])
-    expect(requests).toHaveLength(2)
-    expect(requests[1]).toContain('gtp=469344_list%253D2')
+    expect(requests).toHaveLength(4)
+    expect(requests.some(request => request.includes('dateOfIssue_dt=current_year'))).toBe(true)
+    expect(requests.some(request => request.includes('dateOfIssue_dt=current_year') && request.includes('gtp=469344_list%253D2'))).toBe(true)
+    expect(requests.some(request => request.includes('dateOfIssue_dt=lastyear'))).toBe(true)
+    expect(requests.some(request => request.includes('dateOfIssue_dt=lastyear') && request.includes('gtp=469344_list%253D2'))).toBe(true)
   })
 
   it('keeps synthesized Firecrawl pagination partial when the next page repeats', async () => {
+    vi.useFakeTimers({ now: new Date('2026-06-30T00:00:00.000Z') })
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
     vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
     const fullPage = page(Array.from({ length: 30 }, (_, index) =>
