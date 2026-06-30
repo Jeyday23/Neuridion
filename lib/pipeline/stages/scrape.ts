@@ -5,7 +5,7 @@ import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
 import { extractManufacturerTerms, extractDeviceTerms } from '@/lib/search/manufacturer-terms'
 import { matchesKeywordSignature, matchesKeywordTerm } from '@/lib/search/keyword-match'
 import { insertResultsStage } from './insert-results'
-import type { PipelineContext, ProgressUpdate } from '../types'
+import type { PipelineContext, ProgressUpdate, SourceResultBreakdown } from '../types'
 import {
   captureAdapterOutput,
   getLatestAuthorityRevisionIds,
@@ -240,6 +240,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     contentChanged: Set<string>
     canonicalIds: Map<string, string>
     authorityRevisionIds: Map<string, string>
+    sourceBreakdown: SourceResultBreakdown
   }> {
     // Check cancellation before starting each source's scrape work
     if (await ctx.isCancelled()) {
@@ -247,6 +248,19 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       return {
         items: [], warnings: [], contentChanged: new Set(),
         canonicalIds: new Map(), authorityRevisionIds: new Map(),
+        sourceBreakdown: {
+          source: sourceId,
+          requested_from: period_from,
+          requested_to: period_to,
+          fresh_fetched: 0,
+          cached_loaded: 0,
+          found_before_filtering: 0,
+          after_keyword_signal: 0,
+          rejected_by_keyword_signal: 0,
+          status: 'failed',
+          fresh_outcomes: [],
+          warnings: 0,
+        },
       }
     }
 
@@ -390,35 +404,56 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     }
 
     const filterAudit = auditKeywordRelevance(deduped, profile, competitorTerms)
-    const filtered = filterAudit.items
+    const keywordSignaled = filterAudit.items
+    const normalizedOutcome: SourceResultBreakdown['status'] =
+      sourceOutcomes.some((outcome) => outcome.endsWith(':partial')) ? 'partial'
+      : deduped.length === 0 ? 'empty'
+      : 'complete'
+    const sourceBreakdown: SourceResultBreakdown = {
+      source: sourceId,
+      requested_from: period_from,
+      requested_to: period_to,
+      fresh_fetched: fetchedItemCount,
+      cached_loaded: cachedItemCount,
+      found_before_filtering: deduped.length,
+      after_keyword_signal: keywordSignaled.length,
+      rejected_by_keyword_signal: Math.max(0, deduped.length - keywordSignaled.length),
+      status: normalizedOutcome,
+      fresh_outcomes: sourceOutcomes,
+      warnings: warnings.length,
+    }
     console.error(
       `[scrape] ${sourceId} source summary: requested=${period_from}..${period_to} ` +
       `fetched=${fetchedItemCount} cached=${cachedItemCount} ` +
-      `deduped=${deduped.length} kept=${filtered.length} warnings=${warnings.length} ` +
+      `deduped=${deduped.length} keyword_signal=${keywordSignaled.length} warnings=${warnings.length} ` +
       `fresh_outcomes=${sourceOutcomes.join(',') || 'cache-only'}`,
     )
-    if (filtered.length < deduped.length) {
-      console.error(`[scrape] ${sourceId} keyword filter: ${deduped.length} → ${filtered.length} items`)
+    if (keywordSignaled.length < deduped.length) {
+      console.error(`[scrape] ${sourceId} keyword signal: ${keywordSignaled.length}/${deduped.length} raw items matched product terms; all raw items continue to AI review`)
     }
     console.error(`[scrape] ${sourceId} keyword audit: ${JSON.stringify({
       terms: filterAudit.terms,
       counts: filterAudit.counts,
     })}`)
 
-    const keptIds = new Set(filtered.map(i => i.external_id))
-
     if (!progressState.sources_done.includes(sourceId)) progressState.sources_done.push(sourceId)
     const remaining = activeSources.filter(s => !progressState.sources_done.includes(s))
-    progressState.items_found   += filtered.length
+    progressState.items_found   += deduped.length
     progressState.current_source = remaining[0] ?? null
-    if (ctx.onProgress) await ctx.onProgress({ ...progressState, sources_done: [...progressState.sources_done] })
+    progressState.source_breakdown = [...(progressState.source_breakdown ?? []), sourceBreakdown]
+    if (ctx.onProgress) await ctx.onProgress({
+      ...progressState,
+      sources_done: [...progressState.sources_done],
+      source_breakdown: [...(progressState.source_breakdown ?? [])],
+    })
 
     return {
-      items: filtered,
+      items: deduped,
       warnings,
-      contentChanged: new Set([...contentChanged].filter(id => keptIds.has(id))),
-      canonicalIds: new Map([...canonicalIds].filter(([eid]) => keptIds.has(eid))),
-      authorityRevisionIds: new Map([...authorityRevisionIds].filter(([eid]) => keptIds.has(eid))),
+      contentChanged,
+      canonicalIds,
+      authorityRevisionIds,
+      sourceBreakdown,
     }
   }
 
@@ -436,8 +471,9 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     const r = sourceResults[i]
     if (r.status === 'fulfilled') {
       console.error(
-        `[pipeline] ${activeSources[i]} completed: kept=${r.value.items.length} warnings=${r.value.warnings.length}`,
+        `[pipeline] ${activeSources[i]} completed: raw=${r.value.items.length} warnings=${r.value.warnings.length}`,
       )
+      ctx.sourceBreakdown.push(r.value.sourceBreakdown)
       ctx.items = r.value.items
       r.value.contentChanged.forEach((id) => ctx.contentChanged.add(id))
       r.value.canonicalIds.forEach((cid, eid) => ctx.canonicalIds.set(eid, cid))
@@ -451,6 +487,19 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     } else {
       const sourceLabel = activeSources[i].toUpperCase()
       console.error(`[pipeline] ${activeSources[i]} FAILED:`, r.reason instanceof Error ? r.reason.message : String(r.reason))
+      ctx.sourceBreakdown.push({
+        source: activeSources[i],
+        requested_from: period_from,
+        requested_to: period_to,
+        fresh_fetched: 0,
+        cached_loaded: 0,
+        found_before_filtering: 0,
+        after_keyword_signal: 0,
+        rejected_by_keyword_signal: 0,
+        status: 'failed',
+        fresh_outcomes: [],
+        warnings: 1,
+      })
       ctx.warnings.push(
         `${sourceLabel} database was unavailable during this search and returned no results.`
       )

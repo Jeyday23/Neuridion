@@ -141,8 +141,22 @@ export function SearchProgressCard({ startedAt, progress, onCancel }: { startedA
 
             {progress.items_found > 0 && (
               <p className="text-xs text-[#0D9488] pt-1 border-t border-[#CCFBF1]">
-                {progress.items_found} item{progress.items_found !== 1 ? 's' : ''} found so far
+                {progress.items_found} raw source result{progress.items_found !== 1 ? 's' : ''} found before AI filtering
               </p>
+            )}
+            {progress.source_breakdown && progress.source_breakdown.length > 0 && (
+              <div className="pt-1 border-t border-[#CCFBF1] space-y-1">
+                {progress.source_breakdown.map((source) => (
+                  <div key={source.source} className="flex items-center justify-between gap-3 text-xs text-[#0F766E]">
+                    <span>{fmtSourceDb(source.source)}</span>
+                    <span className="font-mono">
+                      {source.found_before_filtering} raw
+                      {' → '}
+                      {source.after_keyword_signal} keyword signal
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         ) : (
