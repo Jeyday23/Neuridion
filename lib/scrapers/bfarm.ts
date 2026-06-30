@@ -462,7 +462,22 @@ export function parseNextPageHref(html: string): string | null {
     const href = container.match(/<a\b[^>]*href=["']([^"']+)["']/i)?.[1]
     if (href) return decodeHtml(href)
   }
+
+  // Production/fallback processors can alter the nav markup enough that the
+  // shallow container regex above no longer captures the forward anchor inside
+  // the same element. Keep a conservative fallback scoped to the BfArM
+  // `is-forward` pagination marker so a full result page is not mistaken for
+  // complete coverage after only the first 30 records.
+  const forwardMatch = html.match(
+    /class=["'][^"']*\bis-forward\b[^"']*["'][\s\S]{0,2500}?<a\b[^>]*href=["']([^"']+)["']/i,
+  )
+  if (forwardMatch?.[1]) return decodeHtml(forwardMatch[1])
+
   return null
+}
+
+function hasBfarmPaginationContinuation(html: string): boolean {
+  return /\bis-forward\b/i.test(html) || /gtp=469344_list%25?3D\d+/i.test(html)
 }
 
 export async function scrapeBfArM(options: ScraperOptions = {}): Promise<ScraperResult> {
@@ -535,6 +550,16 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraper
         })
       }
 
+      if (
+        pageItems.length >= RESULTS_PER_PAGE
+        && !nextHref
+        && hasBfarmPaginationContinuation(html)
+      ) {
+        warnings.push(
+          `BfArM: pagination continuation was present on page ${page}, but the next-page link could not be parsed; source coverage is incomplete.`,
+        )
+        break
+      }
       if (raw.length >= MAX_ITEMS || crossedBelowFromDate || !nextHref) break
       url = absoluteBfarmUrl(nextHref)
     }
@@ -662,6 +687,16 @@ async function scrapeYearShortcut(
     // BfArM archive pages are newest-first. Once a page contains dates below
     // the requested lower bound, later pages cannot add in-range records.
     const crossedBelowFromDate = datedItems.some(item => item.date < fromDate)
+    if (
+      pageItems.length >= RESULTS_PER_PAGE
+      && !nextHref
+      && hasBfarmPaginationContinuation(html)
+    ) {
+      warnings.push(
+        `BfArM ${shortcut} archive stopped at page ${pageNum}: pagination continuation was present, but the next-page link could not be parsed.`,
+      )
+      break
+    }
     if (crossedBelowFromDate) break
     if (!nextHref) break
 
