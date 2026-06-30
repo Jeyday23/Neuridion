@@ -426,6 +426,52 @@ describe('Firecrawl BfArM fallback coverage', () => {
     expect(requests).toContain('crawl:poll')
   })
 
+  it('uses an expanded BfArM crawl page limit and caps env overrides', async () => {
+    vi.useFakeTimers({ now: new Date('2026-06-30T00:00:00.000Z') })
+    const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
+    vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
+    vi.stubEnv('FIRECRAWL_BFARM_CRAWL_PAGE_LIMIT', '999')
+    let crawlLimit: number | undefined
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url)
+      if (href.endsWith('/scrape')) {
+        return new Response(JSON.stringify({ data: { html: '<html><body>No rows</body></html>' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (href.endsWith('/crawl')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { limit?: number }
+        crawlLimit = body.limit
+        return new Response(JSON.stringify({ id: 'crawl-1' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (href.endsWith('/crawl/crawl-1')) {
+        return new Response(JSON.stringify({
+          status: 'completed',
+          data: [{ html: page([teaser('26008-26', '26. Juni 2026')]) }],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected URL: ${href}`)
+    }))
+
+    const pending = firecrawlFallback({
+      fromDate: '2025-06-30',
+      toDate: '2026-06-30',
+    })
+    await vi.advanceTimersByTimeAsync(5_000)
+    const result = await pending
+
+    expect(result.items).toHaveLength(1)
+    expect(crawlLimit).toBe(30)
+  })
+
   it('does not mark legacy crawl fallback complete just because the crawler returned fewer pages than the crawl limit', async () => {
     vi.useFakeTimers()
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
