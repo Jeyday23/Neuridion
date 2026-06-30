@@ -291,6 +291,61 @@ describe('Firecrawl BfArM fallback coverage', () => {
     expect(requests.some(request => request.includes('input_Datum_VON=30.06.2025') && request.includes('gtp=469344_list%253D2'))).toBe(true)
   })
 
+  it('continues to crawl fallback when all sequential BfArM Firecrawl strategies return zero items', async () => {
+    vi.useFakeTimers({ now: new Date('2026-06-30T00:00:00.000Z') })
+    const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
+    vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
+    const requests: string[] = []
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url)
+      if (href.endsWith('/scrape')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { url: string }
+        requests.push(body.url)
+        return new Response(JSON.stringify({ data: { html: '<html><body>No rows</body></html>' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (href.endsWith('/crawl')) {
+        requests.push('crawl:start')
+        return new Response(JSON.stringify({ id: 'crawl-1' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (href.endsWith('/crawl/crawl-1')) {
+        requests.push('crawl:poll')
+        return new Response(JSON.stringify({
+          status: 'completed',
+          data: [{ html: page([teaser('26008-26', '26. Juni 2026')]) }],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected URL: ${href}`)
+    }))
+
+    const pending = firecrawlFallback({
+      fromDate: '2025-06-30',
+      toDate: '2026-06-30',
+    })
+    await vi.advanceTimersByTimeAsync(5_000)
+    const result = await pending
+
+    expect(result.items).toHaveLength(1)
+    expect(result.outcome).toBe('partial')
+    expect(result.warnings).toEqual([
+      'BfArM Firecrawl lastyear archive returned no parseable items',
+      'BfArM Firecrawl current_year archive returned no parseable items',
+      'BfArM sequential Firecrawl fallback returned 0 items; used crawl fallback instead.',
+      'BfArM fallback returned items but could not prove complete date-range coverage',
+    ])
+    expect(requests).toContain('crawl:start')
+    expect(requests).toContain('crawl:poll')
+  })
+
   it('does not mark legacy crawl fallback complete just because the crawler returned fewer pages than the crawl limit', async () => {
     vi.useFakeTimers()
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')

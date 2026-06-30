@@ -294,9 +294,17 @@ export async function firecrawlFallback(
   console.error(`[firecrawl] fallback started with ${Math.round((deadlineMs - Date.now()) / 1000)}s remaining`)
 
   const sequential = await firecrawlSequentialBfarmPages(params, { apiKey, deadlineMs, signal: parentSignal })
+  let sequentialZeroWarnings: string[] = []
   if (sequential) {
     console.error(`[firecrawl] sequential fallback returned ${sequential.items.length} items (outcome=${sequential.outcome})`)
-    return sequential
+    if (sequential.items.length > 0 || sequential.outcome === 'complete' || sequential.outcome === 'failed') {
+      return sequential
+    }
+    sequentialZeroWarnings = [
+      ...sequential.warnings,
+      'BfArM sequential Firecrawl fallback returned 0 items; used crawl fallback instead.',
+    ]
+    console.error('[firecrawl] sequential fallback returned 0 partial items; trying crawl fallback before giving up')
   }
 
   const seedUrl = seedBfarmUrl(params)
@@ -402,9 +410,9 @@ export async function firecrawlFallback(
     console.error(`[firecrawl] returning ${items.length} items from ${bestPartialData.length} pages (${elapsed}s)`)
     if (coverage.coverageComplete) {
       console.error('[firecrawl] fallback coverage complete for requested BfArM date range')
-      return scraperResult(items)
+      return scraperResult(items, sequentialZeroWarnings)
     }
-    return scraperResult(items, ['BfArM fallback returned items but could not prove complete date-range coverage'])
+    return scraperResult(items, [...sequentialZeroWarnings, 'BfArM fallback returned items but could not prove complete date-range coverage'])
   }
 
   if (bestPartialData.length === 0) {
