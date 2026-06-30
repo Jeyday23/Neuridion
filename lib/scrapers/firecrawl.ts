@@ -41,13 +41,18 @@ function fetchWithDeadline(url: string, init: RequestInit, deadlineMs: number): 
 }
 
 function seedBfarmUrl(params: ScraperParams): string {
+  return bfarmPageUrl(params, 1)
+}
+
+function bfarmPageUrl(params: ScraperParams, page: number): string {
   return `${BFARM_ORIGIN}/SiteGlobals/Forms/Suche/Expertensuche_Formular.html` +
     `?cl2Categories_Format=kundeninfo` +
     `&cl2Categories_Rubrik=medizinprodukte` +
     `&resultsPerPage=30` +
     `&input_Datum_VON=${toBfarmDate(params.fromDate)}` +
     `&input_Datum_BIS=${toBfarmDate(params.toDate)}` +
-    `&submit=Senden`
+    `&submit=Senden` +
+    (page > 1 ? `&gtp=469344_list%253D${page}` : '')
 }
 
 async function firecrawlScrapeHtml(
@@ -105,6 +110,7 @@ async function firecrawlSequentialBfarmPages(
   const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
   const warnings: string[] = []
   const seenPageUrls = new Set<string>()
+  const seenPageSignatures = new Set<string>()
   const allParsed: ReturnType<typeof parsePage> = []
 
   let pageUrl: string | null = seedBfarmUrl(params)
@@ -134,6 +140,14 @@ async function firecrawlSequentialBfarmPages(
       warnings.push(`BfArM fallback pagination stopped at page ${page}: no parseable result rows`)
       break
     }
+
+    const pageSignature = pageItems.map(item => item.externalId).join('\u0000')
+    if (seenPageSignatures.has(pageSignature)) {
+      warnings.push(`BfArM fallback pagination stopped at page ${page}: repeated result page detected; source coverage is incomplete.`)
+      break
+    }
+    seenPageSignatures.add(pageSignature)
+
     allParsed.push(...pageItems)
 
     const datedItems = pageItems.filter(
@@ -150,10 +164,8 @@ async function firecrawlSequentialBfarmPages(
         const coverage = toScrapedCoverage(allParsed, fromDate, toDate)
         return scraperResult(coverage.items, warnings)
       }
-      warnings.push(
-        `BfArM fallback pagination stopped at page ${page}: full result page returned but no next-page link was available; source coverage is incomplete.`,
-      )
-      break
+      pageUrl = bfarmPageUrl(params, page + 1)
+      continue
     }
 
     pageUrl = new URL(nextHref, BFARM_ORIGIN).toString()
