@@ -4,10 +4,17 @@ import { sanitizeContent } from './sanitize'
 
 const FIRECRAWL_API    = 'https://api.firecrawl.dev/v1'
 const POLL_INTERVAL_MS = 5_000
-const CRAWL_PAGE_LIMIT  = 5
+const DEFAULT_CRAWL_PAGE_LIMIT = 15
+const MAX_CRAWL_PAGE_LIMIT = 30
 const SCRAPE_PAGE_LIMIT = 50
 const FIRECRAWL_REQUEST_TIMEOUT_MS = 15_000
 const BFARM_LONG_RANGE_ARCHIVE_DAYS = 181
+
+function getCrawlPageLimit(): number {
+  const raw = Number(process.env.FIRECRAWL_BFARM_CRAWL_PAGE_LIMIT)
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_CRAWL_PAGE_LIMIT
+  return Math.min(Math.floor(raw), MAX_CRAWL_PAGE_LIMIT)
+}
 
 function toBfarmDate(iso: string): string {
   const [y, m, d] = iso.split('-')
@@ -318,6 +325,7 @@ export async function firecrawlFallback(
   }
 
   const seedUrl = seedBfarmUrl(params)
+  const crawlPageLimit = getCrawlPageLimit()
 
   let crawlId: string
   try {
@@ -330,7 +338,7 @@ export async function firecrawlFallback(
       signal: parentSignal,
       body: JSON.stringify({
         url:               seedUrl,
-        limit:             CRAWL_PAGE_LIMIT,
+        limit:             crawlPageLimit,
         allowExternalLinks: false,
         includePaths:      ['/SiteGlobals/Forms/Suche/Expertensuche_Formular.html'],
         scrapeOptions:     { formats: ['html'] },
