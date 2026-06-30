@@ -141,9 +141,19 @@ async function firecrawlSequentialBfarmPages(
     )
     const crossedBelowFromDate = datedItems.some(item => item.date < fromDate)
     const nextHref = parseNextPageHref(scraped.html)
-    if (crossedBelowFromDate || !nextHref) {
+    if (crossedBelowFromDate) {
       const coverage = toScrapedCoverage(allParsed, fromDate, toDate)
       return scraperResult(coverage.items, warnings)
+    }
+    if (!nextHref) {
+      if (pageItems.length < 30) {
+        const coverage = toScrapedCoverage(allParsed, fromDate, toDate)
+        return scraperResult(coverage.items, warnings)
+      }
+      warnings.push(
+        `BfArM fallback pagination stopped at page ${page}: full result page returned but no next-page link was available; source coverage is incomplete.`,
+      )
+      break
     }
 
     pageUrl = new URL(nextHref, BFARM_ORIGIN).toString()

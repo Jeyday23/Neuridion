@@ -146,6 +146,40 @@ describe('Firecrawl BfArM fallback coverage', () => {
     expect(result.items).toHaveLength(4)
   })
 
+  it('marks Firecrawl sequential fallback partial when one full page has no next link', async () => {
+    const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
+    vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
+      const href = String(url)
+      if (href.endsWith('/scrape')) {
+        return new Response(JSON.stringify({
+          data: {
+            html: page(Array.from({ length: 30 }, (_, index) =>
+              teaser(`${26000 + index}-26`, '19. Juni 2026'),
+            )),
+          },
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected URL: ${href}`)
+    }))
+
+    const result = await firecrawlFallback({
+      fromDate: '2025-06-30',
+      toDate: '2026-06-30',
+    })
+
+    expect(result.items).toHaveLength(30)
+    expect(result.outcome).toBe('partial')
+    expect(result.warnings).toEqual([
+      'BfArM fallback pagination stopped at page 1: full result page returned but no next-page link was available; source coverage is incomplete.',
+      'BfArM fallback returned items but could not prove complete date-range pagination coverage',
+    ])
+  })
+
   it('does not mark legacy crawl fallback complete just because the crawler returned fewer pages than the crawl limit', async () => {
     vi.useFakeTimers()
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
