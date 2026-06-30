@@ -1,10 +1,11 @@
 import { scraperResult, type ScraperParams, type ScraperResult, type ScrapedFsn } from './bfarm'
-import { parsePage, BFARM_ORIGIN } from './bfarm'
+import { parseNextPageHref, parsePage, BFARM_ORIGIN } from './bfarm'
 import { sanitizeContent } from './sanitize'
 
 const FIRECRAWL_API    = 'https://api.firecrawl.dev/v1'
 const POLL_INTERVAL_MS = 5_000
 const CRAWL_PAGE_LIMIT  = 5
+const SCRAPE_PAGE_LIMIT = 50
 const FIRECRAWL_REQUEST_TIMEOUT_MS = 15_000
 
 function toBfarmDate(iso: string): string {
@@ -39,6 +40,125 @@ function fetchWithDeadline(url: string, init: RequestInit, deadlineMs: number): 
     })
 }
 
+function seedBfarmUrl(params: ScraperParams): string {
+  return `${BFARM_ORIGIN}/SiteGlobals/Forms/Suche/Expertensuche_Formular.html` +
+    `?cl2Categories_Format=kundeninfo` +
+    `&cl2Categories_Rubrik=medizinprodukte` +
+    `&resultsPerPage=30` +
+    `&input_Datum_VON=${toBfarmDate(params.fromDate)}` +
+    `&input_Datum_BIS=${toBfarmDate(params.toDate)}` +
+    `&submit=Senden`
+}
+
+async function firecrawlScrapeHtml(
+  apiKey: string,
+  pageUrl: string,
+  deadlineMs: number,
+  parentSignal?: AbortSignal,
+): Promise<{ html?: string; status: 'ok' | 'failed'; warning?: string }> {
+  let response: Response
+  try {
+    response = await fetchWithDeadline(`${FIRECRAWL_API}/scrape`, {
+      method: 'POST',
+      headers: {
+        Authorization:  `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: parentSignal,
+      body: JSON.stringify({
+        url:     pageUrl,
+        formats: ['html'],
+      }),
+    }, deadlineMs)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    return { status: 'failed', warning: `Firecrawl scrape request failed: ${msg}` }
+  }
+
+  if (response.status === 402) {
+    return { status: 'failed', warning: 'Firecrawl fallback skipped: no credits (HTTP 402)' }
+  }
+  if (response.status === 401 || response.status === 403) {
+    return { status: 'failed', warning: `Firecrawl auth failed: ${response.status}` }
+  }
+  if (!response.ok) {
+    return { status: 'failed', warning: `Firecrawl scrape failed: HTTP ${response.status}` }
+  }
+
+  const data = await response.json().catch(() => null) as null | {
+    data?: { html?: string }
+    html?: string
+  }
+  const html = data?.data?.html ?? data?.html
+  if (!html) {
+    return { status: 'failed', warning: 'Firecrawl scrape returned no HTML' }
+  }
+
+  return { status: 'ok', html }
+}
+
+async function firecrawlSequentialBfarmPages(
+  params: ScraperParams,
+  options: { apiKey: string; deadlineMs: number; signal?: AbortSignal },
+): Promise<ScraperResult | null> {
+  const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
+  const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
+  const warnings: string[] = []
+  const seenPageUrls = new Set<string>()
+  const allParsed: ReturnType<typeof parsePage> = []
+
+  let pageUrl: string | null = seedBfarmUrl(params)
+
+  for (let page = 1; page <= SCRAPE_PAGE_LIMIT && pageUrl; page++) {
+    if (options.signal?.aborted) {
+      return scraperResult([], ['Firecrawl sequential BfArM pagination aborted'], { failed: true })
+    }
+    if (Date.now() + FIRECRAWL_REQUEST_TIMEOUT_MS >= options.deadlineMs) {
+      warnings.push(`BfArM fallback pagination stopped at page ${page}: budget exhausted`)
+      break
+    }
+    if (seenPageUrls.has(pageUrl)) {
+      warnings.push(`BfArM fallback pagination loop detected at page ${page}`)
+      break
+    }
+    seenPageUrls.add(pageUrl)
+
+    const scraped = await firecrawlScrapeHtml(options.apiKey, pageUrl, options.deadlineMs, options.signal)
+    if (scraped.status !== 'ok' || !scraped.html) {
+      warnings.push(scraped.warning ?? `BfArM fallback pagination failed at page ${page}`)
+      break
+    }
+
+    const pageItems = parsePage(scraped.html)
+    if (pageItems.length === 0) {
+      warnings.push(`BfArM fallback pagination stopped at page ${page}: no parseable result rows`)
+      break
+    }
+    allParsed.push(...pageItems)
+
+    const datedItems = pageItems.filter(
+      (item): item is ReturnType<typeof parsePage>[number] & { date: Date } => item.date !== null,
+    )
+    const crossedBelowFromDate = datedItems.some(item => item.date < fromDate)
+    const nextHref = parseNextPageHref(scraped.html)
+    if (crossedBelowFromDate || !nextHref) {
+      const coverage = toScrapedCoverage(allParsed, fromDate, toDate)
+      return scraperResult(coverage.items, warnings)
+    }
+
+    pageUrl = new URL(nextHref, BFARM_ORIGIN).toString()
+  }
+
+  if (allParsed.length === 0) return null
+
+  const coverage = toScrapedCoverage(allParsed, fromDate, toDate)
+  if (coverage.items.length === 0) return null
+  return scraperResult(coverage.items, [
+    ...warnings,
+    'BfArM fallback returned items but could not prove complete date-range pagination coverage',
+  ])
+}
+
 export async function firecrawlFallback(
   params: ScraperParams,
   options?: { deadlineMs?: number; signal?: AbortSignal },
@@ -53,13 +173,13 @@ export async function firecrawlFallback(
 
   console.error(`[firecrawl] fallback started with ${Math.round((deadlineMs - Date.now()) / 1000)}s remaining`)
 
-  const seedUrl =
-    `${BFARM_ORIGIN}/SiteGlobals/Forms/Suche/Expertensuche_Formular.html` +
-    `?cl2Categories_Format=kundeninfo` +
-    `&cl2Categories_Rubrik=medizinprodukte` +
-    `&resultsPerPage=30` +
-    `&input_Datum_VON=${toBfarmDate(params.fromDate)}` +
-    `&input_Datum_BIS=${toBfarmDate(params.toDate)}`
+  const sequential = await firecrawlSequentialBfarmPages(params, { apiKey, deadlineMs, signal: parentSignal })
+  if (sequential) {
+    console.error(`[firecrawl] sequential fallback returned ${sequential.items.length} items (outcome=${sequential.outcome})`)
+    return sequential
+  }
+
+  const seedUrl = seedBfarmUrl(params)
 
   let crawlId: string
   try {
@@ -185,6 +305,20 @@ function extractCoverage(
     page.html ? parsePage(page.html) : []
   )
 
+  const coverage = toScrapedCoverage(allParsed, fromDate, toDate)
+  const crossedBelowFromDate = allParsed.some(item => item.date !== null && item.date < fromDate)
+
+  return {
+    items: coverage.items,
+    coverageComplete: crossedBelowFromDate,
+  }
+}
+
+function toScrapedCoverage(
+  allParsed: ReturnType<typeof parsePage>,
+  fromDate: Date,
+  toDate: Date,
+): { items: ScrapedFsn[] } {
   const inRange: ScrapedFsn[] = allParsed
     .filter(item => item.date && item.date >= fromDate && item.date <= toDate)
     .map(item => ({
@@ -205,13 +339,7 @@ function extractCoverage(
     return true
   })
 
-  const crossedBelowFromDate = allParsed.some(item => item.date !== null && item.date < fromDate)
-  const likelyReachedEnd = pages.length > 0 && pages.length < CRAWL_PAGE_LIMIT
-
-  return {
-    items,
-    coverageComplete: crossedBelowFromDate || likelyReachedEnd,
-  }
+  return { items }
 }
 
 interface FirecrawlStatus {
