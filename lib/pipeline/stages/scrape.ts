@@ -280,9 +280,12 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     // FDA acquisition is profile-specific because search terms are pushed into
     // openFDA. sync_coverage is keyed only by source + date range, so reusing it
     // across profiles can return another device's capped dataset as "covered".
-    // Keep FDA interactive searches fresh until bulk, source-complete ingestion
-    // has its own independently certified coverage store.
-    const canReuseSourceCoverage = sourceId !== 'fda'
+    //
+    // BfArM raw-result parity is source-audit critical: old cache rows can hide
+    // a fallback acquisition miss such as one missing page/reference in a
+    // manually checked date window. Keep BfArM interactive searches fresh until
+    // coverage rows carry a certified source-total/retrieved-total contract.
+    const canReuseSourceCoverage = sourceId !== 'fda' && sourceId !== 'bfarm'
 
     async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
       const scraper = getProductionScraper(sourceId)

@@ -173,6 +173,46 @@ describe('scrape coverage completeness contract', () => {
     expect(ctx.insertedRows.map(row => row.external_id)).toEqual(['record-1'])
   })
 
+  it('does not reuse source-wide BfArM coverage until raw parity coverage is certified', async () => {
+    getCoveredRanges.mockResolvedValue([{ from: '2026-05-19', to: '2026-06-19' }])
+    getCanonicalItems.mockResolvedValue(Array.from({ length: 67 }, (_, index) => ({
+      ...item,
+      external_id: `stale-bfarm-${index}`,
+      source_db: 'bfarm',
+    })))
+    nextResult = {
+      items: [
+        {
+          ...item,
+          external_id: '20020-26',
+          title: 'Dringende Sicherheitsinformation zu Stella 2.0 Implantat-Orientierungsdiagramm (IOD) von STAAR Surgical AG',
+          manufacturer: 'STAAR Surgical AG',
+          fsn_date: '2026-06-04',
+          source_db: 'bfarm',
+        },
+      ],
+      warnings: [],
+      outcome: 'complete',
+    }
+    const ctx = context()
+    ctx.payload.selected_dbs = ['bfarm']
+    ctx.activeSources = ['bfarm']
+    ctx.payload.period_from = '2026-05-19'
+    ctx.payload.period_to = '2026-06-19'
+
+    const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
+    await scrapeStage(ctx)
+
+    expect(getCoveredRanges).not.toHaveBeenCalled()
+    expect(getCanonicalItems).not.toHaveBeenCalled()
+    expect(mergeCoverage).not.toHaveBeenCalled()
+    expect(scraper).toHaveBeenCalledWith(expect.objectContaining({
+      fromDate: '2026-05-19',
+      toDate: '2026-06-19',
+    }))
+    expect(ctx.insertedRows.map(row => row.external_id)).toEqual(['20020-26'])
+  })
+
   it('preserves all raw deduped source results before AI filtering and records keyword signal counts', async () => {
     nextResult = {
       items: [
