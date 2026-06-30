@@ -346,6 +346,86 @@ describe('Firecrawl BfArM fallback coverage', () => {
     expect(requests).toContain('crawl:poll')
   })
 
+  it('tries crawl fallback and merges additional rows when sequential BfArM Firecrawl is partial', async () => {
+    vi.useFakeTimers({ now: new Date('2026-06-30T00:00:00.000Z') })
+    const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
+    vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
+    const requests: string[] = []
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url)
+      if (href.endsWith('/scrape')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { url: string }
+        requests.push(body.url)
+        if (body.url.includes('dateOfIssue_dt=')) {
+          return new Response(JSON.stringify({ data: { html: '<html><body>No rows</body></html>' } }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+
+        const isPage2 = body.url.includes('gtp=469344_list%253D2')
+        const isPage3 = body.url.includes('gtp=469344_list%253D3')
+        const sequentialPage1 = page(Array.from({ length: 30 }, (_, index) =>
+          teaser(`${26000 + index}-26`, '29. Juni 2026'),
+        ))
+        const sequentialPage2 = page(Array.from({ length: 30 }, (_, index) =>
+          teaser(`${25000 + index}-26`, '26. Juni 2026'),
+        ))
+        return new Response(JSON.stringify({
+          data: { html: isPage3 ? sequentialPage2 : isPage2 ? sequentialPage2 : sequentialPage1 },
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (href.endsWith('/crawl')) {
+        requests.push('crawl:start')
+        return new Response(JSON.stringify({ id: 'crawl-1' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (href.endsWith('/crawl/crawl-1')) {
+        requests.push('crawl:poll')
+        return new Response(JSON.stringify({
+          status: 'completed',
+          data: [
+            { html: page(Array.from({ length: 30 }, (_, index) => teaser(`${26000 + index}-26`, '29. Juni 2026'))) },
+            { html: page(Array.from({ length: 30 }, (_, index) => teaser(`${25000 + index}-26`, '26. Juni 2026'))) },
+            { html: page(Array.from({ length: 15 }, (_, index) => teaser(`${24000 + index}-26`, '25. Juni 2026'))) },
+          ],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected URL: ${href}`)
+    }))
+
+    const pending = firecrawlFallback({
+      fromDate: '2025-06-30',
+      toDate: '2026-06-30',
+    })
+    await vi.advanceTimersByTimeAsync(5_000)
+    const result = await pending
+
+    expect(result.items).toHaveLength(75)
+    expect(result.outcome).toBe('partial')
+    expect(result.warnings).toEqual([
+      'BfArM Firecrawl lastyear archive returned no parseable items',
+      'BfArM Firecrawl current_year archive returned no parseable items',
+      'BfArM archive Firecrawl fallback returned 0 items; used exact-date Firecrawl fallback instead.',
+      'BfArM fallback pagination stopped at page 3: repeated result page detected; source coverage is incomplete.',
+      'BfArM fallback returned items but could not prove complete date-range pagination coverage',
+      'BfArM sequential Firecrawl fallback was partial; tried crawl fallback for additional coverage.',
+      'BfArM crawl fallback added 15 item(s) beyond sequential fallback.',
+      'BfArM fallback returned items but could not prove complete date-range coverage',
+    ])
+    expect(requests).toContain('crawl:start')
+    expect(requests).toContain('crawl:poll')
+  })
+
   it('does not mark legacy crawl fallback complete just because the crawler returned fewer pages than the crawl limit', async () => {
     vi.useFakeTimers()
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
