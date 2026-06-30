@@ -72,6 +72,7 @@ function context(): PipelineContext {
     contentChanged: new Set(),
     canonicalIds: new Map(),
     timing: {},
+    sourceBreakdown: [],
     isCancelled: vi.fn(async () => false),
   }
 }
@@ -170,5 +171,49 @@ describe('scrape coverage completeness contract', () => {
       searchTerms: expect.arrayContaining(['medtronic', 'micra']),
     }))
     expect(ctx.insertedRows.map(row => row.external_id)).toEqual(['record-1'])
+  })
+
+  it('preserves all raw deduped source results before AI filtering and records keyword signal counts', async () => {
+    nextResult = {
+      items: [
+        {
+          ...item,
+          external_id: 'raw-keyword-match',
+          title: 'Medtronic Micra AV leadless pacemaker notice',
+          manufacturer: 'Medtronic',
+          product_name: 'Micra AV',
+          raw_content: 'Micra AV field safety notice',
+        },
+        {
+          ...item,
+          external_id: 'raw-no-keyword-signal',
+          title: 'Unrelated safety notice',
+          manufacturer: 'Other Manufacturer',
+          product_name: 'Other Device',
+          raw_content: 'Unrelated source record in the same period',
+        },
+      ],
+      warnings: [],
+      outcome: 'complete',
+    }
+    const ctx = context()
+    ctx.profile.manufacturer = 'Medtronic'
+    ctx.profile.device_name = 'Micra AV'
+    ctx.searchTerms = ['medtronic', 'micra']
+
+    const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
+    await scrapeStage(ctx)
+
+    expect(ctx.insertedRows.map(row => row.external_id)).toEqual([
+      'raw-keyword-match',
+      'raw-no-keyword-signal',
+    ])
+    expect(ctx.sourceBreakdown).toMatchObject([{
+      source: 'fda',
+      found_before_filtering: 2,
+      after_keyword_signal: 1,
+      rejected_by_keyword_signal: 1,
+      status: 'complete',
+    }])
   })
 })

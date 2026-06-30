@@ -6,6 +6,7 @@ import { persistDecisionsStage } from './stages/persist-decisions'
 import { finalizeStage } from './stages/finalize'
 import { z } from 'zod'
 import type { PipelineContext, ProfileRow, SearchJobPayload, ProgressUpdate } from './types'
+import type { Json } from '@/types/supabase'
 
 export type { SearchJobPayload, ProgressUpdate }
 
@@ -88,7 +89,7 @@ export async function runSearchPipeline(
   const ctx: PipelineContext = {
     runId, payload, db, profile: profile as ProfileRow, aiOptOut, searchTerms, competitorTerms, activeSources,
     items: [], contentChanged: new Set(), canonicalIds: new Map(), authorityRevisionIds: new Map(),
-    insertedRows: [], decisions: [], warnings: [], timing: {},
+    insertedRows: [], decisions: [], warnings: [], timing: {}, sourceBreakdown: [],
     onProgress,
     isCancelled,
   }
@@ -137,10 +138,13 @@ export async function runSearchPipeline(
   }
 
   try {
-    await finalizeStage(ctx)
+    ctx.timing.source_breakdown = ctx.sourceBreakdown
+    ctx.timing.total_raw_source_results = ctx.sourceBreakdown.reduce((sum, source) => sum + source.found_before_filtering, 0)
+    ctx.timing.total_keyword_signaled_results = ctx.sourceBreakdown.reduce((sum, source) => sum + source.after_keyword_signal, 0)
     ctx.timing.total_items_scraped = ctx.insertedRows.length
     ctx.timing.total_items_filtered = ctx.decisions.length
-    await db.from('search_runs').update({ timing: ctx.timing }).eq('id', runId)
+    await finalizeStage(ctx)
+    await db.from('search_runs').update({ timing: ctx.timing as Json }).eq('id', runId)
   } catch (err) {
     console.error('[pipeline] finalize failed:', err instanceof Error ? err.message : String(err))
     await db.from('search_runs').update({

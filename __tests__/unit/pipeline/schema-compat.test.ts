@@ -32,6 +32,7 @@ function context(db: PipelineContext['db']): PipelineContext {
     decisions: [],
     warnings: [],
     timing: {},
+    sourceBreakdown: [],
     isCancelled: async () => false,
   }
 }

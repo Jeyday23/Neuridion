@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { RunResults, type FsnResult } from './run-results'
+import type { SourceResultBreakdown } from '@/app/dashboard/search-context'
 
 interface SearchRunData {
   id: string
@@ -34,6 +35,9 @@ interface SearchRunData {
   report_pdf_path: string | null
   report_excel_path: string | null
   report_generated_at: string | null
+  timing: {
+    source_breakdown?: unknown
+  } | null
   product_profiles: { device_name: string; manufacturer: string } | { device_name: string; manufacturer: string }[] | null
 }
 
@@ -73,7 +77,7 @@ export default async function RunDetailPage({
     search_period_from, search_period_to, period_from, period_to,
     total_results, relevant_count, uncertain_count, excluded_count, filter_failed_count,
     dbs_searched, error_message, review_status, terms_used, profile_snapshot,
-    report_html_path, report_pdf_path, report_excel_path, report_generated_at,
+    report_html_path, report_pdf_path, report_excel_path, report_generated_at, timing,
     product_profiles ( device_name, manufacturer )
   `.trim()
 
@@ -153,6 +157,9 @@ export default async function RunDetailPage({
   const tot  = run.total_results       ?? results.length
 
   const termsUsed = run.terms_used
+  const sourceBreakdown = Array.isArray(run.timing?.source_breakdown)
+    ? run.timing.source_breakdown as SourceResultBreakdown[]
+    : null
 
   return (
     <div className="p-8 max-w-5xl mx-auto">
@@ -251,7 +258,7 @@ export default async function RunDetailPage({
 
       {showMhraNoMatches && (
         <div className="mb-4 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-          <strong>No MHRA matches</strong> — the MHRA (UK) source was searched, but no records matched this profile after product-specific filtering. Results from other databases are unaffected.
+          <strong>No MHRA source records</strong> — the MHRA (UK) source was searched, but it returned no raw records for this source query and period. Results from other databases are unaffected.
         </div>
       )}
 
@@ -263,7 +270,14 @@ export default async function RunDetailPage({
 
       {/* Results list */}
       {results.length > 0 ? (
-        <RunResults results={results} runId={run.id} runStatus={run.status} reviewStatus={run.review_status ?? 'draft'} hasReport={!!run.report_generated_at} />
+        <RunResults
+          results={results}
+          runId={run.id}
+          runStatus={run.status}
+          reviewStatus={run.review_status ?? 'draft'}
+          hasReport={!!run.report_generated_at}
+          sourceBreakdown={sourceBreakdown}
+        />
       ) : (
         <p className="text-sm text-zinc-400 py-8 text-center">
           {run.status === 'complete' ? 'No FSN results were found for this search.' : 'Results will appear here once the search completes.'}
