@@ -174,7 +174,7 @@ export function buildReportHtml(
     </div>
     ${filterFailed.length > 0 ? `<div class="stat-box" style="border-color:#dc2626;">
       <div class="stat-num" style="color:#dc2626;">${filterFailed.length}</div>
-      <div class="stat-label">AI Filter Unavailable</div>
+      <div class="stat-label">Unprocessed</div>
     </div>` : ''}
   </div>
 
@@ -197,9 +197,9 @@ export function buildReportHtml(
   <table class="results-table">${stdThead}<tbody>${sectionRows(uncertain, '#fffbeb')}</tbody></table>
 
   ${filterFailed.length > 0 ? `
-  <!-- 6. AI FILTER UNAVAILABLE -->
-  <div class="section-bar" style="background-color:#dc2626;">AI FILTER UNAVAILABLE &mdash; ${filterFailed.length} item${filterFailed.length !== 1 ? 's' : ''}</div>
-  <div class="warning-banner">&#9888; These items could not be AI-filtered. Manual review required.</div>
+  <!-- 6. UNPROCESSED / MANUAL REVIEW REQUIRED -->
+  <div class="section-bar" style="background-color:#dc2626;">UNPROCESSED &mdash; MANUAL REVIEW REQUIRED &mdash; ${filterFailed.length} item${filterFailed.length !== 1 ? 's' : ''}</div>
+  <div class="warning-banner">&#9888; These items did not receive an AI relevance classification. Manual PRRC review required.</div>
   <table class="results-table">${stdThead}<tbody>${sectionRows(filterFailed, '#fef2f2')}</tbody></table>
   ` : ''}
 

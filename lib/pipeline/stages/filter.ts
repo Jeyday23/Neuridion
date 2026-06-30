@@ -30,12 +30,12 @@ function deterministicAiUnavailableDecision(row: InsertedFsnRow, reason: 'credit
 
   return {
     fsn_result_id: row.id,
-    decision: 'uncertain' as const,
+    decision: 'filter_failed' as const,
     rationale:
       explanation +
       'Raw source retrieval retained this item for PRRC manual review. ' +
       'No AI relevance classification was applied.',
-    confidence: 0.5,
+    confidence: null,
     model: 'deterministic-ai-unavailable',
   }
 }
@@ -160,6 +160,8 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   // 3. AI filter (or opt-out)
   if (aiOptOut) {
     console.error('[pipeline]', `run_id=${ctx.runId} ai_opt_out=true — skipping AI filter, marking ${needsFilter.length} items for manual review`)
+    ctx.timing.ai_review_status = 'disabled_by_user'
+    ctx.warnings.push('AI relevance review was disabled by user preference; all unreviewed raw source records require manual PRRC review.')
     for (const row of needsFilter) {
       ctx.decisions.push({
         fsn_result_id: row.id,
@@ -178,7 +180,12 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   if (needsFilter.length > MAX_FILTER_ITEMS) {
     const skipped = needsFilter.slice(MAX_FILTER_ITEMS)
     ctx.timing.filter_cap_skipped = skipped.length
+    ctx.timing.ai_review_cap = MAX_FILTER_ITEMS
+    ctx.timing.ai_review_status = 'incomplete_cap'
     console.error('[pipeline]', `item cap: ${skipped.length} items skipped (limit=${MAX_FILTER_ITEMS})`)
+    ctx.warnings.push(
+      `${skipped.length} raw source record${skipped.length !== 1 ? 's were' : ' was'} not AI-reviewed because the run review cap is ${MAX_FILTER_ITEMS}; manual PRRC review is required.`,
+    )
     for (const row of skipped) {
       ctx.decisions.push({
         fsn_result_id: row.id,
@@ -263,6 +270,15 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
         toFilter.slice(1).map((row) => filterLimit(() => filterRow(row))),
       ))
     }
+  }
+  if (terminalAiFailure) {
+    ctx.timing.ai_review_status = 'provider_unavailable'
+    ctx.timing.ai_review_provider_error = 'billing_or_authentication'
+    ctx.warnings.push('AI relevance review was unavailable because the AI provider rejected the request for billing/authentication reasons; manual PRRC review is required.')
+  } else if ((ctx.timing.filter_cap_skipped as number | undefined) && ctx.timing.ai_review_status !== 'provider_unavailable') {
+    ctx.timing.ai_review_status = 'incomplete_cap'
+  } else {
+    ctx.timing.ai_review_status = 'complete'
   }
   ctx.decisions.push(...filterResults)
 
