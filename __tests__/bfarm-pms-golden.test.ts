@@ -60,6 +60,49 @@ describe('BfArM reviewed PMS golden set', () => {
     expect(parseNextPageHref(html)).toBe('/search?gtp=469344_list%3D2&foo=bar')
   })
 
+  it('extracts the forward navigation href when production HTML nesting hides it from shallow parsing', () => {
+    const html = `
+      <li class="c-navindex__item is-forward">
+        <span><svg><g><path /></g></svg></span>
+        <div>
+          <a title="Seite 2" href="SiteGlobals/Forms/Suche/Expertensuche_Formular.html?gtp=469344_list%253D2&amp;resultsPerPage=30#results">
+            Weiter
+          </a>
+        </div>
+      </li>
+    `
+
+    expect(parseNextPageHref(html)).toBe(
+      'SiteGlobals/Forms/Suche/Expertensuche_Formular.html?gtp=469344_list%253D2&resultsPerPage=30#results',
+    )
+  })
+
+  it('marks a full BfArM page as partial when pagination exists but no next href can be parsed', async () => {
+    const records = Array.from({ length: 30 }, (_, index) => ({
+      ...golden[index % golden.length],
+      date: '2026-06-19',
+      reference: `${30000 + index}/26`,
+    }))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(`
+      <ul>${records.map(teaser).join('')}</ul>
+      <li class="c-navindex__item is-forward"><span>Weiter</span></li>
+    `, {
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    })))
+
+    const result = await scrapeBfArM({
+      fromDate: new Date('2026-06-01T00:00:00.000Z'),
+      toDate: new Date('2026-06-30T23:59:59.999Z'),
+    })
+
+    expect(result.items).toHaveLength(30)
+    expect(result.outcome).toBe('partial')
+    expect(result.warnings).toEqual([
+      'BfArM: pagination continuation was present on page 1, but the next-page link could not be parsed; source coverage is incomplete.',
+    ])
+  })
+
   it('rejects an out-of-range targeted-search hit even when BfArM returns it', async () => {
     const old = { ...golden[1], date: '2022-06-22', reference: '14919/22' }
     vi.stubGlobal('fetch', vi.fn(async () => new Response(`<ul>${teaser(old)}</ul>`, {
