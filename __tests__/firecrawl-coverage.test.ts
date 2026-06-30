@@ -237,6 +237,60 @@ describe('Firecrawl BfArM fallback coverage', () => {
     ])
   })
 
+  it('falls back to exact-date Firecrawl pages when long-range archive pages return no parseable rows', async () => {
+    vi.useFakeTimers({ now: new Date('2026-06-30T00:00:00.000Z') })
+    const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
+    vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
+    const requests: string[] = []
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url)
+      if (href.endsWith('/scrape')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { url: string }
+        requests.push(body.url)
+
+        if (body.url.includes('dateOfIssue_dt=')) {
+          return new Response(JSON.stringify({ data: { html: '<html><body>No rows</body></html>' } }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+
+        const isPage2 = body.url.includes('gtp=469344_list%253D2')
+        return new Response(JSON.stringify({
+          data: {
+            html: isPage2
+              ? page([teaser('18999-25', '29. Juni 2025')])
+              : page(Array.from({ length: 30 }, (_, index) =>
+                  teaser(`${26000 + index}-26`, '19. Juni 2026'),
+                )),
+          },
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected URL: ${href}`)
+    }))
+
+    const result = await firecrawlFallback({
+      fromDate: '2025-06-30',
+      toDate: '2026-06-30',
+    })
+
+    expect(result.items).toHaveLength(30)
+    expect(result.outcome).toBe('partial')
+    expect(result.warnings).toEqual([
+      'BfArM Firecrawl lastyear archive returned no parseable items',
+      'BfArM Firecrawl current_year archive returned no parseable items',
+      'BfArM archive Firecrawl fallback returned 0 items; used exact-date Firecrawl fallback instead.',
+    ])
+    expect(requests.some(request => request.includes('dateOfIssue_dt=lastyear'))).toBe(true)
+    expect(requests.some(request => request.includes('dateOfIssue_dt=current_year'))).toBe(true)
+    expect(requests.some(request => request.includes('input_Datum_VON=30.06.2025'))).toBe(true)
+    expect(requests.some(request => request.includes('input_Datum_VON=30.06.2025') && request.includes('gtp=469344_list%253D2'))).toBe(true)
+  })
+
   it('does not mark legacy crawl fallback complete just because the crawler returned fewer pages than the crawl limit', async () => {
     vi.useFakeTimers()
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
