@@ -27,7 +27,7 @@ export async function GET(
 
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('id, user_id, status, progress, dbs_searched, error_message, relevant_count, uncertain_count, excluded_count, total_scraped, pre_filter_count')
+    .select('id, user_id, status, progress, dbs_searched, error_message, relevant_count, uncertain_count, excluded_count, total_scraped, pre_filter_count, timing')
     .eq('id', id)
     .is('deleted_at', null)
     .single()
@@ -106,6 +106,10 @@ export async function GET(
     excluded_count:   (run as { excluded_count?: number }).excluded_count  ?? 0,
     total_scraped:    (run as { total_scraped?: number }).total_scraped ?? null,
     pre_filter_count: (run as { pre_filter_count?: number }).pre_filter_count ?? null,
+    source_breakdown: (() => {
+      const timing = (run as { timing?: { source_breakdown?: unknown } | null }).timing
+      return Array.isArray(timing?.source_breakdown) ? timing.source_breakdown : null
+    })(),
     results:          enriched,
   }, {
     headers: {

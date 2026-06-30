@@ -53,6 +53,7 @@ function context(cacheHits: Array<{ fsn_external_id: string; decision: string; r
     decisions: [],
     warnings: [],
     timing: {},
+    sourceBreakdown: [],
     isCancelled: vi.fn().mockResolvedValue(false),
   }
 }

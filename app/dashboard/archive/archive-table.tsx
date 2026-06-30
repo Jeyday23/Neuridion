@@ -268,8 +268,7 @@ export function ArchiveTable({ runs }: { runs: RunRow[] }) {
                           </span>
                           {run.total_scraped != null && (
                             <p className="text-[10px] text-zinc-400">
-                              {run.total_scraped} scraped
-                              {run.pre_filter_count != null && ` → ${run.pre_filter_count} filtered`}
+                              {run.pre_filter_count ?? run.total_scraped} raw source
                               {` → ${tot} assessed`}
                             </p>
                           )}

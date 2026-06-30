@@ -17,7 +17,22 @@ export interface ProgressUpdate {
   sources_done:   string[]
   sources_total:  string[]
   items_found:    number
+  source_breakdown?: SourceResultBreakdown[]
   filter_progress?: { done: number; total: number; cached: number }
+}
+
+export interface SourceResultBreakdown {
+  source: string
+  requested_from: string
+  requested_to: string
+  fresh_fetched: number
+  cached_loaded: number
+  found_before_filtering: number
+  after_keyword_signal: number
+  rejected_by_keyword_signal: number
+  status: 'complete' | 'empty' | 'partial' | 'failed'
+  fresh_outcomes: string[]
+  warnings: number
 }
 
 export interface ProfileRow {
@@ -64,7 +79,8 @@ export interface PipelineContext {
   insertedRows:    InsertedFsnRow[]
   decisions:       DecisionRow[]
   warnings:        string[]
-  timing:          Record<string, number>
+  timing:          Record<string, unknown>
+  sourceBreakdown: SourceResultBreakdown[]
 
   onProgress?:     (update: ProgressUpdate) => Promise<void>
 

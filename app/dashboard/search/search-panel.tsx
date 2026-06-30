@@ -261,6 +261,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
           excluded_count:   number
           total_scraped:    number | null
           pre_filter_count: number | null
+          source_breakdown: SearchProgress['source_breakdown'] | null
           error_message:    string | null
         }
         if (data.status === 'cancelled') {
@@ -277,6 +278,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
             counts:         { relevant: data.relevant_count, uncertain: data.uncertain_count, excluded: data.excluded_count },
             totalScraped:   data.total_scraped,
             preFilterCount: data.pre_filter_count,
+            sourceBreakdown: data.source_breakdown ?? null,
             startedAt,
             degraded:       data.status === 'degraded',
           })
@@ -601,9 +603,8 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
                       </div>
                       {state.totalScraped != null && (
                         <span className="text-xs text-zinc-400">
-                          {state.totalScraped} scraped
-                          {state.preFilterCount != null && ` → ${state.preFilterCount} filtered`}
-                          {` → ${counts.relevant + counts.uncertain + counts.excluded} assessed`}
+                          {state.preFilterCount ?? state.totalScraped} raw source result{(state.preFilterCount ?? state.totalScraped) !== 1 ? 's' : ''}
+                          {` → ${counts.relevant + counts.uncertain + counts.excluded} AI-assessed`}
                           {counts.filter_failed > 0 && ` · ${counts.filter_failed} unfiltered`}
                         </span>
                       )}
