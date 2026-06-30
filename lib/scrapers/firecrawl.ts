@@ -251,7 +251,25 @@ async function firecrawlSequentialBfarmPages(
 ): Promise<ScraperResult | null> {
   const totalDays = daysBetweenInclusive(params.fromDate, params.toDate)
   if (totalDays >= BFARM_LONG_RANGE_ARCHIVE_DAYS) {
-    return firecrawlSequentialBfarmArchivePages(params, options)
+    const archiveResult = await firecrawlSequentialBfarmArchivePages(params, options)
+    if (!archiveResult || archiveResult.items.length > 0 || archiveResult.outcome === 'complete') {
+      return archiveResult
+    }
+
+    const exactDateResult = await firecrawlSequentialBfarmPageSet(
+      params,
+      options,
+      (page) => bfarmPageUrl(params, page),
+    )
+    if (exactDateResult && exactDateResult.items.length > archiveResult.items.length) {
+      return scraperResult(exactDateResult.items, [
+        ...archiveResult.warnings,
+        'BfArM archive Firecrawl fallback returned 0 items; used exact-date Firecrawl fallback instead.',
+        ...exactDateResult.warnings,
+      ])
+    }
+
+    return archiveResult
   }
 
   return firecrawlSequentialBfarmPageSet(
