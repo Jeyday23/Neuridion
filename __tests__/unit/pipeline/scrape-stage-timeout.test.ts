@@ -84,6 +84,7 @@ describe('scrapeStage source timeouts', () => {
       contentChanged:  new Set<string>(),
       canonicalIds:    new Map<string, string>(),
       timing:          {},
+      sourceBreakdown: [],
       isCancelled:     vi.fn(async () => false),
     } satisfies PipelineContext
 

@@ -33,7 +33,7 @@ function deterministicAiUnavailableDecision(row: InsertedFsnRow, reason: 'credit
     decision: 'uncertain' as const,
     rationale:
       explanation +
-      'Deterministic source retrieval and keyword filtering retained this item for PRRC manual review. ' +
+      'Raw source retrieval retained this item for PRRC manual review. ' +
       'No AI relevance classification was applied.',
     confidence: 0.5,
     model: 'deterministic-ai-unavailable',
