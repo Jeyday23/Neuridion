@@ -146,18 +146,24 @@ describe('Firecrawl BfArM fallback coverage', () => {
     expect(result.items).toHaveLength(4)
   })
 
-  it('marks Firecrawl sequential fallback partial when one full page has no next link', async () => {
+  it('synthesizes the next BfArM page when a full Firecrawl page has no next link', async () => {
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
     vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
+    const requests: string[] = []
 
-    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       const href = String(url)
       if (href.endsWith('/scrape')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { url: string }
+        requests.push(body.url)
+        const isPage2 = body.url.includes('gtp=469344_list%253D2')
         return new Response(JSON.stringify({
           data: {
-            html: page(Array.from({ length: 30 }, (_, index) =>
-              teaser(`${26000 + index}-26`, '19. Juni 2026'),
-            )),
+            html: isPage2
+              ? page([teaser('18000-26', '29. Juni 2025')])
+              : page(Array.from({ length: 30 }, (_, index) =>
+                  teaser(`${26000 + index}-26`, '19. Juni 2026'),
+                )),
           },
         }), {
           status: 200,
@@ -173,9 +179,39 @@ describe('Firecrawl BfArM fallback coverage', () => {
     })
 
     expect(result.items).toHaveLength(30)
+    expect(result.outcome).toBe('complete')
+    expect(result.warnings).toEqual([])
+    expect(requests).toHaveLength(2)
+    expect(requests[1]).toContain('gtp=469344_list%253D2')
+  })
+
+  it('keeps synthesized Firecrawl pagination partial when the next page repeats', async () => {
+    const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
+    vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
+    const fullPage = page(Array.from({ length: 30 }, (_, index) =>
+      teaser(`${26000 + index}-26`, '19. Juni 2026'),
+    ))
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
+      const href = String(url)
+      if (href.endsWith('/scrape')) {
+        return new Response(JSON.stringify({ data: { html: fullPage } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected URL: ${href}`)
+    }))
+
+    const result = await firecrawlFallback({
+      fromDate: '2025-06-30',
+      toDate: '2026-06-30',
+    })
+
+    expect(result.items).toHaveLength(30)
     expect(result.outcome).toBe('partial')
     expect(result.warnings).toEqual([
-      'BfArM fallback pagination stopped at page 1: full result page returned but no next-page link was available; source coverage is incomplete.',
+      'BfArM fallback pagination stopped at page 2: repeated result page detected; source coverage is incomplete.',
       'BfArM fallback returned items but could not prove complete date-range pagination coverage',
     ])
   })
