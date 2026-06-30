@@ -20,6 +20,7 @@ export async function finalizeStage(ctx: PipelineContext): Promise<void> {
   )
 
   const runStatus = computeRunStatus(ctx.warnings, ctx.insertedRows.length)
+  const rawSourceTotal = ctx.sourceBreakdown.reduce((sum, source) => sum + source.found_before_filtering, 0)
 
   const { error: finalizeError } = await ctx.db.from('search_runs').update({
     status:              runStatus,
@@ -31,7 +32,7 @@ export async function finalizeStage(ctx: PipelineContext): Promise<void> {
     filter_failed_count: counts.filter_failed,
     total_results:       counts.relevant + counts.uncertain + counts.excluded,
     total_scraped:       ctx.insertedRows.length,
-    pre_filter_count:    ctx.insertedRows.length,
+    pre_filter_count:    rawSourceTotal,
     progress:            null,
   }).eq('id', ctx.runId)
   if (finalizeError) throw new Error(`Failed to finalize run ${ctx.runId}: ${finalizeError.message}`)

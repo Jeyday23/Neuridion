@@ -192,6 +192,7 @@ describe('finalizeStage total_results', () => {
       decisions,
       warnings: [],
       timing: {},
+      sourceBreakdown: [],
       isCancelled: vi.fn().mockResolvedValue(false),
       _capturedUpdate: () => capturedUpdate,
     } as unknown as PipelineContext & { _capturedUpdate: () => Record<string, unknown> | null }

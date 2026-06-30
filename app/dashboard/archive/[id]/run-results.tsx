@@ -10,6 +10,7 @@ import { messageFromError } from '@/lib/ui/api-error-message'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
 import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 import { isReportApproved } from '@/lib/reports/review-gate'
+import type { SourceResultBreakdown } from '@/app/dashboard/search-context'
 
 export interface FsnResult {
   id: string
@@ -160,12 +161,13 @@ function ResultRow({ result }: { result: FsnResult }) {
   )
 }
 
-export function RunResults({ results, runId, runStatus, reviewStatus: initialReviewStatus, hasReport: initialHasReport }: {
+export function RunResults({ results, runId, runStatus, reviewStatus: initialReviewStatus, hasReport: initialHasReport, sourceBreakdown }: {
   results: FsnResult[]
   runId: string
   runStatus: string
   reviewStatus: string
   hasReport: boolean
+  sourceBreakdown: SourceResultBreakdown[] | null
 }) {
   const router = useRouter()
   const toast = useToast()
@@ -272,6 +274,17 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
     uncertain:     results.filter((r) => r.filter_decision?.decision === 'uncertain').length,
     excluded:      results.filter((r) => r.filter_decision?.decision === 'excluded').length,
     filter_failed: results.filter((r) => r.filter_decision?.decision === 'filter_failed').length,
+  }
+  const rawSourceTotal = sourceBreakdown?.reduce((sum, source) => sum + source.found_before_filtering, 0) ?? results.length
+  const aiCountsBySource = new Map<string, { retained: number; excluded: number; unprocessed: number }>()
+  for (const result of results) {
+    const source = result.source_db
+    const existing = aiCountsBySource.get(source) ?? { retained: 0, excluded: 0, unprocessed: 0 }
+    const decision = result.filter_decision?.decision
+    if (decision === 'relevant' || decision === 'uncertain') existing.retained += 1
+    else if (decision === 'excluded') existing.excluded += 1
+    else existing.unprocessed += 1
+    aiCountsBySource.set(source, existing)
   }
   const fdaSignals = groupFdaSignals(results)
 
@@ -398,9 +411,59 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
 
       {counts.filter_failed > 0 && (
         <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <strong>{counts.filter_failed} item{counts.filter_failed !== 1 ? 's were' : ' was'} not processed by AI</strong> — these items exceeded the AI filter cap for this run. Manual review required.
+          <strong>{counts.filter_failed} item{counts.filter_failed !== 1 ? 's were' : ' was'} not processed by AI</strong> — these items could not receive an AI relevance classification for this run. Manual review required.
         </div>
       )}
+
+      <section className="mb-6 rounded-md border border-[#E2E8F0] bg-white p-4" aria-labelledby="source-audit-heading">
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 id="source-audit-heading" className="text-sm font-semibold text-zinc-900">Source results and AI relevance filtering</h2>
+          <span className="text-xs text-zinc-500">{rawSourceTotal} raw source result{rawSourceTotal !== 1 ? 's' : ''}</span>
+        </div>
+        <p className="mt-1 text-xs leading-relaxed text-zinc-600">
+          Raw source results are the deduplicated records NEURIDION retrieved for the selected source query and time period before AI relevance filtering. AI retained means the AI classified the record as relevant or uncertain for PRRC review.
+        </p>
+        {sourceBreakdown && sourceBreakdown.length > 0 ? (
+          <div className="mt-3 overflow-x-auto rounded border border-zinc-100">
+            <table className="w-full text-xs">
+              <thead className="bg-zinc-50 text-zinc-600">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Source</th>
+                  <th className="px-3 py-2 text-right font-medium">Raw found</th>
+                  <th className="px-3 py-2 text-right font-medium">Keyword signal</th>
+                  <th className="px-3 py-2 text-right font-medium">AI retained</th>
+                  <th className="px-3 py-2 text-right font-medium">AI excluded</th>
+                  <th className="px-3 py-2 text-right font-medium">Unprocessed</th>
+                  <th className="px-3 py-2 text-left font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sourceBreakdown.map((source) => {
+                  const aiCounts = aiCountsBySource.get(source.source) ?? { retained: 0, excluded: 0, unprocessed: 0 }
+                  return (
+                    <tr key={source.source} className="border-t border-zinc-100">
+                      <td className="px-3 py-2 text-zinc-800">{fmtSourceDb(source.source)}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-zinc-900">{source.found_before_filtering}</td>
+                      <td className="px-3 py-2 text-right text-blue-700">{source.after_keyword_signal}</td>
+                      <td className="px-3 py-2 text-right text-green-700">{aiCounts.retained}</td>
+                      <td className="px-3 py-2 text-right text-zinc-500">{aiCounts.excluded}</td>
+                      <td className="px-3 py-2 text-right text-amber-700">{aiCounts.unprocessed}</td>
+                      <td className="px-3 py-2 text-zinc-600 capitalize">
+                        {source.status}
+                        {source.warnings > 0 && <span className="text-amber-700"> · {source.warnings} warning{source.warnings !== 1 ? 's' : ''}</span>}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="mt-3 rounded border border-zinc-100 bg-zinc-50 px-3 py-2 text-xs text-zinc-500">
+            Source-stage breakdown is unavailable for runs created before raw-result audit tracking was enabled.
+          </p>
+        )}
+      </section>
 
       {fdaSignals.length > 0 && (
         <section className="mb-6 rounded-md border border-blue-200 bg-blue-50/40 p-4" aria-labelledby="fda-signals-heading">
@@ -465,7 +528,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
       {tab === 'raw' ? (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs text-zinc-500">{results.length} items scraped from {new Set(results.map(r => r.source_db)).size} database{new Set(results.map(r => r.source_db)).size !== 1 ? 's' : ''} — no AI filtering applied</span>
+            <span className="text-xs text-zinc-500">{results.length} raw source result{results.length !== 1 ? 's' : ''} from {new Set(results.map(r => r.source_db)).size} database{new Set(results.map(r => r.source_db)).size !== 1 ? 's' : ''} — no AI filtering applied</span>
             <button
               onClick={exportRawCsv}
               className="text-xs border border-zinc-300 rounded px-2.5 py-1 text-zinc-600 hover:bg-zinc-50 hover:border-zinc-400 transition-colors"
