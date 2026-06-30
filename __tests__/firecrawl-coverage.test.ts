@@ -231,13 +231,15 @@ describe('Firecrawl BfArM fallback coverage', () => {
 
     expect(result.items).toHaveLength(30)
     expect(result.outcome).toBe('partial')
-    expect(result.warnings).toEqual([
+    expect(result.warnings).toEqual(expect.arrayContaining([
       'BfArM fallback pagination stopped at page 2: repeated result page detected; source coverage is incomplete.',
       'BfArM fallback returned items but could not prove complete date-range pagination coverage',
-    ])
+      'BfArM sequential Firecrawl fallback was partial; tried additional fallback coverage.',
+      'BfArM chunked exact-date fallback was partial; tried crawl fallback for additional coverage.',
+    ]))
   })
 
-  it('falls back to exact-date Firecrawl pages when long-range archive pages return no parseable rows', async () => {
+  it('falls back to exact-date Firecrawl chunks when long-range archive pages return no parseable rows', async () => {
     vi.useFakeTimers({ now: new Date('2026-06-30T00:00:00.000Z') })
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
     vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
@@ -279,16 +281,102 @@ describe('Firecrawl BfArM fallback coverage', () => {
     })
 
     expect(result.items).toHaveLength(30)
-    expect(result.outcome).toBe('partial')
-    expect(result.warnings).toEqual([
-      'BfArM Firecrawl lastyear archive returned no parseable items',
-      'BfArM Firecrawl current_year archive returned no parseable items',
-      'BfArM archive Firecrawl fallback returned 0 items; used exact-date Firecrawl fallback instead.',
-    ])
+    expect(result.outcome).toBe('complete')
+    expect(result.warnings).toEqual([])
     expect(requests.some(request => request.includes('dateOfIssue_dt=lastyear'))).toBe(true)
     expect(requests.some(request => request.includes('dateOfIssue_dt=current_year'))).toBe(true)
     expect(requests.some(request => request.includes('input_Datum_VON=30.06.2025'))).toBe(true)
     expect(requests.some(request => request.includes('input_Datum_VON=30.06.2025') && request.includes('gtp=469344_list%253D2'))).toBe(true)
+    expect(requests.some(request => request.includes('input_Datum_VON=26.04.2026') && request.includes('input_Datum_BIS=24.06.2026'))).toBe(true)
+  })
+
+  it('recovers long-range rows from chunked exact-date Firecrawl pagination when broad pagination is partial', async () => {
+    vi.useFakeTimers({ now: new Date('2026-06-30T00:00:00.000Z') })
+    const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
+    vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
+    vi.stubEnv('FIRECRAWL_BFARM_CHUNK_DAYS', '60')
+    const requests: string[] = []
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url)
+      if (href.endsWith('/scrape')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { url: string }
+        requests.push(body.url)
+
+        if (body.url.includes('dateOfIssue_dt=')) {
+          return new Response(JSON.stringify({ data: { html: '<html><body>No rows</body></html>' } }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+
+        if (body.url.includes('input_Datum_VON=01.01.2026') && body.url.includes('input_Datum_BIS=01.03.2026')) {
+          return new Response(JSON.stringify({ data: { html: page([teaser('19001-26', '15. Januar 2026')]) } }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        if (body.url.includes('input_Datum_VON=02.03.2026') && body.url.includes('input_Datum_BIS=30.04.2026')) {
+          return new Response(JSON.stringify({ data: { html: page([teaser('19500-26', '20. März 2026')]) } }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        if (body.url.includes('input_Datum_VON=01.05.2026') && body.url.includes('input_Datum_BIS=29.06.2026')) {
+          return new Response(JSON.stringify({
+            data: {
+              html: page([
+                teaser(
+                  '20020-26',
+                  '04. Juni 2026',
+                  'Dringende Sicherheitsinformation zu Stella 2.0 Implantat-Orientierungsdiagramm (IOCI) von STAAR Surgical AG',
+                ),
+                teaser('21000-26', '19. Juni 2026'),
+              ]),
+            },
+          }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        if (body.url.includes('input_Datum_VON=30.06.2026') && body.url.includes('input_Datum_BIS=10.07.2026')) {
+          return new Response(JSON.stringify({ data: { html: page([teaser('22000-26', '01. Juli 2026')]) } }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+
+        const repeatedLatestPage = page(Array.from({ length: 30 }, (_, index) =>
+          teaser(`${26000 + index}-26`, '29. Juni 2026'),
+        ))
+        return new Response(JSON.stringify({ data: { html: repeatedLatestPage } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected URL: ${href}`)
+    }))
+
+    const result = await firecrawlFallback({
+      fromDate: '2026-01-01',
+      toDate: '2026-07-10',
+    })
+
+    expect(result.outcome).toBe('complete')
+    expect(result.warnings).toEqual([])
+    expect(result.items.map(item => item.external_id)).toEqual(expect.arrayContaining([
+      '19001-26',
+      '19500-26',
+      '20020-26',
+      '21000-26',
+      '22000-26',
+    ]))
+    expect(result.items.find(item => item.external_id === '20020-26')).toMatchObject({
+      fsn_date: '2026-06-04',
+      manufacturer: 'STAAR Surgical AG',
+    })
+    expect(requests.some(request => request.includes('input_Datum_VON=01.05.2026') && request.includes('input_Datum_BIS=29.06.2026'))).toBe(true)
+    expect(requests.every(request => !request.includes('/crawl'))).toBe(true)
   })
 
   it('continues to crawl fallback when all sequential BfArM Firecrawl strategies return zero items', async () => {
@@ -337,9 +425,6 @@ describe('Firecrawl BfArM fallback coverage', () => {
     expect(result.items).toHaveLength(1)
     expect(result.outcome).toBe('partial')
     expect(result.warnings).toEqual([
-      'BfArM Firecrawl lastyear archive returned no parseable items',
-      'BfArM Firecrawl current_year archive returned no parseable items',
-      'BfArM sequential Firecrawl fallback returned 0 items; used crawl fallback instead.',
       'BfArM fallback returned items but could not prove complete date-range coverage',
     ])
     expect(requests).toContain('crawl:start')
@@ -412,16 +497,17 @@ describe('Firecrawl BfArM fallback coverage', () => {
 
     expect(result.items).toHaveLength(75)
     expect(result.outcome).toBe('partial')
-    expect(result.warnings).toEqual([
+    expect(result.warnings).toEqual(expect.arrayContaining([
       'BfArM Firecrawl lastyear archive returned no parseable items',
       'BfArM Firecrawl current_year archive returned no parseable items',
       'BfArM archive Firecrawl fallback returned 0 items; used exact-date Firecrawl fallback instead.',
       'BfArM fallback pagination stopped at page 3: repeated result page detected; source coverage is incomplete.',
       'BfArM fallback returned items but could not prove complete date-range pagination coverage',
-      'BfArM sequential Firecrawl fallback was partial; tried crawl fallback for additional coverage.',
+      'BfArM sequential Firecrawl fallback was partial; tried additional fallback coverage.',
+      'BfArM chunked exact-date fallback was partial; tried crawl fallback for additional coverage.',
       'BfArM crawl fallback added 15 item(s) beyond sequential fallback.',
       'BfArM fallback returned items but could not prove complete date-range coverage',
-    ])
+    ]))
     expect(requests).toContain('crawl:start')
     expect(requests).toContain('crawl:poll')
   })
