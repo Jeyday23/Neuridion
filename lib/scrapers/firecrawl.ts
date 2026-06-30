@@ -1,5 +1,5 @@
 import { scraperResult, type ScraperParams, type ScraperResult, type ScrapedFsn } from './bfarm'
-import { parseNextPageHref, parsePage, BFARM_ORIGIN } from './bfarm'
+import { parseNextPageHref, parsePage, BFARM_ORIGIN, yearToShortcut } from './bfarm'
 import { sanitizeContent } from './sanitize'
 
 const FIRECRAWL_API    = 'https://api.firecrawl.dev/v1'
@@ -7,6 +7,7 @@ const POLL_INTERVAL_MS = 5_000
 const CRAWL_PAGE_LIMIT  = 5
 const SCRAPE_PAGE_LIMIT = 50
 const FIRECRAWL_REQUEST_TIMEOUT_MS = 15_000
+const BFARM_LONG_RANGE_ARCHIVE_DAYS = 181
 
 function toBfarmDate(iso: string): string {
   const [y, m, d] = iso.split('-')
@@ -44,6 +45,13 @@ function seedBfarmUrl(params: ScraperParams): string {
   return bfarmPageUrl(params, 1)
 }
 
+function daysBetweenInclusive(fromIso: string, toIso: string): number {
+  const fromMs = Date.parse(fromIso + 'T00:00:00.000Z')
+  const toMs = Date.parse(toIso + 'T00:00:00.000Z')
+  if (!Number.isFinite(fromMs) || !Number.isFinite(toMs)) return 0
+  return Math.floor((toMs - fromMs) / 86_400_000) + 1
+}
+
 function bfarmPageUrl(params: ScraperParams, page: number): string {
   return `${BFARM_ORIGIN}/SiteGlobals/Forms/Suche/Expertensuche_Formular.html` +
     `?cl2Categories_Format=kundeninfo` +
@@ -52,6 +60,15 @@ function bfarmPageUrl(params: ScraperParams, page: number): string {
     `&input_Datum_VON=${toBfarmDate(params.fromDate)}` +
     `&input_Datum_BIS=${toBfarmDate(params.toDate)}` +
     `&submit=Senden` +
+    (page > 1 ? `&gtp=469344_list%253D${page}` : '')
+}
+
+function bfarmArchivePageUrl(shortcut: string, page: number): string {
+  return `${BFARM_ORIGIN}/SiteGlobals/Forms/Suche/Expertensuche_Formular.html` +
+    `?cl2Categories_Format=kundeninfo` +
+    `&dateOfIssue_dt=${shortcut}` +
+    `&cl2Categories_Rubrik=medizinprodukte` +
+    `&resultsPerPage=30` +
     (page > 1 ? `&gtp=469344_list%253D${page}` : '')
 }
 
@@ -102,9 +119,10 @@ async function firecrawlScrapeHtml(
   return { status: 'ok', html }
 }
 
-async function firecrawlSequentialBfarmPages(
+async function firecrawlSequentialBfarmPageSet(
   params: ScraperParams,
   options: { apiKey: string; deadlineMs: number; signal?: AbortSignal },
+  pageUrlForPage: (page: number) => string,
 ): Promise<ScraperResult | null> {
   const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
   const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
@@ -113,7 +131,7 @@ async function firecrawlSequentialBfarmPages(
   const seenPageSignatures = new Set<string>()
   const allParsed: ReturnType<typeof parsePage> = []
 
-  let pageUrl: string | null = seedBfarmUrl(params)
+  let pageUrl: string | null = pageUrlForPage(1)
 
   for (let page = 1; page <= SCRAPE_PAGE_LIMIT && pageUrl; page++) {
     if (options.signal?.aborted) {
@@ -164,7 +182,7 @@ async function firecrawlSequentialBfarmPages(
         const coverage = toScrapedCoverage(allParsed, fromDate, toDate)
         return scraperResult(coverage.items, warnings)
       }
-      pageUrl = bfarmPageUrl(params, page + 1)
+      pageUrl = pageUrlForPage(page + 1)
       continue
     }
 
@@ -179,6 +197,68 @@ async function firecrawlSequentialBfarmPages(
     ...warnings,
     'BfArM fallback returned items but could not prove complete date-range pagination coverage',
   ])
+}
+
+async function firecrawlSequentialBfarmArchivePages(
+  params: ScraperParams,
+  options: { apiKey: string; deadlineMs: number; signal?: AbortSignal },
+): Promise<ScraperResult | null> {
+  const fromYear    = new Date(params.fromDate + 'T00:00:00.000Z').getUTCFullYear()
+  const toYear      = new Date(params.toDate   + 'T00:00:00.000Z').getUTCFullYear()
+  const currentYear = new Date().getUTCFullYear()
+  const shortcuts: string[] = []
+  const warnings: string[] = []
+
+  for (let year = fromYear; year <= toYear; year++) {
+    const shortcut = yearToShortcut(year, currentYear)
+    if (shortcut) {
+      shortcuts.push(shortcut)
+    } else {
+      warnings.push(
+        `BfArM: year ${year} is outside the 3-year archive window ` +
+        `(${currentYear - 2}–${currentYear}). Data for this period is unavailable via automated search.`,
+      )
+    }
+  }
+
+  if (shortcuts.length === 0) {
+    return scraperResult([], warnings, { archiveLimitationHit: true })
+  }
+
+  const byId = new Map<string, ScrapedFsn>()
+
+  for (const shortcut of shortcuts) {
+    const result = await firecrawlSequentialBfarmPageSet(
+      params,
+      options,
+      (page) => bfarmArchivePageUrl(shortcut, page),
+    )
+    if (!result) {
+      warnings.push(`BfArM Firecrawl ${shortcut} archive returned no parseable items`)
+      continue
+    }
+    warnings.push(...result.warnings)
+    for (const item of result.items) byId.set(item.external_id, item)
+  }
+
+  if (byId.size === 0 && warnings.length === 0) return null
+  return scraperResult([...byId.values()], [...new Set(warnings)])
+}
+
+async function firecrawlSequentialBfarmPages(
+  params: ScraperParams,
+  options: { apiKey: string; deadlineMs: number; signal?: AbortSignal },
+): Promise<ScraperResult | null> {
+  const totalDays = daysBetweenInclusive(params.fromDate, params.toDate)
+  if (totalDays >= BFARM_LONG_RANGE_ARCHIVE_DAYS) {
+    return firecrawlSequentialBfarmArchivePages(params, options)
+  }
+
+  return firecrawlSequentialBfarmPageSet(
+    params,
+    options,
+    (page) => bfarmPageUrl(params, page),
+  )
 }
 
 export async function firecrawlFallback(
