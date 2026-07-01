@@ -13,6 +13,10 @@ const BFARM_LONG_RANGE_ARCHIVE_DAYS = 181
 const DEFAULT_LONG_RANGE_CHUNK_DAYS = 60
 const MIN_LONG_RANGE_CHUNK_DAYS = 14
 const MAX_LONG_RANGE_CHUNK_DAYS = 90
+const DEFAULT_CHUNK_CRAWL_PAGE_LIMIT = 8
+const MAX_CHUNK_CRAWL_PAGE_LIMIT = 15
+
+type FirecrawlOptions = { apiKey: string; deadlineMs: number; signal?: AbortSignal }
 
 function getCrawlPageLimit(): number {
   const raw = Number(process.env.FIRECRAWL_BFARM_CRAWL_PAGE_LIMIT)
@@ -24,6 +28,12 @@ function getLongRangeChunkDays(): number {
   const raw = Number(process.env.FIRECRAWL_BFARM_CHUNK_DAYS)
   if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_LONG_RANGE_CHUNK_DAYS
   return Math.min(Math.max(Math.floor(raw), MIN_LONG_RANGE_CHUNK_DAYS), MAX_LONG_RANGE_CHUNK_DAYS)
+}
+
+function getChunkCrawlPageLimit(): number {
+  const raw = Number(process.env.FIRECRAWL_BFARM_CHUNK_CRAWL_PAGE_LIMIT)
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_CHUNK_CRAWL_PAGE_LIMIT
+  return Math.min(Math.floor(raw), MAX_CHUNK_CRAWL_PAGE_LIMIT)
 }
 
 function toBfarmDate(iso: string): string {
@@ -138,7 +148,7 @@ async function firecrawlScrapeHtml(
 
 async function firecrawlSequentialBfarmPageSet(
   params: ScraperParams,
-  options: { apiKey: string; deadlineMs: number; signal?: AbortSignal },
+  options: FirecrawlOptions,
   pageUrlForPage: (page: number) => string,
 ): Promise<ScraperResult | null> {
   const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
@@ -218,7 +228,7 @@ async function firecrawlSequentialBfarmPageSet(
 
 async function firecrawlSequentialBfarmArchivePages(
   params: ScraperParams,
-  options: { apiKey: string; deadlineMs: number; signal?: AbortSignal },
+  options: FirecrawlOptions,
 ): Promise<ScraperResult | null> {
   const fromYear    = new Date(params.fromDate + 'T00:00:00.000Z').getUTCFullYear()
   const toYear      = new Date(params.toDate   + 'T00:00:00.000Z').getUTCFullYear()
@@ -264,7 +274,7 @@ async function firecrawlSequentialBfarmArchivePages(
 
 async function firecrawlSequentialBfarmDateChunks(
   params: ScraperParams,
-  options: { apiKey: string; deadlineMs: number; signal?: AbortSignal },
+  options: FirecrawlOptions,
 ): Promise<ScraperResult | null> {
   const chunks = chunkDateRange(params.fromDate, params.toDate, getLongRangeChunkDays())
   const warnings: string[] = []
@@ -308,9 +318,178 @@ async function firecrawlSequentialBfarmDateChunks(
   return scraperResult([...byId.values()], [...new Set(warnings)])
 }
 
+async function firecrawlCrawlBfarmPages(
+  params: ScraperParams,
+  options: FirecrawlOptions,
+  pageLimit: number,
+  logPrefix = '[firecrawl]',
+): Promise<ScraperResult> {
+  const seedUrl = seedBfarmUrl(params)
+
+  let crawlId: string
+  try {
+    const startRes = await fetchWithDeadline(`${FIRECRAWL_API}/crawl`, {
+      method: 'POST',
+      headers: {
+        Authorization:  `Bearer ${options.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: options.signal,
+      body: JSON.stringify({
+        url:               seedUrl,
+        limit:             pageLimit,
+        allowExternalLinks: false,
+        includePaths:      ['/SiteGlobals/Forms/Suche/Expertensuche_Formular.html'],
+        scrapeOptions:     { formats: ['html'] },
+      }),
+    }, options.deadlineMs)
+
+    if (startRes.status === 402) {
+      console.error(`${logPrefix} fallback skipped: no credits`)
+      return scraperResult([], ['Firecrawl fallback skipped: no credits (HTTP 402)'], { failed: true })
+    }
+    if (startRes.status === 401 || startRes.status === 403) {
+      return scraperResult([], [`Firecrawl auth failed: ${startRes.status}`], { failed: true })
+    }
+    if (!startRes.ok) {
+      const body = await startRes.text().catch(() => '')
+      const safeBody = body.slice(0, 200)
+        .replace(/(?:sk-|fc-|Bearer\s+)[A-Za-z0-9_-]+/g, '[REDACTED]')
+        .replace(/[0-9a-f]{32,}/gi, '[REDACTED]')
+      console.error(`${logPrefix} crawl start failed: HTTP ${startRes.status} — ${safeBody}`)
+      return scraperResult([], [`Firecrawl crawl start failed (HTTP ${startRes.status})`], { failed: true })
+    }
+
+    const startData = await startRes.json() as { id?: string }
+    if (!startData.id) {
+      return scraperResult([], ['Firecrawl returned no crawl ID'], { failed: true })
+    }
+    crawlId = startData.id
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error(`${logPrefix} start request failed: ${msg}`)
+    return scraperResult([], [`Firecrawl request failed: ${msg}`], { failed: true })
+  }
+
+  const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
+  const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
+  const startMs  = Date.now()
+  let lastPageCount = 0
+  let bestPartialData: FirecrawlStatus['data'] = []
+
+  while (Date.now() + POLL_INTERVAL_MS < options.deadlineMs) {
+    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
+
+    if (options.signal?.aborted) {
+      return scraperResult([], ['Firecrawl polling aborted'], { failed: true })
+    }
+
+    let pollData: FirecrawlStatus
+    try {
+      const pollRes = await fetchWithDeadline(`${FIRECRAWL_API}/crawl/${crawlId}`, {
+        headers: { Authorization: `Bearer ${options.apiKey}` },
+        signal: options.signal,
+      }, options.deadlineMs)
+      if (!pollRes.ok) {
+        return scraperResult([], [`Firecrawl poll failed: HTTP ${pollRes.status}`], { failed: true })
+      }
+      pollData = await pollRes.json() as FirecrawlStatus
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`${logPrefix} poll failed: ${msg}`)
+      break
+    }
+
+    const pageCount = pollData.data?.length ?? 0
+    if (pageCount !== lastPageCount) {
+      console.error(`${logPrefix} poll: status=${pollData.status} pages=${pageCount} (${Math.round((Date.now() - startMs) / 1000)}s)`)
+      lastPageCount = pageCount
+    }
+
+    if (pageCount > 0) {
+      bestPartialData = pollData.data ?? []
+    }
+
+    if (pollData.status === 'failed') {
+      console.error(`${logPrefix} crawl job failed`)
+      break
+    }
+    if (pollData.status === 'completed') {
+      break
+    }
+  }
+
+  const coverage = extractCoverage(bestPartialData, fromDate, toDate)
+  const items = coverage.items
+  const elapsed = Math.round((Date.now() - startMs) / 1000)
+
+  if (items.length > 0) {
+    console.error(`${logPrefix} returning ${items.length} items from ${bestPartialData.length} pages (${elapsed}s)`)
+    if (coverage.coverageComplete) {
+      console.error(`${logPrefix} fallback coverage complete for requested BfArM date range`)
+      return scraperResult(items, [])
+    }
+    return scraperResult(items, ['BfArM fallback returned items but could not prove complete date-range coverage'])
+  }
+
+  if (bestPartialData.length === 0) {
+    console.error(`${logPrefix} 0 pages crawled after ${elapsed}s — bfarm.de may be blocking Firecrawl IPs`)
+    return scraperResult([], [`Firecrawl returned 0 pages after ${elapsed}s — bfarm.de may be unreachable from cloud`], { failed: true })
+  }
+
+  console.error(`${logPrefix} ${bestPartialData.length} pages crawled but 0 parseable items (${elapsed}s)`)
+  return scraperResult([], [`Firecrawl crawled ${bestPartialData.length} pages but 0 items matched the date range`])
+}
+
+async function firecrawlCrawlBfarmDateChunks(
+  params: ScraperParams,
+  options: FirecrawlOptions,
+): Promise<ScraperResult | null> {
+  const chunks = chunkDateRange(params.fromDate, params.toDate, getLongRangeChunkDays())
+  const warnings: string[] = []
+  const byId = new Map<string, ScrapedFsn>()
+  const pageLimit = getChunkCrawlPageLimit()
+
+  console.error(`[firecrawl] chunked crawl fallback started (${chunks.length} chunks, limit=${pageLimit})`)
+
+  for (const chunk of chunks) {
+    if (options.signal?.aborted) {
+      return scraperResult([...byId.values()], [
+        ...warnings,
+        'BfArM chunked crawl fallback aborted',
+      ], { failed: byId.size === 0 })
+    }
+    if (Date.now() + POLL_INTERVAL_MS + FIRECRAWL_REQUEST_TIMEOUT_MS >= options.deadlineMs) {
+      warnings.push(`BfArM chunked crawl fallback stopped before ${chunk.from}..${chunk.to}: budget exhausted`)
+      break
+    }
+
+    const chunkParams: ScraperParams = {
+      ...params,
+      fromDate: chunk.from,
+      toDate: chunk.to,
+    }
+    const result = await firecrawlCrawlBfarmPages(
+      chunkParams,
+      options,
+      pageLimit,
+      `[firecrawl] chunk crawl ${chunk.from}..${chunk.to}`,
+    )
+
+    console.error(`[firecrawl] chunk crawl ${chunk.from}..${chunk.to}: ${result.items.length} items (outcome=${result.outcome})`)
+    if (result.items.length > 0 || result.outcome === 'failed') {
+      warnings.push(...result.warnings.map(warning => `BfArM chunk crawl ${chunk.from}..${chunk.to}: ${warning}`))
+    }
+    for (const item of result.items) byId.set(item.external_id, item)
+  }
+
+  if (byId.size === 0 && warnings.length === 0) return null
+  return scraperResult([...byId.values()], [...new Set(warnings)])
+}
+
 async function firecrawlSequentialBfarmPages(
   params: ScraperParams,
-  options: { apiKey: string; deadlineMs: number; signal?: AbortSignal },
+  options: FirecrawlOptions,
 ): Promise<ScraperResult | null> {
   const totalDays = daysBetweenInclusive(params.fromDate, params.toDate)
   if (totalDays >= BFARM_LONG_RANGE_ARCHIVE_DAYS) {
@@ -416,123 +595,61 @@ export async function firecrawlFallback(
     }
   }
 
-  const seedUrl = seedBfarmUrl(params)
-  const crawlPageLimit = getCrawlPageLimit()
-
-  let crawlId: string
-  try {
-    const startRes = await fetchWithDeadline(`${FIRECRAWL_API}/crawl`, {
-      method: 'POST',
-      headers: {
-        Authorization:  `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
+  if (totalDays >= BFARM_LONG_RANGE_ARCHIVE_DAYS && (!sequentialPartial || sequentialPartial.items.length < 60)) {
+    const chunkCrawl = await firecrawlCrawlBfarmDateChunks(params, {
+      apiKey,
+      deadlineMs,
       signal: parentSignal,
-      body: JSON.stringify({
-        url:               seedUrl,
-        limit:             crawlPageLimit,
-        allowExternalLinks: false,
-        includePaths:      ['/SiteGlobals/Forms/Suche/Expertensuche_Formular.html'],
-        scrapeOptions:     { formats: ['html'] },
-      }),
-    }, deadlineMs)
+    })
 
-    if (startRes.status === 402) {
-      console.error('[firecrawl] fallback skipped: no credits')
-      if (sequentialPartial) return sequentialPartial
-      return scraperResult([], ['Firecrawl fallback skipped: no credits (HTTP 402)'], { failed: true })
-    }
-    if (startRes.status === 401 || startRes.status === 403) {
-      if (sequentialPartial) return sequentialPartial
-      return scraperResult([], [`Firecrawl auth failed: ${startRes.status}`], { failed: true })
-    }
-    if (!startRes.ok) {
-      const body = await startRes.text().catch(() => '')
-      const safeBody = body.slice(0, 200)
-        .replace(/(?:sk-|fc-|Bearer\s+)[A-Za-z0-9_-]+/g, '[REDACTED]')
-        .replace(/[0-9a-f]{32,}/gi, '[REDACTED]')
-      console.error(`[firecrawl] crawl start failed: HTTP ${startRes.status} — ${safeBody}`)
-      if (sequentialPartial) return sequentialPartial
-      return scraperResult([], [`Firecrawl crawl start failed (HTTP ${startRes.status})`], { failed: true })
-    }
-
-    const startData = await startRes.json() as { id?: string }
-    if (!startData.id) {
-      if (sequentialPartial) return sequentialPartial
-      return scraperResult([], ['Firecrawl returned no crawl ID'], { failed: true })
-    }
-    crawlId = startData.id
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err)
-    console.error(`[firecrawl] start request failed: ${msg}`)
-    if (sequentialPartial) return sequentialPartial
-    return scraperResult([], [`Firecrawl request failed: ${msg}`], { failed: true })
-  }
-
-  const fromDate = new Date(params.fromDate + 'T00:00:00.000Z')
-  const toDate   = new Date(params.toDate   + 'T23:59:59.999Z')
-  const startMs  = Date.now()
-  let lastPageCount = 0
-  let bestPartialData: FirecrawlStatus['data'] = []
-
-  while (Date.now() + POLL_INTERVAL_MS < deadlineMs) {
-    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS))
-
-    if (parentSignal?.aborted) {
-      return scraperResult([], ['Firecrawl polling aborted'], { failed: true })
-    }
-
-    let pollData: FirecrawlStatus
-    try {
-      const pollRes = await fetchWithDeadline(`${FIRECRAWL_API}/crawl/${crawlId}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        signal: parentSignal,
-      }, deadlineMs)
-      if (!pollRes.ok) {
-        return scraperResult([], [`Firecrawl poll failed: HTTP ${pollRes.status}`], { failed: true })
+    if (chunkCrawl) {
+      console.error(`[firecrawl] chunked crawl fallback returned ${chunkCrawl.items.length} items (outcome=${chunkCrawl.outcome})`)
+      if (chunkCrawl.outcome === 'complete') {
+        return chunkCrawl
       }
-      pollData = await pollRes.json() as FirecrawlStatus
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`[firecrawl] poll failed: ${msg}`)
-      break
-    }
 
-    const pageCount = pollData.data?.length ?? 0
-    if (pageCount !== lastPageCount) {
-      console.error(`[firecrawl] poll: status=${pollData.status} pages=${pageCount} (${Math.round((Date.now() - startMs) / 1000)}s)`)
-      lastPageCount = pageCount
-    }
-
-    if (pageCount > 0) {
-      bestPartialData = pollData.data ?? []
-    }
-
-    if (pollData.status === 'failed') {
-      console.error('[firecrawl] crawl job failed')
-      break
-    }
-    if (pollData.status === 'completed') {
-      break
+      if (chunkCrawl.items.length > 0) {
+        const previousCount = sequentialPartial?.items.length ?? 0
+        const mergedItems = mergeBfarmItems(sequentialPartial?.items ?? [], chunkCrawl.items)
+        sequentialPartial = scraperResult(mergedItems, [
+          ...sequentialZeroWarnings,
+          ...chunkCrawl.warnings,
+          ...(mergedItems.length > previousCount
+            ? [`BfArM chunked crawl fallback added ${mergedItems.length - previousCount} item(s) beyond previous fallback.`]
+            : []),
+          'BfArM chunked crawl fallback was partial; tried broad crawl fallback for additional coverage.',
+        ])
+        sequentialZeroWarnings = sequentialPartial.warnings
+      } else {
+        sequentialZeroWarnings = [
+          ...sequentialZeroWarnings,
+          ...chunkCrawl.warnings,
+          'BfArM chunked crawl fallback returned 0 items; used broad crawl fallback instead.',
+        ]
+      }
     }
   }
 
-  const coverage = extractCoverage(bestPartialData, fromDate, toDate)
-  const items = coverage.items
-  const elapsed = Math.round((Date.now() - startMs) / 1000)
+  const crawlPageLimit = getCrawlPageLimit()
+  const broadCrawl = await firecrawlCrawlBfarmPages(
+    params,
+    { apiKey, deadlineMs, signal: parentSignal },
+    crawlPageLimit,
+  )
 
-  if (items.length > 0) {
-    console.error(`[firecrawl] returning ${items.length} items from ${bestPartialData.length} pages (${elapsed}s)`)
-    const mergedItems = mergeBfarmItems(sequentialPartial?.items ?? [], items)
+  if (broadCrawl.items.length > 0) {
+    const mergedItems = mergeBfarmItems(sequentialPartial?.items ?? [], broadCrawl.items)
+    if (sequentialPartial && mergedItems.length === broadCrawl.items.length && mergedItems.length === sequentialPartial.items.length) {
+      return broadCrawl
+    }
     const mergedWarnings = sequentialPartial ? [...sequentialZeroWarnings] : []
     if (sequentialPartial && mergedItems.length > sequentialPartial.items.length) {
       mergedWarnings.push(`BfArM crawl fallback added ${mergedItems.length - sequentialPartial.items.length} item(s) beyond sequential fallback.`)
     }
-    if (coverage.coverageComplete) {
-      console.error('[firecrawl] fallback coverage complete for requested BfArM date range')
+    if (broadCrawl.outcome === 'complete') {
       return scraperResult(mergedItems, [])
     }
-    return scraperResult(mergedItems, [...mergedWarnings, 'BfArM fallback returned items but could not prove complete date-range coverage'])
+    return scraperResult(mergedItems, [...mergedWarnings, ...broadCrawl.warnings])
   }
 
   if (sequentialPartial) {
@@ -540,13 +657,7 @@ export async function firecrawlFallback(
     return sequentialPartial
   }
 
-  if (bestPartialData.length === 0) {
-    console.error(`[firecrawl] 0 pages crawled after ${elapsed}s — bfarm.de may be blocking Firecrawl IPs`)
-    return scraperResult([], [`Firecrawl returned 0 pages after ${elapsed}s — bfarm.de may be unreachable from cloud`], { failed: true })
-  }
-
-  console.error(`[firecrawl] ${bestPartialData.length} pages crawled but 0 parseable items (${elapsed}s)`)
-  return scraperResult([], [`Firecrawl crawled ${bestPartialData.length} pages but 0 items matched the date range`])
+  return broadCrawl
 }
 
 function extractCoverage(
