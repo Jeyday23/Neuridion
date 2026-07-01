@@ -860,6 +860,20 @@ export async function scrapeBfarm(params: ScraperParams): Promise<ScraperResult>
     return primary
   }
 
+  const today = new Date().toISOString().slice(0, 10)
+  const sameDayCurrentCheck = params.fromDate === params.toDate && params.toDate === today
+  const currentDayBlocked = sameDayCurrentCheck && primary.warnings.some((warning) => /HTTP 403/i.test(warning))
+  if (currentDayBlocked) {
+    console.error('[bfarm] skipping Firecrawl fallback — same-day BfArM check returned HTTP 403')
+    return scraperResult(primary.items, [
+      ...primary.warnings,
+      'BfArM current-day live check was blocked by the authority site (HTTP 403); cached historical coverage was retained and this one-day freshness check requires retry.',
+    ], {
+      failed: true,
+      rawArtifacts: primary.rawArtifacts,
+    })
+  }
+
   const remainingMs = sourceDeadline - Date.now()
   if (remainingMs < 10_000) {
     console.error(`[bfarm] skipping Firecrawl fallback — only ${Math.round(remainingMs / 1000)}s remaining`)

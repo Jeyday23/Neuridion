@@ -395,7 +395,8 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     const filterAudit = auditKeywordRelevance(deduped, profile, competitorTerms)
     const keywordSignaled = filterAudit.items
     const normalizedOutcome: SourceResultBreakdown['status'] =
-      sourceOutcomes.some((outcome) => outcome.endsWith(':partial')) ? 'partial'
+      sourceOutcomes.some((outcome) => outcome.endsWith(':failed')) ? 'failed'
+      : sourceOutcomes.some((outcome) => outcome.endsWith(':partial')) ? 'partial'
       : deduped.length === 0 ? 'empty'
       : 'complete'
     const sourceBreakdown: SourceResultBreakdown = {
