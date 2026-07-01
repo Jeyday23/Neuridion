@@ -1,4 +1,5 @@
 export type VerifyMode = 'development' | 'production'
+export type VerifyProfile = 'full' | 'prrc'
 export type EnvSource = Record<string, string | undefined>
 
 export type EnvIssue = {
@@ -8,11 +9,13 @@ export type EnvIssue = {
 
 export type VerifyEnvOptions = {
   mode?: VerifyMode
+  profile?: VerifyProfile
   strictRecommended?: boolean
 }
 
 export type EnvVerificationResult = {
   mode: VerifyMode
+  profile: VerifyProfile
   ok: boolean
   checkedRequired: number
   checkedRecommended: number
@@ -37,12 +40,12 @@ const REQUIRED_PRODUCTION = [
   'QSTASH_NEXT_SIGNING_KEY',
   'WORKER_API_SECRET',
   'NEXT_PUBLIC_SITE_URL',
-  'STRIPE_SECRET_KEY',
-  'STRIPE_WEBHOOK_SECRET',
-  'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
 ] as const
 
 const BILLING_REQUIRED = [
+  'STRIPE_SECRET_KEY',
+  'STRIPE_WEBHOOK_SECRET',
+  'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
   'STRIPE_PRICE_STARTER',
   'STRIPE_PRICE_PRO',
   'STRIPE_PRICE_ENTERPRISE',
@@ -93,8 +96,9 @@ function issue(name: string, message: string): EnvIssue {
 
 export function verifyEnvironment(env: EnvSource, options: VerifyEnvOptions = {}): EnvVerificationResult {
   const mode = inferMode(env, options.mode)
+  const profile = options.profile ?? 'full'
   const required = mode === 'production'
-    ? [...REQUIRED_PRODUCTION, ...BILLING_REQUIRED]
+    ? [...REQUIRED_PRODUCTION, ...(profile === 'full' ? BILLING_REQUIRED : [])]
     : []
   const recommended = mode === 'production' ? [...RECOMMENDED_PRODUCTION] : []
   const forbidden = mode === 'production' ? [...FORBIDDEN_PRODUCTION] : []
@@ -122,6 +126,7 @@ export function verifyEnvironment(env: EnvSource, options: VerifyEnvOptions = {}
 
   return {
     mode,
+    profile,
     ok,
     checkedRequired: required.length,
     checkedRecommended: recommended.length,
@@ -151,6 +156,7 @@ export function formatEnvVerification(result: EnvVerificationResult): string {
   } else {
     lines.push(`Environment verification failed for ${result.mode}.`)
   }
+  lines.push(`Profile: ${result.profile}`)
   lines.push(`Required: ${result.checkedRequired} checked`)
   lines.push(`Recommended: ${result.checkedRecommended} checked, ${result.missingRecommended.length} missing`)
   lines.push(`Forbidden: ${result.checkedForbidden} checked`)

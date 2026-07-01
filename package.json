@@ -11,6 +11,8 @@
     "verify:env": "tsx scripts/verify-env.ts",
     "verify:integrations": "tsx scripts/verify-integrations.ts",
     "verify:release": "tsx scripts/verify-release.ts",
+    "verify:release:local": "tsx scripts/with-env.ts -- npm run verify:release",
+    "verify:release:prrc": "tsx scripts/with-env.ts -- npm run verify:release -- --profile prrc",
     "benchmark:accuracy": "tsx benchmark/cli.ts",
     "benchmark:live": "tsx benchmark/cli.ts --live",
     "benchmark:reviewed-pms": "tsx benchmark/reviewed-pms.ts"

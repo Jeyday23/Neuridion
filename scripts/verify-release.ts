@@ -1,8 +1,21 @@
 import { spawnSync } from 'child_process'
+import type { VerifyProfile } from '@/lib/verify/env'
+
+function parseArgs(argv: string[]): { profile: VerifyProfile } {
+  const profileIndex = argv.indexOf('--profile')
+  const profile = profileIndex >= 0 ? argv[profileIndex + 1] : 'full'
+  if (profile !== 'full' && profile !== 'prrc') {
+    throw new Error('--profile must be full or prrc')
+  }
+  return { profile }
+}
+
+const { profile } = parseArgs(process.argv.slice(2))
+const profileArgs = profile === 'full' ? [] : ['--profile', profile]
 
 const steps = [
-  ['npm', ['run', 'verify:env', '--', '--mode', 'production']],
-  ['npm', ['run', 'verify:integrations', '--', '--mode', 'production']],
+  ['npm', ['run', 'verify:env', '--', '--mode', 'production', ...profileArgs]],
+  ['npm', ['run', 'verify:integrations', '--', '--mode', 'production', ...profileArgs]],
   ['npm', ['run', 'lint']],
   ['npx', ['vitest', 'run']],
   ['npm', ['run', 'build']],

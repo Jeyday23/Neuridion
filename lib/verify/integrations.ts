@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import Stripe from 'stripe'
 import { Redis } from '@upstash/redis'
 import { createClient } from '@supabase/supabase-js'
-import type { EnvSource } from './env'
+import type { EnvSource, VerifyProfile } from './env'
 
 type ProbeResult = { ok: true } | { ok: false; reason: string }
 
@@ -83,8 +83,12 @@ export async function createDefaultIntegrationClients(env: EnvSource): Promise<I
     anthropic: {
       async probe() {
         try {
+          const model = env.ANTHROPIC_VERIFY_MODEL ?? env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6'
           if (typeof anthropic.messages.countTokens === 'function') {
-            await anthropic.messages.countTokens({ model: 'claude-3-5-sonnet-20241022', messages: [] })
+            await anthropic.messages.countTokens({
+              model,
+              messages: [{ role: 'user', content: 'ping' }],
+            })
           } else {
             await anthropic.models.list()
           }
@@ -100,8 +104,10 @@ export async function createDefaultIntegrationClients(env: EnvSource): Promise<I
 export async function verifyIntegrations(
   env: EnvSource,
   clients?: IntegrationClients,
+  options: { profile?: VerifyProfile } = {},
 ): Promise<IntegrationVerificationResult> {
   const activeClients = clients ?? await createDefaultIntegrationClients(env)
+  const profile = options.profile ?? 'full'
   const checks: IntegrationCheck[] = []
 
   const schemaFailures: string[] = []
@@ -117,7 +123,9 @@ export async function verifyIntegrations(
   const redisResult = await activeClients.redis.probe()
   checks.push(redisResult.ok ? pass('Redis') : fail('Redis', sanitizeReason(redisResult.reason)))
 
-  checks.push(await verifyStripe(env, activeClients))
+  checks.push(profile === 'full'
+    ? await verifyStripe(env, activeClients)
+    : pass('Stripe', 'skipped for PRRC/search profile; billing is not required for this gate'))
 
   const anthropicResult = await activeClients.anthropic.probe()
   checks.push(anthropicResult.ok ? pass('Anthropic') : fail('Anthropic', sanitizeReason(anthropicResult.reason)))
@@ -165,7 +173,7 @@ function sanitizeReason(reason: string): string {
 export function formatIntegrationVerification(result: IntegrationVerificationResult): string {
   const lines = [result.ok ? 'Integration verification passed for production.' : 'Integration verification failed for production.']
   for (const check of result.checks) {
-    lines.push(`${check.name}: ${check.status === 'passed' ? 'passed' : `failed - ${check.message}`}`)
+    lines.push(`${check.name}: ${check.status === 'passed' ? `passed${check.message === 'passed' ? '' : ` - ${check.message}`}` : `failed - ${check.message}`}`)
   }
   return `${lines.join('\n')}\n`
 }
