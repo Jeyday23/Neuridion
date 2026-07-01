@@ -36,6 +36,12 @@ vi.mock('@/lib/audit', () => ({
   logAuditEvent: vi.fn(),
 }))
 
+vi.mock('@/lib/rate-limit', () => ({
+  getClientIp:      vi.fn(() => '127.0.0.1'),
+  rateLimit:        vi.fn(() => Promise.resolve({ allowed: true, retryAfterMs: 0 })),
+  rateLimitWithIp:  vi.fn(() => Promise.resolve({ allowed: true, retryAfterMs: 0 })),
+}))
+
 // ---------------------------------------------------------------------------
 // Import route handlers (after mocks are registered)
 // ---------------------------------------------------------------------------

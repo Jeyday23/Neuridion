@@ -5,7 +5,7 @@ import type { Database } from '../types/supabase'
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-const SKIP = !url || !key
+const SKIP = process.env.RUN_DB_ROUNDTRIP_TESTS !== 'true' || !url || !key
 
 const db = SKIP
   ? null

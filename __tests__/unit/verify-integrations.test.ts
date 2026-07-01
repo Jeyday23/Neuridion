@@ -91,6 +91,19 @@ describe('verifyIntegrations', () => {
     expect(formatIntegrationVerification(result)).toContain('NEXT_PUBLIC_STRIPE_PRICE_STARTER')
   })
 
+  it('skips Stripe checks for the PRRC/search profile', async () => {
+    const clients = passingClients()
+    const result = await verifyIntegrations(
+      { ...env, NEXT_PUBLIC_STRIPE_PRICE_STARTER: 'price_wrong' },
+      clients,
+      { profile: 'prrc' },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(clients.stripe.retrievePrice).not.toHaveBeenCalled()
+    expect(formatIntegrationVerification(result)).toContain('skipped for PRRC/search profile')
+  })
+
   it('reports inactive Stripe prices', async () => {
     const clients = passingClients()
     clients.stripe.retrievePrice = vi.fn(() => Promise.resolve({ id: 'price_starter', active: false, recurring: { interval: 'month' } }))

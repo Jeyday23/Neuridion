@@ -84,6 +84,44 @@ describe('verifyEnvironment', () => {
     expect(result.forbiddenPresent).toContainEqual(expect.objectContaining({ name: 'ENABLE_DEV_WORKER_BYPASS' }))
   })
 
+  it('keeps billing keys required for the full production profile', () => {
+    const result = verifyEnvironment(
+      {
+        ...validProductionEnv,
+        STRIPE_SECRET_KEY: undefined,
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: undefined,
+      },
+      { mode: 'production', profile: 'full' },
+    )
+
+    expect(result.ok).toBe(false)
+    expect(result.missingRequired).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'STRIPE_SECRET_KEY' }),
+      expect.objectContaining({ name: 'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY' }),
+    ]))
+  })
+
+  it('does not require billing keys for the PRRC/search profile', () => {
+    const result = verifyEnvironment(
+      {
+        ...validProductionEnv,
+        STRIPE_SECRET_KEY: undefined,
+        STRIPE_WEBHOOK_SECRET: undefined,
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: undefined,
+        STRIPE_PRICE_STARTER: undefined,
+        STRIPE_PRICE_PRO: undefined,
+        STRIPE_PRICE_ENTERPRISE: undefined,
+        NEXT_PUBLIC_STRIPE_PRICE_STARTER: undefined,
+        NEXT_PUBLIC_STRIPE_PRICE_PRO: undefined,
+      },
+      { mode: 'production', profile: 'prrc' },
+    )
+
+    expect(result.ok).toBe(true)
+    expect(result.checkedRequired).toBe(13)
+    expect(result.missingRequired).toEqual([])
+  })
+
   it('warns but does not fail when recommended variables are missing', () => {
     const result = verifyEnvironment(validProductionEnv, { mode: 'production' })
 
