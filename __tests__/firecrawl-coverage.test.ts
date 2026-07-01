@@ -379,6 +379,87 @@ describe('Firecrawl BfArM fallback coverage', () => {
     expect(requests.every(request => !request.includes('/crawl'))).toBe(true)
   })
 
+  it('recovers long-range rows from chunked Firecrawl crawls when exact-date scrapes return zero rows', async () => {
+    vi.useFakeTimers({ now: new Date('2026-06-30T00:00:00.000Z') })
+    const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
+    vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
+    vi.stubEnv('FIRECRAWL_BFARM_CHUNK_DAYS', '60')
+    const crawlDataById = new Map<string, Array<{ html: string }>>()
+    const crawlStarts: string[] = []
+    let crawlSeq = 0
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url)
+      if (href.endsWith('/scrape')) {
+        return new Response(JSON.stringify({ data: { html: '<html><body>No rows</body></html>' } }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      if (href.endsWith('/crawl')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { url: string }
+        crawlStarts.push(body.url)
+        const id = `crawl-${++crawlSeq}`
+        let data: Array<{ html: string }> = []
+        if (body.url.includes('input_Datum_VON=01.01.2026') && body.url.includes('input_Datum_BIS=01.03.2026')) {
+          data = [{ html: page([teaser('19001-26', '15. Januar 2026'), teaser('18999-25', '31. Dezember 2025')]) }]
+        } else if (body.url.includes('input_Datum_VON=02.03.2026') && body.url.includes('input_Datum_BIS=30.04.2026')) {
+          data = [{ html: page([teaser('19500-26', '20. März 2026'), teaser('19001-26', '01. Januar 2026')]) }]
+        } else if (body.url.includes('input_Datum_VON=01.05.2026') && body.url.includes('input_Datum_BIS=29.06.2026')) {
+          data = [{
+            html: page([
+              teaser(
+                '20020-26',
+                '04. Juni 2026',
+                'Dringende Sicherheitsinformation zu Stella 2.0 Implantat-Orientierungsdiagramm (IOCI) von STAAR Surgical AG',
+              ),
+              teaser('19999-26', '30. April 2026'),
+            ]),
+          }]
+        } else if (body.url.includes('input_Datum_VON=30.06.2026') && body.url.includes('input_Datum_BIS=10.07.2026')) {
+          data = [{ html: page([teaser('22000-26', '01. Juli 2026'), teaser('21000-26', '29. Juni 2026')]) }]
+        }
+        crawlDataById.set(id, data)
+        return new Response(JSON.stringify({ id }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      const crawlMatch = href.match(/\/crawl\/(crawl-\d+)$/)
+      if (crawlMatch) {
+        return new Response(JSON.stringify({
+          status: 'completed',
+          data: crawlDataById.get(crawlMatch[1]) ?? [],
+        }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      throw new Error(`Unexpected URL: ${href}`)
+    }))
+
+    const pending = firecrawlFallback({
+      fromDate: '2026-01-01',
+      toDate: '2026-07-10',
+    })
+    await vi.advanceTimersByTimeAsync(30_000)
+    const result = await pending
+
+    expect(result.outcome).toBe('complete')
+    expect(result.warnings).toEqual([])
+    expect(result.items.map(item => item.external_id)).toEqual(expect.arrayContaining([
+      '19001-26',
+      '19500-26',
+      '20020-26',
+      '22000-26',
+    ]))
+    expect(result.items.find(item => item.external_id === '20020-26')).toMatchObject({
+      fsn_date: '2026-06-04',
+      manufacturer: 'STAAR Surgical AG',
+    })
+    expect(crawlStarts.some(request => request.includes('input_Datum_VON=01.05.2026') && request.includes('input_Datum_BIS=29.06.2026'))).toBe(true)
+  })
+
   it('continues to crawl fallback when all sequential BfArM Firecrawl strategies return zero items', async () => {
     vi.useFakeTimers({ now: new Date('2026-06-30T00:00:00.000Z') })
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
@@ -419,7 +500,7 @@ describe('Firecrawl BfArM fallback coverage', () => {
       fromDate: '2025-06-30',
       toDate: '2026-06-30',
     })
-    await vi.advanceTimersByTimeAsync(5_000)
+    await vi.advanceTimersByTimeAsync(60_000)
     const result = await pending
 
     expect(result.items).toHaveLength(1)
@@ -551,7 +632,7 @@ describe('Firecrawl BfArM fallback coverage', () => {
       fromDate: '2025-06-30',
       toDate: '2026-06-30',
     })
-    await vi.advanceTimersByTimeAsync(5_000)
+    await vi.advanceTimersByTimeAsync(60_000)
     const result = await pending
 
     expect(result.items).toHaveLength(1)
