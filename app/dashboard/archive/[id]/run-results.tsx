@@ -71,6 +71,21 @@ function DecisionBadge({ decision }: { decision: string }) {
   )
 }
 
+export function filterFailedExplanation(rationale: string | null | undefined): string {
+  const text = rationale?.trim()
+  if (!text) return 'AI assessment was unavailable for this item. Manual PRRC review is required.'
+  if (/run item limit|review cap|item cap|filter cap/i.test(text)) {
+    return text
+  }
+  if (/anthropic|provider|billing|authentication|credit|api key|not currently usable/i.test(text)) {
+    return text
+  }
+  if (/disabled|gdpr|cancelled|time limit|timeout/i.test(text)) {
+    return text
+  }
+  return text
+}
+
 function ResultRow({ result }: { result: FsnResult }) {
   const [expanded, setExpanded] = useState(false)
   const d = result.filter_decision
@@ -140,7 +155,7 @@ function ResultRow({ result }: { result: FsnResult }) {
                 </svg>
                 AI assessment unavailable — manual review required
               </p>
-              <p className="mt-0.5 text-xs text-amber-600">This item exceeded the AI filter cap for this run and was not assessed.</p>
+              <p className="mt-0.5 text-xs text-amber-600">{filterFailedExplanation(d.rationale)}</p>
             </div>
           )}
 
