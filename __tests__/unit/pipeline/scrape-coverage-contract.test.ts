@@ -265,6 +265,41 @@ describe('scrape coverage completeness contract', () => {
     }])
   })
 
+  it('does not let cached BfArM rows hide a failed freshness gap', async () => {
+    getCoveredRanges.mockResolvedValue([{ from: '2025-07-01', to: '2026-06-30' }])
+    computeUncoveredRanges.mockReturnValue([{ from: '2026-07-01', to: '2026-07-01' }])
+    getCanonicalItems.mockResolvedValue(Array.from({ length: 263 }, (_, index) => ({
+      ...item,
+      external_id: `cached-bfarm-${index}`,
+      source_db: 'bfarm',
+    })))
+    nextResult = {
+      items: [],
+      warnings: ['BfArM current-day live check was blocked by the authority site (HTTP 403); cached historical coverage was retained and this one-day freshness check requires retry.'],
+      outcome: 'failed',
+    }
+    const ctx = context()
+    ctx.payload.selected_dbs = ['bfarm']
+    ctx.activeSources = ['bfarm']
+    ctx.payload.period_from = '2025-07-01'
+    ctx.payload.period_to = '2026-07-01'
+
+    const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
+    await scrapeStage(ctx)
+
+    expect(ctx.insertedRows).toHaveLength(263)
+    expect(ctx.sourceBreakdown).toMatchObject([{
+      source: 'bfarm',
+      fresh_fetched: 0,
+      cached_loaded: 263,
+      found_before_filtering: 263,
+      status: 'failed',
+      warnings: 1,
+      fresh_outcomes: ['2026-07-01..2026-07-01:failed'],
+    }])
+    expect(mergeCoverage).not.toHaveBeenCalledWith('bfarm', { from: '2026-07-01', to: '2026-07-01' })
+  })
+
   it('preserves all raw deduped source results before AI filtering and records keyword signal counts', async () => {
     nextResult = {
       items: [

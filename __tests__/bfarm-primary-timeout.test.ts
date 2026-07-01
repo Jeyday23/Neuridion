@@ -62,4 +62,23 @@ describe('scrapeBfarm primary timeout', () => {
     expect(primaryAborted).toBe(true)
     expect(result.items).toEqual([fallbackItem])
   })
+
+  it('does not spend Firecrawl budget on same-day BfArM HTTP 403 checks', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-01T10:00:00.000Z'))
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 403 })))
+
+    const { scrapeBfarm } = await import('@/lib/scrapers/bfarm')
+
+    const result = await scrapeBfarm({
+      fromDate: '2026-07-01',
+      toDate:   '2026-07-01',
+    })
+
+    expect(firecrawlFallback).not.toHaveBeenCalled()
+    expect(result.outcome).toBe('failed')
+    expect(result.warnings).toContain(
+      'BfArM current-day live check was blocked by the authority site (HTTP 403); cached historical coverage was retained and this one-day freshness check requires retry.',
+    )
+  })
 })
