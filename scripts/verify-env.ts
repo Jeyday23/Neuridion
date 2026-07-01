@@ -1,12 +1,18 @@
 import { formatEnvVerification, verifyEnvironment } from '@/lib/verify/env'
+import type { VerifyProfile } from '@/lib/verify/env'
 
-function parseArgs(argv: string[]): { mode?: 'development' | 'production'; strictRecommended: boolean } {
+function parseArgs(argv: string[]): { mode?: 'development' | 'production'; profile?: VerifyProfile; strictRecommended: boolean } {
   const modeIndex = argv.indexOf('--mode')
   const mode = modeIndex >= 0 ? argv[modeIndex + 1] : undefined
   if (mode !== undefined && mode !== 'development' && mode !== 'production') {
     throw new Error('--mode must be development or production')
   }
-  return { mode, strictRecommended: argv.includes('--strict-recommended') }
+  const profileIndex = argv.indexOf('--profile')
+  const profile = profileIndex >= 0 ? argv[profileIndex + 1] : undefined
+  if (profile !== undefined && profile !== 'full' && profile !== 'prrc') {
+    throw new Error('--profile must be full or prrc')
+  }
+  return { mode, profile, strictRecommended: argv.includes('--strict-recommended') }
 }
 
 try {
