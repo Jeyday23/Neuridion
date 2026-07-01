@@ -4,6 +4,9 @@ import type { ScraperResult, ScrapedFsn } from '@/lib/scrapers/bfarm'
 
 const mergeCoverage = vi.fn(async () => undefined)
 const getCoveredRanges = vi.fn(async () => [] as Array<{ from: string; to: string }>)
+const computeUncoveredRanges = vi.fn((covered: Array<{ from: string; to: string }>, from: string, to: string) => (
+  covered.some(range => range.from <= from && range.to >= to) ? [] : [{ from, to }]
+))
 const getCanonicalItems = vi.fn(async () => [] as ScrapedFsn[])
 const scraper = vi.fn(async () => nextResult)
 const upsertCanonical = vi.fn(async (items: ScrapedFsn[]) => items.map(item => ({
@@ -18,7 +21,7 @@ vi.mock('@/lib/scrapers/registry', () => ({
 
 vi.mock('@/lib/sync/coverage', () => ({
   getCoveredRanges,
-  computeUncoveredRanges: vi.fn(() => []),
+  computeUncoveredRanges,
   mergeCoverage,
   overlapWindowStart: vi.fn(() => '2026-06-01'),
 }))
@@ -82,9 +85,13 @@ describe('scrape coverage completeness contract', () => {
     mergeCoverage.mockClear()
     upsertCanonical.mockClear()
     getCoveredRanges.mockClear()
+    computeUncoveredRanges.mockClear()
     getCanonicalItems.mockClear()
     scraper.mockClear()
     getCoveredRanges.mockResolvedValue([])
+    computeUncoveredRanges.mockImplementation((covered: Array<{ from: string; to: string }>, from: string, to: string) => (
+      covered.some(range => range.from <= from && range.to >= to) ? [] : [{ from, to }]
+    ))
     getCanonicalItems.mockResolvedValue([])
   })
 
@@ -173,11 +180,49 @@ describe('scrape coverage completeness contract', () => {
     expect(ctx.insertedRows.map(row => row.external_id)).toEqual(['record-1'])
   })
 
-  it('does not reuse source-wide BfArM coverage until raw parity coverage is certified', async () => {
+  it('reuses certified source-wide BfArM authority coverage without a live scrape', async () => {
     getCoveredRanges.mockResolvedValue([{ from: '2026-05-19', to: '2026-06-19' }])
     getCanonicalItems.mockResolvedValue(Array.from({ length: 67 }, (_, index) => ({
       ...item,
       external_id: `stale-bfarm-${index}`,
+      source_db: 'bfarm',
+    })))
+    nextResult = { items: [], warnings: [], outcome: 'empty' }
+    const ctx = context()
+    ctx.payload.selected_dbs = ['bfarm']
+    ctx.activeSources = ['bfarm']
+    ctx.payload.period_from = '2026-05-19'
+    ctx.payload.period_to = '2026-06-19'
+
+    const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
+    await scrapeStage(ctx)
+
+    expect(getCoveredRanges).toHaveBeenCalledWith('bfarm')
+    expect(computeUncoveredRanges).toHaveBeenCalledWith(
+      [{ from: '2026-05-19', to: '2026-06-19' }],
+      '2026-05-19',
+      '2026-06-19',
+    )
+    expect(getCanonicalItems).toHaveBeenCalledWith('bfarm', '2026-05-19', '2026-06-19')
+    expect(mergeCoverage).not.toHaveBeenCalled()
+    expect(scraper).not.toHaveBeenCalled()
+    expect(ctx.insertedRows).toHaveLength(67)
+    expect(ctx.sourceBreakdown).toMatchObject([{
+      source: 'bfarm',
+      fresh_fetched: 0,
+      cached_loaded: 67,
+      found_before_filtering: 67,
+      status: 'complete',
+      fresh_outcomes: [],
+    }])
+  })
+
+  it('fetches only uncovered BfArM authority gaps and merges them with cached rows', async () => {
+    getCoveredRanges.mockResolvedValue([{ from: '2026-05-19', to: '2026-06-03' }])
+    computeUncoveredRanges.mockReturnValue([{ from: '2026-06-04', to: '2026-06-19' }])
+    getCanonicalItems.mockResolvedValue(Array.from({ length: 66 }, (_, index) => ({
+      ...item,
+      external_id: `cached-bfarm-${index}`,
       source_db: 'bfarm',
     })))
     nextResult = {
@@ -203,14 +248,21 @@ describe('scrape coverage completeness contract', () => {
     const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
     await scrapeStage(ctx)
 
-    expect(getCoveredRanges).not.toHaveBeenCalled()
-    expect(getCanonicalItems).not.toHaveBeenCalled()
-    expect(mergeCoverage).not.toHaveBeenCalled()
     expect(scraper).toHaveBeenCalledWith(expect.objectContaining({
-      fromDate: '2026-05-19',
+      fromDate: '2026-06-04',
       toDate: '2026-06-19',
     }))
-    expect(ctx.insertedRows.map(row => row.external_id)).toEqual(['20020-26'])
+    expect(getCanonicalItems).toHaveBeenCalledWith('bfarm', '2026-05-19', '2026-06-03')
+    expect(mergeCoverage).toHaveBeenCalledWith('bfarm', { from: '2026-06-04', to: '2026-06-19' })
+    expect(ctx.insertedRows).toHaveLength(67)
+    expect(ctx.insertedRows.map(row => row.external_id)).toContain('20020-26')
+    expect(ctx.sourceBreakdown).toMatchObject([{
+      source: 'bfarm',
+      fresh_fetched: 1,
+      cached_loaded: 66,
+      found_before_filtering: 67,
+      status: 'complete',
+    }])
   })
 
   it('preserves all raw deduped source results before AI filtering and records keyword signal counts', async () => {

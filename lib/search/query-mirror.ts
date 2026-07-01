@@ -11,6 +11,7 @@ export interface MirrorQuery {
   manufacturer: string
   deviceName: string
   requireCoverage?: boolean
+  keywordFilter?: boolean
 }
 
 export class MirrorCoverageError extends Error {
@@ -63,9 +64,14 @@ export async function queryMirror(query: MirrorQuery): Promise<ScrapedFsn[]> {
     throw new Error(`Mirror query safety cap exceeded for ${source}`)
   }))
 
-  return filterByKeywordRelevance(
-    batches.flat(),
-    { manufacturer: query.manufacturer, device_name: query.deviceName },
-    [],
-  )
+  const rawItems = batches.flat()
+  if (query.keywordFilter === true) {
+    return filterByKeywordRelevance(
+      rawItems,
+      { manufacturer: query.manufacturer, device_name: query.deviceName },
+      [],
+    )
+  }
+
+  return rawItems
 }

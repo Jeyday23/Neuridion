@@ -1,6 +1,6 @@
 import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
 import { getProductionScraper } from '@/lib/scrapers/registry'
-import { getCoveredRanges, computeUncoveredRanges, mergeCoverage, overlapWindowStart } from '@/lib/sync/coverage'
+import { getCoveredRanges, computeUncoveredRanges, mergeCoverage } from '@/lib/sync/coverage'
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
 import { extractManufacturerTerms, extractDeviceTerms } from '@/lib/search/manufacturer-terms'
 import { matchesKeywordSignature, matchesKeywordTerm } from '@/lib/search/keyword-match'
@@ -44,12 +44,6 @@ function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number, la
 
     run(controller.signal).then(resolve, reject).finally(() => clearTimeout(timer))
   })
-}
-
-function prevDay(date: string): string {
-  const d = new Date(date + 'T00:00:00.000Z')
-  d.setUTCDate(d.getUTCDate() - 1)
-  return d.toISOString().slice(0, 10)
 }
 
 export function buildSourceSearchTerms(
@@ -281,11 +275,10 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
     // openFDA. sync_coverage is keyed only by source + date range, so reusing it
     // across profiles can return another device's capped dataset as "covered".
     //
-    // BfArM raw-result parity is source-audit critical: old cache rows can hide
-    // a fallback acquisition miss such as one missing page/reference in a
-    // manually checked date window. Keep BfArM interactive searches fresh until
-    // coverage rows carry a certified source-total/retrieved-total contract.
-    const canReuseSourceCoverage = sourceId !== 'fda' && sourceId !== 'bfarm'
+    // Source-complete FSN scrapers (BfArM, Swissmedic, MHRA) can reuse certified
+    // date coverage from fsn_canonical. Uncovered ranges still fetch live, and
+    // only complete/empty live ranges advance coverage.
+    const canReuseSourceCoverage = sourceId !== 'fda'
 
     async function fetchSourceRange(range: { from: string; to: string }): Promise<void> {
       const scraper = getProductionScraper(sourceId)
@@ -330,25 +323,18 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       }
     }
 
-    const overlapFrom = overlapWindowStart(period_to)
-
     if (forceRefresh || !canReuseSourceCoverage) {
       await fetchSourceRange({ from: period_from, to: period_to })
     } else {
       const covered    = await getCoveredRanges(sourceId)
-      const gapCheckTo = overlapFrom > period_from ? prevDay(overlapFrom) : period_from
-      const uncovered  = computeUncoveredRanges(covered, period_from, gapCheckTo)
+      const uncovered  = computeUncoveredRanges(covered, period_from, period_to)
 
       for (const range of uncovered) {
         await fetchSourceRange(range)
       }
 
-      if (overlapFrom <= period_to) {
-        await fetchSourceRange({ from: overlapFrom, to: period_to })
-      }
-
       const coveredInWindow = covered.filter(
-        (c) => c.to >= period_from && c.from <= (overlapFrom > period_from ? prevDay(overlapFrom) : period_from),
+        (c) => c.to >= period_from && c.from <= period_to,
       )
 
       for (const range of coveredInWindow) {
