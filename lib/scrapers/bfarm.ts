@@ -224,10 +224,21 @@ function hrefByClass(block: string, className: string): string | null {
 }
 
 function absoluteBfarmUrl(href: string): string {
+  const normalized = href.trim()
+    .replace(/^https:\/\/www\.bfarm\.dehttps\/\/www\.bfarm\.de/i, BFARM_ORIGIN)
+    .replace(/^https:\/\/www\.bfarm\.dehttps:\/\/www\.bfarm\.de/i, BFARM_ORIGIN)
+    .replace(/^https\/\//i, 'https://')
+    .replace(/^http\/\//i, 'http://')
+    .replace(/^www\.bfarm\.de/i, 'https://www.bfarm.de')
+    .replaceAll(`${BFARM_ORIGIN}${BFARM_ORIGIN}`, BFARM_ORIGIN)
+    .replace(new RegExp(`${BFARM_ORIGIN.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/https://www\\.bfarm\\.de`, 'i'), BFARM_ORIGIN)
+
   try {
-    return new URL(href, BFARM_ORIGIN).toString()
+    const parsed = new URL(normalized, BFARM_ORIGIN)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.toString()
+    return normalized
   } catch {
-    return href
+    return normalized
   }
 }
 
@@ -432,9 +443,11 @@ export function parsePage(html: string): ParsedItem[] {
     const rawTitle = elementTextByClass(block, 'c-icon-teaser__headline')
     if (!rawTitle) continue
     const title = cleanTeaserTitle(rawTitle)
-    // The explicit "Datum" attached to the notice is the customer-information
-    // date. The teaser date can instead be a page/update timestamp.
-    const date = parseTeaserMetadataDate(rawTitle) ?? parseGermanDate(block)
+    // Match the date visibly rendered on the BfArM search-results page. BfArM
+    // can also embed additional PDF/customer-information metadata dates inside
+    // the headline; those are fallback-only because PRRC users compare against
+    // the front-facing portal date.
+    const date = parseGermanDate(block) ?? parseTeaserMetadataDate(rawTitle)
     const referenceText = elementTextByClass(block, 'c-icon-teaser__reference') ?? block
     const referenceMatch = stripTags(referenceText).match(/\b(\d{4,6})\s*\/\s*(\d{2})\b/)
       ?? href.match(/\/(\d{4,6})-(\d{2})_kundeninfo/i)
@@ -480,6 +493,56 @@ function hasBfarmPaginationContinuation(html: string): boolean {
   return /\bis-forward\b/i.test(html) || /gtp=469344_list%25?3D\d+/i.test(html)
 }
 
+function pageItemsForRequestedWindow(
+  pageItems: ParsedItem[],
+  fromDate?: Date,
+  toDate?: Date,
+): { items: ParsedItem[]; crossedBelowFromDate: boolean } {
+  const items: ParsedItem[] = []
+  let reachedLowerBoundary = false
+  let crossedBelowFromDate = false
+  let previousDate: Date | null = null
+
+  for (const item of pageItems) {
+    const date = item.date
+    if (!date) {
+      items.push(item)
+      continue
+    }
+
+    if (toDate && date > toDate) {
+      previousDate = date
+      continue
+    }
+
+    if (fromDate && date < fromDate) {
+      crossedBelowFromDate = true
+      break
+    }
+
+    // BfArM's date-filtered pagination can append stray newest-day rows at
+    // the end of boundary pages after the visible list has already reached the
+    // requested lower-bound date. PRRC users compare against that visible list,
+    // so treat those late upward jumps as pagination contamination.
+    if (
+      fromDate
+      && reachedLowerBoundary
+      && previousDate
+      && date > previousDate
+    ) {
+      continue
+    }
+
+    items.push(item)
+    if (fromDate && date.getTime() === fromDate.getTime()) {
+      reachedLowerBoundary = true
+    }
+    previousDate = date
+  }
+
+  return { items, crossedBelowFromDate }
+}
+
 export async function scrapeBfArM(options: ScraperOptions = {}): Promise<ScraperResult> {
   const { fromDate, toDate, signal, query, captureRawEvidence = false } = options
   const warnings: string[] = []
@@ -522,16 +585,10 @@ export async function scrapeBfArM(options: ScraperOptions = {}): Promise<Scraper
       const nextHref = parseNextPageHref(html)
 
       if (pageItems.length === 0) break
-      const pageDates = pageItems
-        .map((item) => item.date)
-        .filter((date): date is Date => date !== null)
-      const crossedBelowFromDate = Boolean(
-        fromDate
-        && pageDates.length > 0
-        && pageDates.some((date) => date < fromDate),
-      )
+      const pageWindow = pageItemsForRequestedWindow(pageItems, fromDate, toDate)
+      const crossedBelowFromDate = pageWindow.crossedBelowFromDate
 
-      for (const item of pageItems) {
+      for (const item of pageWindow.items) {
         if (raw.length >= MAX_ITEMS) break
 
         raw.push({

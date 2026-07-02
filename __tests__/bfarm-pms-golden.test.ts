@@ -31,7 +31,7 @@ describe('BfArM reviewed PMS golden set', () => {
     expect(parsed[0].href).toContain('__blob=publicationFile&v=1')
   })
 
-  it('separates BfArM download metadata from title/manufacturer and uses the notice date', () => {
+  it('separates BfArM download metadata from title/manufacturer and uses the visible portal date', () => {
     const parsed = parsePage(`
       <li class="l-teaser-list__item">
         <h3 class="c-icon-teaser__headline">
@@ -52,7 +52,58 @@ describe('BfArM reviewed PMS golden set', () => {
       productName: 'ORBIS Medication',
       externalId: '11546-26',
     })
-    expect(parsed[0].date?.toISOString().slice(0, 10)).toBe('2026-04-13')
+    expect(parsed[0].date?.toISOString().slice(0, 10)).toBe('2026-04-30')
+  })
+
+  it('uses the visible BfArM portal date for CyberKnife-style search-result mismatches', () => {
+    const parsed = parsePage(`
+      <li class="l-teaser-list__item">
+        <span class="c-icon-teaser__date">28. Mai 2026</span>
+        <h3 class="c-icon-teaser__headline">
+          Dringende Sicherheitsinformation zu CyberKnife Robotic Radiosurgery System von Accuray Incorporated
+          PDF, 299KB, Datei ist nicht barrierefrei Datum: 10. Juni 2026
+        </h3>
+        <span class="c-icon-teaser__reference">25633/26</span>
+        <a class="c-icon-teaser__link--download" href="/SharedDocs/Kundeninfos/DE/09/2026/25633-26_kundeninfo_de.pdf">PDF</a>
+      </li>
+    `)
+
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]).toMatchObject({
+      productName: 'CyberKnife Robotic Radiosurgery System',
+      manufacturer: 'Accuray Incorporated',
+      externalId: '25633-26',
+    })
+    expect(parsed[0].date?.toISOString().slice(0, 10)).toBe('2026-05-28')
+  })
+
+  it('normalizes malformed and duplicate BfArM source URLs before exposing results', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(`
+      <ul>
+        <li class="l-teaser-list__item">
+          <span class="c-icon-teaser__date">28. Mai 2026</span>
+          <h3 class="c-icon-teaser__headline">Dringende Sicherheitsinformation zu CyberKnife Robotic Radiosurgery System von Accuray Incorporated</h3>
+          <span class="c-icon-teaser__reference">25633/26</span>
+          <a class="c-icon-teaser__link--download" href="https://www.bfarm.dehttps//www.bfarm.de/SharedDocs/Kundeninfos/DE/09/2026/25633-26_kundeninfo_de.pdf">PDF</a>
+        </li>
+      </ul>
+    `, {
+      status: 200,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+    })))
+
+    const result = await scrapeBfArM({
+      fromDate: new Date('2026-05-01T00:00:00.000Z'),
+      toDate: new Date('2026-05-31T23:59:59.999Z'),
+    })
+
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0].source_url).toBe(
+      'https://www.bfarm.de/SharedDocs/Kundeninfos/DE/09/2026/25633-26_kundeninfo_de.pdf',
+    )
+    expect(result.items[0].raw_content).toContain(
+      'https://www.bfarm.de/SharedDocs/Kundeninfos/DE/09/2026/25633-26_kundeninfo_de.pdf',
+    )
   })
 
   it('extracts and decodes the forward navigation href', () => {
