@@ -4,6 +4,7 @@ import { getCoveredRanges, computeUncoveredRanges, mergeCoverage } from '@/lib/s
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
 import { extractManufacturerTerms, extractDeviceTerms } from '@/lib/search/manufacturer-terms'
 import { matchesKeywordSignature, matchesKeywordTerm } from '@/lib/search/keyword-match'
+import { daysBetween } from '@/lib/utils/date-chunks'
 import { insertResultsStage } from './insert-results'
 import type { PipelineContext, ProgressUpdate, SourceResultBreakdown } from '../types'
 import {
@@ -22,6 +23,11 @@ const SOURCE_TIMEOUTS_MS: Record<string, number> = {
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000
+// Short/default PRRC review windows must be checked live so the visible raw
+// count matches the authority site instead of an older fsn_canonical snapshot.
+// Longer historical windows can still use certified coverage and only fetch
+// uncovered gaps to keep large backfills practical.
+const SOURCE_COVERAGE_REUSE_MIN_DAYS = 46
 const EVIDENCE_CAPTURE_ENABLED = process.env.REGULATORY_EVIDENCE_CAPTURE === 'true'
 const EVIDENCE_CAPTURE_SOURCES = new Set(
   (process.env.REGULATORY_EVIDENCE_SOURCES ?? '').split(',').map((source) => source.trim()).filter(Boolean),
@@ -31,6 +37,10 @@ const SENSITIVE_EVIDENCE_APPROVED = process.env.REGULATORY_EVIDENCE_ALLOW_SENSIT
 function evidenceCaptureEnabledFor(source: string): boolean {
   if (!EVIDENCE_CAPTURE_ENABLED || !EVIDENCE_CAPTURE_SOURCES.has(source)) return false
   return sourceCaptureAllowed(source as SourceName, SENSITIVE_EVIDENCE_APPROVED)
+}
+
+function shouldReuseSourceCoverageForWindow(fromDate: string, toDate: string): boolean {
+  return daysBetween(fromDate, toDate) >= SOURCE_COVERAGE_REUSE_MIN_DAYS
 }
 
 function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, ms: number, label: string): Promise<T> {
@@ -323,7 +333,10 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       }
     }
 
-    if (forceRefresh || !canReuseSourceCoverage) {
+    const reuseSourceCoverageForWindow =
+      canReuseSourceCoverage && shouldReuseSourceCoverageForWindow(period_from, period_to)
+
+    if (forceRefresh || !reuseSourceCoverageForWindow) {
       await fetchSourceRange({ from: period_from, to: period_to })
     } else {
       const covered    = await getCoveredRanges(sourceId)
