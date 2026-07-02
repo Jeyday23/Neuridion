@@ -50,6 +50,39 @@ describe('scrapeBfArM pagination bounds', () => {
     expect(result.items.map((item) => item.external_id)).toEqual(['26008-26', '26007-26'])
   })
 
+  it('drops BfArM boundary-page jump-back rows after the visible list reaches fromDate', async () => {
+    const pageOne = `
+      <html><body>
+        <ul>
+          ${teaser('27189-26', '19. Juni 2026')}
+          <li class="c-navindex__item is-forward">
+            <a href="/SiteGlobals/Forms/Suche/Expertensuche_Formular.html?cl2Categories_Format=kundeninfo&amp;cl2Categories_Rubrik=medizinprodukte&amp;resultsPerPage=30&amp;gtp=469344_list%3D2">Weiter</a>
+          </li>
+        </ul>
+      </body></html>
+    `
+    const pageTwo = page([
+      teaser('18850-26', '19. Mai 2026'),
+      teaser('21916-26', '19. Juni 2026', 'Late jump-back row that BfArM appends after the lower-bound page'),
+      teaser('21735-26', '18. Mai 2026', 'Below-range row'),
+    ])
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      const href = String(url)
+      return new Response(href.includes('gtp=469344_list%3D2') ? pageTwo : pageOne, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8' },
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await scrapeBfArM({
+      fromDate: new Date('2026-05-19T00:00:00.000Z'),
+      toDate:   new Date('2026-06-19T23:59:59.999Z'),
+    })
+
+    expect(result.items.map((item) => item.external_id)).toEqual(['27189-26', '18850-26'])
+  })
+
   it('retains exact HTML bytes only when raw evidence capture is requested', async () => {
     const html = page([teaser('26008-26', '17. Juni 2026')])
     vi.stubGlobal('fetch', vi.fn(async () => new Response(html, {
