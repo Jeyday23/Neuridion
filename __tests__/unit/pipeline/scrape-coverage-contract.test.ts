@@ -180,8 +180,53 @@ describe('scrape coverage completeness contract', () => {
     expect(ctx.insertedRows.map(row => row.external_id)).toEqual(['record-1'])
   })
 
-  it('reuses certified source-wide BfArM authority coverage without a live scrape', async () => {
-    getCoveredRanges.mockResolvedValue([{ from: '2026-05-19', to: '2026-06-19' }])
+  it('live-refreshes short BfArM windows even when certified coverage exists', async () => {
+    getCoveredRanges.mockResolvedValue([{ from: '2026-06-02', to: '2026-07-02' }])
+    getCanonicalItems.mockResolvedValue(Array.from({ length: 64 }, (_, index) => ({
+      ...item,
+      external_id: `stale-bfarm-${index}`,
+      source_db: 'bfarm',
+    })))
+    nextResult = {
+      items: Array.from({ length: 63 }, (_, index) => ({
+        ...item,
+        external_id: `live-bfarm-${index}`,
+        source_db: 'bfarm',
+      })),
+      warnings: [],
+      outcome: 'complete',
+    }
+    const ctx = context()
+    ctx.payload.selected_dbs = ['bfarm']
+    ctx.activeSources = ['bfarm']
+    ctx.payload.period_from = '2026-06-02'
+    ctx.payload.period_to = '2026-07-02'
+
+    const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
+    await scrapeStage(ctx)
+
+    expect(getCoveredRanges).not.toHaveBeenCalled()
+    expect(computeUncoveredRanges).not.toHaveBeenCalled()
+    expect(getCanonicalItems).not.toHaveBeenCalled()
+    expect(scraper).toHaveBeenCalledWith(expect.objectContaining({
+      fromDate: '2026-06-02',
+      toDate: '2026-07-02',
+    }))
+    expect(mergeCoverage).toHaveBeenCalledWith('bfarm', { from: '2026-06-02', to: '2026-07-02' })
+    expect(ctx.insertedRows).toHaveLength(63)
+    expect(ctx.insertedRows.map(row => row.external_id)).not.toContain('stale-bfarm-0')
+    expect(ctx.sourceBreakdown).toMatchObject([{
+      source: 'bfarm',
+      fresh_fetched: 63,
+      cached_loaded: 0,
+      found_before_filtering: 63,
+      status: 'complete',
+      fresh_outcomes: ['2026-06-02..2026-07-02:complete'],
+    }])
+  })
+
+  it('reuses certified source-wide BfArM authority coverage for longer historical windows without a live scrape', async () => {
+    getCoveredRanges.mockResolvedValue([{ from: '2026-01-01', to: '2026-06-19' }])
     getCanonicalItems.mockResolvedValue(Array.from({ length: 67 }, (_, index) => ({
       ...item,
       external_id: `stale-bfarm-${index}`,
@@ -191,7 +236,7 @@ describe('scrape coverage completeness contract', () => {
     const ctx = context()
     ctx.payload.selected_dbs = ['bfarm']
     ctx.activeSources = ['bfarm']
-    ctx.payload.period_from = '2026-05-19'
+    ctx.payload.period_from = '2026-01-01'
     ctx.payload.period_to = '2026-06-19'
 
     const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
@@ -199,11 +244,11 @@ describe('scrape coverage completeness contract', () => {
 
     expect(getCoveredRanges).toHaveBeenCalledWith('bfarm')
     expect(computeUncoveredRanges).toHaveBeenCalledWith(
-      [{ from: '2026-05-19', to: '2026-06-19' }],
-      '2026-05-19',
+      [{ from: '2026-01-01', to: '2026-06-19' }],
+      '2026-01-01',
       '2026-06-19',
     )
-    expect(getCanonicalItems).toHaveBeenCalledWith('bfarm', '2026-05-19', '2026-06-19')
+    expect(getCanonicalItems).toHaveBeenCalledWith('bfarm', '2026-01-01', '2026-06-19')
     expect(mergeCoverage).not.toHaveBeenCalled()
     expect(scraper).not.toHaveBeenCalled()
     expect(ctx.insertedRows).toHaveLength(67)
@@ -218,7 +263,7 @@ describe('scrape coverage completeness contract', () => {
   })
 
   it('fetches only uncovered BfArM authority gaps and merges them with cached rows', async () => {
-    getCoveredRanges.mockResolvedValue([{ from: '2026-05-19', to: '2026-06-03' }])
+    getCoveredRanges.mockResolvedValue([{ from: '2026-01-01', to: '2026-06-03' }])
     computeUncoveredRanges.mockReturnValue([{ from: '2026-06-04', to: '2026-06-19' }])
     getCanonicalItems.mockResolvedValue(Array.from({ length: 66 }, (_, index) => ({
       ...item,
@@ -242,7 +287,7 @@ describe('scrape coverage completeness contract', () => {
     const ctx = context()
     ctx.payload.selected_dbs = ['bfarm']
     ctx.activeSources = ['bfarm']
-    ctx.payload.period_from = '2026-05-19'
+    ctx.payload.period_from = '2026-01-01'
     ctx.payload.period_to = '2026-06-19'
 
     const { scrapeStage } = await import('@/lib/pipeline/stages/scrape')
@@ -252,7 +297,7 @@ describe('scrape coverage completeness contract', () => {
       fromDate: '2026-06-04',
       toDate: '2026-06-19',
     }))
-    expect(getCanonicalItems).toHaveBeenCalledWith('bfarm', '2026-05-19', '2026-06-03')
+    expect(getCanonicalItems).toHaveBeenCalledWith('bfarm', '2026-01-01', '2026-06-03')
     expect(mergeCoverage).toHaveBeenCalledWith('bfarm', { from: '2026-06-04', to: '2026-06-19' })
     expect(ctx.insertedRows).toHaveLength(67)
     expect(ctx.insertedRows.map(row => row.external_id)).toContain('20020-26')
