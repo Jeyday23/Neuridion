@@ -78,32 +78,44 @@ function sanitizeErrorMessage(raw: string | null): string {
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
+export function defaultSearchPeriod(now = new Date()): { from: string; to: string } {
+  return {
+    from: format(subMonths(now, 1), 'yyyy-MM-dd'),
+    to:   format(now, 'yyyy-MM-dd'),
+  }
+}
+
 export function SearchPanel({ profiles }: { profiles: Profile[] }) {
-  const today   = format(new Date(), 'yyyy-MM-dd')
-  const yearAgo = format(subMonths(new Date(), 12), 'yyyy-MM-dd')
+  const defaultPeriod = defaultSearchPeriod()
+  const today = defaultPeriod.to
+  const defaultFromDate = defaultPeriod.from
 
   const { searchState: state, setSearchState: setState } = useSearchContext()
   const { t } = useLanguage()
 
   const STORAGE_KEY = 'neuridion-search-form'
+  const STORAGE_VERSION = 2
 
   function loadSaved() {
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY)
       if (!raw) return null
-      return JSON.parse(raw) as {
+      const parsed = JSON.parse(raw) as {
+        version?: number
         profileId?: string
         fromDate?: string
         toDate?: string
         selectedDbs?: string[]
       }
+      if (parsed.version !== STORAGE_VERSION) return null
+      return parsed
     } catch { return null }
   }
 
   const saved = useMemo(() => loadSaved(), [])
 
   const [profileId, setProfileId]     = useState(saved?.profileId && profiles.some(p => p.id === saved.profileId) ? saved.profileId : profiles[0]?.id ?? '')
-  const [fromDate, setFromDate]       = useState(saved?.fromDate ?? yearAgo)
+  const [fromDate, setFromDate]       = useState(saved?.fromDate ?? defaultFromDate)
   const [toDate, setToDate]           = useState(saved?.toDate ?? today)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const [filterTab, setFilterTab]     = useState<FilterTab>('all')
@@ -115,7 +127,7 @@ export function SearchPanel({ profiles }: { profiles: Profile[] }) {
 
   useEffect(() => {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-      profileId, fromDate, toDate, selectedDbs: [...selectedDbs],
+      version: STORAGE_VERSION, profileId, fromDate, toDate, selectedDbs: [...selectedDbs],
     }))
   }, [profileId, fromDate, toDate, selectedDbs])
   const [hoveredDb, setHoveredDb]     = useState<string | null>(null)
