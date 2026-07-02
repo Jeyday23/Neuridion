@@ -10,6 +10,9 @@ const MAX_CRAWL_PAGE_LIMIT = 30
 const SCRAPE_PAGE_LIMIT = 50
 const FIRECRAWL_REQUEST_TIMEOUT_MS = 15_000
 const BFARM_LONG_RANGE_ARCHIVE_DAYS = 181
+const DEFAULT_SHORT_RANGE_CHUNK_DAYS = 7
+const MIN_SHORT_RANGE_CHUNK_DAYS = 1
+const MAX_SHORT_RANGE_CHUNK_DAYS = 31
 const DEFAULT_LONG_RANGE_CHUNK_DAYS = 60
 const MIN_LONG_RANGE_CHUNK_DAYS = 14
 const MAX_LONG_RANGE_CHUNK_DAYS = 90
@@ -28,6 +31,18 @@ function getLongRangeChunkDays(): number {
   const raw = Number(process.env.FIRECRAWL_BFARM_CHUNK_DAYS)
   if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_LONG_RANGE_CHUNK_DAYS
   return Math.min(Math.max(Math.floor(raw), MIN_LONG_RANGE_CHUNK_DAYS), MAX_LONG_RANGE_CHUNK_DAYS)
+}
+
+function getShortRangeChunkDays(): number {
+  const raw = Number(process.env.FIRECRAWL_BFARM_SHORT_CHUNK_DAYS)
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_SHORT_RANGE_CHUNK_DAYS
+  return Math.min(Math.max(Math.floor(raw), MIN_SHORT_RANGE_CHUNK_DAYS), MAX_SHORT_RANGE_CHUNK_DAYS)
+}
+
+function getChunkDays(totalDays: number): number {
+  return totalDays >= BFARM_LONG_RANGE_ARCHIVE_DAYS
+    ? getLongRangeChunkDays()
+    : getShortRangeChunkDays()
 }
 
 function getChunkCrawlPageLimit(): number {
@@ -276,7 +291,8 @@ async function firecrawlSequentialBfarmDateChunks(
   params: ScraperParams,
   options: FirecrawlOptions,
 ): Promise<ScraperResult | null> {
-  const chunks = chunkDateRange(params.fromDate, params.toDate, getLongRangeChunkDays())
+  const totalDays = daysBetweenInclusive(params.fromDate, params.toDate)
+  const chunks = chunkDateRange(params.fromDate, params.toDate, getChunkDays(totalDays))
   const warnings: string[] = []
   const byId = new Map<string, ScrapedFsn>()
 
@@ -595,6 +611,41 @@ export async function firecrawlFallback(
     }
   }
 
+  if (totalDays < BFARM_LONG_RANGE_ARCHIVE_DAYS) {
+    const chunked = await firecrawlSequentialBfarmDateChunks(params, {
+      apiKey,
+      deadlineMs,
+      signal: parentSignal,
+    })
+
+    if (chunked) {
+      console.error(`[firecrawl] chunked exact-date fallback returned ${chunked.items.length} items (outcome=${chunked.outcome})`)
+      if (chunked.outcome === 'complete') {
+        return chunked
+      }
+
+      if (chunked.items.length > 0) {
+        const previousCount = sequentialPartial?.items.length ?? 0
+        const mergedItems = mergeBfarmItems(sequentialPartial?.items ?? [], chunked.items)
+        sequentialPartial = scraperResult(mergedItems, [
+          ...sequentialZeroWarnings,
+          ...chunked.warnings,
+          ...(mergedItems.length > previousCount
+            ? [`BfArM chunked exact-date fallback added ${mergedItems.length - previousCount} item(s) beyond previous fallback.`]
+            : []),
+          'BfArM chunked exact-date fallback was partial; tried crawl fallback for additional coverage.',
+        ])
+        sequentialZeroWarnings = sequentialPartial.warnings
+      } else {
+        sequentialZeroWarnings = [
+          ...sequentialZeroWarnings,
+          ...chunked.warnings,
+          'BfArM chunked exact-date fallback returned 0 items; used crawl fallback instead.',
+        ]
+      }
+    }
+  }
+
   if (totalDays >= BFARM_LONG_RANGE_ARCHIVE_DAYS && (!sequentialPartial || sequentialPartial.items.length < 60)) {
     const chunkCrawl = await firecrawlCrawlBfarmDateChunks(params, {
       apiKey,
@@ -647,7 +698,10 @@ export async function firecrawlFallback(
       mergedWarnings.push(`BfArM crawl fallback added ${mergedItems.length - sequentialPartial.items.length} item(s) beyond sequential fallback.`)
     }
     if (broadCrawl.outcome === 'complete') {
-      return scraperResult(mergedItems, [])
+      return scraperResult(mergedItems, [
+        ...mergedWarnings,
+        'BfArM broad crawl fallback reached the requested date range but cannot prove exact visible-result parity; source coverage is incomplete.',
+      ])
     }
     return scraperResult(mergedItems, [...mergedWarnings, ...broadCrawl.warnings])
   }
