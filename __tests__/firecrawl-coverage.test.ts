@@ -47,7 +47,7 @@ describe('Firecrawl BfArM fallback coverage', () => {
     vi.restoreAllMocks()
   })
 
-  it('returns complete fallback coverage when crawled pages cross below the requested fromDate', async () => {
+  it('keeps broad crawl fallback partial even when crawled pages cross below the requested fromDate', async () => {
     vi.useFakeTimers()
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
     mockFirecrawl([
@@ -63,8 +63,10 @@ describe('Firecrawl BfArM fallback coverage', () => {
     const result = await pending
 
     expect(result.items).toHaveLength(1)
-    expect(result.outcome).toBe('complete')
-    expect(result.warnings).toEqual([])
+    expect(result.outcome).toBe('partial')
+    expect(result.warnings).toEqual([
+      'BfArM broad crawl fallback reached the requested date range but cannot prove exact visible-result parity; source coverage is incomplete.',
+    ])
   })
 
   it('keeps fallback partial when crawled pages do not prove complete date-range coverage', async () => {
@@ -144,6 +146,67 @@ describe('Firecrawl BfArM fallback coverage', () => {
       manufacturer: 'STAAR Surgical AG',
     })
     expect(result.items).toHaveLength(4)
+  })
+
+  it('recovers short-range BfArM rows from exact-date chunks when broad fallback misses pages', async () => {
+    const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
+    vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
+    vi.stubEnv('FIRECRAWL_BFARM_SHORT_CHUNK_DAYS', '7')
+    const requests: string[] = []
+
+    function chunkRows(prefix: string, count: number, dateText: string): string[] {
+      return Array.from({ length: count }, (_, index) =>
+        teaser(`${prefix}${String(index + 1).padStart(2, '0')}-26`, dateText),
+      )
+    }
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = String(url)
+      if (href.endsWith('/scrape')) {
+        const body = JSON.parse(String(init?.body ?? '{}')) as { url: string }
+        requests.push(body.url)
+
+        if (body.url.includes('input_Datum_VON=02.06.2026') && body.url.includes('input_Datum_BIS=02.07.2026')) {
+          const latestPage = page(Array.from({ length: 30 }, (_, index) =>
+            teaser(`270${String(index).padStart(2, '0')}-26`, '01. Juli 2026'),
+          ))
+          return new Response(JSON.stringify({ data: { html: latestPage } }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+
+        const chunkMap: Array<[string, string, string[], string]> = [
+          ['02.06.2026', '08.06.2026', chunkRows('2601', 14, '08. Juni 2026'), 'first chunk'],
+          ['09.06.2026', '15.06.2026', chunkRows('2602', 14, '15. Juni 2026'), 'second chunk'],
+          ['16.06.2026', '22.06.2026', chunkRows('2603', 14, '22. Juni 2026'), 'third chunk'],
+          ['23.06.2026', '29.06.2026', chunkRows('2604', 14, '29. Juni 2026'), 'fourth chunk'],
+          ['30.06.2026', '02.07.2026', chunkRows('2605', 7, '02. Juli 2026'), 'fifth chunk'],
+        ]
+        for (const [from, to, rows] of chunkMap) {
+          if (body.url.includes(`input_Datum_VON=${from}`) && body.url.includes(`input_Datum_BIS=${to}`)) {
+            return new Response(JSON.stringify({ data: { html: page(rows) } }), {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            })
+          }
+        }
+
+        throw new Error(`Unexpected scrape URL: ${body.url}`)
+      }
+      throw new Error(`Unexpected URL: ${href}`)
+    }))
+
+    const result = await firecrawlFallback({
+      fromDate: '2026-06-02',
+      toDate: '2026-07-02',
+    })
+
+    expect(result.outcome).toBe('complete')
+    expect(result.warnings).toEqual([])
+    expect(result.items).toHaveLength(63)
+    expect(requests.some(request => request.includes('input_Datum_VON=02.06.2026') && request.includes('input_Datum_BIS=08.06.2026'))).toBe(true)
+    expect(requests.some(request => request.includes('input_Datum_VON=30.06.2026') && request.includes('input_Datum_BIS=02.07.2026'))).toBe(true)
   })
 
   it('uses BfArM archive shortcuts for long Firecrawl ranges and synthesizes missing next pages', async () => {
