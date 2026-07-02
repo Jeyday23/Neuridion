@@ -1,9 +1,10 @@
 -- 023_performance_indexes.sql
 -- Performance indexes for high-traffic query patterns.
 
--- fsn_results: every result page load queries WHERE run_id = $1
+-- fsn_results: every result page load queries by run.
+-- Migration 031 later renames search_run_id to run_id on fresh rebuilds.
 CREATE INDEX IF NOT EXISTS idx_fsn_results_run_id
-  ON public.fsn_results(run_id);
+  ON public.fsn_results(search_run_id);
 
 -- fsn_results: FK with no supporting index; used in canonical dedup joins
 CREATE INDEX IF NOT EXISTS idx_fsn_results_canonical_id

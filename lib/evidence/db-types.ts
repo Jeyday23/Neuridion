@@ -151,6 +151,96 @@ export type EvidenceDatabase = {
         event_metadata?: Json
         occurred_at?: string
       }>
+      document_extraction_attempts: EvidenceTable<{
+        id: string
+        evidence_id: string
+        extractor_version: string
+        status: string
+        warnings: Json
+        metadata: Json
+        created_at: string
+      }, {
+        id?: string
+        evidence_id: string
+        extractor_version: string
+        status: string
+        warnings?: Json
+        metadata?: Json
+        created_at?: string
+      }>
+      document_extractions: EvidenceTable<{
+        id: string
+        evidence_id: string
+        extractor_version: string
+        status: string
+        has_text_layer: boolean | null
+        page_count: number | null
+        text_chars: number | null
+        language: string | null
+        warnings: Json
+        created_at: string
+      }, {
+        id?: string
+        evidence_id: string
+        extractor_version: string
+        status: string
+        has_text_layer?: boolean | null
+        page_count?: number | null
+        text_chars?: number | null
+        language?: string | null
+        warnings?: Json
+        created_at?: string
+      }>
+      fsn_detail: EvidenceTable<{
+        id: string
+        extraction_id: string
+        authority_record_id: string | null
+        fsca_reference: string | null
+        udi_dis: string[]
+        ref_numbers: string[]
+        lot_numbers: string[]
+        serial_numbers: string[]
+        product_names: string[]
+        action_required: string | null
+        field_provenance: Json
+        ungrounded_dropped: Json
+        created_at: string
+      }, {
+        id?: string
+        extraction_id: string
+        authority_record_id?: string | null
+        fsca_reference?: string | null
+        udi_dis?: string[]
+        ref_numbers?: string[]
+        lot_numbers?: string[]
+        serial_numbers?: string[]
+        product_names?: string[]
+        action_required?: string | null
+        field_provenance?: Json
+        ungrounded_dropped?: Json
+        created_at?: string
+      }>
+      fsn_identity_observations: EvidenceTable<{
+        id: string
+        authority_record_id: string
+        extraction_id: string
+        observation_type: string
+        observed_value: string
+        normalized_value: string
+        confidence: number
+        provenance: Json
+        created_at: string
+      }, {
+        id?: string
+        authority_record_id: string
+        extraction_id: string
+        observation_type: string
+        observed_value: string
+        normalized_value: string
+        confidence: number
+        provenance?: Json
+        created_at?: string
+      }>
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -158,4 +248,3 @@ export type EvidenceDatabase = {
     CompositeTypes: Record<string, never>
   }
 }
-
