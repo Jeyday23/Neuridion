@@ -52,6 +52,8 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
     : []
 
   let hitItemsCap = false
+  let totalSeen = 0
+  let totalDropped = 0
 
   for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber++) {
     const page = await fetchPublicationPage(params, pageNumber, params.signal)
@@ -63,6 +65,8 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
 
     const publications = page.content ?? []
     const passed = publications.filter(p => isRelevantToProfile(p, mfrTerms))
+    totalSeen += publications.length
+    totalDropped += publications.length - passed.length
 
     for (const publication of passed) {
       const item = toScrapedFsn(publication)
@@ -94,6 +98,18 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
     )
   }
 
+  // Observability for the client-side term filter: a too-aggressive token set
+  // silently loses FSCAs, so make the drop count visible in server logs.
+  // Deliberately NOT a warning — filtering is normal behaviour, and warnings
+  // mark the whole run as degraded.
+  if (mfrTerms.length > 0 && totalDropped > 0) {
+    console.error(
+      '[swissmedic]',
+      `profile term filter dropped ${totalDropped} of ${totalSeen} publications ` +
+      `in ${params.fromDate}–${params.toDate} (terms: ${JSON.stringify(mfrTerms)})`,
+    )
+  }
+
   // Validate dates client-side (API may return out-of-range items)
   const fromDate = new Date(params.fromDate + 'T00:00:00Z')
   const toDate   = new Date(params.toDate + 'T00:00:00Z')
@@ -114,6 +130,10 @@ function isRelevantToProfile(publication: SwissmedicPublication, terms: string[]
   if (terms.length === 0) return true
   const haystack = [
     publication.hersteller,
+    // begruendung (reason text) often names the device family when the
+    // structured device fields are sparse — include it to avoid dropping
+    // relevant FSCAs before the AI filter ever sees them.
+    publication.begruendung,
     ...(publication.devices?.map(d => d.handelsname) ?? []),
     ...(publication.devices?.map(d => d.beschreibungKlasse) ?? []),
   ].filter(Boolean).join(' ').toLowerCase()
