@@ -15,6 +15,7 @@
     "verify:release:prrc": "tsx scripts/with-env.ts -- npm run verify:release -- --profile prrc",
     "verify:source-parity": "tsx scripts/with-env.ts -- tsx scripts/verify-source-parity.ts",
     "verify:source-parity:all": "tsx scripts/with-env.ts -- tsx scripts/verify-source-parity.ts --source all",
+    "eval:filter": "tsx scripts/with-env.ts -- tsx scripts/filter-eval.ts",
     "benchmark:accuracy": "tsx benchmark/cli.ts",
     "benchmark:live": "tsx benchmark/cli.ts --live",
     "benchmark:reviewed-pms": "tsx benchmark/reviewed-pms.ts"

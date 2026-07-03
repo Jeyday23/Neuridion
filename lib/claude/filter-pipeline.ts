@@ -4,11 +4,18 @@ import { z } from 'zod'
 import { callAnthropicWithRetry, callHaikuWithRetry } from './rate-limiter'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sanitizeForLlm, sanitizeProfileField } from '@/lib/scrapers/sanitize'
+import { extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
 const HAIKU_MODEL  = 'claude-haiku-4-5-20251001'
 const SONNET_MODEL = 'claude-sonnet-4-6'
+
+// Salted into the profile fingerprint so cached decisions are keyed to the
+// prompt/pipeline generation that produced them. Bump on any change to the
+// system prompt, pre-filter behaviour, or decision criteria — otherwise
+// improved prompts never reach the ~80% of decisions served from cache.
+export const FILTER_PROMPT_VERSION = 'fp-v2'
 
 // ── Module-level singleton — avoids re-initialising HTTP client per call ──────
 
@@ -67,7 +74,11 @@ function markAuthFailed(err: unknown): void {
 
 const PII_PATTERNS: [RegExp, string][] = [
   [/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '[EMAIL]'],
-  [/(?:\+\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}/g, '[PHONE]'],
+  // Separators between digit groups are REQUIRED. Optional separators made this
+  // pattern swallow lot numbers, catalog numbers, and GTIN-14 UDIs — destroying
+  // the device-identity evidence the classifier needs. Trade-off: unseparated
+  // phone formats (e.g. "+49 30 12345678") are no longer caught.
+  [/(?:\+\d{1,3}[-.\s]?)?\(?\d{2,4}\)?[-.\s]\d{3,4}[-.\s]\d{3,4}\b/g, '[PHONE]'],
   [/\b\d{3}-\d{2}-\d{4}\b/g, '[SSN]'],
   [/\b(?:Patient|Reported\s+by|Contact|Name|Complainant)\s*:\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,3}/gi, '[PII_REDACTED]'],
   [/\b(?:DOB|Date\s+of\s+Birth)\s*:\s*\S+/gi, '[DOB_REDACTED]'],
@@ -75,12 +86,19 @@ const PII_PATTERNS: [RegExp, string][] = [
   [/\d{2,5}\s+[A-Za-z]+(?:\s+[A-Za-z]+)*\s+(?:St|Ave|Blvd|Dr|Rd|Ln|Way|Ct|Pl|Pkwy|Hwy)\.?(?:\s*,|\s*$)/gi, '[ADDRESS]'],
 ]
 
-function sanitizePii(text: string): string {
+export function sanitizePii(text: string): string {
   let result = text
   for (const [pattern, replacement] of PII_PATTERNS) {
     result = result.replace(pattern, replacement)
   }
   return result
+}
+
+// Only FDA MAUDE narratives carry third-party patient data. EU regulator
+// content (BfArM/MHRA/Swissmedic) is published PII-free — scrubbing it only
+// risks mangling device identifiers.
+export function piiScrubForSource(text: string, sourceDb?: string | null): string {
+  return sourceDb === 'fda' ? sanitizePii(text) : text
 }
 
 // ── System prompt ─────────────────────────────────────────────────────────────
@@ -204,7 +222,10 @@ export interface FsnContext {
 
 // ── Cache helpers ─────────────────────────────────────────────────────────────
 
-export function getProfileFingerprint(profile: ProfileContext): string {
+export function getProfileFingerprint(
+  profile: ProfileContext,
+  promptVersion: string = FILTER_PROMPT_VERSION,
+): string {
   return createHash('sha256')
     .update(JSON.stringify({
       device_name:    profile.device_name.toLowerCase().trim(),
@@ -212,17 +233,33 @@ export function getProfileFingerprint(profile: ProfileContext): string {
       manufacturer:   profile.manufacturer.toLowerCase().trim(),
       emdn_code:      profile.emdn_code ?? '',
       intended_use:   (profile.intended_use ?? '').toLowerCase().slice(0, 100),
+      prompt_version: promptVersion,
     }))
     .digest('hex')
     .slice(0, 32)
 }
 
-function getFsnExternalId(fsn: FsnContext): string {
+// Content-aware cache key: an amended FSN (same title, changed content) MUST
+// produce a different key, or the stale decision is served forever.
+export function getFsnExternalId(fsn: FsnContext): string {
   const key = [fsn.title, fsn.manufacturer ?? '', fsn.source_db ?? ''].join('|').toLowerCase().trim()
+  const contentHash = createHash('sha256').update(fsn.raw_content ?? '').digest('hex').slice(0, 16)
   return createHash('sha256')
-    .update(key)
+    .update(`${key}|${contentHash}`)
     .digest('hex')
     .slice(0, 32)
+}
+
+// Deterministic pre-filter guard: if any discriminating token of the profile's
+// manufacturer appears in the FSN, the Haiku pre-filter is skipped entirely —
+// a manufacturer match is, by the filter's own criteria, never "clearly
+// unrelated", and a title-only CLEAR_EXCLUDE here is the worst error class
+// (silently missed relevant FSN, then cached).
+export function hasManufacturerTokenMatch(fsn: FsnContext, profile: ProfileContext): boolean {
+  const tokens = extractManufacturerTerms(profile.manufacturer)
+  if (tokens.length === 0) return false
+  const hay = `${fsn.title} ${fsn.manufacturer ?? ''} ${(fsn.raw_content ?? '').slice(0, 500)}`.toLowerCase()
+  return tokens.some(token => hay.includes(token))
 }
 
 async function getCachedDecision(
@@ -296,8 +333,12 @@ async function haikuPreFilter(
           content:
             `Device profile: ${sanitizeProfileField(profile.device_name, 200)} by ${sanitizeProfileField(profile.manufacturer, 200)}` +
             (profile.device_class ? `, ${sanitizeProfileField(profile.device_class, 50)}` : '') +
-            `\n\n<FSN_DATA>\nFSN manufacturer: ${sanitizeForLlm(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}` +
-            `\nFSN: "${sanitizeForLlm(sanitizePii(fsn.title), 500)}"\n</FSN_DATA>\n\n` +
+            `\n\n<FSN_DATA>\nFSN manufacturer: ${sanitizeForLlm(piiScrubForSource(fsn.manufacturer || 'Unknown', fsn.source_db), 200)}` +
+            `\nFSN: "${sanitizeForLlm(piiScrubForSource(fsn.title, fsn.source_db), 500)}"` +
+            (fsn.raw_content
+              ? `\nContent: ${sanitizeForLlm(piiScrubForSource(fsn.raw_content, fsn.source_db), 300)}`
+              : '') +
+            `\n</FSN_DATA>\n\n` +
             'Is this FSN CLEARLY NOT relevant to the device profile? ' +
             'Only say CLEAR_EXCLUDE if BOTH the device type/clinical domain AND the manufacturer ' +
             'are clearly unrelated. If the manufacturers are the same company (even under different legal names), say UNCERTAIN.',
@@ -334,9 +375,13 @@ async function sonnetFullFilter(
     .filter(Boolean)
     .join('\n')
 
+  // 8,000 chars: MAUDE narratives and enriched BfArM detail text routinely
+  // exceed 2k, and device-identification evidence often sits past that point.
+  // Haiku gates volume and the system prompt is cached, so the cost is small.
+  const MAX_FSN_CONTENT_CHARS = 8000
   const originalContentLength = fsn.raw_content.length
-  const wasTruncated = originalContentLength > 2000
-  const content = sanitizePii(fsn.raw_content.slice(0, 2000))
+  const wasTruncated = originalContentLength > MAX_FSN_CONTENT_CHARS
+  const content = piiScrubForSource(fsn.raw_content.slice(0, MAX_FSN_CONTENT_CHARS), fsn.source_db)
 
   const parsed = await callAnthropicWithRetry(async () => {
     const response = await anthropic.messages.create({
@@ -383,10 +428,10 @@ async function sonnetFullFilter(
               type: 'text',
               text:
                 `<FSN_DATA>\n` +
-                `Title: ${sanitizeForLlm(sanitizePii(fsn.title), 500)}\n` +
-                `Manufacturer: ${sanitizeForLlm(sanitizePii(fsn.manufacturer || 'Unknown'), 200)}\n` +
+                `Title: ${sanitizeForLlm(piiScrubForSource(fsn.title, fsn.source_db), 500)}\n` +
+                `Manufacturer: ${sanitizeForLlm(piiScrubForSource(fsn.manufacturer || 'Unknown', fsn.source_db), 200)}\n` +
                 `Date: ${sanitizeForLlm(fsn.fsn_date || 'Unknown', 30)}\n` +
-                `Content: ${sanitizeForLlm(content, 2000)}\n` +
+                `Content: ${sanitizeForLlm(content, MAX_FSN_CONTENT_CHARS)}\n` +
                 `</FSN_DATA>`,
             },
           ],
@@ -402,7 +447,7 @@ async function sonnetFullFilter(
   })
 
   const truncationNote = wasTruncated
-    ? ` [Note: Content was truncated from ${originalContentLength} to 2000 characters for analysis]`
+    ? ` [Note: Content was truncated from ${originalContentLength} to ${MAX_FSN_CONTENT_CHARS} characters for analysis]`
     : ''
 
   return {
@@ -456,9 +501,14 @@ export async function stage1Filter(
 
   try {
     // ── 2. Haiku pre-filter ────────────────────────────────────────────────
+    // Deterministic guard first: a manufacturer-token match can never be
+    // "clearly unrelated", so it goes straight to the full Sonnet filter —
+    // no title-only pre-filter exclusion is possible for these items.
     let haikuVerdict: 'CLEAR_EXCLUDE' | 'UNCERTAIN' = 'UNCERTAIN'
     try {
-      haikuVerdict = await haikuPreFilter(fsn, profile)
+      if (!hasManufacturerTokenMatch(fsn, profile)) {
+        haikuVerdict = await haikuPreFilter(fsn, profile)
+      }
     } catch (haikuErr) {
       if (isAuthError(haikuErr)) {
         markAuthFailed(haikuErr)

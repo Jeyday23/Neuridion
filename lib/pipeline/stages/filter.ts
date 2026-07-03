@@ -1,6 +1,5 @@
-import { createHash } from 'crypto'
 import pLimit from 'p-limit'
-import { stage1Filter, getProfileFingerprint, type FilterDecision } from '@/lib/claude/filter-pipeline'
+import { stage1Filter, getProfileFingerprint, getFsnExternalId, type FilterDecision } from '@/lib/claude/filter-pipeline'
 import { buildManufacturerSearchTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 import { matchesKeywordSignature, matchesKeywordTerm } from '@/lib/search/keyword-match'
 import { fetchBfarmDetail } from '@/lib/scrapers/bfarm'
@@ -40,9 +39,16 @@ function deterministicAiUnavailableDecision(row: InsertedFsnRow, reason: 'credit
   }
 }
 
-function fsnIdOf(fsn: { title: string; manufacturer?: string | null; source_db?: string | null }): string {
-  const key = [fsn.title, fsn.manufacturer ?? '', fsn.source_db ?? ''].join('|').toLowerCase().trim()
-  return createHash('sha256').update(key).digest('hex').slice(0, 32)
+// Cache key computation lives in filter-pipeline.ts (getFsnExternalId) —
+// single source of truth, content-aware since fp-v2.
+function fsnIdOf(fsn: InsertedFsnRow): string {
+  return getFsnExternalId({
+    title:        fsn.title,
+    manufacturer: fsn.manufacturer ?? '',
+    raw_content:  fsn.raw_content ?? '',
+    fsn_date:     fsn.fsn_date,
+    source_db:    fsn.source_db,
+  })
 }
 
 export function computeKeywordPriority(
@@ -297,12 +303,13 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
         if (!fsnRow?.source_url) return null
         const detail = await fetchBfarmDetail(fsnRow.source_url)
         if (!detail) return null
-        const enrichedContent = sanitizeForLlm(`${row.title}\n\n${detail}`)
+        const enrichedContent = sanitizeForLlm(`${row.title}\n\n${detail}`, 8000)
         pendingUpdates.push({ id: row.id, content: enrichedContent })
+        // Cache key is content-aware since fp-v2, so the enriched-content
+        // decision is safely readable from cache on re-runs.
         const refiltered = await stage1Filter(
           { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: enrichedContent, fsn_date: row.fsn_date, source_db: row.source_db },
           profile,
-          { skipCache: true },
         )
         return { ...refiltered, fsn_result_id: row.id }
       }))
