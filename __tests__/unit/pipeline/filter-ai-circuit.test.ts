@@ -1,22 +1,33 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { createHash } from 'node:crypto'
 import type { PipelineContext } from '@/lib/pipeline/types'
 
 const mocks = vi.hoisted(() => ({
   stage1Filter: vi.fn(),
 }))
 
-vi.mock('@/lib/claude/filter-pipeline', () => ({
-  stage1Filter: mocks.stage1Filter,
-  getProfileFingerprint: () => 'profile-fingerprint',
-}))
+vi.mock('@/lib/claude/filter-pipeline', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/claude/filter-pipeline')>()
+  return {
+    stage1Filter: mocks.stage1Filter,
+    getProfileFingerprint: () => 'profile-fingerprint',
+    // Real content-aware key so the test exercises the production cache-key path.
+    getFsnExternalId: actual.getFsnExternalId,
+  }
+})
 vi.mock('@/lib/scrapers/bfarm', () => ({ fetchBfarmDetail: vi.fn() }))
 
 import { filterStage, isTerminalAiAvailabilityFailure } from '@/lib/pipeline/stages/filter'
+// Resolves through the mock above to the ACTUAL implementation.
+import { getFsnExternalId } from '@/lib/claude/filter-pipeline'
 
-function fsnCacheId(row: { title: string; manufacturer?: string | null; source_db?: string | null }) {
-  const key = [row.title, row.manufacturer ?? '', row.source_db ?? ''].join('|').toLowerCase().trim()
-  return createHash('sha256').update(key).digest('hex').slice(0, 32)
+function fsnCacheId(row: { title: string; manufacturer?: string | null; raw_content?: string | null; source_db?: string | null }) {
+  return getFsnExternalId({
+    title:        row.title,
+    manufacturer: row.manufacturer ?? '',
+    raw_content:  row.raw_content ?? '',
+    fsn_date:     null,
+    source_db:    row.source_db,
+  })
 }
 
 function context(cacheHits: Array<{ fsn_external_id: string; decision: string; reasoning: string | null; confidence: string | null }> = []): PipelineContext {
