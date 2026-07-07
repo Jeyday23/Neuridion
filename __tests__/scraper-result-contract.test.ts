@@ -20,6 +20,16 @@ describe('enterprise scraper result contract', () => {
     expect(scraperResult([], ['unavailable'], { failed: true }).outcome).toBe('failed')
   })
 
+  it('retains verified fallback provenance warnings without downgrading coverage', () => {
+    const result = scraperResult(
+      [item],
+      ['BfArM broad crawl fallback verified requested date-range coverage after earlier fallback warnings.'],
+      { coverageVerified: true },
+    )
+    expect(result.outcome).toBe('complete')
+    expect(result.warnings).toHaveLength(1)
+  })
+
   it('treats a known archive limitation as partial coverage', () => {
     const result = scraperResult([], ['archive unavailable'], { archiveLimitationHit: true })
     expect(result.outcome).toBe('partial')

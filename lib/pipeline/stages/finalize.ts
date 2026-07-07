@@ -1,15 +1,24 @@
 import { logAuditEvent } from '@/lib/audit'
 import { sendSearchRunNotification } from '@/lib/email'
+import { isCoverageAffectingWarning } from '@/lib/scrapers/bfarm'
 import type { PipelineContext } from '../types'
 
 const DATA_LOSS_PATTERN = /capped|result cap|dropped|incomplete|missing|structure.*changed|Pipeline stage error/i
+const AI_REVIEW_UNAVAILABLE_PATTERN = /AI relevance review.*unavailable|manual PRRC review|required|provider.*billing|provider.*authentication/i
+const BENIGN_EMPTY_SOURCE_WARNING = /database was unavailable during this search and returned no results|FIRECRAWL_API_KEY not set|Firecrawl fallback skipped: no credits|Firecrawl crawl timed out|BfArM primary scraper threw|outside the 3-year archive window/i
+
+function isRunDegradingWarning(warning: string): boolean {
+  if (BENIGN_EMPTY_SOURCE_WARNING.test(warning)) return false
+  return isCoverageAffectingWarning(warning) || DATA_LOSS_PATTERN.test(warning) || AI_REVIEW_UNAVAILABLE_PATTERN.test(warning)
+}
 
 export function computeRunStatus(warnings: string[], itemCount: number): 'complete' | 'degraded' | 'error' {
+  const degradingWarnings = warnings.filter(isRunDegradingWarning)
   if (warnings.length > 0 && itemCount === 0) {
-    const hasDataLoss = warnings.some(w => DATA_LOSS_PATTERN.test(w))
+    const hasDataLoss = degradingWarnings.some(w => DATA_LOSS_PATTERN.test(w) || isCoverageAffectingWarning(w))
     return hasDataLoss ? 'error' : 'complete'
   }
-  if (warnings.length > 0) return 'degraded'
+  if (degradingWarnings.length > 0) return 'degraded'
   return 'complete'
 }
 
