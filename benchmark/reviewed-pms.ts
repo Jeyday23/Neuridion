@@ -10,7 +10,6 @@ const PERIOD = { from: '2026-01-05', to: '2026-04-30' }
 const COPRA_REFERENCE = '14727/26'
 const AUTHORITY_REVISIONS: Record<string, { date?: string; manufacturer?: string; reason: string }> = {
   '14727/26': { date: '2026-04-29', reason: 'BfArM currently publishes a revised COPRA6 notice date' },
-  '00269/26': { date: '2026-04-30', reason: 'BfArM currently publishes a revised CompuGroup Medical notice date' },
   '61735/25': { manufacturer: 'Meierhofer Medizintechnik', reason: 'BfArM currently omits the GmbH legal suffix' },
 }
 

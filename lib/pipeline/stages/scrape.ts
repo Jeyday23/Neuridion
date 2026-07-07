@@ -411,6 +411,7 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       sourceOutcomes.some((outcome) => outcome.endsWith(':failed')) ? 'failed'
       : sourceOutcomes.some((outcome) => outcome.endsWith(':partial')) ? 'partial'
       : deduped.length === 0 ? 'empty'
+      : warnings.length > 0 ? 'complete_with_fallback'
       : 'complete'
     const sourceBreakdown: SourceResultBreakdown = {
       source: sourceId,

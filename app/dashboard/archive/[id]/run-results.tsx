@@ -12,6 +12,23 @@ import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 import { isReportApproved } from '@/lib/reports/review-gate'
 import type { SourceResultBreakdown } from '@/app/dashboard/search-context'
 
+function fmtSourceStatus(status: SourceResultBreakdown['status']): string {
+  switch (status) {
+    case 'complete_with_fallback':
+      return 'Complete via fallback'
+    case 'complete':
+      return 'Complete'
+    case 'empty':
+      return 'Empty'
+    case 'partial':
+      return 'Partial'
+    case 'failed':
+      return 'Failed'
+    default:
+      return status
+  }
+}
+
 export interface FsnResult {
   id: string
   title: string
@@ -463,8 +480,8 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
                       <td className="px-3 py-2 text-right text-green-700">{aiCounts.retained}</td>
                       <td className="px-3 py-2 text-right text-zinc-500">{aiCounts.excluded}</td>
                       <td className="px-3 py-2 text-right text-amber-700">{aiCounts.unprocessed}</td>
-                      <td className="px-3 py-2 text-zinc-600 capitalize">
-                        {source.status}
+                      <td className="px-3 py-2 text-zinc-600">
+                        {fmtSourceStatus(source.status)}
                         {source.warnings > 0 && <span className="text-amber-700"> · {source.warnings} warning{source.warnings !== 1 ? 's' : ''}</span>}
                       </td>
                     </tr>

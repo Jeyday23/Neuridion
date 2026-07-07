@@ -35,6 +35,18 @@ describe('computeRunStatus', () => {
     ], 0)).toBe('complete')
   })
 
+  it('returns complete when fallback coverage was internally verified and warnings are provenance only', () => {
+    expect(computeRunStatus([
+      'BfArM broad crawl fallback verified requested date-range coverage after earlier fallback warnings.',
+    ], 60)).toBe('complete')
+  })
+
+  it('keeps AI provider unavailability degraded because classification did not run', () => {
+    expect(computeRunStatus([
+      'AI relevance review was unavailable because the AI provider rejected the request for billing/authentication reasons; manual PRRC review is required.',
+    ], 105)).toBe('degraded')
+  })
+
   it('returns error when data-loss warnings and items = 0', () => {
     expect(computeRunStatus(['scrapeStage failed: Pipeline stage error.'], 0)).toBe('error')
     expect(computeRunStatus(['BfArM HTML structure may have changed — 5/10 items lacked parseable dates'], 0)).toBe('error')

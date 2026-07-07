@@ -1,4 +1,4 @@
-import { scraperResult, type ScraperParams, type ScraperResult, type ScrapedFsn } from './bfarm'
+import { isCoverageAffectingWarning, scraperResult, type ScraperParams, type ScraperResult, type ScrapedFsn } from './bfarm'
 import { parseNextPageHref, parsePage, BFARM_ORIGIN, yearToShortcut } from './bfarm'
 import { sanitizeContent } from './sanitize'
 import { chunkDateRange } from '@/lib/utils/date-chunks'
@@ -698,10 +698,18 @@ export async function firecrawlFallback(
       mergedWarnings.push(`BfArM crawl fallback added ${mergedItems.length - sequentialPartial.items.length} item(s) beyond sequential fallback.`)
     }
     if (broadCrawl.outcome === 'complete') {
+      const broadCrawlContainsPriorRows = Boolean(sequentialPartial) && mergedItems.length === broadCrawl.items.length
+      const retainedWarnings = broadCrawlContainsPriorRows
+        ? mergedWarnings.filter(warning => !isCoverageAffectingWarning(warning))
+        : mergedWarnings
       return scraperResult(mergedItems, [
-        ...mergedWarnings,
-        'BfArM broad crawl fallback reached the requested date range but cannot prove exact visible-result parity; source coverage is incomplete.',
-      ])
+        ...retainedWarnings,
+        broadCrawlContainsPriorRows
+          ? 'BfArM broad crawl fallback verified requested date-range coverage after earlier fallback warnings.'
+          : sequentialPartial
+            ? 'BfArM broad crawl fallback reached the requested date range but earlier partial fallback rows were not fully represented; source coverage is incomplete.'
+            : 'BfArM broad crawl fallback reached the requested date range but cannot prove exact visible-result parity; source coverage is incomplete.',
+      ], { coverageVerified: broadCrawlContainsPriorRows })
     }
     return scraperResult(mergedItems, [...mergedWarnings, ...broadCrawl.warnings])
   }

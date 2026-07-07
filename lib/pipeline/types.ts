@@ -30,7 +30,7 @@ export interface SourceResultBreakdown {
   found_before_filtering: number
   after_keyword_signal: number
   rejected_by_keyword_signal: number
-  status: 'complete' | 'empty' | 'partial' | 'failed'
+  status: 'complete' | 'complete_with_fallback' | 'empty' | 'partial' | 'failed'
   fresh_outcomes: string[]
   warnings: number
 }
