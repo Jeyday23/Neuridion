@@ -76,6 +76,27 @@ export interface ScraperResult {
   rawArtifacts?: RawSourceArtifact[]
 }
 
+export function isCoverageAffectingWarning(warning: string): boolean {
+  const text = warning.toLowerCase()
+
+  // Explicit source-coverage failures remain coverage-affecting.
+  if (
+    /incomplete|could not prove|missing|capped|result cap|stopped before|budget exhausted|aborted|failed|unavailable|no credits|auth failed|returned 0 pages|0 parseable|loop detected|repeated result page|pagination stopped/.test(text)
+  ) {
+    return true
+  }
+
+  // These are provenance/path-degradation notes only when a later fallback has
+  // already earned complete coverage. Unknown warnings remain coverage-affecting.
+  if (
+    /primary scraper|firecrawl fallback returned|used exact-date firecrawl fallback|used crawl fallback|tried additional fallback coverage|tried crawl fallback|tried broad crawl fallback|added \d+ item|fallback verified requested date-range coverage/.test(text)
+  ) {
+    return false
+  }
+
+  return true
+}
+
 export function scraperResult(
   items: ScrapedFsn[],
   warnings: string[] = [],
@@ -84,11 +105,13 @@ export function scraperResult(
     archiveLimitationHit?: boolean
     diagnostics?: ScraperResult['diagnostics']
     rawArtifacts?: RawSourceArtifact[]
+    coverageVerified?: boolean
   } = {},
 ): ScraperResult {
+  const hasCoverageWarnings = warnings.some(isCoverageAffectingWarning)
   const outcome: ScraperOutcome = options.failed
     ? 'failed'
-    : warnings.length > 0 || options.archiveLimitationHit
+    : (!options.coverageVerified && (hasCoverageWarnings || options.archiveLimitationHit))
       ? 'partial'
       : items.length > 0
         ? 'complete'
