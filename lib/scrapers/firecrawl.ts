@@ -1,6 +1,6 @@
 import { isCoverageAffectingWarning, scraperResult, type ScraperParams, type ScraperResult, type ScrapedFsn } from './bfarm'
 import { parseNextPageHref, parsePage, BFARM_ORIGIN, yearToShortcut } from './bfarm'
-import { sanitizeContent } from './sanitize'
+import { extractCoverage, toScrapedCoverage } from './firecrawl-coverage'
 import { chunkDateRange } from '@/lib/utils/date-chunks'
 
 const FIRECRAWL_API    = 'https://api.firecrawl.dev/v1'
@@ -720,52 +720,6 @@ export async function firecrawlFallback(
   }
 
   return broadCrawl
-}
-
-function extractCoverage(
-  pages: Array<{ url?: string; html?: string }>,
-  fromDate: Date,
-  toDate: Date,
-): { items: ScrapedFsn[]; coverageComplete: boolean } {
-  const allParsed = pages.flatMap(page =>
-    page.html ? parsePage(page.html) : []
-  )
-
-  const coverage = toScrapedCoverage(allParsed, fromDate, toDate)
-  const crossedBelowFromDate = allParsed.some(item => item.date !== null && item.date < fromDate)
-
-  return {
-    items: coverage.items,
-    coverageComplete: crossedBelowFromDate,
-  }
-}
-
-function toScrapedCoverage(
-  allParsed: ReturnType<typeof parsePage>,
-  fromDate: Date,
-  toDate: Date,
-): { items: ScrapedFsn[] } {
-  const inRange: ScrapedFsn[] = allParsed
-    .filter(item => item.date && item.date >= fromDate && item.date <= toDate)
-    .map(item => ({
-      external_id:  item.externalId,
-      title:        item.title,
-      manufacturer: item.manufacturer,
-      product_name: null,
-      fsn_date:     item.date ? item.date.toISOString().split('T')[0] : null,
-      source_url:   `${BFARM_ORIGIN}${item.href}`,
-      raw_content:  sanitizeContent(item.title),
-      source_db:    'bfarm',
-    }))
-
-  const seen = new Set<string>()
-  const items = inRange.filter(item => {
-    if (seen.has(item.external_id)) return false
-    seen.add(item.external_id)
-    return true
-  })
-
-  return { items }
 }
 
 function mergeBfarmItems(...groups: ScrapedFsn[][]): ScrapedFsn[] {

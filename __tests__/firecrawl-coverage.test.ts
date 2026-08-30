@@ -20,7 +20,26 @@ function page(items: string[], nextHref?: string): string {
   }</body></html>`
 }
 
-function mockFirecrawl(data: Array<{ html: string }>) {
+// Mirrors lib/scrapers/firecrawl.ts's bfarmPageUrl — used to give mocked
+// crawl pages a realistic `url` so coverage certification can recover each
+// page's pagination ordinal, exactly as it must from a real Firecrawl
+// crawl response.
+function bfarmSearchPageUrl(fromDate: string, toDate: string, pageNum = 1): string {
+  const toBfarmDate = (iso: string) => {
+    const [y, m, d] = iso.split('-')
+    return `${d}.${m}.${y}`
+  }
+  return 'https://www.bfarm.de/SiteGlobals/Forms/Suche/Expertensuche_Formular.html' +
+    `?cl2Categories_Format=kundeninfo` +
+    `&cl2Categories_Rubrik=medizinprodukte` +
+    `&resultsPerPage=30` +
+    `&input_Datum_VON=${toBfarmDate(fromDate)}` +
+    `&input_Datum_BIS=${toBfarmDate(toDate)}` +
+    `&submit=Senden` +
+    (pageNum > 1 ? `&gtp=469344_list%253D${pageNum}` : '')
+}
+
+function mockFirecrawl(data: Array<{ html: string; url?: string }>) {
   vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
   vi.stubGlobal('fetch', vi.fn(async (url: string | URL | Request) => {
     const href = String(url)
@@ -51,8 +70,8 @@ describe('Firecrawl BfArM fallback coverage', () => {
     vi.useFakeTimers()
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
     mockFirecrawl([
-      { html: page([teaser('26008-26', '26. Juni 2026')]) },
-      { html: page([teaser('26007-26', '21. Juni 2026')]) },
+      { html: page([teaser('26008-26', '26. Juni 2026')]), url: bfarmSearchPageUrl('2026-06-22', '2026-06-29', 1) },
+      { html: page([teaser('26007-26', '21. Juni 2026')]), url: bfarmSearchPageUrl('2026-06-22', '2026-06-29', 2) },
     ])
 
     const pending = firecrawlFallback({
@@ -447,7 +466,7 @@ describe('Firecrawl BfArM fallback coverage', () => {
     const { firecrawlFallback } = await import('@/lib/scrapers/firecrawl')
     vi.stubEnv('FIRECRAWL_API_KEY', 'fc-test')
     vi.stubEnv('FIRECRAWL_BFARM_CHUNK_DAYS', '60')
-    const crawlDataById = new Map<string, Array<{ html: string }>>()
+    const crawlDataById = new Map<string, Array<{ html: string; url: string }>>()
     const crawlStarts: string[] = []
     let crawlSeq = 0
 
@@ -463,11 +482,14 @@ describe('Firecrawl BfArM fallback coverage', () => {
         const body = JSON.parse(String(init?.body ?? '{}')) as { url: string }
         crawlStarts.push(body.url)
         const id = `crawl-${++crawlSeq}`
-        let data: Array<{ html: string }> = []
+        // Firecrawl reports each crawled page's own URL (`data[].url`); here
+        // the crawl only ever surfaces the single seed page it was started
+        // with, so that page is ordinal 1 for coverage-certification purposes.
+        let data: Array<{ html: string; url: string }> = []
         if (body.url.includes('input_Datum_VON=01.01.2026') && body.url.includes('input_Datum_BIS=01.03.2026')) {
-          data = [{ html: page([teaser('19001-26', '15. Januar 2026'), teaser('18999-25', '31. Dezember 2025')]) }]
+          data = [{ html: page([teaser('19001-26', '15. Januar 2026'), teaser('18999-25', '31. Dezember 2025')]), url: body.url }]
         } else if (body.url.includes('input_Datum_VON=02.03.2026') && body.url.includes('input_Datum_BIS=30.04.2026')) {
-          data = [{ html: page([teaser('19500-26', '20. März 2026'), teaser('19001-26', '01. Januar 2026')]) }]
+          data = [{ html: page([teaser('19500-26', '20. März 2026'), teaser('19001-26', '01. Januar 2026')]), url: body.url }]
         } else if (body.url.includes('input_Datum_VON=01.05.2026') && body.url.includes('input_Datum_BIS=29.06.2026')) {
           data = [{
             html: page([
@@ -478,9 +500,10 @@ describe('Firecrawl BfArM fallback coverage', () => {
               ),
               teaser('19999-26', '30. April 2026'),
             ]),
+            url: body.url,
           }]
         } else if (body.url.includes('input_Datum_VON=30.06.2026') && body.url.includes('input_Datum_BIS=10.07.2026')) {
-          data = [{ html: page([teaser('22000-26', '01. Juli 2026'), teaser('21000-26', '29. Juni 2026')]) }]
+          data = [{ html: page([teaser('22000-26', '01. Juli 2026'), teaser('21000-26', '29. Juni 2026')]), url: body.url }]
         }
         crawlDataById.set(id, data)
         return new Response(JSON.stringify({ id }), {
