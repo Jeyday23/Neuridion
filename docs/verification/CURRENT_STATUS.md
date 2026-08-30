@@ -1,6 +1,6 @@
 # Current verification status
 
-Date: 2026-06-22
+Date: 2026-08-30
 
 ## PRRC search accuracy
 
@@ -11,6 +11,21 @@ The deterministic title filter is verified against:
   infusion/dialysis, insulin-pump/pacemaker, and AED/MRI products.
 - Adversarial title variants for spacing, punctuation, family-level authority
   titles, near-prefix collisions, and same-manufacturer wrong products.
+
+### 2026-08-30 re-verification
+
+The 2026-06-22 run passed all gates (15/15 recall, 15/15 fields, 10/10 profiles). After
+that date, BfArM authority revised reference 01737/26 to publication date 2026-07-14,
+pushing it outside the gate's hardcoded scrape window (2026-01-05..2026-04-30). When the
+gate was re-run at the start of this session, this revision caused failures (recall 14/15,
+product 14/15, date 13/15, manufacturer 14/15, profiles 9/10). Root-cause audit identified
+three authority revisions now tracked: 01737/26 (revised date), 14727/26 (date confirmed
+2026-04-29), and 61735/25 (manufacturer omits GmbH suffix). A new authority record
+(27552/26, COPRA System GmbH / COPRA6, dated 2026-06-30) was discovered post-snapshot and
+logged as an acknowledged addition pending human PRRC review. The gate's scrape-window end
+date is now derived from all known snapshot, revision, and addition dates (currently
+2026-07-14) rather than hardcoded, ensuring future authority changes are automatically
+captured.
 
 The latest focused run passed 39/39 tests. This is evidence for the reviewed
 cases, not a claim of universal or 100% search accuracy. New authority title
