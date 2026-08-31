@@ -27,8 +27,9 @@ export async function GET(
 
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('id, user_id, status, progress, dbs_searched, error_message, relevant_count, uncertain_count, excluded_count, total_scraped, pre_filter_count, timing')
+    .select('id, user_id, status, progress, dbs_searched, error_message, relevant_count, uncertain_count, excluded_count, total_scraped, pre_filter_count, timing, is_synthetic_canary')
     .eq('id', id)
+    .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
     .single()
 
@@ -147,6 +148,7 @@ export async function DELETE(
     .select('id, user_id')
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
     .single()
 
@@ -160,6 +162,7 @@ export async function DELETE(
     .update({ deleted_at: new Date().toISOString(), deleted_by: user.id })
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
 
   if (softDeleteError) {
     console.error('[search-runs/delete]', softDeleteError.message)

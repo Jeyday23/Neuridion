@@ -3,7 +3,7 @@
 **Date:** 2026-05-29
 **Author:** Jeremiah + Claude (Genius Mode: Lovelace, Knuth, Hamilton, Torvalds, Quazi)
 **Status:** Draft
-**Priority:** P0 — blocks June 2026 launch
+**Priority:** P0 — blocks public launch
 
 ---
 

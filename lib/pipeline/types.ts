@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
 import type { FilterDecision } from '@/lib/claude/filter-pipeline'
 import type { Database } from '@/types/supabase'
+import type { ControlledEvidenceDocument } from '@/lib/controlled-evidence/profile-evidence'
 
 export interface SearchJobPayload {
   profile_id:    string
@@ -41,8 +42,13 @@ export interface ProfileRow {
   intended_use:   string | null
   emdn_code:      string | null
   device_class:   string | null
+  ifu_storage_path?: string | null
+  controlled_evidence?: ControlledEvidenceDocument[]
+  controlled_evidence_status?: 'not_configured' | 'loaded' | 'unavailable'
+  controlled_evidence_errors?: string[]
   search_strategy: {
     competitor_terms?: Array<{ name: string; manufacturer?: string }>
+    strategy_doc_paths?: string[]
   } | null
 }
 

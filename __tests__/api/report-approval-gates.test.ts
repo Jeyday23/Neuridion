@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({
   reviewedAt: '2026-06-22T10:00:00.000Z' as string | null,
   createAdminClient: vi.fn(),
   createSignedUrl: vi.fn(),
+  adjudicationReady: true,
+  adjudicationError: null as { message: string } | null,
 }))
 
 function queryResult(table: string) {
@@ -60,6 +62,7 @@ function createDb() {
       chain.single = vi.fn(async () => queryResult(table))
       return chain
     }),
+    rpc: vi.fn(async () => ({ data: state.adjudicationReady, error: state.adjudicationError })),
     storage,
   }
 }
@@ -94,6 +97,8 @@ describe('report API approval gates', () => {
     state.reviewedBy = 'reviewer-1'
     state.reviewedAt = '2026-06-22T10:00:00.000Z'
     state.createSignedUrl.mockReset()
+    state.adjudicationReady = true
+    state.adjudicationError = null
     state.createAdminClient.mockReset()
     state.createAdminClient.mockImplementation(() => createDb())
   })
@@ -128,6 +133,30 @@ describe('report API approval gates', () => {
     )
 
     expect(response.status).toBe(422)
+    expect(state.createSignedUrl).not.toHaveBeenCalled()
+  })
+
+  it('blocks approved report release when record-level adjudication is incomplete', async () => {
+    state.reviewStatus = 'approved'
+    state.adjudicationReady = false
+
+    const generation = await generateReport(new Request('https://example.test/api/reports', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ run_id: RUN_ID }),
+    }))
+    const download = await downloadReport(
+      new Request(`https://example.test/api/reports/${RUN_ID}/download?format=pdf`),
+      { params: Promise.resolve({ id: RUN_ID }) },
+    )
+    const legacy = await getReportUrls(
+      new Request(`https://example.test/api/reports/${RUN_ID}`),
+      { params: Promise.resolve({ id: RUN_ID }) },
+    )
+
+    expect(generation.status).toBe(422)
+    expect(download.status).toBe(422)
+    expect(legacy.status).toBe(422)
     expect(state.createSignedUrl).not.toHaveBeenCalled()
   })
 

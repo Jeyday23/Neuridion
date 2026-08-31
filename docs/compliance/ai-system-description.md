@@ -1,110 +1,163 @@
 # AI System Description
 
-**Document ID:** NEUR-COMP-001
-**Date:** 2026-05-11
-**Status:** DRAFT — Pending regulatory review
-**Author:** Auto-generated from codebase analysis
-**Reviewer:** [REVIEW: Assign qualified reviewer]
+**Document ID:** NEUR-COMP-001  
+**Version:** 0.2-draft  
+**Date:** 2026-08-31  
+**Status:** DRAFT — verify against the identified release and deployment  
+**Required reviewers:** [ASSIGN: Product], [ASSIGN: qualified QA/RA], [ASSIGN: privacy/legal]
 
-## 1. Purpose
+> This is a point-in-time technical description, not a legal opinion,
+> certification, accuracy claim or customer validation record. Complete the
+> release/deployment fields and obtain approval before external reliance.
 
-This document describes the AI system deployed within the NEURIDION platform in accordance with EU AI Act Articles 5 and 52. It provides a complete account of the system's function, intended use, data flows, and deployment context to support regulatory classification and transparency obligations.
+## 1. Intended purpose
 
-## 2. System Overview
+Neuridion assists qualified medical-device quality and regulatory personnel in
+screening records from configured public regulatory sources against a
+manufacturer-defined device profile. It records the original system output and
+supports controlled human disposition and evidence export.
 
-NEURIDION ("PMS in Seconds") is a B2B SaaS platform that performs post-market surveillance (PMS) under EU Medical Device Regulation (MDR) 2017/745. The platform monitors regulatory databases for Field Safety Notices (FSNs), applies AI-powered relevance filtering against user-defined device profiles, and generates compliance reports for qualified Persons Responsible for Regulatory Compliance (PRRCs).
+The system does not autonomously determine relevance, reportability or
+regulatory action. It does not submit vigilance reports, initiate an FSCA,
+replace the manufacturer's PMS source universe, or replace its QMS, PRRC or
+qualified regulatory judgment.
 
-## 3. AI Component
+## 2. Release and deployment identification
 
-### 3.1 Function
+| Field | Controlled value |
+| --- | --- |
+| Release/build or commit | [ENTER] |
+| Deployment/environment | [ENTER] |
+| Database migration state | [ENTER remote-verified state] |
+| Enabled sources | [ENTER] |
+| Scheduled-ingestion configuration | [ENTER or NOT ENABLED] |
+| Evidence-capture configuration | [ENTER or NOT ENABLED] |
+| AI models | [ENTER exact deployed identifiers] |
+| Prompt/ruleset version | [ENTER] |
+| Controlled-evidence extractor | [ENTER] |
+| Human-review/sampling policy | [ENTER] |
 
-The AI component performs **document classification** of FSNs retrieved from regulatory databases. For each FSN, the system produces:
+Repository code does not establish deployment state. Do not mark a capability
+active from a migration or module existing locally.
 
-- **Classification decision:** `relevant`, `uncertain`, or `excluded` with respect to the user's device profile
-- **Confidence score:** A value between 0 and 1 indicating the model's certainty
-- **Rationale:** A text explanation of the classification reasoning
+## 3. System boundaries and flow
 
-### 3.2 Models Used
+1. A customer defines a device profile and selects supported sources and dates.
+2. Source adapters retrieve and normalize bounded public safety records.
+3. Configured controlled documents are extracted, sanitized, hashed and
+   versioned where the released pipeline supports that document type.
+4. Deterministic rules and AI models assess potential relevance and produce
+   `relevant`, `uncertain`, `excluded` or `filter_failed` output with rationale
+   and model context where available.
+5. Records requiring review receive immutable human-adjudication requirements.
+6. Authorized users record provisional blind, final and, where required,
+   independent second-review events without overwriting earlier evidence.
+7. Controlled reports and a versioned machine-readable evidence-chain export
+   are generated only through the applicable approval gate.
 
-| Model | Identifier | Provider | Role |
-|-------|-----------|----------|------|
-| Claude Haiku 4.5 | `claude-haiku-4-5-20251001` | Anthropic | Pre-filter — fast initial screening |
-| Claude Sonnet 4.6 | `claude-sonnet-4-6` | Anthropic | Full classification — detailed analysis |
+A document path by itself is not evidence that document content influenced a
+classification. The decision record must identify the extracted content hash
+and extractor/version context used. If configured controlled evidence cannot be
+loaded completely, the pipeline must not silently continue as if it was used.
 
-Both models are accessed via the Anthropic API. The pipeline is implemented in `lib/claude/filter-pipeline.ts` with rate limiting via `lib/claude/rate-limiter.ts`.
+## 4. AI component
 
-## 4. Intended Users
+The repository pipeline currently identifies these Anthropic models:
 
-The system is intended for use by **qualified Persons Responsible for Regulatory Compliance (PRRCs)** as defined under EU MDR Article 15. Users are expected to have domain expertise in medical device regulation and post-market surveillance.
+| Model identifier | Repository role |
+| --- | --- |
+| `claude-haiku-4-5-20251001` | pre-filter for clear unrelated records |
+| `claude-sonnet-4-6` | detailed relevance assessment |
 
-**Critical limitation:** The AI component does NOT replace PRRC judgment. All AI classifications are advisory and must be reviewed, validated, and approved by a qualified PRRC before any regulatory filing or compliance action is taken.
+Confirm the identifiers in the deployed decision records. Provider aliases and
+repository constants are not sufficient release evidence.
 
-## 5. Deployment Context
+For each assessed record, the system may generate:
 
-| Component | Location | Provider |
-|-----------|----------|----------|
-| Application hosting | Cloud | Render |
-| Database (PostgreSQL) | EU region | Supabase |
-| AI API | US region | Anthropic |
+- a screening category;
+- written rationale;
+- a model-generated confidence indicator; and
+- model, prompt/ruleset and evidence-version context.
 
-Data transmitted to the Anthropic API traverses from the EU-hosted application to US-based Anthropic servers. See Section 6 for details on what data is and is not transmitted.
+Confidence is not a calibrated probability and must not be presented as an
+accuracy percentage or permission to skip required review.
 
-## 6. Data Processed
+## 5. Inputs and data handling
 
-### 6.1 Data Sent to AI Models
+The screening request can include:
 
-The following data is sent to the Anthropic API for classification:
+- source-record title, manufacturer, date and content text;
+- device profile fields such as name, manufacturer, intended use, EMDN and
+  device class; and
+- bounded text from controlled IFU, PMS-plan or profile documents only where
+  extraction succeeded and the active pipeline explicitly supplies it.
 
-- FSN title
-- FSN manufacturer name
-- FSN date
-- FSN content (raw text from regulatory databases)
-- Device profile (device name, manufacturer, intended use, EMDN code, device class)
+Authentication credentials, billing data and account passwords are not
+classification inputs. Customers must not upload patient or clinical records to
+the controlled-document workflow. Public safety and adverse-event records can
+still contain incidental personal or sensitive information; public availability
+does not remove the need for source-specific minimization, access, retention and
+transfer controls.
 
-### 6.2 Data NOT Sent to AI Models
+See the current DPA, subprocessor schedule and approved privacy assessment for
+the released data flow. Do not infer contractual training/retention terms from
+this technical document.
 
-The following categories of data are **never** transmitted to Anthropic:
+## 6. Supported source adapters
 
-- User credentials (passwords, tokens, API keys)
-- Patient data of any kind
-- Protected health information (PHI)
-- Billing or payment information
-- User email addresses or personal identifiers
+The repository contains BfArM, FDA MAUDE, MHRA and Swissmedic adapters. Those
+sources are a bounded subset of potential PMS inputs. A source is available to a
+customer only when its deployed adapter and configuration have been verified.
+The customer remains responsible for the source universe required by its PMS
+plan, including unsupported internal and external sources.
 
-## 7. Data Sources
+## 7. Human-control design
 
-| Source | Country | Method | Module |
-|--------|---------|--------|--------|
-| BfArM Kundeninfos | Germany | HTML scraper (portal pagination) | `lib/scrapers/bfarm.ts` |
-| FDA MAUDE | USA | openFDA REST API | `lib/scrapers/fda-maude.ts` |
-| MHRA Medical Device Alerts | UK | HTML scraper (GOV.UK portal) | `lib/scrapers/mhra.ts` |
-| Swissmedic FSCA | Switzerland | REST API | `lib/scrapers/swissmedic.ts` |
+- Non-excluded output and classification failures are review-blocking.
+- Selected exclusions can be assigned blind-first review before AI reveal.
+- The post-reveal final event is the operational regulatory disposition under
+  the default policy; the provisional event remains validation evidence.
+- Relevant-to-excluded material changes and serious-event exclusions can require
+  independent confirmation and written rationale.
+- Original AI output and human events are append-only; corrections are linked
+  successor events.
+- The manufacturer defines reviewer qualifications, authorization, separation
+  of duties and the regulatory meaning of approval.
 
-All data sources are publicly accessible government regulatory databases. No proprietary or restricted data sources are used.
+The presence of a user role or qualification attestation is not independent
+proof that the person satisfies MDR Article 15 or the customer's procedures.
 
-## 8. Article 5 — Prohibited Practices Statement
+## 8. Validation and monitoring controls
 
-The NEURIDION AI system does **NOT** perform any of the following:
+The repository includes foundations for:
 
-- **Subliminal manipulation:** No techniques that materially distort behavior beyond conscious awareness
-- **Exploitation of vulnerabilities:** No targeting of age, disability, or social/economic situation
-- **Social scoring:** No evaluation of individuals based on social behavior or personal characteristics
-- **Criminal risk assessment:** No prediction of criminal offending based on profiling or personality traits
-- **Facial recognition:** No scraping or use of facial images from any source
-- **Emotion inference:** No detection or inference of emotions in any context
-- **Biometric categorization:** No categorization of individuals by biometric data
-- **Real-time biometric identification:** No real-time remote biometric identification in public spaces
+- immutable exclusion-sampling facts, including the inclusion probability at
+  selection time;
+- a pre-registered blind-first review arm;
+- boundary, disagreement and small uniform-control sampling arms; and
+- production-code-path synthetic canaries isolated by a Neuridion-owned profile.
 
-The system processes only publicly available regulatory documents (FSNs) and user-provided device profile metadata. It has no access to biometric data, personal characteristics, or individual behavior patterns.
+Canaries detect known regressions and targeted sampling finds likely failure
+modes. Neither alone establishes sensitivity. Agreement on surfaced records is
+not an accuracy measure because relevant exclusions can be unobserved and
+surfaced human labels can be affected by automation bias.
 
-## 9. Conclusion
+## 9. Known limitations
 
-NEURIDION's AI component is a narrowly scoped document classification system that assists qualified regulatory professionals in screening publicly available field safety notices. It operates as an advisory tool with mandatory human oversight at every decision point.
+- AI and deterministic matching can produce false positives and false negatives.
+- Upstream sources can be incomplete, unavailable, late or revised.
+- Language, terminology, source structure and incomplete device evidence can
+  materially affect output.
+- Search success is not proof of source completeness.
+- Scheduled ingestion and evidence capture are deployment-specific.
+- Repository verification supports a bounded release; the customer must
+  validate its own intended QMS use proportionate to risk.
 
-## 10. Review & Approval
+## 10. Approval
 
-| Role | Name | Date | Signature |
-|------|------|------|-----------|
-| Prepared by | Auto-generated from codebase | 2026-05-11 | — |
-| Reviewed by | [REVIEW: Assign] | [REVIEW: Date] | [REVIEW: Sign] |
-| Approved by | [REVIEW: Assign] | [REVIEW: Date] | [REVIEW: Sign] |
+| Review | Name | Decision/evidence | Date/signature |
+| --- | --- | --- | --- |
+| Technical accuracy against release | [ENTER] | [APPROVE/REJECT] | [ENTER] |
+| QA/RA intended-use and limitation review | [ENTER] | [APPROVE/REJECT] | [ENTER] |
+| Privacy/data-flow review | [ENTER] | [APPROVE/REJECT] | [ENTER] |
+| Legal/AI Act position review | [ENTER] | [APPROVE/REJECT] | [ENTER] |
