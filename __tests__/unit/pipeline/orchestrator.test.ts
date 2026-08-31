@@ -20,12 +20,26 @@ describe('runSearchPipeline orchestrator', () => {
       finalizeStage: async () => { stageOrder.push('finalize') },
     }))
     vi.doMock('../../../lib/supabase/admin', () => ({
-      createAdminClient: () => ({
-        from: () => ({
-          select: () => ({ eq: () => ({ single: () => ({ data: { device_name: 'Test', manufacturer: 'Test', intended_use: null, emdn_code: null, device_class: null, search_strategy: null }, error: null }) }) }),
-          update: () => ({ eq: () => ({ error: null }) }),
-        }),
-      }),
+      createAdminClient: () => {
+        const query = {
+          select: () => query,
+          eq: () => query,
+          is: () => query,
+          single: () => ({
+            data: {
+              id: 'p1', user_id: 'u1', device_name: 'Test', manufacturer: 'Test',
+              intended_use: null, emdn_code: null, device_class: null,
+              ifu_storage_path: null, search_strategy: null,
+            },
+            error: null,
+          }),
+          update: () => query,
+        }
+        return {
+          from: () => query,
+          storage: { from: () => ({ download: async () => ({ data: null, error: new Error('not called') }) }) },
+        }
+      },
     }))
     vi.doMock('../../../lib/search/manufacturer-terms', () => ({
       buildManufacturerSearchTerms: () => [],

@@ -333,7 +333,7 @@ REGULATORY CONTEXT
 
 EU MDR 2017/745 Article 83 requires manufacturers to operate a post-market surveillance system proportionate to device risk class. Article 84 mandates a documented PMS plan. Article 85 (Class I) and Article 86 (Class IIa, IIb, III) require periodic reporting via Post-Market Surveillance Reports (PMSR) or Periodic Safety Update Reports (PSUR). FSNs published by other manufacturers are primary evidence for trend identification, proactive risk assessment, and PSUR updates — particularly where the FSN concerns a device with shared technology, clinical indication, or failure mode.
 
-Article 87 defines reportable serious incidents. Article 88 defines Field Safety Corrective Actions. A manufacturer's PMS obligation extends to devices that are substantially equivalent in design, materials, intended purpose, or technology — not only to their own exact product line.
+Article 87 covers manufacturer reporting of serious incidents and field safety corrective actions. Article 88 covers trend reporting. A manufacturer's PMS obligation extends to relevant similar-device information defined by the applicable PMS process — not only to the manufacturer's exact product line.
 
 DECISION CRITERIA
 

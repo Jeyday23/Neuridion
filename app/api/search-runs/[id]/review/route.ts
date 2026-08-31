@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { rateLimit } from '@/lib/rate-limit'
+import { isRunAdjudicationComplete } from '@/lib/adjudication/readiness'
 import { z } from 'zod'
 
 const ReviewSchema = z.object({
@@ -52,6 +53,7 @@ export async function PATCH(
     .select('id, review_status, user_id')
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
     .single()
 
@@ -68,6 +70,19 @@ export async function PATCH(
     )
   }
 
+  if (parsed.data.review_status === 'approved') {
+    const readiness = await isRunAdjudicationComplete(db, id)
+    if (readiness.error) {
+      return Response.json({ error: readiness.error }, { status: 503 })
+    }
+    if (!readiness.ready) {
+      return Response.json(
+        { error: 'Every required record must have a final disposition and any required independent second review before approval.' },
+        { status: 422 },
+      )
+    }
+  }
+
   let updateQuery = db
     .from('search_runs')
     .update({
@@ -77,6 +92,7 @@ export async function PATCH(
     })
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
 
   updateQuery = existing.review_status == null
     ? updateQuery.is('review_status', null)

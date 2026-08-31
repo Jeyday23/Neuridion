@@ -19,6 +19,7 @@ export default async function ProfilesPage() {
   const { data: profiles, error } = await supabase
     .from('product_profiles')
     .select('id, device_name, manufacturer, emdn_code, device_class, created_at, last_modified_at, last_modified_by')
+    .eq('is_synthetic_canary', false)
     .order('created_at', { ascending: false })
 
   return (

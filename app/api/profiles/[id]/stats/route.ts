@@ -27,6 +27,7 @@ export async function GET(
     .select('id')
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .single()
 
   if (profileError || !profile) {
@@ -38,6 +39,7 @@ export async function GET(
     .select('id', { count: 'exact', head: true })
     .eq('profile_id', id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
 
   if (countError) {

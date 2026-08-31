@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { clsx } from 'clsx'
@@ -11,6 +11,15 @@ import { fmtSourceDb } from '@/lib/domain/source-labels'
 import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 import { isReportApproved } from '@/lib/reports/review-gate'
 import type { SourceResultBreakdown } from '@/app/dashboard/search-context'
+import {
+  RecordAdjudication,
+  ReviewerQualification,
+  adjudicationStage,
+  type AdjudicationRecord,
+  type AdjudicationPermissions,
+  type AdjudicationsResponse,
+  type ReviewerCredentials,
+} from './adjudication-review'
 
 function fmtSourceStatus(status: SourceResultBreakdown['status']): string {
   switch (status) {
@@ -38,12 +47,6 @@ export interface FsnResult {
   fsn_date: string | null
   source_url: string | null
   source_db: string
-  filter_decision: {
-    decision: 'relevant' | 'uncertain' | 'excluded' | 'filter_failed'
-    rationale: string
-    confidence: number | null
-    model?: string | null
-  } | null
 }
 
 function safeHref(url: string | null | undefined): string {
@@ -55,38 +58,7 @@ function safeHref(url: string | null | undefined): string {
   return '#'
 }
 
-type Tab = 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed' | 'raw'
-
-const DECISION_STYLES: Record<string, string> = {
-  relevant:      'bg-green-50 text-green-700 border-green-200',
-  uncertain:     'bg-amber-50 text-amber-700 border-amber-200',
-  excluded:      'bg-zinc-100 text-zinc-500 border-zinc-200',
-  filter_failed: 'bg-red-50 text-red-700 border-red-200',
-}
-const DECISION_LABELS: Record<string, string> = {
-  relevant:      'Relevant',
-  uncertain:     'Uncertain',
-  excluded:      'Excluded',
-  filter_failed: 'Unprocessed',
-}
-
-function formatModelLabel(model: string | null | undefined): string {
-  if (!model) return 'AI-assisted'
-  const MODEL_NAMES: Record<string, string> = {
-    'claude-sonnet-4-5': 'Sonnet 4.5',
-    'claude-sonnet-4-6': 'Sonnet 4.6',
-    'claude-haiku-4-5':  'Haiku 4.5',
-  }
-  return MODEL_NAMES[model] ?? model
-}
-
-function DecisionBadge({ decision }: { decision: string }) {
-  return (
-    <span className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${DECISION_STYLES[decision] ?? ''}`}>
-      {DECISION_LABELS[decision] ?? decision}
-    </span>
-  )
-}
+type Tab = 'review' | 'all' | 'relevant' | 'uncertain' | 'excluded' | 'filter_failed' | 'raw'
 
 export function filterFailedExplanation(rationale: string | null | undefined): string {
   const text = rationale?.trim()
@@ -103,14 +75,30 @@ export function filterFailedExplanation(rationale: string | null | undefined): s
   return text
 }
 
-function ResultRow({ result }: { result: FsnResult }) {
-  const [expanded, setExpanded] = useState(false)
-  const d = result.filter_decision
-  const isExcluded = d?.decision === 'excluded'
-  const isFailed   = d?.decision === 'filter_failed'
+function ResultRow({
+  result,
+  adjudication,
+  runId,
+  credentials,
+  permissions,
+  onAdjudicationSaved,
+  loadingAdjudications,
+  adjudicationError,
+}: {
+  result: FsnResult
+  adjudication: AdjudicationRecord | null
+  runId: string
+  credentials: ReviewerCredentials
+  permissions: AdjudicationPermissions | null
+  onAdjudicationSaved: () => Promise<void>
+  loadingAdjudications: boolean
+  adjudicationError: string | null
+}) {
+  const [detailsExpanded, setDetailsExpanded] = useState(false)
+  const isExcluded = adjudication?.filter_decision?.decision === 'excluded'
 
   return (
-    <div className={clsx('border-b border-zinc-100 last:border-b-0 px-4 py-3', isExcluded && 'opacity-50')}>
+    <article className={clsx('border-b border-zinc-100 px-4 py-4 last:border-b-0', isExcluded && adjudication?.complete && 'bg-zinc-50/40')}>
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -125,7 +113,16 @@ function ResultRow({ result }: { result: FsnResult }) {
             >
               {result.title}
             </a>
-            {d && <DecisionBadge decision={d.decision} />}
+            {adjudication?.blind_review_required && !adjudication.provisional_blind && (
+              <span className="inline-flex rounded border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-800">
+                Blind review
+              </span>
+            )}
+            {adjudication?.complete && (
+              <span className="inline-flex rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-800">
+                Human review complete
+              </span>
+            )}
           </div>
 
           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-zinc-500">
@@ -138,58 +135,53 @@ function ResultRow({ result }: { result: FsnResult }) {
               </span>
             )}
             <span className="text-zinc-400">{fmtSourceDb(result.source_db)}</span>
-            {d && d.confidence != null && (
-              <span className="text-zinc-400" title="How certain the AI is that this classification is correct">{Math.round(d.confidence * 100)}% confidence</span>
-            )}
-            {d?.model && (
-              <span className="text-zinc-400">{formatModelLabel(d.model)}</span>
-            )}
           </div>
 
-          {d && d.decision !== 'excluded' && d.decision !== 'filter_failed' && (
-            <p className={clsx(
-              'mt-1.5 text-xs leading-relaxed',
-              d.decision === 'uncertain' ? 'text-amber-700' : 'text-zinc-500'
-            )}>
-              {d.rationale}
-            </p>
-          )}
-
-          {d?.decision === 'uncertain' && (
-            <p className="mt-1 text-xs font-medium text-amber-700 flex items-center gap-1">
-              <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-              </svg>
-              Manual review required
-            </p>
-          )}
-
-          {isFailed && (
-            <div className="mt-1.5 rounded border border-amber-200 bg-amber-50 px-3 py-2">
-              <p className="text-xs font-medium text-amber-700 flex items-center gap-1">
-                <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-                </svg>
-                AI assessment unavailable — manual review required
-              </p>
-              <p className="mt-0.5 text-xs text-amber-600">{filterFailedExplanation(d.rationale)}</p>
+          <button
+            type="button"
+            aria-expanded={detailsExpanded}
+            onClick={() => setDetailsExpanded(value => !value)}
+            className="mt-2 text-xs font-medium text-[#0D9488] hover:text-[#0B8177]"
+          >
+            {detailsExpanded ? 'Hide source evidence' : 'Review source evidence'}
+          </button>
+          {detailsExpanded && (
+            <div className="mt-2 rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-700">
+              {result.product_name && <p><strong>Product:</strong> {result.product_name}</p>}
+              <p className="mt-1 max-h-56 overflow-y-auto whitespace-pre-wrap">{result.raw_content?.trim() || 'No additional source text was stored for this record. Open the source record for the full evidence.'}</p>
             </div>
           )}
 
-          {d?.decision === 'excluded' && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="mt-1 text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
-            >
-              {expanded ? 'Hide reason ↑' : 'Why excluded? ↓'}
-            </button>
+          {loadingAdjudications && (
+            <p className="mt-3 text-xs text-zinc-500" role="status">Loading protected review state…</p>
           )}
-          {d?.decision === 'excluded' && expanded && (
-            <p className="mt-1 text-xs text-zinc-500 leading-relaxed">{d.rationale}</p>
+          {!loadingAdjudications && adjudicationError && (
+            <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+              AI assessment remains withheld because the protected adjudication state could not be loaded.
+            </div>
+          )}
+          {!loadingAdjudications && !adjudicationError && adjudication && (
+            <RecordAdjudication
+              record={adjudication}
+              runId={runId}
+              credentials={credentials}
+              permissions={permissions ?? {
+                is_owner: false,
+                assignment_role: null,
+                can_primary_review: false,
+                can_second_review: false,
+              }}
+              onSaved={onAdjudicationSaved}
+            />
+          )}
+          {!loadingAdjudications && !adjudicationError && !adjudication && (
+            <p className="mt-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">
+              Protected review state is not available for this record. Run approval remains blocked.
+            </p>
           )}
         </div>
       </div>
-    </div>
+    </article>
   )
 }
 
@@ -203,7 +195,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
 }) {
   const router = useRouter()
   const toast = useToast()
-  const [tab, setTab] = useState<Tab>('all')
+  const [tab, setTab] = useState<Tab>('review')
   const [reviewStatus, setReviewStatus] = useState(initialReviewStatus)
   const [reviewLoading, setReviewLoading] = useState(false)
   const [reportGenerated, setReportGenerated] = useState(initialHasReport)
@@ -214,6 +206,42 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [selfApproval, setSelfApproval] = useState(false)
   const [confirmingSelfApproval, setConfirmingSelfApproval] = useState(false)
+  const [adjudications, setAdjudications] = useState<AdjudicationsResponse | null>(null)
+  const [loadingAdjudications, setLoadingAdjudications] = useState(true)
+  const [adjudicationError, setAdjudicationError] = useState<string | null>(null)
+  const [credentials, setCredentials] = useState<ReviewerCredentials>({
+    role: '',
+    qualificationAttestation: '',
+    attestsQualified: false,
+  })
+
+  const loadAdjudications = useCallback(async () => {
+    setLoadingAdjudications(true)
+    setAdjudicationError(null)
+    try {
+      const response = await apiFetch(`/api/search-runs/${runId}/adjudications`, {
+        cache: 'no-store',
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(body?.error ?? 'Protected review state could not be loaded.')
+      }
+      const body = await response.json() as AdjudicationsResponse
+      setAdjudications(body)
+      setReviewStatus(body.review_status)
+    } catch (caught) {
+      setAdjudications(null)
+      setAdjudicationError(caught instanceof Error
+        ? caught.message
+        : 'Protected review state could not be loaded.')
+    } finally {
+      setLoadingAdjudications(false)
+    }
+  }, [runId])
+
+  useEffect(() => {
+    void loadAdjudications()
+  }, [loadAdjudications])
 
   async function handleReview(newStatus: 'reviewed' | 'approved') {
     if (newStatus === 'approved' && !confirmingSelfApproval) {
@@ -292,48 +320,80 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
     URL.revokeObjectURL(url)
   }
 
-  const sorted = [
-    ...results.filter((r) => r.filter_decision?.decision === 'relevant'),
-    ...results.filter((r) => r.filter_decision?.decision === 'uncertain'),
-    ...results.filter((r) => r.filter_decision?.decision === 'filter_failed'),
-    ...results.filter((r) => r.filter_decision?.decision === 'excluded'),
-    ...results.filter((r) => !r.filter_decision),
-  ]
+  const adjudicationByResult = new Map(
+    (adjudications?.records ?? []).map(record => [record.fsn_result.id, record]),
+  )
+  const decisionFor = (result: FsnResult) => adjudicationByResult.get(result.id)?.filter_decision?.decision
+  const stageFor = (result: FsnResult) => {
+    const record = adjudicationByResult.get(result.id)
+    return record ? adjudicationStage(record) : null
+  }
+  const priority: Record<string, number> = {
+    provisional_blind: 0,
+    final: 1,
+    second_review: 2,
+    resolution_required: 3,
+    relevant: 4,
+    uncertain: 5,
+    filter_failed: 6,
+    excluded: 7,
+    complete: 8,
+    not_required: 9,
+  }
+  const sorted = [...results].sort((left, right) => {
+    const leftKey = stageFor(left) ?? decisionFor(left) ?? 'not_required'
+    const rightKey = stageFor(right) ?? decisionFor(right) ?? 'not_required'
+    return (priority[leftKey] ?? 99) - (priority[rightKey] ?? 99)
+  })
 
   const counts = {
-    all:           results.length,
-    relevant:      results.filter((r) => r.filter_decision?.decision === 'relevant').length,
-    uncertain:     results.filter((r) => r.filter_decision?.decision === 'uncertain').length,
-    excluded:      results.filter((r) => r.filter_decision?.decision === 'excluded').length,
-    filter_failed: results.filter((r) => r.filter_decision?.decision === 'filter_failed').length,
+    all: results.length,
+    review: results.filter(result => {
+      const stage = stageFor(result)
+      return stage !== null && stage !== 'complete' && stage !== 'not_required'
+    }).length,
+    relevant: results.filter(result => decisionFor(result) === 'relevant').length,
+    uncertain: results.filter(result => decisionFor(result) === 'uncertain').length,
+    excluded: results.filter(result => decisionFor(result) === 'excluded').length,
+    filter_failed: results.filter(result => decisionFor(result) === 'filter_failed').length,
   }
   const rawSourceTotal = sourceBreakdown?.reduce((sum, source) => sum + source.found_before_filtering, 0) ?? results.length
-  const aiCountsBySource = new Map<string, { retained: number; excluded: number; unprocessed: number }>()
+  const aiCountsBySource = new Map<string, { retained: number; excluded: number; unprocessed: number; withheld: number }>()
   for (const result of results) {
     const source = result.source_db
-    const existing = aiCountsBySource.get(source) ?? { retained: 0, excluded: 0, unprocessed: 0 }
-    const decision = result.filter_decision?.decision
+    const existing = aiCountsBySource.get(source) ?? { retained: 0, excluded: 0, unprocessed: 0, withheld: 0 }
+    const adjudication = adjudicationByResult.get(result.id)
+    const decision = adjudication?.filter_decision?.decision
     if (decision === 'relevant' || decision === 'uncertain') existing.retained += 1
     else if (decision === 'excluded') existing.excluded += 1
-    else existing.unprocessed += 1
+    else if (decision === 'filter_failed') existing.unprocessed += 1
+    else if (adjudication?.blind_review_required && !adjudication.ai_revealed) existing.withheld += 1
     aiCountsBySource.set(source, existing)
   }
   const fdaSignals = groupFdaSignals(results)
 
   const filtered = tab === 'all'
     ? sorted
-    : sorted.filter((r) => r.filter_decision?.decision === tab)
+    : tab === 'review'
+      ? sorted.filter(result => {
+          const stage = stageFor(result)
+          return stage !== null && stage !== 'complete' && stage !== 'not_required'
+        })
+      : sorted.filter(result => decisionFor(result) === tab)
 
   const tabs: { key: Tab; label: string }[] = [
+    { key: 'review',        label: `Review queue (${counts.review})` },
     { key: 'all',           label: `All (${counts.all})` },
-    { key: 'relevant',      label: `Relevant (${counts.relevant})` },
-    { key: 'uncertain',     label: `Uncertain (${counts.uncertain})` },
-    { key: 'excluded',      label: `Excluded (${counts.excluded})` },
+    { key: 'relevant',      label: `AI relevant (${counts.relevant})` },
+    { key: 'uncertain',     label: `AI uncertain (${counts.uncertain})` },
+    { key: 'excluded',      label: `AI excluded (${counts.excluded})` },
     ...(counts.filter_failed > 0
       ? [{ key: 'filter_failed' as Tab, label: `Unprocessed (${counts.filter_failed})` }]
       : []),
     { key: 'raw',           label: `Raw Data (${counts.all})` },
   ]
+  const approvalReady = adjudications?.summary.ready_for_approval === true
+  const reviewStateUnavailable = loadingAdjudications || Boolean(adjudicationError) || !adjudications
 
   return (
     <div>
@@ -360,7 +420,8 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
           {reviewStatus === 'draft' && (
             <button
               onClick={() => handleReview('reviewed')}
-              disabled={reviewLoading}
+              disabled={reviewLoading || reviewStateUnavailable || !approvalReady}
+              aria-describedby={!approvalReady ? 'run-review-readiness' : undefined}
               className="ml-auto px-3 py-1.5 bg-[#0D9488] text-white rounded-lg text-xs font-medium hover:bg-[#0B8177] disabled:opacity-50"
             >
               {reviewLoading ? 'Saving...' : 'Mark as Reviewed'}
@@ -369,7 +430,8 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
           {reviewStatus === 'reviewed' && !confirmingSelfApproval && (
             <button
               onClick={() => handleReview('approved')}
-              disabled={reviewLoading}
+              disabled={reviewLoading || reviewStateUnavailable || !approvalReady}
+              aria-describedby={!approvalReady ? 'run-review-readiness' : undefined}
               className="ml-auto px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
             >
               {reviewLoading ? 'Saving...' : 'Approve'}
@@ -385,7 +447,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
           <p className="font-medium text-amber-800">Self-approval acknowledgement</p>
           <p className="mt-1 text-amber-700">
-            You are approving your own work. Under EU MDR Annex IX 4.5.5, independent review is required where possible. By proceeding, you confirm no independent reviewer is available and this self-approval will be documented in the audit trail.
+            You are approving a run you reviewed. Confirm that this is permitted by your organisation&apos;s controlled procedure and that every required independent second review has been completed. The self-approval will be recorded in the audit trail.
           </p>
           <div className="mt-3 flex gap-2">
             <button
@@ -406,9 +468,46 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
       )}
 
       {reviewError && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
           {reviewError}
         </div>
+      )}
+
+      {(runStatus === 'complete' || runStatus === 'degraded') && (
+        <section className="mb-6 space-y-3" aria-labelledby="human-review-heading">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 id="human-review-heading" className="text-sm font-semibold text-zinc-900">Controlled human review</h2>
+              <p className="mt-0.5 text-xs text-zinc-600">AI output is supporting evidence. The signed human disposition is the regulatory decision.</p>
+            </div>
+            {adjudications && (
+              <span className={clsx(
+                'rounded border px-2 py-1 text-xs font-medium',
+                approvalReady ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-800',
+              )}>
+                {adjudications.summary.completed_records}/{adjudications.summary.required_records} required records complete
+              </span>
+            )}
+          </div>
+
+          {loadingAdjudications && <p className="rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600" role="status">Loading protected review state…</p>}
+          {!loadingAdjudications && adjudicationError && (
+            <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">
+              <p>{adjudicationError}</p>
+              <button type="button" onClick={() => void loadAdjudications()} className="mt-2 font-medium underline underline-offset-2">Retry protected review load</button>
+            </div>
+          )}
+          {adjudications && (
+            <>
+              <ReviewerQualification value={credentials} onChange={setCredentials} />
+              <div id="run-review-readiness" className="rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600" role="status">
+                {approvalReady
+                  ? 'All required record dispositions and independent second reviews are complete. The run-level review gate is available.'
+                  : `${adjudications.summary.pending_records} required disposition${adjudications.summary.pending_records === 1 ? '' : 's'} and ${adjudications.summary.second_review_pending} second review${adjudications.summary.second_review_pending === 1 ? '' : 's'} remain before run approval.`}
+              </div>
+            </>
+          )}
+        </section>
       )}
 
       {isReportApproved(reviewStatus) && !reportGenerated && (runStatus === 'complete' || runStatus === 'degraded') && (
@@ -466,12 +565,13 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
                   <th className="px-3 py-2 text-right font-medium">AI retained</th>
                   <th className="px-3 py-2 text-right font-medium">AI excluded</th>
                   <th className="px-3 py-2 text-right font-medium">Unprocessed</th>
+                  <th className="px-3 py-2 text-right font-medium">Blind review</th>
                   <th className="px-3 py-2 text-left font-medium">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {sourceBreakdown.map((source) => {
-                  const aiCounts = aiCountsBySource.get(source.source) ?? { retained: 0, excluded: 0, unprocessed: 0 }
+                  const aiCounts = aiCountsBySource.get(source.source) ?? { retained: 0, excluded: 0, unprocessed: 0, withheld: 0 }
                   return (
                     <tr key={source.source} className="border-t border-zinc-100">
                       <td className="px-3 py-2 text-zinc-800">{fmtSourceDb(source.source)}</td>
@@ -480,6 +580,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
                       <td className="px-3 py-2 text-right text-green-700">{aiCounts.retained}</td>
                       <td className="px-3 py-2 text-right text-zinc-500">{aiCounts.excluded}</td>
                       <td className="px-3 py-2 text-right text-amber-700">{aiCounts.unprocessed}</td>
+                      <td className="px-3 py-2 text-right text-violet-700">{aiCounts.withheld}</td>
                       <td className="px-3 py-2 text-zinc-600">
                         {fmtSourceStatus(source.status)}
                         {source.warnings > 0 && <span className="text-amber-700"> · {source.warnings} warning{source.warnings !== 1 ? 's' : ''}</span>}
@@ -612,7 +713,19 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         <p className="text-sm text-zinc-400 py-8 text-center">No results in this category.</p>
       ) : (
         <div className="rounded-md border border-[#E2E8F0] bg-white">
-          {filtered.map((r) => <ResultRow key={r.id} result={r} />)}
+          {filtered.map((result) => (
+            <ResultRow
+              key={result.id}
+              result={result}
+              adjudication={adjudicationByResult.get(result.id) ?? null}
+              runId={runId}
+              credentials={credentials}
+              permissions={adjudications?.permissions ?? null}
+              onAdjudicationSaved={loadAdjudications}
+              loadingAdjudications={loadingAdjudications}
+              adjudicationError={adjudicationError}
+            />
+          ))}
         </div>
       )}
       </div>
