@@ -1,104 +1,114 @@
-# EU AI Act Risk Classification Assessment
+# Draft EU AI Act Classification Position
 
-**Document ID:** NEUR-COMP-002
-**Date:** 2026-05-11
-**Status:** DRAFT — Pending regulatory review
-**Author:** Auto-generated from codebase analysis
-**Reviewer:** [REVIEW: Assign qualified reviewer]
+**Document ID:** NEUR-COMP-002  
+**Version:** 0.2-draft  
+**Date:** 2026-08-30  
+**Status:** DRAFT — requires EU AI Act counsel and qualified QA/RA approval  
+**Reviewer:** [REVIEW: assign counsel and qualified QA/RA reviewer]
 
-## 1. Purpose
+> This is a working product-position document, not a legal opinion,
+> certification, or final classification. Confirm the analysis against the
+> released intended use, deployed functions, contractual roles, applicable
+> guidance, delegated acts, and current law before external use.
 
-This document assesses the risk classification of the NEURIDION AI system under the EU AI Act (Regulation (EU) 2024/1689), specifically Articles 6, Annex I, and Annex III. The assessment determines which tier of obligations applies to the system.
+## 1. System and intended use under assessment
 
-## 2. System Under Assessment
+Neuridion retrieves records from configured public regulatory sources, assesses
+their potential relevance to a manufacturer-defined device profile, and
+preserves system output and human review history. The output is an advisory
+screening aid for qualified medical-device quality and regulatory personnel.
 
-- **System name:** NEURIDION ("PMS in Seconds")
-- **AI function:** Document classification of Field Safety Notices against device profiles
-- **Models:** Claude Haiku 4.5 (pre-filter), Claude Sonnet 4.6 (full classification)
-- **Provider:** Anthropic (API-based)
-- **Deployer:** NEURIDION / Kodex Medical
-- **Users:** Qualified PRRCs at medical device manufacturers
+Under this intended use Neuridion does not:
 
-## 3. Annex I Assessment — Safety Component Analysis
+- control or form part of a medical device;
+- provide patient-specific clinical information;
+- make an autonomous reportability or vigilance decision;
+- submit a regulatory report or initiate an FSCA; or
+- replace the manufacturer's QMS, PMS plan, PRRC, or qualified regulatory
+  judgment.
 
-**Question:** Is the AI system a safety component of a product, or is it itself a product, covered by Union harmonisation legislation listed in Annex I?
+The complete supplier intended-use statement and customer-use template are in
+[`supplier-assurance-pack.md`](supplier-assurance-pack.md).
 
-**Assessment:** The NEURIDION AI system is **NOT a safety component** of a medical device or any product listed in Annex I. It is a literature screening and classification tool that assists human reviewers in identifying potentially relevant regulatory notices. It does not:
+## 2. Article 5 prohibited-practice screen
 
-- Control or influence the operation of any medical device
-- Make safety-critical decisions autonomously
-- Form part of any product's safety function
-- Replace any required safety mechanism
+No function in the assessed scope is intended to use manipulative or subliminal
+techniques, exploit protected vulnerabilities, perform social scoring, predict
+criminal offending, create facial-recognition databases, infer emotions in the
+regulated contexts, categorize biometric data, or perform remote biometric
+identification.
 
-The system's output is advisory only and requires mandatory human review before any action is taken.
+This conclusion is bounded to the documented release. It must be reassessed when
+features, data, intended users, or model behavior change. See
+[`prohibited-practices.md`](prohibited-practices.md) for the working screen.
 
-## 4. Annex III Assessment — High-Risk Category Screening
+## 3. Article 6 high-risk assessment
 
-Annex III defines eight categories of high-risk AI systems. The following table evaluates each:
+### 3.1 Annex I product or safety-component route
 
-| # | Category | Applicable? | Rationale |
-|---|----------|-------------|-----------|
-| 1 | Biometric identification and categorisation | No | System does not process biometric data of any kind |
-| 2 | Management and operation of critical infrastructure | No | System is a SaaS document screening tool, not critical infrastructure |
-| 3 | Education and vocational training | No | System has no educational function |
-| 4 | Employment, workers management | No | System does not assess workers or make employment decisions |
-| 5a | Access to essential services — Medical devices | No | See detailed analysis below |
-| 5b | Access to essential services — Creditworthiness | No | System does not assess creditworthiness |
-| 6 | Law enforcement | No | System has no law enforcement function |
-| 7 | Migration, asylum and border control | No | System has no immigration-related function |
-| 8 | Administration of justice and democratic processes | No | System has no judicial or democratic function |
+The current intended use does not make Neuridion a medical device and does not
+place it within a medical device as a safety component. It does not control a
+device or make patient-specific diagnostic or therapeutic decisions. On this
+basis, the present working position is that the Article 6 high-risk route tied to
+an Annex I product/safety component and third-party conformity assessment is not
+triggered.
 
-### 4.1 Category 5a — Medical Devices: Detailed Analysis
+[REVIEW: Counsel/QA must approve the MDR/IVDR software qualification analysis and
+confirm that actual marketing, contracts, integrations, and deployed behavior do
+not create a different intended purpose.]
 
-Category 5a covers AI systems intended to be used as a safety component of a medical device, or which are themselves medical devices, as covered by MDR (EU) 2017/745 or IVDR (EU) 2017/746.
+### 3.2 Annex III use-case route
 
-**NEURIDION is NOT a medical device under MDR Article 2** because it:
+The screened document-classification use does not match an Annex III category.
+In particular, it is not used for biometrics, critical-infrastructure operation,
+education access, employment, access to essential public/private services, law
+enforcement, migration/asylum/border control, or administration of justice and
+democratic processes.
 
-- Does **not** diagnose, prevent, monitor, predict, or treat any disease or medical condition
-- Does **not** investigate, replace, or modify anatomy or any physiological/pathological process
-- Does **not** provide information by means of in vitro examination of specimens derived from the human body
-- Is a **literature screening tool** that classifies publicly available regulatory documents (FSNs) for relevance to a user-defined device profile
-- Produces **advisory output only** that must be reviewed and approved by a qualified PRRC
+[REVIEW: Confirm against the current consolidated Annex III and any amendments
+or delegated acts on the approval date.]
 
-The system operates entirely on publicly available government regulatory data and user-provided device metadata. It has no patient interaction, no clinical function, and no diagnostic or therapeutic purpose.
+## 4. Working conclusion
 
-[REVIEW: Confirm this classification with reference to national competent authority guidance and any applicable case law regarding AI-assisted regulatory tools under MDR]
+The working conclusion is that the bounded Neuridion screening function is not a
+high-risk AI system under Article 6. Do not describe this conclusion as a formal
+“minimal-risk” or “limited-risk” certification.
 
-## 5. Risk Tier Conclusion
+The exact application of Article 50 depends on the deployed capability and the
+provider/deployer role. Neuridion labels AI-assisted output and discloses human
+oversight and limitations as governance controls. Counsel must identify any
+mandatory Article 50 duty by paragraph and role rather than assuming all Article
+50 provisions apply to all AI output.
 
-Based on the analysis above, the NEURIDION AI system is classified as **Limited-Risk** under the EU AI Act.
+This working conclusion does not remove:
 
-The system does not meet the criteria for:
-- **Unacceptable risk** (Art. 5) — No prohibited practices apply (see NEUR-COMP-005)
-- **High-risk** (Art. 6, Annex I, Annex III) — Not a safety component, not a medical device, does not fall within any Annex III category
+- the manufacturer's MDR/IVDR and PMS obligations;
+- customer validation obligations for QMS software;
+- GDPR obligations where personal data is processed;
+- contractual, product-liability, cybersecurity, or professional obligations;
+  or
+- obligations arising from the upstream model/provider relationship.
 
-As a limited-risk AI system, NEURIDION is subject to **Article 50 transparency obligations**.
+## 5. Reassessment triggers
 
-[REVIEW: Confirm this classification is consistent with the latest Commission guidance and any delegated acts amending Annexes I or III]
+Reassess and reapprove before release if the system is changed to:
 
-## 6. Applicable Obligations
+- autonomously suppress, close, approve, or submit a regulatory decision;
+- function as or within a medical device or its safety component;
+- process patient-specific data for a medical purpose;
+- control an authority submission or safety action without effective human
+  decision-making;
+- serve a use case described in Annex III;
+- materially change its intended users, decision authority, models, or data; or
+- operate under amended law or guidance that changes the analysis.
 
-Given the limited-risk classification, the following obligations apply:
+## 6. Approval record
 
-### 6.1 Article 50 — Transparency Obligations
-- Users must be informed that they are interacting with an AI system
-- AI-generated classifications must be clearly identified as AI output
-- Limitations and confidence levels must be communicated
-- See NEUR-COMP-004 (Transparency Notice) for implementation details
-
-### 6.2 Article 5 — Prohibited Practices
-- Ongoing screening required to confirm no prohibited practices are introduced
-- See NEUR-COMP-005 (Prohibited Practices Screening) for current assessment
-
-### 6.3 General GDPR Obligations
-- Standard data protection requirements apply to user account data
-- AI processing of FSN data (public regulatory documents) does not constitute processing of personal data
-- See NEUR-COMP-006 (DPIA Screening) for data protection impact assessment
-
-## 7. Review & Approval
-
-| Role | Name | Date | Signature |
-|------|------|------|-----------|
-| Prepared by | Auto-generated from codebase | 2026-05-11 | — |
-| Reviewed by | [REVIEW: Assign] | [REVIEW: Date] | [REVIEW: Sign] |
-| Approved by | [REVIEW: Assign] | [REVIEW: Date] | [REVIEW: Sign] |
+| Review | Name | Evidence/decision | Date/signature |
+| --- | --- | --- | --- |
+| Product intended use | [ENTER] | [ENTER] | [ENTER] |
+| MDR/IVDR qualification | [ENTER] | [ENTER] | [ENTER] |
+| AI Act Article 6/Annex III | [ENTER] | [ENTER] | [ENTER] |
+| Applicable Article 50 duties | [ENTER] | [ENTER] | [ENTER] |
+| Upstream provider/deployer roles | [ENTER] | [ENTER] | [ENTER] |
+| Final legal approval | [ENTER] | [APPROVE/REJECT] | [ENTER] |

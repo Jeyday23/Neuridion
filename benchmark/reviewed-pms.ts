@@ -6,11 +6,52 @@ const PROFILE = {
   manufacturer: 'COPRA System GmbH',
   device_name: 'COPRA6',
 }
-const PERIOD = { from: '2026-01-05', to: '2026-04-30' }
 const COPRA_REFERENCE = '14727/26'
+
 const AUTHORITY_REVISIONS: Record<string, { date?: string; manufacturer?: string; reason: string }> = {
   '14727/26': { date: '2026-04-29', reason: 'BfArM currently publishes a revised COPRA6 notice date' },
   '61735/25': { manufacturer: 'Meierhofer Medizintechnik', reason: 'BfArM currently omits the GmbH legal suffix' },
+  '01737/26': { date: '2026-07-14', reason: 'BfArM currently publishes a revised ORBIS Medication notice date (verified live 2026-08-30)' },
+}
+
+interface AcknowledgedAddition {
+  reference: string
+  manufacturer: string
+  product: string
+  date: string
+  reason: string
+}
+
+// Authority-side records confirmed correct during a live audit but discovered
+// after the reviewed golden snapshot was signed off. They are intentionally
+// excluded from reviewed recall and field-agreement denominators, and remain
+// pending human PRRC review until explicitly folded into the golden fixture.
+const ACKNOWLEDGED_ADDITIONS: AcknowledgedAddition[] = [
+  {
+    reference: '27552/26',
+    manufacturer: 'COPRA System GmbH',
+    product: 'COPRA6',
+    date: '2026-06-30',
+    reason: 'BfArM published a new COPRA6 FSN after the reviewed snapshot, discovered in the 2026-08-30 live audit; pending human PRRC review',
+  },
+]
+
+function latestDate(dates: string[]): string {
+  return dates.reduce((latest, date) => (date > latest ? date : latest))
+}
+
+// The window end is derived, never hand-edited: it always covers every date
+// the gate currently knows about (golden snapshot, acknowledged authority
+// revisions, and acknowledged post-review additions).
+const PERIOD = {
+  from: '2026-01-05',
+  to: latestDate([
+    ...golden.map(record => record.date),
+    ...Object.values(AUTHORITY_REVISIONS)
+      .map(revision => revision.date)
+      .filter((date): date is string => Boolean(date)),
+    ...ACKNOWLEDGED_ADDITIONS.map(addition => addition.date),
+  ]),
 }
 
 async function main(): Promise<void> {
@@ -30,9 +71,20 @@ async function main(): Promise<void> {
   const duplicateCount = result.items.length - actualIds.size
   const filterAudit = auditKeywordRelevance(result.items, PROFILE, [])
   const copraId = COPRA_REFERENCE.replace('/', '-')
-  const targetMatches = filterAudit.items.filter(item => item.external_id === copraId)
+
+  // Exact-set profile precision: the COPRA filter must retain the reviewed
+  // target plus any acknowledged additions matching this profile — nothing
+  // unacknowledged, nothing missing.
+  const acknowledgedCopraIds = ACKNOWLEDGED_ADDITIONS
+    .filter(addition => addition.manufacturer === PROFILE.manufacturer && addition.product === PROFILE.device_name)
+    .map(addition => addition.reference.replace('/', '-'))
+  const expectedProfileIds = [...new Set([copraId, ...acknowledgedCopraIds])].sort()
+  const actualProfileIds = filterAudit.items.map(item => item.external_id).sort()
+  const unacknowledgedProfileIds = actualProfileIds.filter(id => !expectedProfileIds.includes(id))
+  const absentProfileIds = expectedProfileIds.filter(id => !actualProfileIds.includes(id))
+  const precisionExact = unacknowledgedProfileIds.length === 0 && absentProfileIds.length === 0
+
   const recall = expectedIds.length === 0 ? 0 : (expectedIds.length - missing.length) / expectedIds.length
-  const precision = filterAudit.items.length === 1 && targetMatches.length === 1 ? 1 : 0
   const currentCopra = result.items.find(item => item.external_id === copraId)
   const reviewedCopra = golden.find(record => record.reference === COPRA_REFERENCE)
   const fieldAudit = golden.map(record => {
@@ -52,6 +104,8 @@ async function main(): Promise<void> {
   const snapshotDateMatches = fieldAudit.filter(({ record, item }) => item?.fsn_date === record.date).length
   const snapshotManufacturerMatches = fieldAudit.filter(({ record, item }) => item?.manufacturer === record.manufacturer).length
   const metadataPollution = result.items.filter(item => /(?:\bPDF,|\bDatum:)/i.test(item.manufacturer ?? ''))
+  // Restricted to expected (golden) IDs — acknowledged additions and any
+  // other new authority records must never leak into the profile audits.
   const reviewedItems = result.items.filter(item => actualIds.has(item.external_id) && expectedIds.includes(item.external_id))
   const reviewedProfiles = [...new Map(golden.map(record => [
     `${record.manufacturer}|${record.product}`,
@@ -72,7 +126,7 @@ async function main(): Promise<void> {
   console.error(`Source outcome:       ${result.outcome}`)
   console.error(`Source warnings:      ${result.warnings.length}`)
   console.error(`Reviewed recall:      ${expectedIds.length - missing.length}/${expectedIds.length} (${(recall * 100).toFixed(1)}%)`)
-  console.error(`Profile precision:    ${targetMatches.length}/${filterAudit.items.length} (${(precision * 100).toFixed(1)}%)`)
+  console.error(`Profile precision:    exact-set ${precisionExact ? 'PASS' : 'FAIL'} (expected: ${expectedProfileIds.join(', ') || 'none'}; actual: ${actualProfileIds.join(', ') || 'none'})`)
   console.error(`Duplicate records:    ${duplicateCount}`)
   console.error(`Product fields:       ${productMatches}/${golden.length} current-authority agreement`)
   console.error(`Date fields:          ${currentDateMatches}/${golden.length} current; ${snapshotDateMatches}/${golden.length} original snapshot`)
@@ -84,12 +138,20 @@ async function main(): Promise<void> {
   for (const [reference, revision] of Object.entries(AUTHORITY_REVISIONS)) {
     console.error(`Authority revision:   ${reference} — ${revision.reason}`)
   }
+  for (const addition of ACKNOWLEDGED_ADDITIONS) {
+    console.error(`Acknowledged addition: ${addition.reference} — ${addition.manufacturer} / ${addition.product} @ ${addition.date} — ${addition.reason} [PENDING PRRC REVIEW]`)
+  }
 
   const failures: string[] = []
   if (result.outcome !== 'complete') failures.push(`source outcome was ${result.outcome}`)
   if (result.warnings.length > 0) failures.push(`${result.warnings.length} source warning(s)`)
   if (missing.length > 0) failures.push(`missing reviewed IDs: ${missing.map(record => record.reference).join(', ')}`)
-  if (precision !== 1) failures.push(`profile filter retained IDs: ${filterAudit.items.map(item => item.external_id).join(', ') || 'none'}`)
+  if (!precisionExact) {
+    const details: string[] = []
+    if (unacknowledgedProfileIds.length > 0) details.push(`unacknowledged ID(s) retained: ${unacknowledgedProfileIds.join(', ')}`)
+    if (absentProfileIds.length > 0) details.push(`expected ID(s) absent: ${absentProfileIds.join(', ')}`)
+    failures.push(`profile filter exact-set mismatch — ${details.join('; ')}`)
+  }
   if (duplicateCount > 0) failures.push(`${duplicateCount} duplicate record(s)`)
   if (productMatches !== golden.length) failures.push(`product agreement was ${productMatches}/${golden.length}`)
   if (currentDateMatches !== golden.length) failures.push(`current-authority date agreement was ${currentDateMatches}/${golden.length}`)

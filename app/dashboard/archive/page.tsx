@@ -33,6 +33,7 @@ export default async function ArchivePage({
       product_profiles ( device_name, manufacturer )
     `, { count: 'exact' })
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .range(offset, offset + PAGE_SIZE - 1)

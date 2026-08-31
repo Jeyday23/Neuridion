@@ -31,8 +31,8 @@ export default async function DashboardLayout({
   monthStart.setHours(0, 0, 0, 0)
 
   const [searchCount, profileCount] = await Promise.all([
-    admin.from('search_runs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).gte('created_at', monthStart.toISOString()),
-    admin.from('product_profiles').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+    admin.from('search_runs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_synthetic_canary', false).gte('created_at', monthStart.toISOString()),
+    admin.from('product_profiles').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_synthetic_canary', false),
   ])
 
   const quota = {

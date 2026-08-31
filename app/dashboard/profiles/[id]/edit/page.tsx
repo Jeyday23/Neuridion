@@ -58,6 +58,7 @@ export default async function EditProfilePage({
     .select('id, user_id, device_name, manufacturer, emdn_code, device_class, intended_use, search_strategy')
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .single()
 
   if (profileError) console.error('[profiles/edit]', 'query error:', profileError.message, profileError.code)

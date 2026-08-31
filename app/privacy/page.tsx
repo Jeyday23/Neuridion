@@ -7,7 +7,7 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-6 py-16">
         <h1 className="text-3xl font-bold text-zinc-900 mb-2">Privacy Policy</h1>
-        <p className="text-sm text-zinc-500 mb-10">Last updated: 12 May 2026</p>
+        <p className="text-sm text-zinc-500 mb-10">Last updated: 30 August 2026</p>
 
         <div className="prose prose-zinc max-w-none space-y-10 text-zinc-700 leading-relaxed">
 
@@ -17,8 +17,8 @@ export default function PrivacyPage() {
               Neuridion (&quot;we&quot;, &quot;us&quot;) is operated by{' '}
               <strong>Neuridion</strong>, registered at{' '}
               <strong>[TO BE ADDED]</strong>, Germany.
-              We provide an automated PMS recall search platform for medical device manufacturers
-              operating under EU MDR.
+              We provide an AI-assisted post-market surveillance screening platform for medical
+              device manufacturers and their regulatory teams.
             </p>
           </section>
 
@@ -42,7 +42,7 @@ export default function PrivacyPage() {
               <li>To generate, store and deliver FSN search reports</li>
               <li>To manage your account, subscription and billing</li>
               <li>To send transactional notifications (search completion, account security)</li>
-              <li>To maintain an audit trail required by EU MDR compliance</li>
+              <li>To maintain security, traceability and decision-history records used to provide the service</li>
               <li>To prevent fraud and abuse (rate limiting, security monitoring)</li>
             </ul>
           </section>
@@ -63,8 +63,9 @@ export default function PrivacyPage() {
                 you have accepted)
               </li>
               <li>
-                <strong>Art. 6(1)(c) GDPR — Legal obligation:</strong> audit trail retention for
-                regulatory compliance obligations
+                <strong>Art. 6(1)(c) GDPR — Legal obligation:</strong> only where a specific
+                obligation applicable to us requires the processing; customer regulatory duties do
+                not automatically establish our legal basis
               </li>
             </ul>
           </section>
@@ -87,15 +88,19 @@ export default function PrivacyPage() {
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">6. Data retention</h2>
             <ul className="list-disc pl-5 space-y-2">
               <li>
-                <strong>Search runs &amp; reports:</strong> retained for the lifetime of your account
-                plus 10 years after account closure (EU MDR Art. 83 PMS audit trail requirement)
+                <strong>Search runs &amp; reports:</strong> retained under the platform retention
+                policy and applicable service agreement. On account closure, account identifiers
+                may be anonymised while regulated traceability records are retained. Confirm the
+                agreed period before relying on Neuridion for record retention
               </li>
               <li>
                 <strong>Account data:</strong> deleted within 30 days of account deletion request,
                 subject to the retention period above
               </li>
               <li>
-                <strong>Audit logs:</strong> retained for 10 years after creation (EU MDR Art. 10(8))
+                <strong>Audit logs:</strong> retained under the security and traceability schedule
+                stated in the applicable service agreement; the customer remains responsible for
+                determining its own MDR/IVDR and QMS retention requirements
               </li>
               <li>
                 <strong>Marketing communications:</strong> until consent is withdrawn
@@ -136,7 +141,10 @@ export default function PrivacyPage() {
               Some of our sub-processors are based outside the EU/EEA. Where personal data is
               transferred to the US (Anthropic, Render, Stripe, Resend, Upstash), we rely on the
               EU Standard Contractual Clauses (SCCs) as the transfer mechanism under Art. 46 GDPR.
-              Anthropic processes FSN text content only; no special category data is transmitted.
+              Screening requests are intended to contain device-profile fields and relevant public
+              source text, not customer patient or clinical records. Public safety and adverse-event
+              records can nevertheless contain incidental personal or sensitive information, so
+              source-specific minimisation and transfer controls remain necessary.
             </p>
           </section>
 
@@ -211,8 +219,9 @@ export default function PrivacyPage() {
               individuals — it classifies publicly available regulatory notices, not personal data.
             </p>
             <p className="mt-2">
-              All AI classifications are advisory and require human review (PRRC sign-off) before inclusion
-              in regulatory documentation. If you wish to disable AI-assisted filtering for your account,
+              All AI classifications are advisory. The manufacturer defines the qualified and
+              authorised reviewer, approval meaning, and downstream regulatory decision under its
+              own procedure. If you wish to disable AI-assisted filtering for your account,
               contact us at{' '}
               <a href="mailto:info@neuridion.eu" className="text-[#0D9488] hover:underline">info@neuridion.eu</a>.
               For full details on our AI system, see the{' '}

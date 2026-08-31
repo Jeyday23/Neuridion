@@ -1,12 +1,16 @@
 # Scheduled ingestion and mirror cutover
 
-The scheduled worker is deployed dark. It does not change user search behavior.
+The repository contains scheduled-ingestion infrastructure. This document does
+not establish that the worker, schedules, migrations, source allow-list or
+evidence capture are active in any deployment. Verify the remote environment
+before describing the worker as deployed, dark, shadow or operational.
 
 ## Sources
 
-Only BfArM, MHRA, and Swissmedic are eligible. MHRA uses the production
-dual-channel adapter. FDA remains live-query signal evidence and EUDAMED remains
-reserved until an official machine-readable Vigilance interface is verified.
+The current repository allow-list supports BfArM, MHRA and Swissmedic for this
+worker path. MHRA uses the dual-channel adapter. FDA remains outside this
+scheduled-ingestion path and EUDAMED remains reserved until an official,
+machine-readable Vigilance interface and its evidence boundaries are verified.
 
 ## Safety properties
 
@@ -24,12 +28,17 @@ reserved until an official machine-readable Vigilance interface is verified.
 
 ## Activation
 
-1. Apply migrations 068 and 069 and run `verify:release`.
+1. Verify the complete remote migration state and apply every release-required
+   migration through the controlled workflow. Do not infer readiness from local
+   migration files or apply only 068–069 if the release also depends on later
+   migrations.
 2. Confirm the `regulatory-evidence` bucket is private.
 3. Set `SCHEDULED_INGESTION_SOURCES=swissmedic`.
 4. Create one daily QStash schedule for
    `POST /api/worker/ingest/schedule`.
-5. Observe at least 14 clean scheduled runs before considering shadow mode.
+5. Record scheduler identity, deployed build, source/configuration and evidence
+   capture state for every run.
+6. Observe at least 14 clean scheduled runs before considering shadow mode.
 
 ## Shadow and mirror foundations
 

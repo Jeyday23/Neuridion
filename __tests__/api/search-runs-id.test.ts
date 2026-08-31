@@ -218,9 +218,11 @@ describe('DELETE /api/search-runs/[id]', () => {
         })
         return c
       }
-      // soft-delete update: .update().eq('id').eq('user_id') — second .eq() is terminal
+      // soft-delete update: the synthetic-canary isolation guard adds a third
+      // equality predicate before the query resolves.
       const c = chainable()
       ;(c['eq'] as ReturnType<typeof vi.fn>)
+        .mockReturnValueOnce(c)
         .mockReturnValueOnce(c)
         .mockResolvedValue({ error: null })
       return c

@@ -49,11 +49,8 @@ export function PrototypeBanner() {
 
           {/* Message */}
           <p className="text-[#0F766E] text-sm leading-snug">
-            You&apos;re using an early-access build —&nbsp;
-            <span className="text-white font-medium">
-              public launch&nbsp;<span className="text-[#0D9488]">June&nbsp;2026</span>
-            </span>
-            . Features may change.
+            You&apos;re using an <span className="text-white font-medium">early-access build</span>.
+            {' '}Features may change.
           </p>
         </div>
 

@@ -3,7 +3,7 @@ import Link from 'next/link'
 export const metadata = {
   title: 'AI Transparency — Neuridion',
   description:
-    'How NEURIDION uses artificial intelligence for post-market surveillance, including models, human oversight, and data handling.',
+    'How Neuridion uses AI-assisted screening for post-market surveillance, including human oversight, limitations, and data handling.',
 }
 
 export default function AITransparencyPage() {
@@ -19,15 +19,16 @@ export default function AITransparencyPage() {
           <section>
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">1. AI System Overview</h2>
             <p>
-              NEURIDION uses artificial intelligence to classify Field Safety Notices (FSNs) as part
-              of post-market surveillance (PMS) for medical device manufacturers. The AI serves as a
-              classification tool that analyses publicly available regulatory notices and determines
-              their relevance to your specific device profile.
+              Neuridion uses artificial intelligence to assist with screening Field Safety Notices
+              (FSNs) and other supported public safety records as part of a manufacturer&apos;s
+              post-market surveillance (PMS) process. The system assesses potential relevance to a
+              customer-defined device profile and presents its output for human review.
             </p>
             <p className="mt-3">
               <strong>AI does not</strong> make clinical decisions, diagnose patients, recommend
               treatments, or replace the judgment of a Person Responsible for Regulatory Compliance
-              (PRRC). All AI outputs are advisory and require human review before acting on them.
+              (PRRC). It does not determine reportability or regulatory action. The manufacturer
+              remains responsible for the final disposition and any downstream action.
             </p>
           </section>
 
@@ -75,10 +76,10 @@ export default function AITransparencyPage() {
             <p>NEURIDION uses a two-stage classification pipeline:</p>
             <ol className="list-decimal pl-5 space-y-3 mt-3">
               <li>
-                <strong>Pre-filter (Haiku):</strong> Each FSN is evaluated for obvious irrelevance
-                to your device profile. Approximately 60&ndash;70% of FSNs are clear exclusions
-                (e.g., a dental device FSN when you manufacture cardiac implants) and are handled at
-                this stage for speed and efficiency.
+                <strong>Pre-filter (Haiku):</strong> Records may be assessed for obvious
+                irrelevance to the configured device profile so that human attention can be focused
+                on the most plausible matches. The proportion handled at this stage varies by
+                profile, source, and monitoring period.
               </li>
               <li>
                 <strong>Full classification (Sonnet):</strong> Remaining FSNs receive a detailed
@@ -97,7 +98,7 @@ export default function AITransparencyPage() {
             <ul className="list-disc pl-5 space-y-2">
               <li>
                 Items classified as <strong>&quot;uncertain&quot;</strong> are explicitly flagged for
-                PRRC review — they are never silently excluded.
+                human attention rather than being treated as a final regulatory conclusion.
               </li>
               <li>
                 If the AI filter fails for a specific FSN, that item is marked as{' '}
@@ -108,8 +109,9 @@ export default function AITransparencyPage() {
                 Users can cancel any running search at any time.
               </li>
               <li>
-                Generated reports include a signature grid for PRRC sign-off, ensuring a qualified
-                person reviews and approves the results.
+                Report release is subject to the configured human-review gate. The customer is
+                responsible for assigning qualified reviewers and defining the meaning of approval
+                within its own procedure.
               </li>
               <li>
                 All filter decisions are stored in an immutable, append-only audit trail — decisions
@@ -124,7 +126,7 @@ export default function AITransparencyPage() {
 
             <h3 className="text-lg font-medium text-zinc-900 mt-4 mb-2">What is sent to AI</h3>
             <ul className="list-disc pl-5 space-y-2">
-              <li>FSN title, manufacturer name, date, and content text</li>
+              <li>FSN or source-record title, manufacturer name, date, and content text</li>
               <li>
                 Device profile context (device name, manufacturer, intended use, device class)
               </li>
@@ -138,8 +140,7 @@ export default function AITransparencyPage() {
             <h3 className="text-lg font-medium text-zinc-900 mt-6 mb-2">What is NOT sent to AI</h3>
             <ul className="list-disc pl-5 space-y-2">
               <li>Your email address, password, or authentication credentials</li>
-              <li>Patient data or protected health information (PHI)</li>
-              <li>Health or medical records of any kind</li>
+              <li>Customer patient records or clinical records intentionally uploaded for screening</li>
               <li>Payment information or billing details</li>
               <li>Internal company documents or proprietary files</li>
             </ul>
@@ -157,20 +158,21 @@ export default function AITransparencyPage() {
                 Confidence scores are model estimates, not calibrated statistical probabilities.
               </li>
               <li>
-                Novel or rare device types may receive less accurate classifications due to limited
-                representation in training data.
+                Novel, rare, multilingual, or ambiguously described device records may be harder to
+                assess reliably.
               </li>
               <li>
-                Classification accuracy is highest for English and German language FSNs; other
-                languages may yield reduced accuracy.
+                No universal sensitivity, specificity, or accuracy claim is made. Verification
+                evidence is bounded to the stated dataset, sources, release, and configuration.
               </li>
               <li>
-                The AI does not have access to proprietary device documentation, IFUs, or internal
-                risk assessments — classification is based solely on the FSN text and device profile.
+                Controlled documents affect an assessment only where the active release explicitly
+                extracts, versions, and supplies that evidence to the screening pipeline. A stored or
+                uploaded path alone does not establish that its contents were used.
               </li>
               <li>
-                All AI-generated outputs must be reviewed and approved by the PRRC before inclusion
-                in official PMS documentation.
+                AI-generated output must be reviewed under the manufacturer&apos;s approved procedure
+                before it is relied upon in official PMS documentation.
               </li>
             </ul>
           </section>
@@ -202,12 +204,14 @@ export default function AITransparencyPage() {
               8. EU AI Act Risk Classification
             </h2>
             <p>
-              Under the EU AI Act (Regulation (EU) 2024/1689), NEURIDION&apos;s FSN classification
-              system is assessed as <strong>minimal risk</strong>. The system classifies publicly
-              available government-published regulatory notices — it does not process biometric data,
-              make decisions affecting natural persons&apos; rights, or fall within any Annex III
-              high-risk category. A Data Protection Impact Assessment (DPIA) screening has been
-              conducted and is available upon request.
+              Neuridion&apos;s current working position is that the bounded screening function is not a
+              high-risk AI system under Article 6: it is not intended as a medical device or a
+              safety component and does not match an Annex III use case. This is a draft position,
+              not a certification or legal opinion, and it must be reassessed if the intended use,
+              decision authority, integrations, models, data, or applicable law changes. Neuridion
+              labels AI-assisted output and documents limitations as governance controls. The exact
+              Article 50 duties for a released configuration require confirmation by qualified
+              counsel and quality/regulatory review.
             </p>
           </section>
 

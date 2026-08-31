@@ -6,7 +6,7 @@
 |---------|------|---------|---------|
 | Dr. Anna Weber | PRRC (8yr EU MDR) | Mid-size German manufacturer, Class IIa | **Watch list Q3 2026** (3.8/5) |
 | Michael Hartmann | Head of QM | 15-person German startup, Class I/IIa | **Wait, leaning BUY** (4/5) |
-| Sarah Chen | CTO/Co-founder | US startup expanding to EU, Class II cardiac | **Bookmark for June launch** (3.5/5) |
+| Sarah Chen | CTO/Co-founder | US startup expanding to EU, Class II cardiac | **Bookmark for public launch** (3.5/5) |
 
 ---
 
@@ -144,4 +144,4 @@ Every persona independently noted that the product demonstrates genuine regulato
 >
 > **The blockers are all fixable and non-technical.** Broken legal page routing, DRAFT labels, and missing company address are the only things preventing all three personas from signing up. These are deployment/content issues, not product issues.
 >
-> **Priority for June launch:** Fix legal page routing → Finalize legal documents → Define PRRC on homepage → Add annual pricing → Add mid-tier plan → Demo booking on contact page.
+> **Priority for public launch:** Fix legal page routing → Finalize legal documents → Define PRRC on homepage → Add annual pricing → Add mid-tier plan → Demo booking on contact page.

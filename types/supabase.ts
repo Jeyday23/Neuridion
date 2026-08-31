@@ -173,6 +173,188 @@ export type Database = {
           },
         ]
       }
+      human_adjudication_events: {
+        Row: {
+          ai_model_snapshot: string | null
+          ai_prompt_version_snapshot: string | null
+          attests_qualified: boolean
+          authority_revision_id: string | null
+          blind_to_ai: boolean
+          confidence: number | null
+          created_at: string
+          disposition: string
+          evidence_parser_version_snapshot: string | null
+          filter_decision_id: string
+          fsn_result_id: string
+          id: string
+          material_change: boolean
+          phase: string
+          provisional_event_id: string | null
+          qualification_attestation: string
+          requires_second_review: boolean
+          review_of_event_id: string | null
+          reviewer_id: string
+          reviewer_role: string
+          search_run_id: string
+          serious_event_signal: boolean
+          supersedes_event_id: string | null
+          rationale: string
+        }
+        Insert: {
+          ai_model_snapshot?: string | null
+          ai_prompt_version_snapshot?: string | null
+          attests_qualified: boolean
+          authority_revision_id?: string | null
+          blind_to_ai?: boolean
+          confidence?: number | null
+          created_at?: string
+          disposition: string
+          evidence_parser_version_snapshot?: string | null
+          filter_decision_id: string
+          fsn_result_id: string
+          id?: string
+          material_change?: boolean
+          phase: string
+          provisional_event_id?: string | null
+          qualification_attestation: string
+          requires_second_review?: boolean
+          review_of_event_id?: string | null
+          reviewer_id: string
+          reviewer_role: string
+          search_run_id: string
+          serious_event_signal?: boolean
+          supersedes_event_id?: string | null
+          rationale: string
+        }
+        Update: {
+          ai_model_snapshot?: string | null
+          ai_prompt_version_snapshot?: string | null
+          attests_qualified?: boolean
+          authority_revision_id?: string | null
+          blind_to_ai?: boolean
+          confidence?: number | null
+          created_at?: string
+          disposition?: string
+          evidence_parser_version_snapshot?: string | null
+          filter_decision_id?: string
+          fsn_result_id?: string
+          id?: string
+          material_change?: boolean
+          phase?: string
+          provisional_event_id?: string | null
+          qualification_attestation?: string
+          requires_second_review?: boolean
+          review_of_event_id?: string | null
+          reviewer_id?: string
+          reviewer_role?: string
+          search_run_id?: string
+          serious_event_signal?: boolean
+          supersedes_event_id?: string | null
+          rationale?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "human_adjudication_events_filter_decision_id_fkey"
+            columns: ["filter_decision_id"]
+            isOneToOne: false
+            referencedRelation: "filter_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "human_adjudication_events_fsn_result_id_fkey"
+            columns: ["fsn_result_id"]
+            isOneToOne: false
+            referencedRelation: "fsn_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "human_adjudication_events_search_run_id_fkey"
+            columns: ["search_run_id"]
+            isOneToOne: false
+            referencedRelation: "search_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exclusion_review_samples: {
+        Row: {
+          draw_identifier: string
+          draw_seed: string
+          eligible_arms: string[]
+          filter_decision_id: string
+          fsn_result_id: string
+          id: string
+          inclusion_probability: number
+          policy_snapshot: Json
+          policy_version: string
+          search_run_id: string
+          seed_hash: string
+          selection_context: Json
+          selected_at: string
+          selected_by_arms: string[]
+          selection_reason: string
+          stratum: Json
+        }
+        Insert: {
+          draw_identifier: string
+          draw_seed: string
+          eligible_arms: string[]
+          filter_decision_id: string
+          fsn_result_id: string
+          id?: string
+          inclusion_probability: number
+          policy_snapshot: Json
+          policy_version: string
+          search_run_id: string
+          seed_hash: string
+          selection_context: Json
+          selected_at: string
+          selected_by_arms: string[]
+          selection_reason: string
+          stratum: Json
+        }
+        Update: {
+          draw_identifier?: string
+          draw_seed?: string
+          eligible_arms?: string[]
+          filter_decision_id?: string
+          fsn_result_id?: string
+          id?: string
+          inclusion_probability?: number
+          policy_snapshot?: Json
+          policy_version?: string
+          search_run_id?: string
+          seed_hash?: string
+          selection_context?: Json
+          selected_at?: string
+          selected_by_arms?: string[]
+          selection_reason?: string
+          stratum?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exclusion_review_samples_filter_decision_id_fkey"
+            columns: ["filter_decision_id"]
+            isOneToOne: false
+            referencedRelation: "filter_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exclusion_review_samples_fsn_result_id_fkey"
+            columns: ["fsn_result_id"]
+            isOneToOne: false
+            referencedRelation: "fsn_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exclusion_review_samples_search_run_id_fkey"
+            columns: ["search_run_id"]
+            isOneToOne: false
+            referencedRelation: "search_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fsn_canonical: {
         Row: {
           content_hash: string
@@ -439,6 +621,7 @@ export type Database = {
       }
       product_profiles: {
         Row: {
+          canary_key: string | null
           created_at: string
           default_dbs: Json
           deleted_at: string | null
@@ -448,6 +631,7 @@ export type Database = {
           id: string
           ifu_storage_path: string | null
           intended_use: string | null
+          is_synthetic_canary: boolean
           last_modified_at: string
           last_modified_by: string | null
           manufacturer: string
@@ -455,6 +639,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          canary_key?: string | null
           created_at?: string
           default_dbs?: Json
           deleted_at?: string | null
@@ -464,6 +649,7 @@ export type Database = {
           id?: string
           ifu_storage_path?: string | null
           intended_use?: string | null
+          is_synthetic_canary?: boolean
           last_modified_at?: string
           last_modified_by?: string | null
           manufacturer: string
@@ -471,6 +657,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          canary_key?: string | null
           created_at?: string
           default_dbs?: Json
           deleted_at?: string | null
@@ -480,6 +667,7 @@ export type Database = {
           id?: string
           ifu_storage_path?: string | null
           intended_use?: string | null
+          is_synthetic_canary?: boolean
           last_modified_at?: string
           last_modified_by?: string | null
           manufacturer?: string
@@ -527,6 +715,105 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "product_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_requirements: {
+        Row: {
+          blind_inclusion_probability: number | null
+          blind_policy_version: string | null
+          blind_review_required: boolean
+          created_at: string
+          created_by: string | null
+          filter_decision_id: string
+          fsn_result_id: string
+          id: string
+          requirement_reason: string
+          search_run_id: string
+          source_reference_id: string | null
+        }
+        Insert: {
+          blind_inclusion_probability?: number | null
+          blind_policy_version?: string | null
+          blind_review_required?: boolean
+          created_at?: string
+          created_by?: string | null
+          filter_decision_id: string
+          fsn_result_id: string
+          id?: string
+          requirement_reason: string
+          search_run_id: string
+          source_reference_id?: string | null
+        }
+        Update: {
+          blind_inclusion_probability?: number | null
+          blind_policy_version?: string | null
+          blind_review_required?: boolean
+          created_at?: string
+          created_by?: string | null
+          filter_decision_id?: string
+          fsn_result_id?: string
+          id?: string
+          requirement_reason?: string
+          search_run_id?: string
+          source_reference_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_requirements_filter_decision_id_fkey"
+            columns: ["filter_decision_id"]
+            isOneToOne: false
+            referencedRelation: "filter_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_requirements_fsn_result_id_fkey"
+            columns: ["fsn_result_id"]
+            isOneToOne: false
+            referencedRelation: "fsn_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_requirements_search_run_id_fkey"
+            columns: ["search_run_id"]
+            isOneToOne: false
+            referencedRelation: "search_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      run_reviewer_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string
+          assignment_role: string
+          id: string
+          reviewer_id: string
+          search_run_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by: string
+          assignment_role: string
+          id?: string
+          reviewer_id: string
+          search_run_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string
+          assignment_role?: string
+          id?: string
+          reviewer_id?: string
+          search_run_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "run_reviewer_assignments_search_run_id_fkey"
+            columns: ["search_run_id"]
+            isOneToOne: false
+            referencedRelation: "search_runs"
             referencedColumns: ["id"]
           },
         ]
@@ -636,6 +923,7 @@ export type Database = {
       }
       search_runs: {
         Row: {
+          canary_execution_id: string | null
           completed_at: string | null
           created_at: string
           dbs_searched: Json
@@ -645,6 +933,7 @@ export type Database = {
           excluded_count: number
           filter_failed_count: number
           id: string
+          is_synthetic_canary: boolean
           period_from: string | null
           period_to: string | null
           pre_filter_count: number | null
@@ -673,6 +962,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          canary_execution_id?: string | null
           completed_at?: string | null
           created_at?: string
           dbs_searched?: Json
@@ -682,6 +972,7 @@ export type Database = {
           excluded_count?: number
           filter_failed_count?: number
           id?: string
+          is_synthetic_canary?: boolean
           period_from?: string | null
           period_to?: string | null
           pre_filter_count?: number | null
@@ -710,6 +1001,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          canary_execution_id?: string | null
           completed_at?: string | null
           created_at?: string
           dbs_searched?: Json
@@ -719,6 +1011,7 @@ export type Database = {
           excluded_count?: number
           filter_failed_count?: number
           id?: string
+          is_synthetic_canary?: boolean
           period_from?: string | null
           period_to?: string | null
           pre_filter_count?: number | null
@@ -1020,6 +1313,10 @@ export type Database = {
       increment_pdf_usage: {
         Args: { p_month: string; p_user_id: string }
         Returns: undefined
+      }
+      is_search_run_adjudication_complete: {
+        Args: { target_run_id: string }
+        Returns: boolean
       }
       merge_coverage_for_source: {
         Args: { p_range_end: string; p_range_start: string; p_source: string }

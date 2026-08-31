@@ -16,10 +16,6 @@ interface SearchRunData {
   period_from: string | null
   period_to: string | null
   total_results: number | null
-  relevant_count: number | null
-  uncertain_count: number | null
-  excluded_count: number | null
-  filter_failed_count: number | null
   dbs_searched: string[] | string | null
   error_message: string | null
   review_status: string | null
@@ -75,7 +71,7 @@ export default async function RunDetailPage({
   const RUN_COLS = `
     id, status, created_at, started_at, completed_at,
     search_period_from, search_period_to, period_from, period_to,
-    total_results, relevant_count, uncertain_count, excluded_count, filter_failed_count,
+    total_results,
     dbs_searched, error_message, review_status, terms_used, profile_snapshot,
     report_html_path, report_pdf_path, report_excel_path, report_generated_at, timing,
     product_profiles ( device_name, manufacturer )
@@ -86,6 +82,7 @@ export default async function RunDetailPage({
     .select(RUN_COLS)
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
     .single()
 
@@ -106,21 +103,6 @@ export default async function RunDetailPage({
     .eq('run_id', id)
     .order('fsn_date', { ascending: false })
 
-  const decisionsMap: Record<string, FsnResult['filter_decision']> = {}
-
-  const { data: decisions } = await admin
-    .from('filter_decisions')
-    .select('fsn_result_id, decision, rationale, confidence')
-    .eq('search_run_id', id)
-
-  for (const d of decisions ?? []) {
-    decisionsMap[d.fsn_result_id] = {
-      decision:   d.decision as 'relevant' | 'uncertain' | 'excluded' | 'filter_failed',
-      rationale:  d.rationale,
-      confidence: d.confidence != null ? Number(d.confidence) : null,
-    }
-  }
-
   const results: FsnResult[] = (rawResults ?? []).map((r) => ({
     id:              r.id,
     title:           r.title,
@@ -130,7 +112,6 @@ export default async function RunDetailPage({
     fsn_date:        r.fsn_date ?? null,
     source_url:      r.source_url,
     source_db:       r.source_db,
-    filter_decision: decisionsMap[r.id] ?? null,
   }))
 
   const period =
@@ -150,10 +131,6 @@ export default async function RunDetailPage({
   const showMhraNoMatches = mhraSearched && run.status === 'complete' &&
     !results.some(r => r.source_db === 'mhra')
 
-  const rel  = run.relevant_count      ?? 0
-  const unc  = run.uncertain_count     ?? 0
-  const exc  = run.excluded_count      ?? 0
-  const fail = run.filter_failed_count ?? 0
   const tot  = run.total_results       ?? results.length
 
   const termsUsed = run.terms_used
@@ -228,31 +205,20 @@ export default async function RunDetailPage({
         )}
       </div>
 
-      {/* Summary counts */}
+      {/* The server boundary intentionally renders no AI decision counts. Protected
+          decision state is loaded per viewer by the adjudication API below. */}
       <div className="rounded-md border border-[#E2E8F0] bg-white p-5 mb-6">
         <div className="flex gap-6 flex-wrap text-sm">
           <div className="text-center">
             <p className="text-2xl font-semibold text-zinc-900">{tot}</p>
-            <p className="text-xs text-zinc-400 mt-0.5">Total reviewed</p>
+            <p className="text-xs text-zinc-400 mt-0.5">Source records</p>
           </div>
-          <div className="text-center">
-            <p className="text-2xl font-semibold text-green-700">{rel}</p>
-            <p className="text-xs text-zinc-400 mt-0.5">Relevant</p>
+          <div>
+            <p className="text-sm font-medium text-zinc-800">Controlled review below</p>
+            <p className="mt-0.5 max-w-xl text-xs leading-relaxed text-zinc-500">
+              AI classifications and human dispositions are loaded through the protected review channel. Blind-validation records do not expose an AI result until the reviewer locks an independent provisional decision.
+            </p>
           </div>
-          <div className="text-center">
-            <p className="text-2xl font-semibold text-amber-600">{unc}</p>
-            <p className="text-xs text-zinc-400 mt-0.5">Uncertain</p>
-          </div>
-          <div className="text-center">
-            <p className="text-2xl font-semibold text-zinc-400">{exc}</p>
-            <p className="text-xs text-zinc-400 mt-0.5">Excluded</p>
-          </div>
-          {fail > 0 && (
-            <div className="text-center">
-              <p className="text-2xl font-semibold text-red-600">{fail}</p>
-              <p className="text-xs text-zinc-400 mt-0.5">Not Reviewed</p>
-            </div>
-          )}
         </div>
       </div>
 
