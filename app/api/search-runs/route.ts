@@ -90,6 +90,7 @@ export async function POST(request: Request) {
     .select('id, device_name, manufacturer, intended_use, emdn_code, device_class, search_strategy, default_dbs')
     .eq('id', profile_id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
     .single()
   if (profileError || !profile) {
@@ -102,6 +103,7 @@ export async function POST(request: Request) {
   await db.from('search_runs')
     .update({ status: 'error', error_message: 'Automatically cancelled — search exceeded maximum duration.' })
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .in('status', ['pending', 'running'])
     .lt('created_at', staleThreshold)
 
@@ -110,6 +112,7 @@ export async function POST(request: Request) {
     .from('search_runs')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .in('status', ['pending', 'running'])
 
   if ((activeCount ?? 0) > 0) {

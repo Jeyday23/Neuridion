@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { isReportReleaseAuthorized } from '@/lib/reports/review-gate'
+import { isRunAdjudicationComplete } from '@/lib/adjudication/readiness'
 import { z } from 'zod'
 
 export async function GET(
@@ -40,6 +42,7 @@ export async function GET(
     .select('review_status, reviewed_by, reviewed_at')
     .eq('id', report.run_id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
     .single()
 
@@ -47,7 +50,12 @@ export async function GET(
     return Response.json({ error: 'Run not found' }, { status: 404 })
   }
 
-  if (!isReportReleaseAuthorized(run.review_status, run.reviewed_by, run.reviewed_at)) {
+  const adjudication = await isRunAdjudicationComplete(createAdminClient(), report.run_id)
+  if (adjudication.error) {
+    return Response.json({ error: adjudication.error }, { status: 503 })
+  }
+  if (!isReportReleaseAuthorized(run.review_status, run.reviewed_by, run.reviewed_at)
+    || !adjudication.ready) {
     return Response.json(
       { error: 'This search must be reviewed and approved before downloading a report.' },
       { status: 422 },

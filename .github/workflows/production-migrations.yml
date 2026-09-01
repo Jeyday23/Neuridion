@@ -89,7 +89,14 @@ jobs:
             to_regclass('public.authority_record_revisions') is not null as authority_record_revisions,
             to_regclass('public.ingestion_runs') is not null as ingestion_runs,
             to_regclass('public.shadow_comparisons') is not null as shadow_comparisons,
+            to_regclass('public.document_extraction_attempts') is not null as document_extraction_attempts,
+            to_regclass('public.fsn_detail') is not null as fsn_detail,
+            to_regclass('public.run_reviewer_assignments') is not null as run_reviewer_assignments,
+            to_regclass('public.review_requirements') is not null as review_requirements,
+            to_regclass('public.human_adjudication_events') is not null as human_adjudication_events,
+            to_regclass('public.exclusion_review_samples') is not null as exclusion_review_samples,
             to_regprocedure('public.claim_ingestion_run(uuid,text,text,date,date)') is not null as claim_ingestion_run,
+            to_regprocedure('public.is_search_run_adjudication_complete(uuid)') is not null as adjudication_gate,
             exists (
               select 1 from information_schema.columns
               where table_schema = 'public' and table_name = 'fsn_results'
@@ -100,6 +107,16 @@ jobs:
               where table_schema = 'public' and table_name = 'filter_decisions'
                 and column_name = 'evidence_parser_version'
             ) as filter_decisions_parser_version,
+            exists (
+              select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'product_profiles'
+                and column_name = 'is_synthetic_canary'
+            ) as product_profiles_canary_scope,
+            exists (
+              select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'search_runs'
+                and column_name = 'canary_execution_id'
+            ) as search_runs_canary_scope,
             exists (
               select 1 from storage.buckets
               where id = 'regulatory-evidence' and public = false
@@ -118,9 +135,18 @@ jobs:
                   and ($r.authority_record_revisions == true)
                   and ($r.ingestion_runs == true)
                   and ($r.shadow_comparisons == true)
+                  and ($r.document_extraction_attempts == true)
+                  and ($r.fsn_detail == true)
+                  and ($r.run_reviewer_assignments == true)
+                  and ($r.review_requirements == true)
+                  and ($r.human_adjudication_events == true)
+                  and ($r.exclusion_review_samples == true)
                   and ($r.claim_ingestion_run == true)
+                  and ($r.adjudication_gate == true)
                   and ($r.fsn_results_revision_link == true)
                   and ($r.filter_decisions_parser_version == true)
+                  and ($r.product_profiles_canary_scope == true)
+                  and ($r.search_runs_canary_scope == true)
                   and ($r.evidence_bucket_private == true)
               '
 

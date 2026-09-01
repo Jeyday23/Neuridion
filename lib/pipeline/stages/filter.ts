@@ -73,6 +73,22 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   if (ctx.insertedRows.length === 0) return
 
   const { profile, aiOptOut, insertedRows, contentChanged, db } = ctx
+  if (profile.controlled_evidence_status === 'unavailable') {
+    ctx.timing.ai_review_status = 'controlled_evidence_unavailable'
+    ctx.timing.filter_total_items = insertedRows.length
+    ctx.timing.filter_to_filter = 0
+    for (const row of insertedRows) {
+      ctx.decisions.push({
+        fsn_result_id: row.id,
+        decision: 'filter_failed',
+        rationale: 'Referenced controlled product evidence was unavailable or could not be extracted. No AI relevance classification was applied; manual PRRC review is required.',
+        confidence: null,
+        model: null,
+        error: 'controlled_evidence_unavailable',
+      })
+    }
+    return
+  }
   const profileFingerprint = getProfileFingerprint(profile)
 
   // 1. Batch cache lookup

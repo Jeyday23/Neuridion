@@ -7,6 +7,11 @@ import { finalizeStage } from './stages/finalize'
 import { z } from 'zod'
 import type { PipelineContext, ProfileRow, SearchJobPayload, ProgressUpdate } from './types'
 import type { Json } from '@/types/supabase'
+import {
+  controlledEvidenceMetadata,
+  loadProfileControlledEvidence,
+  MAX_CONTROLLED_DOCUMENT_BYTES,
+} from '@/lib/controlled-evidence/profile-evidence'
 
 export type { SearchJobPayload, ProgressUpdate }
 
@@ -29,12 +34,71 @@ export async function runSearchPipeline(
   const db = createAdminClient()
   console.error('[lifecycle]', `run_id=${runId} transition pending→running started`)
 
+  // The worker uses a service-role client, so re-bind the signed job payload to
+  // the exact run/user/profile tuple before any profile or storage access.
+  const { data: ownedRun, error: ownedRunError } = await db
+    .from('search_runs')
+    .select('id')
+    .eq('id', runId)
+    .eq('user_id', payload.user_id)
+    .eq('profile_id', payload.profile_id)
+    .single()
+  if (ownedRunError || !ownedRun) throw new Error('Search run ownership validation failed')
+
   const { data: profile, error: profileError } = await db
     .from('product_profiles')
-    .select('device_name, manufacturer, intended_use, emdn_code, device_class, search_strategy')
+    .select('id, user_id, device_name, manufacturer, intended_use, emdn_code, device_class, ifu_storage_path, search_strategy')
     .eq('id', payload.profile_id)
+    .eq('user_id', payload.user_id)
+    .is('deleted_at', null)
     .single()
   if (profileError || !profile) throw new Error(`Profile ${payload.profile_id} not found`)
+
+  const rawProfile = profile as ProfileRow
+  const controlledEvidence = await loadProfileControlledEvidence(
+    rawProfile,
+    { profileId: payload.profile_id, userId: payload.user_id },
+    async (bucket, path) => {
+      const { data, error } = await db.storage.from(bucket).download(path)
+      if (error || !data) throw new Error('storage download failed')
+      if (data.size > MAX_CONTROLLED_DOCUMENT_BYTES) {
+        throw new Error(`document exceeds the ${MAX_CONTROLLED_DOCUMENT_BYTES / 1024 / 1024} MB extraction limit`)
+      }
+      return new Uint8Array(await data.arrayBuffer())
+    },
+  )
+  const enrichedProfile: ProfileRow = {
+    ...rawProfile,
+    controlled_evidence: controlledEvidence.documents,
+    controlled_evidence_status: controlledEvidence.status,
+    controlled_evidence_errors: controlledEvidence.errors,
+  }
+
+  // Freeze the exact controlled-evidence versions used by this run without
+  // duplicating proprietary document text in the database snapshot.
+  const snapshotWrite = await db.from('search_runs').update({
+    profile_snapshot: {
+      device_name: rawProfile.device_name,
+      manufacturer: rawProfile.manufacturer,
+      intended_use: rawProfile.intended_use,
+      emdn_code: rawProfile.emdn_code,
+      device_class: rawProfile.device_class,
+      ifu_storage_path: rawProfile.ifu_storage_path ?? null,
+      search_strategy: rawProfile.search_strategy,
+      controlled_evidence_status: controlledEvidence.status,
+      controlled_evidence: controlledEvidenceMetadata(controlledEvidence.documents),
+    } as unknown as Json,
+  })
+    .eq('id', runId)
+    .eq('user_id', payload.user_id)
+    .eq('profile_id', payload.profile_id)
+  if (snapshotWrite.error) {
+    enrichedProfile.controlled_evidence_status = 'unavailable'
+    enrichedProfile.controlled_evidence_errors = [
+      ...controlledEvidence.errors,
+      'controlled-evidence provenance could not be persisted to the run snapshot',
+    ]
+  }
 
   const { data: userFlags } = await db
     .from('users')
@@ -43,8 +107,8 @@ export async function runSearchPipeline(
     .single()
   const aiOptOut = userFlags?.ai_opt_out === true || process.env.SKIP_AI_FILTER === 'true'
 
-  const searchTerms = buildManufacturerSearchTerms(profile.manufacturer ?? '', profile.device_name ?? '')
-  const strategy = profile.search_strategy as { competitor_terms?: Array<{ name: string; manufacturer?: string }> } | null
+  const searchTerms = buildManufacturerSearchTerms(enrichedProfile.manufacturer ?? '', enrichedProfile.device_name ?? '')
+  const strategy = enrichedProfile.search_strategy
   const rawCompetitorTerms = Array.isArray(strategy?.competitor_terms)
     ? strategy.competitor_terms
     : []
@@ -53,15 +117,15 @@ export async function runSearchPipeline(
   if (activeSources.length === 0) activeSources.push('bfarm')
 
   // Persist search terms for audit trail
-  const globalMfrTerms = extractManufacturerTerms(profile.manufacturer ?? '')
+  const globalMfrTerms = extractManufacturerTerms(enrichedProfile.manufacturer ?? '')
   const globalDevTerms = searchTerms.filter(t => !globalMfrTerms.includes(t))
   try {
     const termsPayload = TermsUsedSchema.parse({
       manufacturer_terms: globalMfrTerms,
       device_terms: globalDevTerms,
       competitor_terms: competitorTerms,
-      raw_manufacturer: profile.manufacturer ?? '',
-      raw_device_name: profile.device_name ?? '',
+      raw_manufacturer: enrichedProfile.manufacturer ?? '',
+      raw_device_name: enrichedProfile.device_name ?? '',
       term_algorithm_version: '1',
     })
     const { error: termsError } = await db
@@ -86,10 +150,17 @@ export async function runSearchPipeline(
     return cachedCancelled
   }
 
+  const controlledEvidenceWarnings = enrichedProfile.controlled_evidence_status === 'unavailable'
+    ? ['Referenced controlled product evidence was unavailable or could not be versioned; AI relevance classification was not applied and manual PRRC review is required.']
+    : []
   const ctx: PipelineContext = {
-    runId, payload, db, profile: profile as ProfileRow, aiOptOut, searchTerms, competitorTerms, activeSources,
+    runId, payload, db, profile: enrichedProfile, aiOptOut, searchTerms, competitorTerms, activeSources,
     items: [], contentChanged: new Set(), canonicalIds: new Map(), authorityRevisionIds: new Map(),
-    insertedRows: [], decisions: [], warnings: [], timing: {}, sourceBreakdown: [],
+    insertedRows: [], decisions: [], warnings: controlledEvidenceWarnings, timing: {
+      controlled_evidence_status: enrichedProfile.controlled_evidence_status,
+      controlled_evidence_documents: controlledEvidenceMetadata(enrichedProfile.controlled_evidence ?? []),
+      controlled_evidence_errors: enrichedProfile.controlled_evidence_errors ?? [],
+    }, sourceBreakdown: [],
     onProgress,
     isCancelled,
   }

@@ -50,8 +50,8 @@ export async function GET(request: Request) {
     auditLogRes,
   ] = await Promise.all([
     admin.from('users').select('id, email, full_name, company_name, plan, role, subscription_status, current_period_end, consent_cookies_at, consent_terms_at, consent_privacy_at, deletion_requested_at, created_at').eq('id', user.id).single(),
-    admin.from('product_profiles').select('id, device_name, manufacturer, intended_use, emdn_code, device_class, created_at').eq('user_id', user.id).limit(10000),  // search_strategy excluded: system-generated algorithm config, not user personal data
-    admin.from('search_runs').select('id, profile_id, status, period_from, period_to, started_at, completed_at, relevant_count, uncertain_count, excluded_count, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10000),
+    admin.from('product_profiles').select('id, device_name, manufacturer, intended_use, emdn_code, device_class, created_at').eq('user_id', user.id).eq('is_synthetic_canary', false).limit(10000),  // search_strategy excluded: system-generated algorithm config, not user personal data
+    admin.from('search_runs').select('id, profile_id, status, period_from, period_to, started_at, completed_at, relevant_count, uncertain_count, excluded_count, created_at').eq('user_id', user.id).eq('is_synthetic_canary', false).order('created_at', { ascending: false }).limit(10000),
     admin.from('audit_log').select('id, user_id, event_type, event_data, created_at').eq('user_id', user.id).order('created_at', { ascending: false }),
   ])
 
@@ -84,7 +84,9 @@ export async function GET(request: Request) {
     admin.from('pdf_usage').select('id, user_id, month, count').eq('user_id', user.id),
     admin.from('search_drafts').select('id, user_id, profile_id, name, search_period_from, search_period_to, dbs_selected, created_at').eq('user_id', user.id).limit(10000),  // generic_terms + manufacturer_terms excluded: system-generated search intelligence, not user personal data
     admin.from('user_feedback').select('id, user_id, rating, most_useful, missing_features, triggered_by, created_at').eq('user_id', user.id),
-    admin.from('reports').select('id, run_id, user_id, generated_at').eq('user_id', user.id),
+    runIds.length > 0
+      ? admin.from('reports').select('id, run_id, user_id, generated_at').eq('user_id', user.id).in('run_id', runIds)
+      : Promise.resolve({ data: [], error: null }),
     admin.from('login_attempts').select('id, success, attempted_at').eq('email', emailHash).limit(1000),
   ])
 

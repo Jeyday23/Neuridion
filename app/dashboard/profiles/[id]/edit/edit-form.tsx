@@ -236,8 +236,8 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
 
       <div>
         <label className="block text-sm font-medium text-zinc-700 mb-1.5">
-          Search strategy documents
-          <InfoTooltip text="Upload your search strategy or PMS plan documents for reference. These files are stored with your profile for traceability but are not read by the AI during classification." />
+          Controlled product and PMS evidence
+          <InfoTooltip text="Upload a controlled IFU, PMS plan, or search-strategy document. A bounded, sanitized text extract is used by the AI for relevance assessment, and its hash and extraction metadata are retained for traceability. If any referenced file cannot be read, AI classification is blocked and the records require manual review." />
         </label>
         <input ref={strategyInputRef} type="file" multiple accept=".pdf,.docx,.xlsx,.txt" className="hidden"
           onChange={(e) => e.target.files && handleStrategyUpload(e.target.files)} />
@@ -245,7 +245,7 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
           disabled={strategyFiles.length >= 5}
           className="w-full rounded border border-dashed border-zinc-300 px-4 py-3 text-sm text-zinc-500 hover:border-zinc-400 hover:text-zinc-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
           <Upload className="w-4 h-4" />
-          Upload strategy document ({strategyFiles.length}/5)
+          Upload controlled evidence ({strategyFiles.length}/5)
         </button>
         {strategyFiles.length > 0 && (
           <ul className="mt-2 space-y-1">
@@ -266,7 +266,7 @@ export function EditProfileForm({ profile }: { profile: Profile }) {
           </ul>
         )}
         <p className="mt-1 text-[11px] text-zinc-400">
-          If your uploaded strategy document already contains competitor information, you don&apos;t need to re-enter it in the competitor list above.
+          PDF, DOCX, XLSX, or TXT; maximum 10 MB each and five files. Upload only the approved controlled version used for this device profile.
         </p>
       </div>
 

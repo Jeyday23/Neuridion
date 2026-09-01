@@ -31,6 +31,7 @@ export async function POST(
     .select('id, user_id, status')
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
     .single()
 
@@ -48,6 +49,7 @@ export async function POST(
     .update({ status: 'cancelled', completed_at: new Date().toISOString() })
     .eq('id', id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .select('id, status')
     .single()
 

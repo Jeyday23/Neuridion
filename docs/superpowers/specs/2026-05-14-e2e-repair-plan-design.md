@@ -136,6 +136,6 @@ Add `{ value: 'degraded', label: 'Partial results' }` to the status filter optio
 
 - **AI Transparency model names:** Confirmed correct (Claude Haiku 4.5 / Claude Sonnet 4.6 match the actual model IDs).
 - **"Free plan but unlimited" sidebar:** The sidebar correctly reads the DB `plan` column. The account likely has `plan = 'enterprise'` in the database. No code fix needed.
-- **DRAFT banners on legal pages:** Appropriate for prototype phase. Remove before June 2026 launch.
+- **DRAFT banners on legal pages:** Appropriate for prototype phase. Remove before public launch.
 - **Landing/pricing page feature lists:** Currently correct but hardcoded. Migrate to `PLANS.features` in a follow-up.
 - **Post-hoc AI manufacturer check:** Deferred pending prompt fix effectiveness.

@@ -68,6 +68,8 @@ type AuditEventType =
   | 'bug_report_submitted'
   | 'feedback_submitted'
   | 'search_run_status_changed'
+  | 'evidence_chain_exported'
+  | 'adjudication_event_recorded'
 
 export async function logAuditEvent(
   userId: string | null,

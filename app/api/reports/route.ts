@@ -8,6 +8,7 @@ import { rateLimit, getClientIp } from '@/lib/rate-limit'
 import { buildReportHtml } from '@/lib/reports/html-builder'
 import { buildExcel } from '@/lib/reports/excel-builder'
 import { isReportReleaseAuthorized } from '@/lib/reports/review-gate'
+import { isRunAdjudicationComplete } from '@/lib/adjudication/readiness'
 import { withTimeout } from '@/lib/utils/timeout'
 import type { FsnReportRow } from '@/lib/domain/types'
 
@@ -58,9 +59,10 @@ export async function POST(request: Request) {
   // Fetch run + profile (validates ownership)
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('id, status, review_status, reviewed_by, reviewed_at, period_from, period_to, dbs_searched, terms_used, profile_snapshot, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
+    .select('id, status, review_status, reviewed_by, reviewed_at, period_from, period_to, dbs_searched, terms_used, profile_snapshot, is_synthetic_canary, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
     .eq('id', run_id)
     .eq('user_id', user.id)
+    .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
     .single()
 
@@ -68,7 +70,13 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Run not found' }, { status: 404 })
   }
 
-  if (!isReportReleaseAuthorized(run.review_status, run.reviewed_by, run.reviewed_at)) {
+  const db = createAdminClient()
+  const adjudication = await isRunAdjudicationComplete(db, run_id)
+  if (adjudication.error) {
+    return Response.json({ error: adjudication.error }, { status: 503 })
+  }
+  if (!isReportReleaseAuthorized(run.review_status, run.reviewed_by, run.reviewed_at)
+    || !adjudication.ready) {
     return Response.json(
       { error: 'This search must be reviewed and approved before generating a report.' },
       { status: 422 },
@@ -89,7 +97,6 @@ export async function POST(request: Request) {
   }
 
   // Fetch FSN results — use admin client; pipeline tables may lack user-read RLS policies
-  const db = createAdminClient()
   const { data: rawResults, error: resultsError } = await db
     .from('fsn_results')
     .select('id, title, manufacturer, product_name, raw_content, fsn_date, source_url, source_db')
@@ -276,6 +283,7 @@ export async function POST(request: Request) {
       report_generated_at:  new Date().toISOString(),
     })
     .eq('id', run_id)
+    .eq('is_synthetic_canary', false)
 
   if (updateError) {
     console.error('[reports] Failed to persist report paths:', updateError.message)

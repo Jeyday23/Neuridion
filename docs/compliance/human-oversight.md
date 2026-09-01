@@ -1,93 +1,164 @@
-# Human Oversight Procedures
+# Human Oversight and Adjudication Procedure Template
 
-**Document ID:** NEUR-COMP-003
-**Date:** 2026-05-11
-**Status:** DRAFT — Pending regulatory review
-**Author:** Auto-generated from codebase analysis
-**Reviewer:** [REVIEW: Assign qualified reviewer]
+**Document ID:** NEUR-COMP-003  
+**Version:** 0.2-draft  
+**Date:** 2026-08-31  
+**Status:** DRAFT TEMPLATE — customer procedure and release verification required  
+**Required reviewers:** [ASSIGN: Product], [ASSIGN: qualified QA/RA], [ASSIGN: customer process owner]
 
-## 1. Purpose
+> This document describes repository control foundations. It does not prove
+> that they are deployed, that a named user is qualified, or that a customer's
+> procedure has been validated. Confirm the released configuration and complete
+> all assignments before operational use.
 
-This document describes the human oversight mechanisms implemented in the NEURIDION platform in accordance with EU AI Act Article 14. It details how the system ensures that qualified humans maintain meaningful control over AI-generated classifications at every stage of the workflow.
+## 1. Control objective
 
-## 2. Design Principle
+Neuridion provides advisory screening output. The manufacturer retains the
+authority and responsibility to define who reviews it, determine relevance and
+reportability, approve the final disposition, and initiate regulatory action.
+The product must preserve system output and human decisions as distinct records.
 
-NEURIDION follows a **human-in-the-loop** design principle. The AI system operates exclusively as an advisory tool — it classifies and prioritizes Field Safety Notices but never takes autonomous regulatory action. Every AI output requires explicit human review and approval before it can influence compliance decisions or reporting.
+## 2. Required customer decisions
 
-## 3. Oversight Mechanisms
+The customer shall approve:
 
-### 3.1 Uncertain Classification Flagging
+- qualified and authorized primary and secondary reviewer roles;
+- which output and samples require review;
+- the meaning of provisional, final and second-review dispositions;
+- serious-event and downgrade escalation criteria;
+- acceptable blind-first fraction and sampling policy;
+- rationale, evidence and signature requirements;
+- report/export release authority; and
+- deviations, corrections, training and periodic-review procedures.
 
-When the AI model's confidence in a classification falls below the threshold or the analysis is ambiguous, the FSN is classified as `uncertain` rather than being force-fitted into `relevant` or `excluded`.
+A platform role labelled `prrc` and a qualification attestation are controls,
+not independent evidence that Article 15 or customer requirements are met.
 
-- **Implementation:** `lib/claude/filter-pipeline.ts`
-- **Behavior:** The pipeline produces a three-way classification (`relevant`, `uncertain`, `excluded`) with explicit confidence scores (0-1) and textual rationale for each decision
-- **User impact:** Uncertain items are prominently surfaced in the dashboard for mandatory human review, ensuring borderline cases always receive PRRC attention
+## 3. Record-level workflow
 
-### 3.2 Filter Failure Handling
+### 3.1 Review requirements
 
-If the AI filter encounters an error during classification of a specific FSN (API timeout, malformed response, rate limit exceeded), the system does not silently drop the item.
+The repository creates review requirements for AI `relevant`, `uncertain` and
+`filter_failed` results. Selected AI exclusions receive a sampled-exclusion
+requirement. A run cannot reach approved status while a required record lacks a
+current final disposition or an applicable independent confirmation.
 
-- **Behavior:** Failed items are recorded with a `filter_failed` status and a rationale explaining the failure mode
-- **User impact:** The PRRC is notified that manual review is required for these items, ensuring no FSN is silently excluded due to a technical failure
+### 3.2 Blind-first arm
 
-### 3.3 Search Cancellation
+For records selected into the pre-registered blind arm:
 
-Users can cancel an in-progress search run at any time, maintaining full control over the system's operation.
+1. the reviewer sees source evidence without the AI category, rationale or
+   confidence;
+2. the reviewer records a provisional disposition, confidence and rationale;
+3. that event is locked and the AI output is revealed;
+4. the reviewer records the final post-reveal disposition and rationale; and
+5. the system preserves both events and their relationship.
 
-- **Implementation:** `app/api/search-runs/[id]/cancel/route.ts`
-- **Behavior:** Sets the run status to `cancelled`, halting further scraping and AI classification
-- **User impact:** The PRRC can stop a misconfigured or unnecessary run immediately without waiting for completion
+The default policy treats the post-reveal final disposition as the operational
+regulatory record. The provisional event remains validation evidence. If a
+customer procedure defines a different regulatory record, that difference must
+be approved and reflected in the export and report logic before use.
 
-### 3.4 Report Review and Approval
+The blind fraction should be pre-registered, normally 10–20% for the initial
+pilot unless another justified fraction is approved. It must be large enough to
+measure human/system interaction without consuming unmanaged reviewer capacity.
 
-Generated PMS reports include a structured signature grid requiring explicit human sign-off before the report is considered valid.
+### 3.3 Downgrades and second review
 
-- **Implementation:** `lib/pdf/report-document.tsx`
-- **Behavior:** The report document contains designated fields for reviewer name, role, date, and signature
-- **User impact:** No report can be submitted to a notified body or competent authority without documented human approval
+A final `excluded` disposition is a material change when it follows an AI,
+provisional-human or previous-final `relevant` disposition. Material downgrades
+require explicit written rationale. Serious-event exclusions and material
+downgrades require confirmation by a different authorized reviewer under the
+default repository policy.
 
-### 3.5 AI Disclaimer
+The second reviewer must not be the author of the final disposition and must
+record an independent event linked to that disposition. A conflicting second
+review blocks completion and must be resolved under the customer's deviation or
+escalation procedure; it must not be silently treated as confirmation.
 
-All AI-generated content in the platform is accompanied by a clear disclaimer communicating the advisory nature of the output.
+### 3.4 Corrections
 
-- **Disclaimer text:** "AI classifications are advisory only and must be reviewed and approved by a qualified Person Responsible for Regulatory Compliance (PRRC) before any regulatory action is taken."
-- **Placement:** Displayed on the search results dashboard, in generated reports, and on the AI transparency page
+AI decisions and human events are append-only. A correction creates a new final
+event linked to the superseded event. It does not rewrite or delete the earlier
+decision. The customer must define when a corrected decision triggers report
+reissue, downstream notification or further regulatory assessment.
 
-### 3.6 Immutable Audit Trail
+## 4. Source and classification failure controls
 
-All AI classification decisions are recorded in an append-only audit trail that cannot be modified or deleted, ensuring full traceability of the AI system's behavior.
+- `uncertain` output is not a regulatory conclusion and requires human review.
+- `filter_failed` output is review-blocking and must not be silently excluded.
+- Source failures, degraded outcomes, caps and coverage warnings require an
+  approved disposition or fallback before cycle/run approval.
+- Search cancellation stops further processing but does not by itself resolve
+  records already collected or any external surveillance obligation.
 
-- **Implementation:** The `filter_decisions` table is append-only, enforced by PostgreSQL rules that prevent UPDATE and DELETE operations
-- **Behavior:** A database-level trigger rejects any attempt to modify or remove classification records
-- **User impact:** Complete historical record of all AI decisions is preserved for regulatory audits, including the model used, confidence score, rationale, and timestamp
+## 5. Reviewer-facing information
 
-### 3.7 Dashboard Review
+Before the operational final disposition, the reviewer should have access to:
 
-The search results dashboard presents all AI classifications in a structured interface that enables efficient human review.
+- the source record and retrievable evidence;
+- the approved device profile and controlled-evidence version used;
+- source status, retrieval time, warnings and revision context;
+- AI category, rationale, confidence indicator, model and prompt/ruleset version
+  after any required blind provisional decision; and
+- applicable customer criteria and escalation rules.
 
-- **Behavior:** Users can review all classified FSNs organized by decision category (relevant, uncertain, excluded), inspect individual rationales and confidence scores, and override classifications before generating reports
-- **User impact:** The PRRC maintains full visibility into and control over the AI's output before any downstream action is taken
+Confidence is a model indicator, not a calibrated correctness probability. The
+interface and training must not imply that a high score authorizes exclusion.
 
-## 4. Responsible Persons
+## 6. Automation-bias and performance evidence
 
-[REVIEW: Assign named individuals to the following roles]
+Recording the AI result before review does not create a counterfactual. The
+blind-first arm provides the provisional human judgment needed to compare
+blinded and revealed decisions. Analysis must include both sides of the
+sensitivity calculation: relevant records surfaced by the system and estimated
+relevant records among exclusions using retained inclusion probabilities.
 
-| Role | Responsibility | Assigned To |
-|------|---------------|-------------|
-| AI System Owner | Overall accountability for AI system compliance | [REVIEW: Assign] |
-| PRRC (per customer) | Review and approve AI classifications for their device profiles | Customer-designated PRRC |
-| Technical Lead | Maintain oversight mechanisms and monitor system behavior | [REVIEW: Assign] |
-| Data Protection Officer | Monitor data processing activities and GDPR compliance | [REVIEW: Assign] |
+Reviewer agreement on surfaced records alone must not be described as accuracy
+or sensitivity. Surface-side labels can also be affected by automation bias.
 
-## 5. Conclusion
+## 7. Audit evidence
 
-NEURIDION implements comprehensive human oversight mechanisms that ensure AI classifications remain advisory at all times. The system is designed so that no regulatory action can be taken based solely on AI output — every decision path requires explicit human review, validation, and approval by a qualified PRRC.
+Each human event should retain:
 
-## 6. Review & Approval
+- record, run and original filter-decision identifiers;
+- phase and disposition;
+- rationale and reviewer confidence where applicable;
+- reviewer identity, role and qualification attestation;
+- blind/revealed state;
+- material-change, serious-event and second-review flags;
+- linked provisional, superseded or reviewed event;
+- model, prompt/ruleset, authority revision and evidence-parser snapshot where
+  available; and
+- immutable creation time.
 
-| Role | Name | Date | Signature |
-|------|------|------|-----------|
-| Prepared by | Auto-generated from codebase | 2026-05-11 | — |
-| Reviewed by | [REVIEW: Assign] | [REVIEW: Date] | [REVIEW: Sign] |
-| Approved by | [REVIEW: Assign] | [REVIEW: Date] | [REVIEW: Sign] |
+The machine-readable continuity export should preserve these fields and the
+applicable sampling facts so the decision chain can be inspected outside
+Neuridion.
+
+## 8. Training and authorization record
+
+| Reviewer | Assigned role | Qualification evidence | Training version/date | Authorized by/date |
+| --- | --- | --- | --- | --- |
+| [ENTER] | [PRIMARY/SECONDARY/BOTH] | [REFERENCE] | [ENTER] | [ENTER] |
+
+## 9. Release verification checklist
+
+- [ ] migrations and approval gate verified in the deployed environment;
+- [ ] customer role/assignment policy configured and tested;
+- [ ] blind output is not disclosed before provisional lock;
+- [ ] post-reveal downgrade rationale is retained;
+- [ ] second-review conflicts block completion;
+- [ ] canary/sampled records cannot contaminate customer outputs;
+- [ ] evidence export reconstructs both provisional and final decisions;
+- [ ] customer procedure, training and acceptance tests approved; and
+- [ ] no unsupported accuracy or regulatory-approval claim appears in training.
+
+## 10. Approval
+
+| Role | Name | Decision | Date/signature |
+| --- | --- | --- | --- |
+| Neuridion product/technical | [ENTER] | [APPROVE/REJECT] | [ENTER] |
+| Neuridion qualified QA/RA | [ENTER] | [APPROVE/REJECT] | [ENTER] |
+| Customer process owner | [ENTER] | [APPROVE/REJECT] | [ENTER] |
+| Customer validation authority | [ENTER] | [APPROVE/REJECT] | [ENTER] |

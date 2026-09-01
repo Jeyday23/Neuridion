@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   adminFrom: vi.fn(),
   logAuditEvent: vi.fn(),
+  isRunAdjudicationComplete: vi.fn(),
 }))
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -15,6 +16,9 @@ vi.mock('@/lib/supabase/admin', () => ({
 vi.mock('@/lib/audit', () => ({ logAuditEvent: mocks.logAuditEvent }))
 vi.mock('@/lib/rate-limit', () => ({
   rateLimit: vi.fn(async () => ({ allowed: true, retryAfterMs: 0 })),
+}))
+vi.mock('@/lib/adjudication/readiness', () => ({
+  isRunAdjudicationComplete: mocks.isRunAdjudicationComplete,
 }))
 
 import { PATCH } from '@/app/api/search-runs/[id]/review/route'
@@ -61,6 +65,7 @@ describe('PRRC review transition API', () => {
     vi.clearAllMocks()
     mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null })
     mocks.logAuditEvent.mockResolvedValue(undefined)
+    mocks.isRunAdjudicationComplete.mockResolvedValue({ ready: true, error: null })
   })
 
   it('rejects approval directly from draft', async () => {
@@ -115,6 +120,17 @@ describe('PRRC review transition API', () => {
     expect(mocks.logAuditEvent).toHaveBeenNthCalledWith(
       2, USER_ID, 'self_approval_override', expect.objectContaining({ run_id: RUN_ID }), expect.any(Request),
     )
+  })
+
+  it('blocks run approval while required record-level adjudication is incomplete', async () => {
+    mocks.adminFrom.mockReturnValueOnce(existingQuery({ review_status: 'reviewed' }))
+    mocks.isRunAdjudicationComplete.mockResolvedValue({ ready: false, error: null })
+
+    const response = await PATCH(request('approved'), { params: Promise.resolve({ id: RUN_ID }) })
+
+    expect(response.status).toBe(422)
+    expect(mocks.adminFrom).toHaveBeenCalledTimes(1)
+    expect(mocks.logAuditEvent).not.toHaveBeenCalled()
   })
 
   it('uses a null-safe compare-and-set for legacy draft rows', async () => {
