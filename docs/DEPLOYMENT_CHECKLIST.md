@@ -62,11 +62,13 @@ Production contains legacy timestamped migration-history entries whose original
 SQL is not in this repository. The workflow records those identifiers from
 `supabase/legacy-remote-migrations.txt` as ephemeral no-op placeholders and
 temporarily defers local migrations 023-067. This allows the evidence rollout to
-apply only 068-069 without replaying or falsely marking the older local files.
+apply only 068-072 without replaying or falsely marking the older local files.
 Reconciling 023-067 remains separate migration-governance work.
 
-For the current evidence rollout, confirm migrations `068` and `069` are shown
-as applied before deploying the application.
+For the current evidence rollout, confirm migrations `068`, `069`, `070`, `071`,
+and `072` are shown as applied before deploying the application. The workflow
+also verifies the extraction, adjudication, exclusion-sampling, and synthetic
+canary schema required by the application before it reports success.
 
 ### Verify application integrations
 
