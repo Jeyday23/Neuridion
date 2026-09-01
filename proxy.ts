@@ -5,6 +5,11 @@ import { Redis } from '@upstash/redis'
 import { buildCspHeader } from '@/lib/security/csp'
 import { isUnsupportedPageMethod } from '@/lib/security/http-methods'
 import { isStaleSessionAuthError } from '@/lib/auth/stale-session'
+import {
+  CSRF_EXEMPTIONS,
+  PUBLIC_API_EXEMPTIONS,
+  isRouteExempt,
+} from '@/lib/security/route-exemptions'
 
 const encoder = new TextEncoder()
 
@@ -104,25 +109,6 @@ const PUBLIC_PATHS = new Set([
   '/sample-report',
   '/faq',
 ])
-
-const PUBLIC_API_ROUTES = [
-  '/api/auth/',
-  '/api/claim/',
-  '/api/webhooks/',
-  '/api/consent/cookies',
-  '/api/contact',
-  '/api/worker/',
-]
-
-// Routes exempt from CSRF content-type check (webhooks use non-JSON payloads,
-// auth and claim routes may be called from HTML forms)
-const CSRF_EXEMPT_ROUTES = [
-  '/api/webhooks/stripe',
-  '/api/auth/',
-  '/api/claim/',
-  '/api/consent/cookies',
-  '/api/worker/',
-]
 
 const SESSION_MAX_AGE_MS = 8 * 60 * 60 * 1000
 const SESSION_COOKIE     = 'session_started_at'
@@ -327,7 +313,7 @@ export async function proxy(request: NextRequest) {
   //    custom headers, so x-csrf-protection proves the request is from our SPA.
   // 2. Origin check — defense-in-depth against misconfigured CORS.
   if (pathname.startsWith('/api/') && MUTATING_METHODS.has(request.method)) {
-    const isExempt = CSRF_EXEMPT_ROUTES.some((r) => pathname.startsWith(r))
+    const isExempt = isRouteExempt(pathname, CSRF_EXEMPTIONS)
     if (!isExempt) {
       if (!request.headers.has('x-csrf-protection')) {
         return addSecurityHeaders(NextResponse.json(
@@ -364,7 +350,7 @@ export async function proxy(request: NextRequest) {
   // API routes: protect non-public endpoints, then return with refreshed cookies
   if (pathname.startsWith('/api/')) {
     if (!user) {
-      const isPublicApi = PUBLIC_API_ROUTES.some((r) => pathname.startsWith(r))
+      const isPublicApi = isRouteExempt(pathname, PUBLIC_API_EXEMPTIONS)
       if (!isPublicApi) {
         return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: { 'x-request-id': requestId } }))
       }
