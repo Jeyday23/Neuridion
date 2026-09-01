@@ -26,7 +26,7 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Validate production confirmation and configuration
         env:
@@ -37,7 +37,7 @@ jobs:
           test -n "$SUPABASE_DB_PASSWORD"
           test -n "$SUPABASE_PROJECT_REF"
 
-      - uses: supabase/setup-cli@v1
+      - uses: supabase/setup-cli@v3
         with:
           version: 2.107.0
 
@@ -51,7 +51,7 @@ jobs:
         run: supabase db dump --linked --password "$SUPABASE_DB_PASSWORD" --schema public --file remote-public-schema.sql
 
       - name: Upload remote schema snapshot
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: remote-public-schema-${{ github.run_id }}
           path: remote-public-schema.sql
