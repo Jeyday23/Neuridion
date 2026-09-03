@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import { insertResultsStage } from '@/lib/pipeline/stages/insert-results'
-import { persistDecisionsStage } from '@/lib/pipeline/stages/persist-decisions'
+import {
+  ACCURACY_PROVENANCE_SCHEMA_WARNING,
+  persistDecisionsStage,
+} from '@/lib/pipeline/stages/persist-decisions'
 import { EVIDENCE_SCHEMA_WARNING, isMissingEvidenceLinkColumn } from '@/lib/pipeline/schema-compat'
 import type { PipelineContext } from '@/lib/pipeline/types'
 
@@ -116,5 +119,45 @@ describe('pipeline evidence schema compatibility', () => {
     expect(insertedPayloads[1][0]).not.toHaveProperty('authority_revision_id')
     expect(insertedPayloads[1][0]).not.toHaveProperty('evidence_parser_version')
     expect(ctx.warnings).toEqual([EVIDENCE_SCHEMA_WARNING])
+  })
+
+  it('blocks exclusions and pauses sampling when migration 073 is absent', async () => {
+    const insertedPayloads: Array<Array<Record<string, unknown>>> = []
+    const db = {
+      from: vi.fn(() => ({
+        insert: vi.fn(async (rows: Array<Record<string, unknown>>) => {
+          insertedPayloads.push(rows)
+          return insertedPayloads.length === 1
+            ? { error: { code: 'PGRST204', message: "Could not find the 'decision_method' column" } }
+            : { error: null }
+        }),
+      })),
+    } as unknown as PipelineContext['db']
+    const ctx = context(db)
+    ctx.insertedRows = [{
+      id: 'result-1', authority_revision_id: 'revision-1', external_id: 'notice-1', title: 'Notice',
+      manufacturer: 'Other', raw_content: 'Evidence', fsn_date: '2026-06-19', source_db: 'bfarm',
+      source_url: 'https://example.test/notice-1',
+    }]
+    ctx.decisions = [{
+      fsn_result_id: 'result-1', decision: 'excluded', rationale: 'Date outside range',
+      confidence: 1, model: null, decision_method: 'deterministic_scope',
+      deterministic_reason_codes: ['date_outside_window'],
+    }]
+
+    await persistDecisionsStage(ctx)
+
+    expect(insertedPayloads).toHaveLength(2)
+    expect(insertedPayloads[0][0]).toMatchObject({
+      decision: 'excluded', decision_method: 'deterministic_scope',
+      deterministic_reason_codes: ['date_outside_window'],
+    })
+    expect(insertedPayloads[1][0]).toMatchObject({ decision: 'filter_failed' })
+    expect(insertedPayloads[1][0]).not.toHaveProperty('decision_method')
+    expect(ctx.warnings).toContain(ACCURACY_PROVENANCE_SCHEMA_WARNING)
+    expect(ctx.timing).toMatchObject({
+      exclusion_sampling_status: 'paused_missing_migration_073',
+      exclusion_samples_selected: 0,
+    })
   })
 })
