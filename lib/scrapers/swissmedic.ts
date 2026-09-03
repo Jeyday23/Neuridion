@@ -1,5 +1,4 @@
 import { scraperResult, type ScrapedFsn, type ScraperResult, type ScraperParams } from './bfarm'
-import { buildManufacturerSearchTerms } from '@/lib/search/manufacturer-terms'
 import { sanitizeContent } from './sanitize'
 import { fetchWithRetry } from './fetch-with-retry'
 
@@ -47,13 +46,7 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
   const warnings: string[] = []
   const items: ScrapedFsn[] = []
 
-  const mfrTerms = params.profile
-    ? buildManufacturerSearchTerms(params.profile.manufacturer, params.profile.device_name)
-    : []
-
   let hitItemsCap = false
-  let totalSeen = 0
-  let totalDropped = 0
 
   for (let pageNumber = 0; pageNumber < MAX_PAGES; pageNumber++) {
     const page = await fetchPublicationPage(params, pageNumber, params.signal)
@@ -64,11 +57,12 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
     }
 
     const publications = page.content ?? []
-    const passed = publications.filter(p => isRelevantToProfile(p, mfrTerms))
-    totalSeen += publications.length
-    totalDropped += publications.length - passed.length
-
-    for (const publication of passed) {
+    // Source acquisition must be profile-independent. Persist every valid
+    // publication in the requested window so downstream deterministic rules,
+    // AI ranking, sampling, and human adjudication can inspect the full source
+    // population. Product-term matching is a ranking signal, never an
+    // acquisition filter.
+    for (const publication of publications) {
       const item = toScrapedFsn(publication)
       if (item) items.push(item)
     }
@@ -92,21 +86,7 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
   if (hitItemsCap) {
     warnings.push(
       `Swissmedic: result cap of ${MAX_ITEMS} items reached for ${params.fromDate} to ${params.toDate}. ` +
-      (mfrTerms.length > 0
-        ? `Manufacturer filter ${JSON.stringify(mfrTerms)} may be too broad. Try a more specific manufacturer name.`
-        : `Use a narrower date range for complete results.`),
-    )
-  }
-
-  // Observability for the client-side term filter: a too-aggressive token set
-  // silently loses FSCAs, so make the drop count visible in server logs.
-  // Deliberately NOT a warning — filtering is normal behaviour, and warnings
-  // mark the whole run as degraded.
-  if (mfrTerms.length > 0 && totalDropped > 0) {
-    console.error(
-      '[swissmedic]',
-      `profile term filter dropped ${totalDropped} of ${totalSeen} publications ` +
-      `in ${params.fromDate}–${params.toDate} (terms: ${JSON.stringify(mfrTerms)})`,
+      `Use a narrower date range for complete results.`,
     )
   }
 
@@ -124,20 +104,6 @@ export async function scrapeSwissmedic(params: ScraperParams): Promise<ScraperRe
   return scraperResult(deduped, warnings, {
     failed: items.length === 0 && warnings.some(warning => warning.includes('request failed on page 0')),
   })
-}
-
-function isRelevantToProfile(publication: SwissmedicPublication, terms: string[]): boolean {
-  if (terms.length === 0) return true
-  const haystack = [
-    publication.hersteller,
-    // begruendung (reason text) often names the device family when the
-    // structured device fields are sparse — include it to avoid dropping
-    // relevant FSCAs before the AI filter ever sees them.
-    publication.begruendung,
-    ...(publication.devices?.map(d => d.handelsname) ?? []),
-    ...(publication.devices?.map(d => d.beschreibungKlasse) ?? []),
-  ].filter(Boolean).join(' ').toLowerCase()
-  return terms.some(term => haystack.includes(term))
 }
 
 async function fetchPublicationPage(
