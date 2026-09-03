@@ -10,13 +10,24 @@ vi.mock('@/lib/claude/filter-pipeline', async (importOriginal) => {
   return {
     stage1Filter: mocks.stage1Filter,
     getProfileFingerprint: () => 'profile-fingerprint',
+    buildRankingRequest: actual.buildRankingRequest,
+    FILTER_PROMPT_VERSION: actual.FILTER_PROMPT_VERSION,
+    PRODUCTION_FILTER_PROVIDER: actual.PRODUCTION_FILTER_PROVIDER,
+    PRODUCTION_FILTER_MODEL: actual.PRODUCTION_FILTER_MODEL,
     // Real content-aware key so the test exercises the production cache-key path.
     getFsnExternalId: actual.getFsnExternalId,
   }
 })
 vi.mock('@/lib/scrapers/bfarm', () => ({ fetchBfarmDetail: vi.fn() }))
 
-import { filterStage, isTerminalAiAvailabilityFailure } from '@/lib/pipeline/stages/filter'
+import {
+  computeFilterInputSha256,
+  computeFilterOutputSha256,
+  filterStage,
+  isTerminalAiAvailabilityFailure,
+} from '@/lib/pipeline/stages/filter'
+import { FILTER_PROMPT_VERSION, PRODUCTION_FILTER_MODEL, PRODUCTION_FILTER_PROVIDER } from '@/lib/claude/filter-pipeline'
+import { PMS_CLASSIFICATION_RULESET_VERSION } from '@/lib/regulatory/pms-classification-rules'
 // Resolves through the mock above to the ACTUAL implementation.
 import { getFsnExternalId } from '@/lib/claude/filter-pipeline'
 
@@ -30,7 +41,7 @@ function fsnCacheId(row: { title: string; manufacturer?: string | null; raw_cont
   })
 }
 
-function context(cacheHits: Array<{ fsn_external_id: string; decision: string; reasoning: string | null; confidence: string | null }> = []): PipelineContext {
+function context(cacheHits: Array<Record<string, unknown>> = []): PipelineContext {
   const cacheQuery = {
     select: vi.fn().mockReturnValue({
       in: vi.fn().mockReturnValue({
@@ -66,6 +77,35 @@ function context(cacheHits: Array<{ fsn_external_id: string; decision: string; r
     timing: {},
     sourceBreakdown: [],
     isCancelled: vi.fn().mockResolvedValue(false),
+  }
+}
+
+function verifiedCacheHit(ctx: PipelineContext, row: PipelineContext['insertedRows'][number]) {
+  const base = {
+    fsn_external_id: fsnCacheId(row),
+    decision: 'uncertain',
+    reasoning: 'cached decision',
+    confidence: '90',
+    provider: PRODUCTION_FILTER_PROVIDER,
+    model_id: PRODUCTION_FILTER_MODEL,
+    prompt_version: FILTER_PROMPT_VERSION,
+    ruleset_version: PMS_CLASSIFICATION_RULESET_VERSION,
+    input_sha256: computeFilterInputSha256(row, ctx.profile),
+    original_decision_at: '2026-06-19T10:00:00.000Z',
+    presentation_rank: 'low',
+  }
+  return {
+    ...base,
+    output_sha256: computeFilterOutputSha256({
+      decision: base.decision,
+      rationale: base.reasoning,
+      confidence: base.confidence,
+      provider: base.provider,
+      modelId: base.model_id,
+      promptVersion: base.prompt_version,
+      rulesetVersion: base.ruleset_version,
+      presentationRank: base.presentation_rank,
+    }),
   }
 }
 
@@ -119,12 +159,7 @@ describe('AI filtering circuit breaker', () => {
     })
     const baseCtx = context()
     const cachedRows = baseCtx.insertedRows.slice(0, 5)
-    const cacheHits = cachedRows.map((row) => ({
-      fsn_external_id: fsnCacheId(row),
-      decision: 'excluded',
-      reasoning: 'cached decision',
-      confidence: '90',
-    }))
+    const cacheHits = cachedRows.map((row) => verifiedCacheHit(baseCtx, row))
     const ctx = context(cacheHits)
 
     await filterStage(ctx)
@@ -171,6 +206,121 @@ describe('AI filtering circuit breaker', () => {
       filter_cap_skipped: 5,
       ai_review_cap: 3,
       ai_review_status: 'incomplete_cap',
+    })
+  })
+})
+
+describe('pipeline accuracy safety ordering', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('applies deterministic date scope before cache or model ranking', async () => {
+    const ctx = context()
+    ctx.insertedRows = [{
+      ...ctx.insertedRows[0],
+      fsn_date: '2026-05-31',
+      raw_content: 'ordinary device notice',
+    }]
+
+    await filterStage(ctx)
+
+    expect(mocks.stage1Filter).not.toHaveBeenCalled()
+    expect(ctx.decisions).toMatchObject([{
+      decision: 'excluded',
+      decision_method: 'deterministic_scope',
+      deterministic_reason_codes: ['DET_EXCLUDE_DATE_OUTSIDE_SCOPE'],
+      cache_hit: false,
+    }])
+  })
+
+  it('bypasses cache and model for vigilance language and always requires human review', async () => {
+    const ctx = context()
+    ctx.insertedRows = [{
+      ...ctx.insertedRows[0],
+      title: 'Urgent field safety corrective action after patient death',
+      raw_content: 'The manufacturer initiated an FSCA.',
+    }]
+
+    await filterStage(ctx)
+
+    expect(mocks.stage1Filter).not.toHaveBeenCalled()
+    expect(ctx.decisions[0]).toMatchObject({
+      decision: 'uncertain',
+      decision_method: 'vigilance_bypass',
+      presentation_rank: 'high',
+      cache_hit: false,
+    })
+    expect(ctx.decisions[0].vigilance_reason_codes).toEqual(expect.arrayContaining([
+      'VIGILANCE_DEATH',
+      'VIGILANCE_FSCA',
+    ]))
+  })
+
+  it('defensively coerces an excluded AI result to retained uncertain review', async () => {
+    mocks.stage1Filter.mockResolvedValue({
+      decision: 'excluded',
+      rationale: 'Model attempted to exclude this record.',
+      confidence: 0.99,
+      model: PRODUCTION_FILTER_MODEL,
+      provider: PRODUCTION_FILTER_PROVIDER,
+      model_id: PRODUCTION_FILTER_MODEL,
+      prompt_version: FILTER_PROMPT_VERSION,
+      ruleset_version: PMS_CLASSIFICATION_RULESET_VERSION,
+      presentation_rank: 'low',
+    })
+    const ctx = context()
+    ctx.insertedRows = [{ ...ctx.insertedRows[0], raw_content: 'ordinary device notice' }]
+
+    await filterStage(ctx)
+
+    expect(ctx.decisions[0]).toMatchObject({
+      decision: 'uncertain',
+      decision_method: 'ai_ranking',
+      presentation_rank: 'low',
+      cache_hit: false,
+    })
+    expect(ctx.decisions[0].rationale).toContain('AI-generated exclusion cannot remove a record')
+  })
+
+  it('fails closed to manual review when an existing cache row has legacy or mismatched provenance', async () => {
+    const baseCtx = context()
+    baseCtx.insertedRows = [{ ...baseCtx.insertedRows[0], raw_content: 'ordinary device notice' }]
+    const legacyHit = {
+      fsn_external_id: fsnCacheId(baseCtx.insertedRows[0]),
+      decision: 'relevant',
+      reasoning: 'legacy cached result',
+      confidence: '90',
+    }
+    const ctx = context([legacyHit])
+    ctx.insertedRows = baseCtx.insertedRows
+
+    await filterStage(ctx)
+
+    expect(mocks.stage1Filter).not.toHaveBeenCalled()
+    expect(ctx.decisions[0]).toMatchObject({
+      decision: 'filter_failed',
+      decision_method: 'manual_review_required',
+      error: 'unverifiable_cache_provenance',
+      cache_hit: false,
+    })
+  })
+
+  it('reuses a fully verified cache entry and preserves its original timestamp', async () => {
+    const ctx = context()
+    ctx.insertedRows = [{ ...ctx.insertedRows[0], raw_content: 'ordinary device notice' }]
+    const verified = verifiedCacheHit(ctx, ctx.insertedRows[0])
+    const cachedCtx = context([verified])
+    cachedCtx.insertedRows = ctx.insertedRows
+
+    await filterStage(cachedCtx)
+
+    expect(mocks.stage1Filter).not.toHaveBeenCalled()
+    expect(cachedCtx.decisions[0]).toMatchObject({
+      decision: 'uncertain',
+      decision_method: 'ai_ranking',
+      provider: PRODUCTION_FILTER_PROVIDER,
+      model_id: PRODUCTION_FILTER_MODEL,
+      original_decision_at: '2026-06-19T10:00:00.000Z',
+      cache_hit: true,
     })
   })
 })

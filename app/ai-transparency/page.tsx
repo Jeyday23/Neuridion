@@ -11,7 +11,7 @@ export default function AITransparencyPage() {
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-6 py-16">
         <h1 className="text-3xl font-bold text-zinc-900 mb-2">AI Transparency</h1>
-        <p className="text-sm text-zinc-500 mb-10">Last updated: 12 May 2026</p>
+        <p className="text-sm text-zinc-500 mb-10">Last updated: 3 September 2026</p>
 
         <div className="prose prose-zinc max-w-none space-y-10 text-zinc-700 leading-relaxed">
 
@@ -46,16 +46,9 @@ export default function AITransparencyPage() {
                 </thead>
                 <tbody>
                   <tr className="border-b border-zinc-100">
-                    <td className="py-2 pr-4">Claude Haiku 4.5</td>
-                    <td className="py-2 pr-4">
-                      Pre-filter triage — fast exclusion of clearly unrelated FSNs
-                    </td>
-                    <td className="py-2">Anthropic</td>
-                  </tr>
-                  <tr className="border-b border-zinc-100">
                     <td className="py-2 pr-4">Claude Sonnet 4.6</td>
                     <td className="py-2 pr-4">
-                      Full classification — detailed relevance analysis with rationale
+                      Advisory relevance ranking and rationale; it has no authority to exclude records
                     </td>
                     <td className="py-2">Anthropic</td>
                   </tr>
@@ -66,6 +59,11 @@ export default function AITransparencyPage() {
               Anthropic&apos;s API usage policy states that inputs sent via the API are not used to
               train their models.
             </p>
+            <p className="mt-3 text-sm">
+              Alternative model providers may be evaluated in shadow benchmarks. Their output is
+              not used as the production regulatory disposition unless it passes the controlled
+              release process for the stated dataset and configuration.
+            </p>
           </section>
 
           {/* 3. How AI Classification Works */}
@@ -73,19 +71,18 @@ export default function AITransparencyPage() {
             <h2 className="text-xl font-semibold text-zinc-900 mb-3">
               3. How AI Classification Works
             </h2>
-            <p>NEURIDION uses a two-stage classification pipeline:</p>
+            <p>NEURIDION separates auditable safety rules from advisory AI ranking:</p>
             <ol className="list-decimal pl-5 space-y-3 mt-3">
               <li>
-                <strong>Pre-filter (Haiku):</strong> Records may be assessed for obvious
-                irrelevance to the configured device profile so that human attention can be focused
-                on the most plausible matches. The proportion handled at this stage varies by
-                profile, source, and monitoring period.
+                <strong>Deterministic scope and vigilance rules:</strong> Structured, checkable
+                grounds may mark a record outside scope without deleting it. Death, serious
+                deterioration, serious-incident, FSCA, recall, and field-safety-action signals bypass
+                model ranking and are routed to human review.
               </li>
               <li>
-                <strong>Full classification (Sonnet):</strong> Remaining FSNs receive a detailed
-                analysis. Each is classified as <strong>relevant</strong>,{' '}
-                <strong>uncertain</strong>, or <strong>excluded</strong>, accompanied by a
-                written rationale and a confidence score between 0.0 and 1.0.
+                <strong>AI ranking:</strong> Residual records receive a high, medium, or low
+                presentation rank with a written rationale. AI output may prioritize the review
+                queue, but it never deletes a record or creates a regulatory exclusion.
               </li>
             </ol>
           </section>
@@ -97,8 +94,8 @@ export default function AITransparencyPage() {
             </h2>
             <ul className="list-disc pl-5 space-y-2">
               <li>
-                Items classified as <strong>&quot;uncertain&quot;</strong> are explicitly flagged for
-                human attention rather than being treated as a final regulatory conclusion.
+                Every source record remains in the evidence record. Low-ranked records are a
+                presentation category, not silently discarded evidence.
               </li>
               <li>
                 If the AI filter fails for a specific FSN, that item is marked as{' '}
@@ -117,6 +114,11 @@ export default function AITransparencyPage() {
                 All filter decisions are stored in an immutable, append-only audit trail — decisions
                 cannot be edited or deleted after the fact.
               </li>
+              <li>
+                Each AI decision records the exact provider and model identifier, prompt and ruleset
+                versions, input snapshot hash, output hash, decision time, and whether a compatible
+                cached decision was reused. Re-runs can reveal drift; identical output is not promised.
+              </li>
             </ul>
           </section>
 
@@ -130,11 +132,16 @@ export default function AITransparencyPage() {
               <li>
                 Device profile context (device name, manufacturer, intended use, device class)
               </li>
+              <li>
+                Version-controlled passages from customer-supplied controlled evidence, such as an
+                IFU, only when that evidence is enabled for the assessment
+              </li>
             </ul>
             <p className="mt-2 text-sm">
-              All data sent to the AI consists of publicly available regulatory notices published by
-              government agencies (BfArM, FDA, MHRA, Swissmedic) and device profile information you
-              have entered.
+              Public regulatory evidence is separated from customer-supplied controlled evidence.
+              When controlled evidence is enabled, the assessment records the document version and
+              authorized passage references used. Customers must confirm that their provider terms,
+              confidentiality requirements, and approved procedure permit this processing.
             </p>
 
             <h3 className="text-lg font-medium text-zinc-900 mt-6 mb-2">What is NOT sent to AI</h3>
@@ -142,7 +149,7 @@ export default function AITransparencyPage() {
               <li>Your email address, password, or authentication credentials</li>
               <li>Customer patient records or clinical records intentionally uploaded for screening</li>
               <li>Payment information or billing details</li>
-              <li>Internal company documents or proprietary files</li>
+              <li>Controlled documents that have not been explicitly enabled for the assessment</li>
             </ul>
           </section>
 
@@ -156,6 +163,11 @@ export default function AITransparencyPage() {
               </li>
               <li>
                 Confidence scores are model estimates, not calibrated statistical probabilities.
+              </li>
+              <li>
+                Model APIs may return different wording or rankings on a later re-run even with the
+                same temperature setting. Neuridion records inputs, configuration, and outputs to
+                detect and investigate that drift rather than claiming bit-level determinism.
               </li>
               <li>
                 Novel, rare, multilingual, or ambiguously described device records may be harder to

@@ -87,8 +87,16 @@ export type Database = {
           decision: string
           fsn_external_id: string
           id: string
+          input_sha256: string | null
+          model_id: string | null
+          original_decision_at: string | null
+          output_sha256: string | null
+          presentation_rank: string | null
           profile_fingerprint: string
+          prompt_version: string | null
+          provider: string | null
           reasoning: string | null
+          ruleset_version: string | null
         }
         Insert: {
           confidence?: string | null
@@ -96,8 +104,16 @@ export type Database = {
           decision: string
           fsn_external_id: string
           id?: string
+          input_sha256?: string | null
+          model_id?: string | null
+          original_decision_at?: string | null
+          output_sha256?: string | null
+          presentation_rank?: string | null
           profile_fingerprint: string
+          prompt_version?: string | null
+          provider?: string | null
           reasoning?: string | null
+          ruleset_version?: string | null
         }
         Update: {
           confidence?: string | null
@@ -105,54 +121,95 @@ export type Database = {
           decision?: string
           fsn_external_id?: string
           id?: string
+          input_sha256?: string | null
+          model_id?: string | null
+          original_decision_at?: string | null
+          output_sha256?: string | null
+          presentation_rank?: string | null
           profile_fingerprint?: string
+          prompt_version?: string | null
+          provider?: string | null
           reasoning?: string | null
+          ruleset_version?: string | null
         }
         Relationships: []
       }
       filter_decisions: {
         Row: {
           authority_revision_id: string | null
+          cache_hit: boolean
           confidence: number | null
           decided_at: string
           decision: string
+          decision_method: string | null
+          deterministic_evidence: Json | null
+          deterministic_reason_codes: string[]
           evidence_parser_version: string | null
           flagged_uncertain: boolean
           fsn_result_id: string
           id: string
+          input_sha256: string | null
+          model_id: string | null
           model_used: string | null
+          original_decision_at: string | null
+          output_sha256: string | null
+          presentation_rank: string | null
+          provider: string | null
           prompt_version: string | null
           rationale: string
+          ruleset_version: string | null
           search_run_id: string | null
           stage: string
         }
         Insert: {
           authority_revision_id?: string | null
+          cache_hit?: boolean
           confidence?: number | null
           decided_at?: string
           decision: string
+          decision_method?: string | null
+          deterministic_evidence?: Json | null
+          deterministic_reason_codes?: string[]
           evidence_parser_version?: string | null
           flagged_uncertain?: boolean
           fsn_result_id: string
           id?: string
+          input_sha256?: string | null
+          model_id?: string | null
           model_used?: string | null
+          original_decision_at?: string | null
+          output_sha256?: string | null
+          presentation_rank?: string | null
+          provider?: string | null
           prompt_version?: string | null
           rationale: string
+          ruleset_version?: string | null
           search_run_id?: string | null
           stage: string
         }
         Update: {
           authority_revision_id?: string | null
+          cache_hit?: boolean
           confidence?: number | null
           decided_at?: string
           decision?: string
+          decision_method?: string | null
+          deterministic_evidence?: Json | null
+          deterministic_reason_codes?: string[]
           evidence_parser_version?: string | null
           flagged_uncertain?: boolean
           fsn_result_id?: string
           id?: string
+          input_sha256?: string | null
+          model_id?: string | null
           model_used?: string | null
+          original_decision_at?: string | null
+          output_sha256?: string | null
+          presentation_rank?: string | null
+          provider?: string | null
           prompt_version?: string | null
           rationale?: string
+          ruleset_version?: string | null
           search_run_id?: string | null
           stage?: string
         }
@@ -287,6 +344,7 @@ export type Database = {
           inclusion_probability: number
           policy_snapshot: Json
           policy_version: string
+          sample_source: string
           search_run_id: string
           seed_hash: string
           selection_context: Json
@@ -305,6 +363,7 @@ export type Database = {
           inclusion_probability: number
           policy_snapshot: Json
           policy_version: string
+          sample_source: string
           search_run_id: string
           seed_hash: string
           selection_context: Json
@@ -323,6 +382,7 @@ export type Database = {
           inclusion_probability?: number
           policy_snapshot?: Json
           policy_version?: string
+          sample_source?: string
           search_run_id?: string
           seed_hash?: string
           selection_context?: Json

@@ -51,7 +51,13 @@ describe('verifyIntegrations', () => {
       'fsn_results', 'id,source_db,title,authority_revision_id',
     )
     expect(clients.supabase.queryTable).toHaveBeenCalledWith(
-      'filter_decisions', 'id,decision,model_used,authority_revision_id,evidence_parser_version',
+      'filter_decisions', 'id,decision,model_used,authority_revision_id,evidence_parser_version,provider,model_id,prompt_version,ruleset_version,input_sha256,output_sha256,original_decision_at,presentation_rank,cache_hit,decision_method,deterministic_reason_codes,deterministic_evidence',
+    )
+    expect(clients.supabase.queryTable).toHaveBeenCalledWith(
+      'exclusion_review_samples', 'id,filter_decision_id,sample_source,policy_version,inclusion_probability,stratum,selected_at',
+    )
+    expect(clients.supabase.queryTable).toHaveBeenCalledWith(
+      'filter_decision_cache', 'fsn_external_id,profile_fingerprint,decision,provider,model_id,prompt_version,ruleset_version,input_sha256,output_sha256,original_decision_at,presentation_rank',
     )
   })
 

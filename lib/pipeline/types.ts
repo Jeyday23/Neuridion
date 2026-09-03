@@ -64,8 +64,24 @@ export interface InsertedFsnRow {
   source_url:   string | null
 }
 
-export interface DecisionRow extends FilterDecision {
+export interface DecisionRow extends Omit<FilterDecision, 'decision_method'> {
   fsn_result_id: string
+  /** How this disposition was produced. Optional during rolling deployment. */
+  decision_method?: 'ai_ranking' | 'deterministic_scope' | 'vigilance_bypass' | 'manual_review_required' | 'ai_unavailable'
+  /** Presentation priority only. A low rank never deletes or excludes a record. */
+  presentation_rank?: 'high' | 'medium' | 'low' | null
+  provider?: string | null
+  model_id?: string | null
+  prompt_version?: string | null
+  ruleset_version?: string | null
+  input_sha256?: string | null
+  output_sha256?: string | null
+  original_decision_at?: string | null
+  cache_hit?: boolean
+  deterministic_reason_codes?: string[]
+  deterministic_evidence?: Record<string, unknown> | null
+  vigilance_reason_codes?: string[]
+  vigilance_evidence?: unknown[]
 }
 
 export interface PipelineContext {

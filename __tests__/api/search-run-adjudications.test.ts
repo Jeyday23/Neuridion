@@ -176,6 +176,27 @@ describe('record-level adjudication API', () => {
     }))
   })
 
+  it.each([
+    ['German', 'Dringende Sicherheitsinformation: Produktrückruf'],
+    ['French', 'Avis de sécurité urgent après un incident grave'],
+  ])('server-detects %s vigilance language and requires independent review', async (_language, rawContent) => {
+    mocks.tables.fsn_results[0].raw_content = rawContent
+    mocks.tables.review_requirements[0].blind_review_required = false
+
+    const response = await post({
+      phase: 'final',
+      disposition: 'excluded',
+      rationale: 'The reviewed device identifiers establish a documented non-match.',
+    })
+
+    expect(response.status).toBe(201)
+    expect(mocks.tables.human_adjudication_events.at(-1)).toEqual(expect.objectContaining({
+      phase: 'final',
+      serious_event_signal: true,
+      requires_second_review: true,
+    }))
+  })
+
   it('does not let ownership substitute for an independent second-review assignment', async () => {
     mocks.tables.human_adjudication_events.push({
       id: '66666666-7777-4888-8999-000000000000', search_run_id: RUN_ID,
