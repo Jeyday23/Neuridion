@@ -29,8 +29,18 @@ const TABLE_SENTINELS: Array<{ table: string; columns: string }> = [
   { table: 'product_profiles', columns: 'id,user_id,manufacturer,device_name' },
   { table: 'search_runs', columns: 'id,user_id,status,created_at' },
   { table: 'fsn_results', columns: 'id,source_db,title,authority_revision_id' },
-  { table: 'filter_decisions', columns: 'id,decision,model_used,authority_revision_id,evidence_parser_version' },
-  { table: 'filter_decision_cache', columns: 'fsn_external_id,profile_fingerprint,decision' },
+  {
+    table: 'filter_decisions',
+    columns: 'id,decision,model_used,authority_revision_id,evidence_parser_version,provider,model_id,prompt_version,ruleset_version,input_sha256,output_sha256,original_decision_at,presentation_rank,cache_hit,decision_method,deterministic_reason_codes,deterministic_evidence',
+  },
+  {
+    table: 'exclusion_review_samples',
+    columns: 'id,filter_decision_id,sample_source,policy_version,inclusion_probability,stratum,selected_at',
+  },
+  {
+    table: 'filter_decision_cache',
+    columns: 'fsn_external_id,profile_fingerprint,decision,provider,model_id,prompt_version,ruleset_version,input_sha256,output_sha256,original_decision_at,presentation_rank',
+  },
   { table: 'reports', columns: 'id,user_id,run_id' },
   { table: 'search_drafts', columns: 'id,user_id' },
   { table: 'source_fetches', columns: 'id,source,outcome,adapter_version' },

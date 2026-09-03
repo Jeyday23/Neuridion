@@ -62,13 +62,27 @@ Production contains legacy timestamped migration-history entries whose original
 SQL is not in this repository. The workflow records those identifiers from
 `supabase/legacy-remote-migrations.txt` as ephemeral no-op placeholders and
 temporarily defers local migrations 023-067. This allows the evidence rollout to
-apply only 068-072 without replaying or falsely marking the older local files.
+apply only 068-073 without replaying or falsely marking the older local files.
 Reconciling 023-067 remains separate migration-governance work.
 
 For the current evidence rollout, confirm migrations `068`, `069`, `070`, `071`,
-and `072` are shown as applied before deploying the application. The workflow
+`072`, and `073` are shown as applied before deploying the application. Migration
+`073` is required for exact decision provenance, provider/model/prompt/ruleset
+identity, input/output hashes, cache-origin timestamps, presentation rank, and
+auditable sampling populations. The workflow
 also verifies the extraction, adjudication, exclusion-sampling, and synthetic
 canary schema required by the application before it reports success.
+
+### Optional alternative-provider shadow evaluation
+
+Cloudflare models are evaluation-only and must not be configured as a production
+fallback or regulatory decision authority. Leave
+`NEURIDION_CLOUDFLARE_SHADOW_ENABLED=false` unless a controlled benchmark run has
+been approved. When enabled, configure `CLOUDFLARE_ACCOUNT_ID`,
+`CLOUDFLARE_API_TOKEN`, and choose `glm` or `nemotron` with
+`NEURIDION_CLOUDFLARE_SHADOW_MODEL`. Customer-controlled evidence is deliberately
+not sent through this shadow path. Promotion to a production provider requires a
+separate validated release and updated data-processing approval.
 
 ### Verify application integrations
 

@@ -1,12 +1,73 @@
 import pLimit from 'p-limit'
-import { stage1Filter, getProfileFingerprint, getFsnExternalId, type FilterDecision } from '@/lib/claude/filter-pipeline'
+import {
+  stage1Filter,
+  getProfileFingerprint,
+  getFsnExternalId,
+  buildRankingRequest,
+  FILTER_PROMPT_VERSION,
+  PRODUCTION_FILTER_PROVIDER,
+  PRODUCTION_FILTER_MODEL,
+  type FilterDecision,
+} from '@/lib/claude/filter-pipeline'
+import { computeInputSha256, computeOutputSha256 } from '@/lib/ai/provider'
 import { buildManufacturerSearchTerms, extractManufacturerTerms } from '@/lib/search/manufacturer-terms'
 import { matchesKeywordSignature, matchesKeywordTerm } from '@/lib/search/keyword-match'
 import { fetchBfarmDetail } from '@/lib/scrapers/bfarm'
 import { sanitizeForLlm } from '@/lib/scrapers/sanitize'
-import type { PipelineContext, InsertedFsnRow } from '../types'
+import { PMS_CLASSIFICATION_RULESET_VERSION } from '@/lib/regulatory/pms-classification-rules'
+import {
+  assessDeterministicDisposition,
+  assessVigilanceBypass,
+} from '@/lib/regulatory/deterministic-safety'
+import type { PipelineContext, InsertedFsnRow, DecisionRow } from '../types'
 
 const TRUST_SOURCE_FILTER = new Set(['fda'])
+const PRIMARY_PROVIDER = PRODUCTION_FILTER_PROVIDER
+const PRIMARY_MODEL = PRODUCTION_FILTER_MODEL
+
+type CachedDecision = {
+  fsn_external_id: string
+  decision: string
+  reasoning: string | null
+  confidence: string | number | null
+  provider?: string | null
+  model_id?: string | null
+  prompt_version?: string | null
+  ruleset_version?: string | null
+  input_sha256?: string | null
+  output_sha256?: string | null
+  original_decision_at?: string | null
+  presentation_rank?: string | null
+}
+
+/** Exact bounded, sanitized evidence snapshot supplied to the production ranker. */
+export function computeFilterInputSha256(row: InsertedFsnRow, profile: PipelineContext['profile']): string {
+  return computeInputSha256(buildRankingRequest({
+    title: row.title,
+    manufacturer: row.manufacturer ?? '',
+    raw_content: row.raw_content ?? '',
+    fsn_date: row.fsn_date,
+    source_db: row.source_db,
+  }, profile))
+}
+
+export function computeFilterOutputSha256(input: {
+  decision: string
+  rationale: string | null
+  confidence: string | number | null
+  provider: string
+  modelId: string
+  promptVersion: string
+  rulesetVersion: string
+  presentationRank: string
+}): string {
+  const confidence = normalizeCachedConfidence(input.confidence)
+  return computeOutputSha256({
+    rank: input.presentationRank as 'high' | 'medium' | 'low',
+    rationale: input.rationale ?? '',
+    confidence: confidence ?? 0.5,
+  })
+}
 
 export function normalizeCachedConfidence(value: string | number | null): number | null {
   if (value == null) return null
@@ -36,6 +97,14 @@ function deterministicAiUnavailableDecision(row: InsertedFsnRow, reason: 'credit
       'No AI relevance classification was applied.',
     confidence: null,
     model: 'deterministic-ai-unavailable',
+    decision_method: 'ai_unavailable' as const,
+    presentation_rank: 'high' as const,
+    provider: PRIMARY_PROVIDER,
+    model_id: PRIMARY_MODEL,
+    prompt_version: FILTER_PROMPT_VERSION,
+    ruleset_version: PMS_CLASSIFICATION_RULESET_VERSION,
+    original_decision_at: new Date().toISOString(),
+    cache_hit: false,
   }
 }
 
@@ -49,6 +118,122 @@ function fsnIdOf(fsn: InsertedFsnRow): string {
     fsn_date:     fsn.fsn_date,
     source_db:    fsn.source_db,
   })
+}
+
+function isValidTimestamp(value: string | null | undefined): value is string {
+  return Boolean(value && !Number.isNaN(Date.parse(value)))
+}
+
+function cachedDecisionFor(
+  row: InsertedFsnRow,
+  hit: CachedDecision,
+  profile: PipelineContext['profile'],
+): DecisionRow | null {
+  if (hit.decision !== 'relevant' && hit.decision !== 'uncertain') return null
+  if (hit.provider !== PRIMARY_PROVIDER || hit.model_id !== PRIMARY_MODEL) return null
+  if (hit.prompt_version !== FILTER_PROMPT_VERSION) return null
+  if (hit.ruleset_version !== PMS_CLASSIFICATION_RULESET_VERSION) return null
+  if (!isValidTimestamp(hit.original_decision_at)) return null
+  if (!['high', 'medium', 'low'].includes(hit.presentation_rank ?? '')) return null
+
+  const expectedInputHash = computeFilterInputSha256(row, profile)
+  if (hit.input_sha256 !== expectedInputHash) return null
+  const expectedOutputHash = computeFilterOutputSha256({
+    decision: hit.decision,
+    rationale: hit.reasoning,
+    confidence: hit.confidence,
+    provider: hit.provider,
+    modelId: hit.model_id,
+    promptVersion: hit.prompt_version,
+    rulesetVersion: hit.ruleset_version,
+    presentationRank: hit.presentation_rank!,
+  })
+  if (hit.output_sha256 !== expectedOutputHash) return null
+
+  return {
+    fsn_result_id: row.id,
+    decision: hit.decision,
+    rationale: hit.reasoning ?? '',
+    confidence: normalizeCachedConfidence(hit.confidence),
+    model: hit.model_id,
+    decision_method: 'ai_ranking',
+    presentation_rank: hit.presentation_rank as 'high' | 'medium' | 'low',
+    provider: hit.provider,
+    model_id: hit.model_id,
+    prompt_version: hit.prompt_version,
+    ruleset_version: hit.ruleset_version,
+    input_sha256: hit.input_sha256,
+    output_sha256: hit.output_sha256,
+    original_decision_at: hit.original_decision_at,
+    cache_hit: true,
+  }
+}
+
+function invalidCacheDecision(row: InsertedFsnRow): DecisionRow {
+  return {
+    fsn_result_id: row.id,
+    decision: 'filter_failed',
+    rationale: 'A prior model decision exists but its complete provenance could not be verified. The cached decision was not reused; manual PRRC review is required.',
+    confidence: null,
+    model: null,
+    error: 'unverifiable_cache_provenance',
+    decision_method: 'manual_review_required',
+    presentation_rank: 'high',
+    ruleset_version: PMS_CLASSIFICATION_RULESET_VERSION,
+    cache_hit: false,
+  }
+}
+
+function normalizeAiDecision(
+  row: InsertedFsnRow,
+  profile: PipelineContext['profile'],
+  decision: FilterDecision,
+): DecisionRow {
+  const candidate = decision as FilterDecision & Partial<DecisionRow>
+  const coerced = candidate.decision === 'excluded'
+  const normalizedDecision = coerced ? 'uncertain' : candidate.decision
+  const rank = candidate.presentation_rank
+    ?? (normalizedDecision === 'relevant' ? 'high' : normalizedDecision === 'uncertain' ? 'low' : 'high')
+  const rationale = coerced
+    ? `${candidate.rationale} [Safety control: an AI-generated exclusion cannot remove a record; disposition coerced to uncertain for human review.]`
+    : candidate.rationale
+  const provider = candidate.provider ?? (candidate.model ? PRIMARY_PROVIDER : null)
+  const modelId = candidate.model_id ?? candidate.model
+  const originalDecisionAt = candidate.original_decision_at ?? new Date().toISOString()
+  const inputHash = candidate.input_sha256 ?? computeFilterInputSha256(row, profile)
+  const promptVersion = candidate.prompt_version ?? (modelId ? FILTER_PROMPT_VERSION : null)
+  const rulesetVersion = candidate.ruleset_version ?? PMS_CLASSIFICATION_RULESET_VERSION
+  const outputHash = candidate.output_sha256 ?? (
+    provider && modelId && promptVersion
+      ? computeFilterOutputSha256({
+          decision: normalizedDecision,
+          rationale,
+          confidence: candidate.confidence,
+          provider,
+          modelId,
+          promptVersion,
+          rulesetVersion,
+          presentationRank: rank,
+        })
+      : null
+  )
+
+  return {
+    ...candidate,
+    fsn_result_id: row.id,
+    decision: normalizedDecision,
+    rationale,
+    decision_method: normalizedDecision === 'filter_failed' ? 'manual_review_required' : 'ai_ranking',
+    presentation_rank: rank,
+    provider,
+    model_id: modelId,
+    prompt_version: promptVersion,
+    ruleset_version: rulesetVersion,
+    input_sha256: inputHash,
+    output_sha256: outputHash,
+    original_decision_at: originalDecisionAt,
+    cache_hit: false,
+  }
 }
 
 export function computeKeywordPriority(
@@ -73,11 +258,105 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   if (ctx.insertedRows.length === 0) return
 
   const { profile, aiOptOut, insertedRows, contentChanged, db } = ctx
+  const profileFingerprint = getProfileFingerprint(profile)
+
+  // 1. Deterministic scope is evaluated before any model or model cache. The
+  // current source schema provides only a verified record date; absent
+  // structured identifiers fail open to human/model ranking rather than being
+  // inferred from free text.
+  const residualRows: InsertedFsnRow[] = []
+  let deterministicExcluded = 0
+  for (const row of insertedRows) {
+    const assessment = assessDeterministicDisposition({
+      record: { recordDate: row.fsn_date },
+      profile: { dateWindow: { from: ctx.payload.period_from, to: ctx.payload.period_to } },
+    })
+    if (assessment.disposition === 'excluded') {
+      deterministicExcluded += 1
+      ctx.decisions.push({
+        fsn_result_id: row.id,
+        decision: 'excluded',
+        rationale: assessment.evidence.map((item) => item.explanation).join(' '),
+        confidence: 1,
+        model: null,
+        decision_method: 'deterministic_scope',
+        presentation_rank: 'low',
+        provider: null,
+        model_id: null,
+        prompt_version: null,
+        ruleset_version: assessment.rulesetVersion,
+        original_decision_at: new Date().toISOString(),
+        cache_hit: false,
+        deterministic_reason_codes: assessment.reasonCodes,
+        deterministic_evidence: {
+          ruleset_version: assessment.rulesetVersion,
+          retention: assessment.retention,
+          evidence: assessment.evidence,
+        },
+      })
+      continue
+    }
+    residualRows.push(row)
+  }
+
+  // 2. Vigilance bypass runs on the residual before cache/model lookup. These
+  // records are always queued for human review and the model cannot downgrade
+  // that disposition.
+  const cacheCandidates: InsertedFsnRow[] = []
+  let vigilanceBypassed = 0
+  for (const row of residualRows) {
+    const vigilance = assessVigilanceBypass({
+      title: row.title,
+      rawContent: row.raw_content,
+    })
+    if (vigilance.requiresHumanReview) {
+      vigilanceBypassed += 1
+      ctx.decisions.push({
+        fsn_result_id: row.id,
+        decision: 'uncertain',
+        rationale: `Vigilance bypass requires human PRRC review (${vigilance.reasonCodes.join(', ')}). No model disposition was allowed to suppress this record.`,
+        confidence: null,
+        model: null,
+        decision_method: 'vigilance_bypass',
+        presentation_rank: 'high',
+        provider: null,
+        model_id: null,
+        prompt_version: null,
+        ruleset_version: vigilance.rulesetVersion,
+        original_decision_at: new Date().toISOString(),
+        cache_hit: false,
+        deterministic_reason_codes: vigilance.reasonCodes,
+        deterministic_evidence: {
+          ruleset_version: vigilance.rulesetVersion,
+          bypass_model_disposition: vigilance.bypassModelDisposition,
+          evidence: vigilance.evidence,
+        },
+        vigilance_reason_codes: vigilance.reasonCodes,
+        vigilance_evidence: vigilance.evidence,
+      })
+      continue
+    }
+    cacheCandidates.push(row)
+  }
+  ctx.timing.filter_deterministic_excluded = deterministicExcluded
+  ctx.timing.filter_vigilance_bypassed = vigilanceBypassed
+
+  if (cacheCandidates.length === 0) {
+    ctx.timing.filter_total_items = insertedRows.length
+    ctx.timing.filter_cache_hits = 0
+    ctx.timing.filter_needs_filter = 0
+    ctx.timing.filter_content_changed = 0
+    ctx.timing.filter_unverifiable_cache = 0
+    ctx.timing.filter_to_filter = 0
+    ctx.timing.ai_review_status = 'not_required_safety_disposition'
+    return
+  }
+
   if (profile.controlled_evidence_status === 'unavailable') {
     ctx.timing.ai_review_status = 'controlled_evidence_unavailable'
     ctx.timing.filter_total_items = insertedRows.length
     ctx.timing.filter_to_filter = 0
-    for (const row of insertedRows) {
+    for (const row of cacheCandidates) {
       ctx.decisions.push({
         fsn_result_id: row.id,
         decision: 'filter_failed',
@@ -85,59 +364,73 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
         confidence: null,
         model: null,
         error: 'controlled_evidence_unavailable',
+        decision_method: 'manual_review_required',
+        presentation_rank: 'high',
+        ruleset_version: PMS_CLASSIFICATION_RULESET_VERSION,
+        cache_hit: false,
       })
     }
     return
   }
-  const profileFingerprint = getProfileFingerprint(profile)
 
-  // 1. Batch cache lookup
-  const { data: cacheHits } = await db
+  // 3. Batch cache lookup. A cache entry is reusable only when every identity
+  // and integrity field matches the current sanitized input and configuration.
+  const cacheLookup = await db
     .from('filter_decision_cache')
-    .select('fsn_external_id, decision, reasoning, confidence')
-    .in('fsn_external_id', insertedRows.map((r) => fsnIdOf(r)))
+    .select('fsn_external_id, decision, reasoning, confidence, provider, model_id, prompt_version, ruleset_version, input_sha256, output_sha256, original_decision_at, presentation_rank')
+    .in('fsn_external_id', cacheCandidates.map((r) => fsnIdOf(r)))
     .eq('profile_fingerprint', profileFingerprint)
 
-  const cacheMap = new Map<string, {
-    decision: string; reasoning: string | null; confidence: string | null
-  }>()
-  for (const hit of cacheHits ?? []) cacheMap.set(hit.fsn_external_id, hit)
+  const cacheMap = new Map<string, CachedDecision>()
+  for (const rawHit of cacheLookup.data ?? []) {
+    const hit = rawHit as unknown as CachedDecision
+    cacheMap.set(hit.fsn_external_id, hit)
+  }
 
   const alreadyCached: InsertedFsnRow[] = []
   const needsFilter: InsertedFsnRow[] = []
+  const unverifiableCache: InsertedFsnRow[] = []
   let contentChangedCount = 0
 
-  for (const row of insertedRows) {
+  // Missing provenance columns are a rolling-deployment compatibility event,
+  // not permission to trust a legacy verdict. Fail closed to manual review.
+  if (cacheLookup.error) {
+    unverifiableCache.push(...cacheCandidates)
+    ctx.warnings.push('Model decision cache provenance could not be verified; affected records require manual PRRC review.')
+  }
+
+  for (const row of cacheLookup.error ? [] : cacheCandidates) {
     const skipCache = contentChanged.has(row.external_id ?? '')
     if (skipCache) contentChangedCount += 1
-    if (!skipCache && cacheMap.has(fsnIdOf(row))) {
-      alreadyCached.push(row)
-    } else {
+    const hit = cacheMap.get(fsnIdOf(row))
+    if (skipCache || !hit) {
       needsFilter.push(row)
+      continue
     }
+    if (cachedDecisionFor(row, hit, profile)) alreadyCached.push(row)
+    else unverifiableCache.push(row)
   }
+
+  for (const row of unverifiableCache) ctx.decisions.push(invalidCacheDecision(row))
 
   ctx.timing.filter_total_items = insertedRows.length
   ctx.timing.filter_cache_hits = alreadyCached.length
   ctx.timing.filter_needs_filter = needsFilter.length
   ctx.timing.filter_content_changed = contentChangedCount
+  ctx.timing.filter_unverifiable_cache = unverifiableCache.length
 
   console.error(
     '[pipeline]',
     `run_id=${ctx.runId} filter audit: total=${insertedRows.length} ` +
-    `cache_hits=${alreadyCached.length} needs_filter=${needsFilter.length} ` +
-    `content_changed=${contentChangedCount}`,
+    `deterministic_excluded=${deterministicExcluded} vigilance_bypassed=${vigilanceBypassed} ` +
+    `cache_hits=${alreadyCached.length} unverifiable_cache=${unverifiableCache.length} ` +
+    `needs_filter=${needsFilter.length} content_changed=${contentChangedCount}`,
   )
 
   for (const row of alreadyCached) {
     const hit = cacheMap.get(fsnIdOf(row))!
-    ctx.decisions.push({
-      fsn_result_id: row.id,
-      decision:      hit.decision as 'relevant' | 'uncertain' | 'excluded' | 'filter_failed',
-      rationale:     hit.reasoning ?? '',
-      confidence:    normalizeCachedConfidence(hit.confidence),
-      model:         null,
-    })
+    const verified = cachedDecisionFor(row, hit, profile)
+    if (verified) ctx.decisions.push(verified)
   }
 
   // 2. Manufacturer keyword boost (informational only — never excludes items)
@@ -191,6 +484,10 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
         rationale:     'AI filtering disabled per user preference (GDPR Art 22).',
         confidence:    null,
         model:         null,
+        decision_method: 'manual_review_required',
+        presentation_rank: 'high',
+        ruleset_version: PMS_CLASSIFICATION_RULESET_VERSION,
+        cache_hit: false,
       })
     }
     return
@@ -215,6 +512,10 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
         rationale:     `Run item limit (${MAX_FILTER_ITEMS}) reached — manual review required.`,
         confidence:    null,
         model:         null,
+        decision_method: 'manual_review_required',
+        presentation_rank: 'high',
+        ruleset_version: PMS_CLASSIFICATION_RULESET_VERSION,
+        cache_hit: false,
       })
     }
   }
@@ -277,7 +578,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
       terminalAiFailure = d
       return deterministicAiUnavailableDecision(row, 'credit_or_auth')
     }
-    return { ...d, fsn_result_id: row.id }
+    return normalizeAiDecision(row, profile, d)
   }
 
   // Probe one item before opening concurrency. This prevents an exhausted or
@@ -327,7 +628,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
           { title: row.title, manufacturer: row.manufacturer ?? '', raw_content: enrichedContent, fsn_date: row.fsn_date, source_db: row.source_db },
           profile,
         )
-        return { ...refiltered, fsn_result_id: row.id }
+        return normalizeAiDecision(row, profile, refiltered)
       }))
     )
 

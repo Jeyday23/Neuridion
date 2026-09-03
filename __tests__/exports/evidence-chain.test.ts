@@ -7,6 +7,7 @@ import {
   verifyEvidenceChainAuthenticity,
   verifyEvidenceChainDigest,
 } from '@/lib/exports/evidence-chain'
+import { FILTER_PROMPT_VERSION } from '@/lib/claude/filter-pipeline'
 
 const RUN_ID = '11111111-2222-4333-8444-555555555555'
 const PROFILE_ID = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
@@ -57,7 +58,7 @@ function evidenceData(): EvidenceChainData {
       id: 'decision-1',
       fsn_result_id: 'result-b',
       model_used: 'claude-sonnet-4-6',
-      prompt_version: 'fp-v3:eu-pms-relevance@2026-08-30',
+      prompt_version: FILTER_PROMPT_VERSION,
       decision: 'relevant',
     }],
     canonicalRecords: [{ id: 'canonical-1' }],
@@ -120,7 +121,7 @@ describe('evidence-chain continuity format', () => {
     expect(classifier.historical_use_evidence.models_recorded).toEqual(['claude-sonnet-4-6'])
     expect(classifier.current_generator_definition_not_proof_of_historical_use).toEqual(expect.objectContaining({
       ruleset_version: 'eu-pms-relevance@2026-08-30',
-      prompt_version: 'fp-v3:eu-pms-relevance@2026-08-30',
+      prompt_version: FILTER_PROMPT_VERSION,
       system_prompt_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
     }))
 

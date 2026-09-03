@@ -107,6 +107,32 @@ jobs:
               where table_schema = 'public' and table_name = 'filter_decisions'
                 and column_name = 'evidence_parser_version'
             ) as filter_decisions_parser_version,
+            (
+              select count(*) = 12
+              from information_schema.columns
+              where table_schema = 'public' and table_name = 'filter_decisions'
+                and column_name in (
+                  'provider', 'model_id', 'prompt_version', 'ruleset_version',
+                  'input_sha256', 'output_sha256', 'original_decision_at',
+                  'presentation_rank', 'cache_hit', 'decision_method',
+                  'deterministic_reason_codes', 'deterministic_evidence'
+                )
+            ) as filter_decisions_accuracy_provenance,
+            (
+              select count(*) = 8
+              from information_schema.columns
+              where table_schema = 'public' and table_name = 'filter_decision_cache'
+                and column_name in (
+                  'provider', 'model_id', 'prompt_version', 'ruleset_version',
+                  'input_sha256', 'output_sha256', 'original_decision_at',
+                  'presentation_rank'
+                )
+            ) as filter_decision_cache_accuracy_provenance,
+            exists (
+              select 1 from information_schema.columns
+              where table_schema = 'public' and table_name = 'exclusion_review_samples'
+                and column_name = 'sample_source'
+            ) as review_sample_source,
             exists (
               select 1 from information_schema.columns
               where table_schema = 'public' and table_name = 'product_profiles'
@@ -145,6 +171,9 @@ jobs:
                   and ($r.adjudication_gate == true)
                   and ($r.fsn_results_revision_link == true)
                   and ($r.filter_decisions_parser_version == true)
+                  and ($r.filter_decisions_accuracy_provenance == true)
+                  and ($r.filter_decision_cache_accuracy_provenance == true)
+                  and ($r.review_sample_source == true)
                   and ($r.product_profiles_canary_scope == true)
                   and ($r.search_runs_canary_scope == true)
                   and ($r.evidence_bucket_private == true)

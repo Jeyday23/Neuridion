@@ -7,9 +7,9 @@ import {
   assessFinalDecision,
   buildAdjudicationRecords,
   currentFinalEvent,
-  isSeriousEventText,
   publicEvent,
 } from '@/lib/adjudication/policy'
+import { assessVigilanceBypass } from '@/lib/regulatory/deterministic-safety'
 import type {
   AdjudicationEvent,
   AdjudicationFilterDecision,
@@ -312,7 +312,14 @@ export async function POST(
     event.phase === 'provisional_blind' && event.reviewer_id === user.id,
   ) ?? null
   const currentFinal = currentFinalEvent(events)
-  const seriousEvent = isSeriousEventText(result.title, result.raw_content) || body.serious_event === true
+  // Derive the safety signal from the same multilingual, versioned rule set
+  // used before model ranking. The optional client flag can only escalate; it
+  // cannot suppress a server-detected vigilance signal.
+  const vigilance = assessVigilanceBypass({
+    title: result.title,
+    rawContent: result.raw_content,
+  })
+  const seriousEvent = vigilance.requiresHumanReview || body.serious_event === true
 
   let insert: Database['public']['Tables']['human_adjudication_events']['Insert']
 
