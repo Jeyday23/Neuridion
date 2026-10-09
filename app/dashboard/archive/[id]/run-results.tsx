@@ -240,6 +240,8 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
   }, [runId])
 
   useEffect(() => {
+    // Synchronize protected review state with the server on mount/run changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAdjudications()
   }, [loadAdjudications])
 
