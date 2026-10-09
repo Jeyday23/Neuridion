@@ -41,11 +41,11 @@ function fsnCacheId(row: { title: string; manufacturer?: string | null; raw_cont
   })
 }
 
-function context(cacheHits: Array<Record<string, unknown>> = []): PipelineContext {
+function context(cacheHits: Array<Record<string, unknown>> = [], cacheError: { code: string; message: string } | null = null): PipelineContext {
   const cacheQuery = {
     select: vi.fn().mockReturnValue({
       in: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ data: cacheHits, error: null }),
+        eq: vi.fn().mockResolvedValue({ data: cacheHits, error: cacheError }),
       }),
     }),
   }
@@ -281,7 +281,10 @@ describe('pipeline accuracy safety ordering', () => {
     expect(ctx.decisions[0].rationale).toContain('AI-generated exclusion cannot remove a record')
   })
 
-  it('fails closed to manual review when an existing cache row has legacy or mismatched provenance', async () => {
+  it('recomputes a legacy cache row from current evidence without trusting the old decision', async () => {
+    mocks.stage1Filter.mockResolvedValue({
+      decision: 'uncertain', rationale: 'Fresh ranking', confidence: 0.5, model: PRODUCTION_FILTER_MODEL,
+    })
     const baseCtx = context()
     baseCtx.insertedRows = [{ ...baseCtx.insertedRows[0], raw_content: 'ordinary device notice' }]
     const legacyHit = {
@@ -295,13 +298,24 @@ describe('pipeline accuracy safety ordering', () => {
 
     await filterStage(ctx)
 
-    expect(mocks.stage1Filter).not.toHaveBeenCalled()
+    expect(mocks.stage1Filter).toHaveBeenCalledWith(
+      expect.objectContaining({ raw_content: 'ordinary device notice' }), ctx.profile, { skipCache: true },
+    )
+    expect(ctx.decisions).toHaveLength(1)
     expect(ctx.decisions[0]).toMatchObject({
-      decision: 'filter_failed',
-      decision_method: 'manual_review_required',
-      error: 'unverifiable_cache_provenance',
-      cache_hit: false,
+      decision: 'uncertain', rationale: 'Fresh ranking', decision_method: 'ai_ranking', cache_hit: false,
     })
+    expect(ctx.timing).toMatchObject({ filter_unverifiable_cache: 1, filter_cache_refreshed: 1 })
+  })
+
+  it('fails closed when the cache schema/query itself is unavailable', async () => {
+    const ctx = context([], { code: 'PGRST204', message: 'Missing provider column' })
+    await filterStage(ctx)
+    expect(mocks.stage1Filter).not.toHaveBeenCalled()
+    expect(ctx.decisions).toHaveLength(8)
+    expect(ctx.decisions.every(decision => decision.decision === 'filter_failed' && !decision.cache_hit)).toBe(true)
+    expect(ctx.warnings[0]).toContain('cache provenance could not be verified')
+    expect(ctx.timing.ai_review_status).toBe('cache_unavailable')
   })
 
   it('reuses a fully verified cache entry and preserves its original timestamp', async () => {

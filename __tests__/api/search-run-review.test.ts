@@ -17,7 +17,8 @@ vi.mock('@/lib/audit', () => ({ logAuditEvent: mocks.logAuditEvent }))
 vi.mock('@/lib/rate-limit', () => ({
   rateLimit: vi.fn(async () => ({ allowed: true, retryAfterMs: 0 })),
 }))
-vi.mock('@/lib/adjudication/readiness', () => ({
+vi.mock('@/lib/adjudication/readiness', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/adjudication/readiness')>(),
   isRunAdjudicationComplete: mocks.isRunAdjudicationComplete,
 }))
 
@@ -34,7 +35,7 @@ function request(reviewStatus: string): Request {
   })
 }
 
-function existingQuery(data: { review_status: string | null } | null) {
+function existingQuery(data: { review_status: string | null; status?: string; completed_at?: string | null } | null) {
   const chain = {
     select: vi.fn(), eq: vi.fn(), is: vi.fn(), single: vi.fn(),
   }
@@ -42,7 +43,7 @@ function existingQuery(data: { review_status: string | null } | null) {
   chain.eq.mockReturnValue(chain)
   chain.is.mockReturnValue(chain)
   chain.single.mockResolvedValue({
-    data: data ? { id: RUN_ID, user_id: USER_ID, ...data } : null,
+    data: data ? { id: RUN_ID, user_id: USER_ID, status: 'complete', completed_at: '2026-10-08T10:00:00Z', ...data } : null,
     error: data ? null : { code: 'PGRST116' },
   })
   return chain
@@ -66,6 +67,20 @@ describe('PRRC review transition API', () => {
     mocks.getUser.mockResolvedValue({ data: { user: { id: USER_ID } }, error: null })
     mocks.logAuditEvent.mockResolvedValue(undefined)
     mocks.isRunAdjudicationComplete.mockResolvedValue({ ready: true, error: null })
+  })
+
+  it.each(['pending', 'running', 'error'])('blocks review and approval for %s runs even if RPC returns true', async (status) => {
+    for (const [review_status, target] of [['draft', 'reviewed'], ['reviewed', 'approved']]) {
+      mocks.adminFrom.mockReturnValueOnce(existingQuery({ review_status, status }))
+      const response = await PATCH(request(target), { params: Promise.resolve({ id: RUN_ID }) })
+      expect(response.status).toBe(422)
+    }
+    expect(mocks.logAuditEvent).not.toHaveBeenCalled()
+  })
+
+  it('blocks completed runs missing a completion timestamp', async () => {
+    mocks.adminFrom.mockReturnValueOnce(existingQuery({ review_status: 'reviewed', completed_at: null }))
+    expect((await PATCH(request('approved'), { params: Promise.resolve({ id: RUN_ID }) })).status).toBe(422)
   })
 
   it('rejects approval directly from draft', async () => {

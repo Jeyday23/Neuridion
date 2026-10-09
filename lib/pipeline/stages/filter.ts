@@ -391,6 +391,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   const needsFilter: InsertedFsnRow[] = []
   const unverifiableCache: InsertedFsnRow[] = []
   let contentChangedCount = 0
+  let refreshedInvalidCacheCount = 0
 
   // Missing provenance columns are a rolling-deployment compatibility event,
   // not permission to trust a legacy verdict. Fail closed to manual review.
@@ -408,7 +409,13 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
       continue
     }
     if (cachedDecisionFor(row, hit, profile)) alreadyCached.push(row)
-    else unverifiableCache.push(row)
+    else {
+      // A stale/incomplete cache row is a miss, not a permanent manual-review
+      // sentence. Recompute from current evidence and explicitly bypass cache.
+      // Database/schema lookup errors remain fail-closed above.
+      refreshedInvalidCacheCount += 1
+      needsFilter.push(row)
+    }
   }
 
   for (const row of unverifiableCache) ctx.decisions.push(invalidCacheDecision(row))
@@ -417,7 +424,8 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   ctx.timing.filter_cache_hits = alreadyCached.length
   ctx.timing.filter_needs_filter = needsFilter.length
   ctx.timing.filter_content_changed = contentChangedCount
-  ctx.timing.filter_unverifiable_cache = unverifiableCache.length
+  ctx.timing.filter_unverifiable_cache = unverifiableCache.length + refreshedInvalidCacheCount
+  ctx.timing.filter_cache_refreshed = refreshedInvalidCacheCount
 
   console.error(
     '[pipeline]',
@@ -601,7 +609,7 @@ export async function filterStage(ctx: PipelineContext): Promise<void> {
   } else if ((ctx.timing.filter_cap_skipped as number | undefined) && ctx.timing.ai_review_status !== 'provider_unavailable') {
     ctx.timing.ai_review_status = 'incomplete_cap'
   } else {
-    ctx.timing.ai_review_status = 'complete'
+    ctx.timing.ai_review_status = cacheLookup.error ? 'cache_unavailable' : 'complete'
   }
   ctx.decisions.push(...filterResults)
 

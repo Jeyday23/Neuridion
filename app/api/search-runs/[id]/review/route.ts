@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { rateLimit } from '@/lib/rate-limit'
-import { isRunAdjudicationComplete } from '@/lib/adjudication/readiness'
+import { isRunAdjudicationComplete, isRunReadyForReview } from '@/lib/adjudication/readiness'
 import { z } from 'zod'
 
 const ReviewSchema = z.object({
@@ -50,7 +50,7 @@ export async function PATCH(
 
   const { data: existing } = await db
     .from('search_runs')
-    .select('id, review_status, user_id')
+    .select('id, review_status, user_id, status, completed_at')
     .eq('id', id)
     .eq('user_id', user.id)
     .eq('is_synthetic_canary', false)
@@ -59,6 +59,10 @@ export async function PATCH(
 
   if (!existing) {
     return Response.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  if (!isRunReadyForReview(existing)) {
+    return Response.json({ error: 'This search must finish successfully before review or approval.' }, { status: 422 })
   }
 
   const currentStatus = existing.review_status ?? 'draft'
@@ -93,6 +97,9 @@ export async function PATCH(
     .eq('id', id)
     .eq('user_id', user.id)
     .eq('is_synthetic_canary', false)
+    .is('deleted_at', null)
+    .eq('status', existing.status)
+    .eq('completed_at', existing.completed_at!)
 
   updateQuery = existing.review_status == null
     ? updateQuery.is('review_status', null)
@@ -102,6 +109,9 @@ export async function PATCH(
     .select('id, review_status, reviewed_by, reviewed_at')
     .maybeSingle()
 
+  if (error?.code === '23514') {
+    return Response.json({ error: 'Search evidence or readiness changed. Refresh and complete the required reviews.' }, { status: 409 })
+  }
   if (error) {
     console.error('[search-runs/review]', error?.message ?? 'Update failed')
     return Response.json({ error: 'Something went wrong' }, { status: 500 })

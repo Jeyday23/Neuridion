@@ -5,10 +5,11 @@ import {
   ShadingType, TableLayoutType,
 } from 'docx'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
+import { coverageLines, assessmentHistoryLines, ASSESSMENT_NOTE, type ReportCoverage } from '@/lib/reports/shared'
 import type { FsnReportRow } from '@/lib/domain/types'
 import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
-interface ReportMeta {
+interface ReportMeta extends ReportCoverage {
   device: string
   manufacturer: string
   period_from: string
@@ -145,7 +146,7 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
     children: [
       new TextRun({ text: 'AI Disclaimer: ', bold: true, size: 18, font: 'Calibri', color: '991B1B' }),
       new TextRun({
-        text: 'This report was generated with AI-assisted relevance filtering. All classifications (relevant, uncertain, excluded) are automated assessments and must be independently verified by the PRRC before use in regulatory submissions. The AI model may produce incorrect classifications.',
+        text: ASSESSMENT_NOTE,
         size: 18,
         font: 'Calibri',
         color: '991B1B',
@@ -174,6 +175,8 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
   metaRows.push(metaRow('Document Reference', `PMS-FSN-${new Date().getFullYear()}-${meta.runId.slice(0, 8).toUpperCase()}`))
   metaRows.push(metaRow('Databases Searched', sources.join(', ')))
   children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: metaRows }))
+
+  for (const line of coverageLines(meta)) children.push(new Paragraph(line))
 
   // Summary heading
   children.push(new Paragraph({
@@ -241,6 +244,11 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
     children.push(buildFsnTable(excluded, true))
   }
 
+  children.push(sectionHeader('Assessment history', BRAND_NAVY))
+  for (const row of rows) {
+    for (const line of assessmentHistoryLines(row)) children.push(new Paragraph(line))
+  }
+
   // Conclusion
   children.push(new Paragraph({
     heading: HeadingLevel.HEADING_2,
@@ -254,8 +262,8 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
     : ''
   const recordLabel = hasFda ? 'safety record' : 'Field Safety Notice'
   const conclusionText = conclusionRelevant === 0 && filterFailed.length === 0
-    ? `Based on the automated screening, no ${recordLabel}s were classified as relevant to this device profile during the search period.${hasFda ? ' FDA MAUDE adverse-event reports were retained and summarized as screening signals; they are not Field Safety Notices, confirmed hazards, or recalls.' : ''} This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.`
-    : `This review identified ${conclusionRelevant + filterFailed.length} ${recordLabel}${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} record${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.${failedNote}`
+    ? `Within the retrieved records, no ${recordLabel}s were classified as relevant to this device profile during the search period.${hasFda ? ' FDA MAUDE adverse-event reports were retained and summarized as screening signals; they are not Field Safety Notices, confirmed hazards, or recalls.' : ''} This report should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.`
+    : `This review identified ${conclusionRelevant + filterFailed.length} ${recordLabel}${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} record${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan. This report should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.${failedNote}`
 
   children.push(new Paragraph({
     spacing: { after: 200 },

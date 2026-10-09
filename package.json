@@ -6,6 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "prestart": "npm run verify:schema",
+    "verify:schema": "node scripts/verify-schema.mjs",
     "lint": "eslint",
     "prrc-review": "tsx scripts/prrc-review.ts",
     "verify:env": "tsx scripts/verify-env.ts",
@@ -16,6 +18,7 @@
     "verify:source-parity": "tsx scripts/with-env.ts -- tsx scripts/verify-source-parity.ts",
     "verify:source-parity:all": "tsx scripts/with-env.ts -- tsx scripts/verify-source-parity.ts --source all",
     "eval:filter": "tsx scripts/with-env.ts -- tsx scripts/filter-eval.ts",
+    "verify:accuracy": "tsx benchmark/accuracy-gate.cli.ts",
     "benchmark:accuracy": "tsx benchmark/cli.ts",
     "benchmark:live": "tsx benchmark/cli.ts --live",
     "benchmark:reviewed-pms": "tsx benchmark/reviewed-pms.ts"

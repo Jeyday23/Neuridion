@@ -200,7 +200,7 @@ describe('finalizeStage total_results', () => {
     return ctx
   }
 
-  it('total_results excludes filter_failed items', async () => {
+  it('total_results includes records retained for manual review', async () => {
     const decisions: DecisionRow[] = [
       { fsn_result_id: 'r1', decision: 'relevant', rationale: '', confidence: 0.9, model: 'test' },
       { fsn_result_id: 'r2', decision: 'uncertain', rationale: '', confidence: 0.5, model: 'test' },
@@ -213,14 +213,14 @@ describe('finalizeStage total_results', () => {
     await finalizeStage(ctx)
 
     const update = ctx._capturedUpdate()!
-    expect(update.total_results).toBe(3)
+    expect(update.total_results).toBe(5)
     expect(update.relevant_count).toBe(1)
     expect(update.uncertain_count).toBe(1)
     expect(update.excluded_count).toBe(1)
     expect(update.filter_failed_count).toBe(2)
   })
 
-  it('total_results is 0 when all items are filter_failed', async () => {
+  it('total_results retains the count when all records need manual review', async () => {
     const decisions: DecisionRow[] = [
       { fsn_result_id: 'r1', decision: 'filter_failed', rationale: 'cap', confidence: null, model: null },
       { fsn_result_id: 'r2', decision: 'filter_failed', rationale: 'cap', confidence: null, model: null },
@@ -230,8 +230,28 @@ describe('finalizeStage total_results', () => {
     await finalizeStage(ctx)
 
     const update = ctx._capturedUpdate()!
-    expect(update.total_results).toBe(0)
+    expect(update.total_results).toBe(2)
     expect(update.filter_failed_count).toBe(2)
+  })
+
+  it('counts the final enriched decision once and preserves source diagnostics', async () => {
+    const ctx = buildMockCtx([
+      { fsn_result_id: 'r1', decision: 'uncertain', rationale: 'Initial', confidence: 0.5, model: 'test' },
+      { fsn_result_id: 'r1', decision: 'relevant', rationale: 'Enriched', confidence: 0.9, model: 'test' },
+    ]) as PipelineContext & { _capturedUpdate: () => Record<string, unknown> | null }
+    ctx.insertedRows = ctx.insertedRows.slice(0, 1)
+    ctx.sourceBreakdown = [{
+      source: 'bfarm', requested_from: '2026-01-01', requested_to: '2026-06-01',
+      fresh_fetched: 1, cached_loaded: 0, found_before_filtering: 1,
+      after_keyword_signal: 1, rejected_by_keyword_signal: 0,
+      status: 'complete', fresh_outcomes: ['2026-01-01..2026-06-01:complete'], warnings: 0,
+    }]
+    await finalizeStage(ctx)
+    expect(ctx._capturedUpdate()).toMatchObject({
+      status: 'complete', total_results: 1, relevant_count: 1, uncertain_count: 0,
+      timing: { source_breakdown: ctx.sourceBreakdown },
+    })
+    expect(ctx.decisions).toHaveLength(2)
   })
 
   it('total_results equals sum of assessed categories when no filter_failed', async () => {

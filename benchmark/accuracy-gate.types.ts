@@ -72,12 +72,21 @@ export interface AccuracyGateOptions {
   /** Maximum permitted absolute decrease versus baseline recall. */
   maximum_recall_regression: number
   baseline_recall_by_provider?: Record<string, number>
+  /** Approved release policy; no implicit sample-size or coverage defaults. */
+  minimum_reviewer_count: number
+  minimum_relevant_cases: number
+  minimum_relevant_cases_per_stratum: number
+  minimum_recall_lower_bound: number
+  minimum_stratum_recall: number
+  required_sources: string[]
+  required_device_categories: string[]
 }
 
 export interface AccuracyGateReport {
   dataset_id: string
   dataset_version: string
   dataset_sha256: string
+  policy_sha256: string
   deterministic_prefilter: RecallMetric & {
     target: number
     passed: boolean
