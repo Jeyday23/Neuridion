@@ -45,7 +45,8 @@ export function latestDecisionByResult(
   const latest = new Map<string, AdjudicationFilterDecision>()
   for (const decision of decisions) {
     const current = latest.get(decision.fsn_result_id)
-    if (!current || decision.decided_at >= current.decided_at) {
+    if (!current || decision.decided_at > current.decided_at
+      || (decision.decided_at === current.decided_at && decision.id > current.id)) {
       latest.set(decision.fsn_result_id, decision)
     }
   }
@@ -57,7 +58,7 @@ export function currentFinalEvent(events: AdjudicationEvent[]): AdjudicationEven
     events.flatMap((event) => event.supersedes_event_id ? [event.supersedes_event_id] : []),
   )
   return [...events]
-    .reverse()
+    .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
     .find((event) => event.phase === 'final' && !superseded.has(event.id)) ?? null
 }
 
@@ -67,7 +68,7 @@ export function latestSecondReview(
 ): AdjudicationEvent | null {
   if (!finalEvent) return null
   return [...events]
-    .reverse()
+    .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
     .find((event) => event.phase === 'second_review'
       && event.review_of_event_id === finalEvent.id
       && event.reviewer_id !== finalEvent.reviewer_id) ?? null

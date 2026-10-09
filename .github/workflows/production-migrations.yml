@@ -85,6 +85,7 @@ jobs:
         run: |
           query=$(cat <<'SQL'
           select
+            public.neuridion_release_schema_version() >= 75 as release_schema_ready,
             to_regclass('public.source_fetches') is not null as source_fetches,
             to_regclass('public.authority_record_revisions') is not null as authority_record_revisions,
             to_regclass('public.ingestion_runs') is not null as ingestion_runs,
@@ -158,6 +159,7 @@ jobs:
             | jq -e '
                 (if type == "array" then .[0] elif .result then .result[0] else . end) as $r
                 | ($r.source_fetches == true)
+                  and ($r.release_schema_ready == true)
                   and ($r.authority_record_revisions == true)
                   and ($r.ingestion_runs == true)
                   and ($r.shadow_comparisons == true)

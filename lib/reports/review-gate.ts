@@ -2,6 +2,11 @@ export function isReportApproved(reviewStatus: string | null | undefined): boole
   return reviewStatus === 'approved'
 }
 
+/** Older artifacts did not incorporate final human adjudication. Regenerate them. */
+export function isCurrentReportArtifact(path: string | null | undefined): boolean {
+  return typeof path === 'string' && /\/\d+_v2_report\.(html|pdf|xlsx|docx)$/.test(path)
+}
+
 export function isReportReleaseAuthorized(
   reviewStatus: string | null | undefined,
   reviewedBy: string | null | undefined,
