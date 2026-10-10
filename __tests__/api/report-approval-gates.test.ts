@@ -21,8 +21,8 @@ function queryResult(table: string) {
     return {
       data: {
         run_id: '22222222-2222-4222-8222-222222222222',
-        pdf_storage_path: state.legacyArtifact ? 'reports/report.pdf' : 'reports/123_v2_report.pdf',
-        excel_storage_path: 'reports/123_v2_report.xlsx',
+        pdf_storage_path: state.legacyArtifact ? 'reports/report.pdf' : 'reports/123_v3_report.pdf',
+        excel_storage_path: 'reports/123_v3_report.xlsx',
       },
       error: null,
     }
@@ -37,10 +37,10 @@ function queryResult(table: string) {
         review_status: state.reviewStatus,
         reviewed_by: state.reviewedBy,
         reviewed_at: state.reviewedAt,
-        report_pdf_path: state.legacyArtifact ? 'reports/report.pdf' : 'reports/123_v2_report.pdf',
-        report_html_path: 'reports/123_v2_report.html',
-        report_excel_path: 'reports/123_v2_report.xlsx',
-        report_docx_path: 'reports/123_v2_report.docx',
+        report_pdf_path: state.legacyArtifact ? 'reports/report.pdf' : 'reports/123_v3_report.pdf',
+        report_html_path: 'reports/123_v3_report.html',
+        report_excel_path: 'reports/123_v3_report.xlsx',
+        report_docx_path: 'reports/123_v3_report.docx',
         period_from: '2026-01-01',
         period_to: '2026-01-31',
         product_profiles: { device_name: 'Test device' },
@@ -192,6 +192,7 @@ describe('report API approval gates', () => {
     )
 
     expect(generation.status).toBe(422)
+    expect((await generation.json()).error).toMatch(/approved before record-level human review was required/)
     expect(download.status).toBe(422)
     expect(legacy.status).toBe(422)
     expect(state.createSignedUrl).not.toHaveBeenCalled()

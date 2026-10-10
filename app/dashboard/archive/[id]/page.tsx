@@ -8,6 +8,10 @@ import { fetchAllRows } from '@/lib/supabase/fetch-all'
 import { capabilitiesFor, resolveRunViewerAccess } from '@/lib/review/run-access'
 import { describeActiveAssignments, userDisplayNames, type PublicAssignment } from '@/lib/review/assignments'
 import { ReviewersPanel } from './reviewers-panel'
+import { InputCurrencyPanel } from './input-currency-panel'
+import { CycleComparison } from './cycle-comparison'
+import { loadRunInputCurrency, type InputCurrencyAssessment } from '@/lib/sources/input-currency'
+import { isRunAdjudicationComplete } from '@/lib/adjudication/readiness'
 
 interface SearchRunData {
   id: string
@@ -175,6 +179,21 @@ export default async function RunDetailPage({
 
   const tot  = run.total_results       ?? results.length
 
+  let currency: InputCurrencyAssessment | null = null
+  try {
+    currency = await loadRunInputCurrency(admin, run.id)
+  } catch {
+    currency = null
+  }
+
+  // Approvals recorded before record-level adjudication was enforced carry no
+  // human dispositions. Say so instead of presenting them as fully reviewed.
+  let legacyApproval = false
+  if (run.review_status === 'approved') {
+    const readiness = await isRunAdjudicationComplete(admin, run.id)
+    legacyApproval = !readiness.error && !readiness.ready
+  }
+
   const termsUsed = run.terms_used
   const sourceBreakdown = Array.isArray(run.timing?.source_breakdown)
     ? run.timing.source_breakdown as SourceResultBreakdown[]
@@ -283,6 +302,24 @@ export default async function RunDetailPage({
       {run.status === 'error' && (
         <div className="mb-6 rounded border border-[rgba(220,38,38,0.2)] bg-[rgba(220,38,38,0.06)] px-4 py-3 text-sm text-[#DC2626]">
           <strong>Error:</strong> This search encountered an error. Please try again or contact support.
+        </div>
+      )}
+
+      {legacyApproval && (
+        <div role="status" className="mb-4 rounded border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>Approved before record-level review was required.</strong> This approval has no recorded human disposition per record, so a current report cannot be issued for it. Run a new search for this period and review it.
+        </div>
+      )}
+
+      <InputCurrencyPanel
+        summary={currency?.summary ?? null}
+        warnings={currency?.warnings ?? []}
+        loadFailed={currency === null}
+      />
+
+      {viewer.mode === 'owner' && run.status !== 'error' && (
+        <div className="mb-6">
+          <CycleComparison runId={run.id} />
         </div>
       )}
 

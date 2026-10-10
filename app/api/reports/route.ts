@@ -14,6 +14,16 @@ import { isRunReadyForReview, isRunAdjudicationComplete } from '@/lib/adjudicati
 import { withTimeout } from '@/lib/utils/timeout'
 import type { FsnReportRow } from '@/lib/domain/types'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { loadRunInputCurrency } from '@/lib/sources/input-currency'
+import { compareCycles } from '@/lib/cycles/compare'
+import { findPreviousRun, loadCycleSide, loadOwnedRun } from '@/lib/cycles/load'
+import {
+  REPORT_FORMAT_VERSION,
+  documentReference,
+  reportRecordDigest,
+  type ReportCycleSummary,
+  type ReportProvenance,
+} from '@/lib/reports/provenance'
 
 export const maxDuration = 120
 const PDF_GENERATION_TIMEOUT_MS = 45_000
@@ -62,7 +72,7 @@ export async function POST(request: Request) {
   // Fetch run + profile (validates ownership)
   const { data: run, error: runError } = await supabase
     .from('search_runs')
-    .select('id, status, completed_at, error_message, timing, review_status, reviewed_by, reviewed_at, period_from, period_to, dbs_searched, terms_used, profile_snapshot, is_synthetic_canary, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
+    .select('id, created_at, status, completed_at, error_message, timing, review_status, reviewed_by, reviewed_at, approved_by, approved_at, period_from, period_to, dbs_searched, terms_used, profile_snapshot, is_synthetic_canary, product_profiles(device_name, manufacturer, device_class, emdn_code, intended_use)')
     .eq('id', run_id)
     .eq('user_id', user.id)
     .eq('is_synthetic_canary', false)
@@ -77,6 +87,15 @@ export async function POST(request: Request) {
   const adjudication = await isRunAdjudicationComplete(db, run_id)
   if (adjudication.error) {
     return Response.json({ error: adjudication.error }, { status: 503 })
+  }
+  if (run.review_status === 'approved' && !adjudication.ready) {
+    // Approvals recorded before record-level adjudication was enforced
+    // (October 2026) have no human dispositions to report. Approved runs are
+    // immutable, so the honest remedy is a new search.
+    return Response.json(
+      { error: 'This search was approved before record-level human review was required. Its decisions cannot be re-attested in a report. Run a new search for this period and review it.' },
+      { status: 422 },
+    )
   }
   if (!isRunReadyForReview(run) || !isReportReleaseAuthorized(run.review_status, run.reviewed_by, run.reviewed_at)
     || !adjudication.ready) {
@@ -124,14 +143,26 @@ export async function POST(request: Request) {
   }
   const aiModels = [...new Set(decisions.map(d => d.model_used).filter((m): m is string => !!m))]
 
-  // Resolve reviewer name
-  let reviewerName: string | null = null
-  const reviewedBy = (run as { reviewed_by?: string | null }).reviewed_by
-  const reviewedAt = (run as { reviewed_at?: string | null }).reviewed_at
-  if (reviewedBy) {
-    const { data: reviewer } = await supabase.from('users').select('full_name, email').eq('id', reviewedBy).single()
-    reviewerName = reviewer?.full_name || reviewer?.email || null
+  // Resolve people with the service-role client: reviewers and approvers can
+  // be other users whose rows are not visible through the owner's session.
+  const reviewedBy = run.reviewed_by ?? null
+  const reviewedAt = run.reviewed_at ?? null
+  const approvedBy = run.approved_by ?? null
+  const approvedAt = run.approved_at ?? null
+  const personIds = [...new Set([
+    reviewedBy, approvedBy,
+    ...events.map(event => (event as { reviewer_id?: string | null }).reviewer_id ?? null),
+  ].filter((value): value is string => Boolean(value)))]
+  const names = new Map<string, string | null>()
+  if (personIds.length > 0) {
+    const { data: people, error: peopleError } = await db.from('users').select('id, full_name, email').in('id', personIds)
+    if (peopleError) {
+      console.error('[reports] reviewer lookup failed:', peopleError.code)
+      return Response.json({ error: 'Reviewer attribution could not be verified' }, { status: 503 })
+    }
+    for (const person of people ?? []) names.set(person.id, person.full_name || person.email || null)
   }
+  const reviewerName = reviewedBy ? names.get(reviewedBy) ?? null : null
 
   let rows: FsnReportRow[]
   try {
@@ -140,6 +171,49 @@ export async function POST(request: Request) {
     })), decisions as AdjudicationFilterDecision[], events as AdjudicationEvent[])
   } catch {
     return Response.json({ error: 'Final record decisions are incomplete. Review this search again.' }, { status: 422 })
+  }
+  rows = rows.map(row => row.human_review
+    ? { ...row, human_review: { ...row.human_review, reviewer_name: names.get(row.human_review.reviewer_id) ?? null } }
+    : row)
+
+  // Input currency and previous-cycle comparison are informative. A failure
+  // is stated in the report rather than silently omitted.
+  const currencyResult = await loadRunInputCurrency(db, run_id).then(
+    value => ({ summary: value.summary, warnings: value.warnings }),
+    () => ({ summary: null, warnings: ['Input currency could not be verified when this report was generated.'] }),
+  )
+  let cycle: ReportCycleSummary | null
+  try {
+    const current = await loadOwnedRun(db, run_id, user.id)
+    const previous = current ? await findPreviousRun(db, current, { preferApproved: true }) : null
+    if (!current) {
+      cycle = { previous_run_id: null, comparable: false, reasons: ['Previous-cycle comparison was unavailable.'], explanations: [] }
+    } else {
+      const comparison = compareCycles(await loadCycleSide(db, current), previous ? await loadCycleSide(db, previous) : null)
+      cycle = {
+        previous_run_id: previous?.id ?? null,
+        comparable: comparison.completeness.comparable,
+        reasons: comparison.completeness.reasons,
+        explanations: comparison.explanations,
+      }
+    }
+  } catch {
+    cycle = { previous_run_id: null, comparable: false, reasons: ['Previous-cycle comparison could not be computed when this report was generated.'], explanations: [] }
+  }
+
+  const unique = (values: Array<string | null | undefined>) => [...new Set(values.filter((v): v is string => Boolean(v)))].sort()
+  const provenance: ReportProvenance = {
+    format_version: REPORT_FORMAT_VERSION,
+    generated_at: new Date().toISOString(),
+    document_reference: documentReference(run_id, run.completed_at ?? run.created_at),
+    reviewed: { id: reviewedBy, name: reviewerName, at: reviewedAt },
+    approved: { id: approvedBy, name: approvedBy ? names.get(approvedBy) ?? null : null, at: approvedAt },
+    ai_models: aiModels,
+    prompt_versions: unique(decisions.map(d => (d as { prompt_version?: string | null }).prompt_version)),
+    ruleset_versions: unique(decisions.map(d => (d as { ruleset_version?: string | null }).ruleset_version)),
+    record_digest: reportRecordDigest(rows),
+    input_currency: currencyResult,
+    cycle,
   }
 
   // ── Generate and upload each format sequentially to cap peak memory ────────
@@ -152,8 +226,8 @@ export async function POST(request: Request) {
   // HTML — smallest, generate first
   const runStatus = (run as { status?: string }).status
   const dbsSearched = (run as { dbs_searched?: string[] | null }).dbs_searched
-  const coverage = { status: runStatus, dbs_searched: dbsSearched, error_message: run.error_message, timing: run.timing }
-  const htmlPath = `${user.id}/${run_id}/${ts}_v2_report.html`
+  const coverage = { status: runStatus, dbs_searched: dbsSearched, error_message: run.error_message, timing: run.timing, provenance }
+  const htmlPath = `${user.id}/${run_id}/${ts}_v3_report.html`
   {
     const stepStart = Date.now()
     const html = buildReportHtml(
@@ -171,7 +245,7 @@ export async function POST(request: Request) {
   }
 
   // Excel
-  const excelPath = `${user.id}/${run_id}/${ts}_v2_report.xlsx`
+  const excelPath = `${user.id}/${run_id}/${ts}_v3_report.xlsx`
   {
     const stepStart = Date.now()
     const excelBuf = await buildExcel(rows, {
@@ -192,7 +266,7 @@ export async function POST(request: Request) {
   let docxPath: string | null = null
   if (paidPlans.includes(userPlan)) {
     const stepStart = Date.now()
-    docxPath = `${user.id}/${run_id}/${ts}_v2_report.docx`
+    docxPath = `${user.id}/${run_id}/${ts}_v3_report.docx`
     const docxBuf = await buildDocx(rows, {
       device: profile.device_name, manufacturer: profile.manufacturer,
       period_from: run.period_from, period_to: run.period_to, ...coverage,
@@ -241,7 +315,7 @@ export async function POST(request: Request) {
         'PDF generation',
       )
 
-      pdfPath = `${user.id}/${run_id}/${ts}_v2_report.pdf`
+      pdfPath = `${user.id}/${run_id}/${ts}_v3_report.pdf`
       const { error: pdfUploadErr } = await adminStorage.storage
         .from('reports')
         .upload(pdfPath, pdfBuffer, { contentType: 'application/pdf', upsert: true })
@@ -286,7 +360,9 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Failed to save report' }, { status: 500 })
   }
 
-  await logAuditEvent(user.id, 'report_generated', { run_id, pdf_status: pdfStatus }, request)
+  await logAuditEvent(user.id, 'report_generated', {
+    run_id, pdf_status: pdfStatus, format_version: REPORT_FORMAT_VERSION, record_digest: provenance.record_digest,
+  }, request)
   console.error('[reports]', `generation completed run_id=${run_id} in ${Date.now() - reportStart}ms pdf_status=${pdfStatus}`)
 
   return Response.json({

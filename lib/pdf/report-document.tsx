@@ -1,7 +1,7 @@
 import React from 'react'
 import { Document, Page, Text, View, Link, StyleSheet } from '@react-pdf/renderer'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
-import { coverageLines, assessmentHistoryLines, ASSESSMENT_NOTE, type ReportCoverage } from '@/lib/reports/shared'
+import { coverageLines, assessmentHistoryLines, reportReference, ASSESSMENT_NOTE, type ReportCoverage } from '@/lib/reports/shared'
 import type { FsnReportRow } from '@/lib/domain/types'
 import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
@@ -211,7 +211,7 @@ export function ReportDocument({ data }: { data: ReportData }) {
         {profile.emdn_code && <MetaRow label="EMDN Code" value={profile.emdn_code} />}
         <MetaRow label="Review Period" value={`${run.period_from} to ${run.period_to}`} />
         <MetaRow label="Report Date" value={today} />
-        <MetaRow label="Document Reference" value={`PMS-FSN-${new Date().getFullYear()}-${runId.slice(0, 8).toUpperCase()}`} />
+        <MetaRow label="Document Reference" value={reportReference(runId, run)} />
 
         {/* 2. Search Methodology */}
         <Text style={s.h2}>2. Search Methodology</Text>

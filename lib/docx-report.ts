@@ -5,7 +5,7 @@ import {
   ShadingType, TableLayoutType,
 } from 'docx'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
-import { coverageLines, assessmentHistoryLines, ASSESSMENT_NOTE, type ReportCoverage } from '@/lib/reports/shared'
+import { coverageLines, assessmentHistoryLines, reportReference, ASSESSMENT_NOTE, type ReportCoverage } from '@/lib/reports/shared'
 import type { FsnReportRow } from '@/lib/domain/types'
 import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
@@ -172,7 +172,7 @@ export async function buildDocx(rows: FsnReportRow[], meta: ReportMeta): Promise
   if (meta.emdn_code) metaRows.push(metaRow('EMDN Code', meta.emdn_code))
   metaRows.push(metaRow('Review Period', `${meta.period_from} to ${meta.period_to}`))
   metaRows.push(metaRow('Report Date', today))
-  metaRows.push(metaRow('Document Reference', `PMS-FSN-${new Date().getFullYear()}-${meta.runId.slice(0, 8).toUpperCase()}`))
+  metaRows.push(metaRow('Document Reference', reportReference(meta.runId, meta)))
   metaRows.push(metaRow('Databases Searched', sources.join(', ')))
   children.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: metaRows }))
 
