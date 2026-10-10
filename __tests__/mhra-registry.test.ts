@@ -119,3 +119,22 @@ describe('mergeMhraEvidence', () => {
     expect(merged).toHaveLength(2)
   })
 })
+
+describe('scrapeMhraProduction observation completeness', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('marks records degraded when one channel fails, so stored complete records are kept', async () => {
+    mocks.excel.mockRejectedValue(new Error('xlsx unavailable'))
+    mocks.govUk.mockResolvedValue(result([item({ external_id: '/drug-device-alerts/a' })]))
+    const out = await scrapeMhraProduction(params)
+    expect(out.items).toHaveLength(1)
+    expect(out.items[0].observation_degraded).toBe(true)
+  })
+
+  it('does not mark records degraded when both channels succeed', async () => {
+    mocks.excel.mockResolvedValue(result([item()]))
+    mocks.govUk.mockResolvedValue(result([item({ external_id: '/drug-device-alerts/a' })]))
+    const out = await scrapeMhraProduction(params)
+    expect(out.items.every(entry => entry.observation_degraded !== true)).toBe(true)
+  })
+})

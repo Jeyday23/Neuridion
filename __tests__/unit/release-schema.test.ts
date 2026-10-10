@@ -28,8 +28,15 @@ describe('release schema startup gate', () => {
 
   it('passes when both the schema and approval migration are ready', async () => {
     const queryColumns = vi.fn(async () => true)
-    const result = await verifyReleaseSchema({ queryColumns, schemaVersion: async () => 75 })
+    const result = await verifyReleaseSchema({ queryColumns, schemaVersion: async () => 76 })
     expect(result).toEqual({ ok: true, failures: [] })
     expect(queryColumns).toHaveBeenCalledWith('review_requirements', expect.stringContaining('filter_decision_id'))
+    expect(queryColumns).toHaveBeenCalledWith('source_document_versions', expect.stringContaining('sha256'))
+  })
+
+  it('blocks startup on schema 75 because document monitoring columns are required', async () => {
+    const result = await verifyReleaseSchema({ queryColumns: async () => true, schemaVersion: async () => 75 })
+    expect(result.ok).toBe(false)
+    expect(result.failures).toContain('release schema 76 is required')
   })
 })
