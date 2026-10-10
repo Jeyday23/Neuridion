@@ -21,6 +21,7 @@ import type {
 import type { FilterVerdict } from '@/lib/domain/types'
 import type { Database } from '@/types/supabase'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { isActiveReviewer } from '@/lib/review/assignments'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 type AdjudicationEventRow = Database['public']['Tables']['human_adjudication_events']['Row']
@@ -64,12 +65,8 @@ async function reviewerContext(db: AdminClient, runId: string, userId: string) {
   }
   if (!run || run.is_synthetic_canary !== false) return { kind: 'not_found' as const }
 
-  const { data: assignment, error: assignmentError } = await db
-    .from('run_reviewer_assignments')
-    .select('assignment_role')
-    .eq('search_run_id', runId)
-    .eq('reviewer_id', userId)
-    .maybeSingle()
+  // Revoked assignments grant nothing. A lookup failure fails closed.
+  const { data: assignment, error: assignmentError } = await isActiveReviewer(db, runId, userId)
 
   if (assignmentError) {
     console.error('[adjudications] assignment lookup failed:', assignmentError.message)
@@ -77,7 +74,7 @@ async function reviewerContext(db: AdminClient, runId: string, userId: string) {
   }
 
   const isOwner = run.user_id === userId
-  const assignmentRole = (assignment?.assignment_role ?? null) as ReviewerAssignmentRole | null
+  const assignmentRole: ReviewerAssignmentRole | null = assignment?.assignment_role ?? null
   if (!isOwner && !assignmentRole) return { kind: 'not_found' as const }
 
   const permissions: AdjudicationPermissions = {

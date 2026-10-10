@@ -5,9 +5,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { RunResults, type FsnResult } from './run-results'
 import type { SourceResultBreakdown } from '@/app/dashboard/search-context'
 import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { capabilitiesFor, resolveRunViewerAccess } from '@/lib/review/run-access'
+import { describeActiveAssignments, userDisplayNames, type PublicAssignment } from '@/lib/review/assignments'
+import { ReviewersPanel } from './reviewers-panel'
 
 interface SearchRunData {
   id: string
+  user_id: string
   status: string
   created_at: string | null
   started_at: string | null
@@ -20,6 +24,10 @@ interface SearchRunData {
   dbs_searched: string[] | string | null
   error_message: string | null
   review_status: string | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  approved_by: string | null
+  approved_at: string | null
   terms_used: {
     manufacturer_terms: string[]
     device_terms: string[]
@@ -70,10 +78,12 @@ export default async function RunDetailPage({
   const admin = createAdminClient()
 
   const RUN_COLS = `
-    id, status, created_at, started_at, completed_at,
+    id, user_id, status, created_at, started_at, completed_at,
     search_period_from, search_period_to, period_from, period_to,
     total_results,
-    dbs_searched, error_message, review_status, terms_used, profile_snapshot,
+    dbs_searched, error_message, review_status,
+    reviewed_by, reviewed_at, approved_by, approved_at,
+    terms_used, profile_snapshot,
     report_html_path, report_pdf_path, report_excel_path, report_generated_at, timing,
     product_profiles ( device_name, manufacturer )
   `.trim()
@@ -82,15 +92,42 @@ export default async function RunDetailPage({
     .from('search_runs')
     .select(RUN_COLS)
     .eq('id', id)
-    .eq('user_id', user.id)
     .eq('is_synthetic_canary', false)
     .is('deleted_at', null)
-    .single()
+    .maybeSingle()
 
   if (runError) console.error('[archive/[id]]', 'query error:', runError.message, runError.code)
   if (!runData) return notFound()
 
   const run = runData as unknown as SearchRunData
+
+  // Owner sees everything. An active assigned reviewer sees results and the
+  // adjudication UI only. Anyone else gets notFound so existence is not leaked.
+  const access = await resolveRunViewerAccess(admin, run, user.id)
+  if (access.error) throw new Error('Review access could not be verified.')
+  if (access.data.mode === 'none') return notFound()
+  const viewer = access.data
+  const can = capabilitiesFor(viewer)
+
+  const [attributionUsers, reviewerAssignments] = await Promise.all([
+    userDisplayNames(admin, [run.reviewed_by, run.approved_by]),
+    can.manageReviewers
+      ? describeActiveAssignments(admin, run.id)
+      : Promise.resolve({ data: [] as PublicAssignment[], error: null }),
+  ])
+  if (attributionUsers.error) console.error('[archive/[id]]', 'attribution lookup failed:', attributionUsers.error.message)
+  if (reviewerAssignments.error) console.error('[archive/[id]]', 'assignment lookup failed:', reviewerAssignments.error.message)
+  const nameFor = (userId: string | null) => {
+    if (!userId) return null
+    if (userId === user.id) return 'you'
+    return attributionUsers.data.get(userId)?.name ?? 'an account that is no longer available'
+  }
+  const attribution = {
+    reviewedByName: nameFor(run.reviewed_by),
+    reviewedAt: run.reviewed_at,
+    approvedByName: nameFor(run.approved_by),
+    approvedAt: run.approved_at,
+  }
 
   const snapshot = run.profile_snapshot
   const profileRaw = run.product_profiles
@@ -147,11 +184,21 @@ export default async function RunDetailPage({
     <div className="p-8 max-w-5xl mx-auto">
       {/* Back */}
       <Link
-        href="/dashboard/archive"
+        href={viewer.mode === 'owner' ? '/dashboard/archive' : '/dashboard/review'}
         className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800 mb-6"
       >
-        &larr; Back to Archive
+        &larr; {viewer.mode === 'owner' ? 'Back to Archive' : 'Back to Review inbox'}
       </Link>
+
+      {viewer.mode === 'reviewer' && (
+        <div className="mb-6 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900" role="note">
+          <p className="font-medium">You are viewing this run as an assigned reviewer</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-blue-800">
+            Your assignment: {viewer.assignment_role === 'both' ? 'primary and second review' : viewer.assignment_role === 'primary' ? 'primary review' : 'second review'}.
+            You can record dispositions below. Approval, reports and reviewer management stay with the run owner.
+          </p>
+        </div>
+      )}
 
       {/* Header */}
       <div className="mb-6">
@@ -187,14 +234,14 @@ export default async function RunDetailPage({
             {STATUS_LABELS[run.status] ?? run.status}
           </span>
         </div>
-        <div>
+        {can.generateReports && <div>
           <p className="text-xs text-zinc-400 uppercase tracking-wide mb-0.5">Report</p>
           {run.report_generated_at ? (
             <p className="text-green-700 text-xs">✓ {fmtDate(run.report_generated_at)}</p>
           ) : (
             <p className="text-zinc-300 text-xs">Not generated</p>
           )}
-        </div>
+        </div>}
         {termsUsed && (termsUsed.manufacturer_terms.length > 0 || termsUsed.device_terms.length > 0) && (
           <div className="col-span-2 sm:col-span-4">
             <p className="text-xs text-zinc-400 uppercase tracking-wide mb-0.5">Search Terms</p>
@@ -239,6 +286,15 @@ export default async function RunDetailPage({
         </div>
       )}
 
+      {can.manageReviewers && (
+        <ReviewersPanel
+          runId={run.id}
+          reviewStatus={run.review_status ?? 'draft'}
+          initialAssignments={reviewerAssignments.data}
+          loadError={reviewerAssignments.error ? 'Reviewer assignments could not be loaded. Refresh to try again.' : null}
+        />
+      )}
+
       {/* Results list */}
       {results.length > 0 ? (
         <RunResults
@@ -248,6 +304,8 @@ export default async function RunDetailPage({
           reviewStatus={run.review_status ?? 'draft'}
           hasReport={!!run.report_generated_at}
           sourceBreakdown={sourceBreakdown}
+          viewerMode={viewer.mode}
+          attribution={attribution}
         />
       ) : (
         <p className="text-sm text-zinc-400 py-8 text-center">
