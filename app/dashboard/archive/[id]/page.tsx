@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { RunResults, type FsnResult } from './run-results'
 import type { SourceResultBreakdown } from '@/app/dashboard/search-context'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 interface SearchRunData {
   id: string
@@ -97,11 +98,15 @@ export default async function RunDetailPage({
   const profile = snapshot ?? liveProfile
 
   // Fetch FSN results
-  const { data: rawResults } = await admin
+  const { data: rawResults, error: resultsError } = await fetchAllRows((from, to) => admin
     .from('fsn_results')
     .select('id, title, manufacturer, product_name, raw_content, fsn_date, source_url, source_db')
     .eq('run_id', id)
     .order('fsn_date', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to))
+  // A partial list would look complete to the reviewer. Fail to the error page.
+  if (resultsError) throw new Error('Search results could not be loaded completely.')
 
   const results: FsnResult[] = (rawResults ?? []).map((r) => ({
     id:              r.id,

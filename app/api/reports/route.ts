@@ -13,6 +13,7 @@ import type { AdjudicationEvent, AdjudicationFilterDecision } from '@/lib/adjudi
 import { isRunReadyForReview, isRunAdjudicationComplete } from '@/lib/adjudication/readiness'
 import { withTimeout } from '@/lib/utils/timeout'
 import type { FsnReportRow } from '@/lib/domain/types'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export const maxDuration = 120
 const PDF_GENERATION_TIMEOUT_MS = 45_000
@@ -99,11 +100,13 @@ export async function POST(request: Request) {
   }
 
   // Fetch FSN results — use admin client; pipeline tables may lack user-read RLS policies
-  const { data: rawResults, error: resultsError } = await db
+  const { data: rawResults, error: resultsError } = await fetchAllRows((from, to) => db
     .from('fsn_results')
     .select('id, title, manufacturer, product_name, raw_content, fsn_date, source_url, source_db')
     .eq('run_id', run_id)
     .order('fsn_date', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to))
 
   if (resultsError) {
     console.error('[reports]', resultsError.message)
@@ -112,8 +115,8 @@ export async function POST(request: Request) {
 
   // Preserve automated history separately from the final regulatory disposition.
   const [{ data: decisions, error: decisionsError }, { data: events, error: eventsError }] = await Promise.all([
-    db.from('filter_decisions').select('*').eq('search_run_id', run_id).order('decided_at', { ascending: true }).order('id', { ascending: true }),
-    db.from('human_adjudication_events').select('*').eq('search_run_id', run_id).order('created_at', { ascending: true }).order('id', { ascending: true }),
+    fetchAllRows((from, to) => db.from('filter_decisions').select('*').eq('search_run_id', run_id).order('decided_at', { ascending: true }).order('id', { ascending: true }).range(from, to)),
+    fetchAllRows((from, to) => db.from('human_adjudication_events').select('*').eq('search_run_id', run_id).order('created_at', { ascending: true }).order('id', { ascending: true }).range(from, to)),
   ])
   if (decisionsError || eventsError || !decisions || !events) {
     console.error('[reports] Unable to load decision history', decisionsError?.message ?? eventsError?.message)
