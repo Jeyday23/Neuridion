@@ -1,11 +1,11 @@
 import ExcelJS from 'exceljs'
-import { DECISION_LABEL, fmtDate, safeCell } from './shared'
+import { DECISION_LABEL, fmtDate, safeCell, coverageLines, assessmentHistoryLines, ASSESSMENT_NOTE, type ReportCoverage } from './shared'
 import type { FsnReportRow } from '@/lib/domain/types'
 import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
 export async function buildExcel(
   rows: FsnReportRow[],
-  meta: { device: string; manufacturer: string; period_from: string; period_to: string },
+  meta: { device: string; manufacturer: string; period_from: string; period_to: string } & ReportCoverage,
   termsUsed: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null,
 ): Promise<Buffer> {
   const wb = new ExcelJS.Workbook()
@@ -28,6 +28,7 @@ export async function buildExcel(
       { header: 'Source URL',  key: 'source_url',   width: 45 },
       { header: 'Assessment',  key: 'assessment',   width: 26 },
       { header: 'Notes',       key: 'notes',        width: 55 },
+      { header: 'Decision basis', key: 'decision_basis', width: 25 },
       { header: 'Confidence',  key: 'confidence',   width: 14 },
     ]
 
@@ -55,6 +56,7 @@ export async function buildExcel(
         fsn_date:     row.fsn_date ? fmtDate(row.fsn_date) : '—',
         source_url:   safeCell(row.source_url),
         assessment:   d ? DECISION_LABEL[d.decision] : '—',
+        decision_basis: row.decision_origin === 'human' ? 'Final human disposition' : 'Automated assessment',
         notes:        safeCell(d?.rationale),
         confidence:   (d && d.confidence != null) ? `${Math.round(d.confidence * 100)}%` : '—',
       })
@@ -116,7 +118,7 @@ export async function buildExcel(
   const sumWs = wb.addWorksheet('Summary')
   sumWs.columns = [{ width: 30 }, { width: 40 }]
   const addMeta = (label: string, value: string) => {
-    const r = sumWs.addRow([label, value])
+    const r = sumWs.addRow([safeCell(label), safeCell(value)])
     r.getCell(1).font = { bold: true }
   }
   sumWs.addRow(['POST-MARKET SURVEILLANCE', 'Field Safety Notice Review']).font = { bold: true, size: 13 }
@@ -142,6 +144,14 @@ export async function buildExcel(
     addMeta('Source Manufacturer Name', termsUsed.raw_manufacturer || '—')
     addMeta('Source Device Name', termsUsed.raw_device_name || '—')
     addMeta('Term Algorithm Version', termsUsed.term_algorithm_version)
+  }
+
+  addMeta('Assessment provenance', ASSESSMENT_NOTE)
+  for (const line of coverageLines(meta)) addMeta('Coverage', line)
+  const historyWs = wb.addWorksheet('Assessment History')
+  historyWs.columns = [{ width: 120 }]
+  for (const row of rows) {
+    for (const line of assessmentHistoryLines(row)) historyWs.addRow([safeCell(line)])
   }
 
   const buf = await wb.xlsx.writeBuffer()

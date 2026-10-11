@@ -88,7 +88,7 @@ function normalizedOutputHash(decision: DecisionRow): string {
   }))
 }
 
-function legacyRow(decision: DecisionRow, runId: string, forceManualReview = false) {
+function legacyRow(decision: DecisionRow, runId: string, decidedAt: string, forceManualReview = false) {
   const blockedExclusion = forceManualReview && decision.decision === 'excluded'
   return {
     id: randomUUID(),
@@ -101,14 +101,20 @@ function legacyRow(decision: DecisionRow, runId: string, forceManualReview = fal
     confidence: blockedExclusion ? 0 : (decision.confidence ?? 0),
     model_used: decision.model,
     stage: 'stage1',
+    decided_at: decidedAt,
   }
 }
 
 export async function persistDecisionsStage(ctx: PipelineContext): Promise<void> {
   if (ctx.decisions.length === 0) return
   const resultById = new Map(ctx.insertedRows.map((row) => [row.id, row]))
-  const persistedAt = new Date().toISOString()
-  const legacyRows = ctx.decisions.map((decision) => legacyRow(decision, ctx.runId))
+  const persistedAtMs = Date.now()
+  const persistedAt = new Date(persistedAtMs).toISOString()
+  // A bulk insert otherwise gives all events the same database timestamp.
+  // Preserve append order across retries so the last enrichment is unambiguous.
+  const decidedAt = ctx.decisions.map((_, index) =>
+    new Date(persistedAtMs - ctx.decisions.length + 1 + index).toISOString())
+  const legacyRows = ctx.decisions.map((decision, index) => legacyRow(decision, ctx.runId, decidedAt[index]))
   const rows = ctx.decisions.map((decision, index) => {
     const result = resultById.get(decision.fsn_result_id)
     const source = result?.source_db
@@ -149,7 +155,7 @@ export async function persistDecisionsStage(ctx: PipelineContext): Promise<void>
         ? EVIDENCE_ADAPTER_VERSIONS[source as keyof typeof EVIDENCE_ADAPTER_VERSIONS]
         : null
       return {
-        ...legacyRow(decision, ctx.runId, true),
+        ...legacyRow(decision, ctx.runId, decidedAt[index], true),
         id: rows[index].id,
         authority_revision_id: result?.authority_revision_id ?? null,
         evidence_parser_version: result?.authority_revision_id ? parserVersion : null,
@@ -160,20 +166,46 @@ export async function persistDecisionsStage(ctx: PipelineContext): Promise<void>
     if (isMissingEvidenceLinkColumn(decisionsError)) {
       addEvidenceSchemaWarning(ctx.warnings)
       const noProvenanceRows = ctx.decisions.map((decision, index) => ({
-        ...legacyRow(decision, ctx.runId, true), id: rows[index].id,
+        ...legacyRow(decision, ctx.runId, decidedAt[index], true), id: rows[index].id,
       }))
       const legacyRetry = await ctx.db.from('filter_decisions').insert(noProvenanceRows)
       decisionsError = legacyRetry.error
     }
   } else if (isMissingEvidenceLinkColumn(decisionsError)) {
     addEvidenceSchemaWarning(ctx.warnings)
-    console.error('[pipeline] filter_decisions evidence-link columns missing; retrying legacy-compatible insert')
-    const retry = await ctx.db.from('filter_decisions').insert(legacyRows)
+    console.error('[pipeline] filter_decisions evidence-link columns missing; retrying without evidence links')
+    // Preserve accuracy provenance if only the older evidence links are absent.
+    const withoutEvidenceLinks = rows.map(({ authority_revision_id: _revision, evidence_parser_version: _parser, ...row }) => row)
+    const retry = await ctx.db.from('filter_decisions').insert(withoutEvidenceLinks)
     decisionsError = retry.error
+    if (isMissingAccuracyProvenance(decisionsError)) {
+      accuracySchemaReady = false
+      addAccuracySchemaWarning(ctx.warnings)
+      const legacyRetry = await ctx.db.from('filter_decisions').insert(ctx.decisions.map((decision, index) => ({
+        ...legacyRow(decision, ctx.runId, decidedAt[index], true), id: rows[index].id,
+      })))
+      decisionsError = legacyRetry.error
+    }
   }
 
   if (decisionsError) throw new Error(`filter_decisions insert: ${decisionsError.message} (code=${decisionsError.code})`)
   if (!accuracySchemaReady) {
+    // Final counts and downstream behavior must agree with the rows that were
+    // actually persisted by the safe compatibility fallback.
+    ctx.decisions = ctx.decisions.map((decision, index) => {
+      if (decision.decision !== 'excluded') return decision
+      const persisted = legacyRow(decision, ctx.runId, decidedAt[index], true)
+      return {
+        ...decision,
+        decision: 'filter_failed',
+        rationale: persisted.rationale,
+        confidence: 0,
+        decision_method: 'manual_review_required',
+        presentation_rank: null,
+        cache_hit: false,
+        output_sha256: null,
+      }
+    })
     ctx.timing.exclusion_sampling_status = 'paused_missing_migration_073'
     ctx.timing.exclusion_samples_selected = 0
     return

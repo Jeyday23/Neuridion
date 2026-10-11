@@ -1,6 +1,7 @@
 import React from 'react'
 import { Document, Page, Text, View, Link, StyleSheet } from '@react-pdf/renderer'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
+import { coverageLines, assessmentHistoryLines, reportReference, ASSESSMENT_NOTE, type ReportCoverage } from '@/lib/reports/shared'
 import type { FsnReportRow } from '@/lib/domain/types'
 import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
@@ -13,7 +14,7 @@ export interface ReportData {
     device_class: string | null
     emdn_code: string | null
   }
-  run: { period_from: string; period_to: string }
+  run: { period_from: string; period_to: string } & ReportCoverage
   rows: FsnReportRow[]
   runId: string
 }
@@ -210,14 +211,17 @@ export function ReportDocument({ data }: { data: ReportData }) {
         {profile.emdn_code && <MetaRow label="EMDN Code" value={profile.emdn_code} />}
         <MetaRow label="Review Period" value={`${run.period_from} to ${run.period_to}`} />
         <MetaRow label="Report Date" value={today} />
-        <MetaRow label="Document Reference" value={`PMS-FSN-${new Date().getFullYear()}-${runId.slice(0, 8).toUpperCase()}`} />
+        <MetaRow label="Document Reference" value={reportReference(runId, run)} />
 
         {/* 2. Search Methodology */}
         <Text style={s.h2}>2. Search Methodology</Text>
         <MetaRow label="Databases Searched" value={databases} />
         <MetaRow label="Search Date Range" value={`${run.period_from} to ${run.period_to}`} />
-        <MetaRow label="Search Parameters" value="All published FSNs within the specified period were retrieved and assessed for relevance to the device profile above." />
+        <MetaRow label="Search Parameters" value="Records returned by the selected sources were assessed against the device profile. Source coverage and warnings are stated below." />
         <MetaRow label="Assessment Criteria" value="Each notice was evaluated for device type, manufacturer, intended use, and applicable risk." />
+
+        <Text style={s.h2}>Coverage and limitations</Text>
+        {coverageLines(run).map((line, index) => <Text key={index} style={s.conclusion}>{line}</Text>)}
 
         {/* 3. Search Results Summary */}
         <Text style={s.h2}>3. Search Results Summary</Text>
@@ -264,6 +268,9 @@ export function ReportDocument({ data }: { data: ReportData }) {
         <Text style={s.appendixNote}>These items were reviewed and determined not relevant to the device profile. Listed for audit completeness.</Text>
         <ResultsTable items={excluded} bgColor="#f9fafb" isAppendix />
 
+        <Text style={s.h2}>Assessment history</Text>
+        {rows.map(row => <View key={row.id}>{assessmentHistoryLines(row).map((line, index) => <Text key={index} style={s.conclusion}>{line}</Text>)}</View>)}
+
         {/* Conclusion */}
         <Text style={[s.h2, { marginTop: 36 }]}>Conclusion</Text>
         <Text style={s.conclusion}>{conclusionText}</Text>
@@ -285,7 +292,7 @@ export function ReportDocument({ data }: { data: ReportData }) {
 
         {/* AI Disclaimer */}
         <Text style={s.disclaimer}>
-          AI Disclaimer: Relevance assessments in this report were produced by an AI language model (Anthropic Claude) and must be reviewed and approved by a qualified PRRC before inclusion in any Technical File, PMSR, or PSUR. AI outputs do not constitute a regulatory decision.
+          {ASSESSMENT_NOTE}
         </Text>
       </Page>
     </Document>

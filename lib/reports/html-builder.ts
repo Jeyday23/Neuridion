@@ -1,12 +1,12 @@
 import { escHtml } from '@/lib/utils/html'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
-import { DECISION_LABEL, fmtDate, safeHref } from './shared'
+import { DECISION_LABEL, fmtDate, safeHref, coverageLines, assessmentHistoryLines, reportReference, ASSESSMENT_NOTE, type ReportCoverage } from './shared'
 import type { FsnReportRow } from '@/lib/domain/types'
 import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
 export function buildReportHtml(
   profile: { device_name: string; manufacturer: string; device_class: string | null; emdn_code: string | null },
-  run: { period_from: string; period_to: string; status?: string; dbs_searched?: string[] | null },
+  run: { period_from: string; period_to: string } & ReportCoverage,
   rows: FsnReportRow[],
   runId: string,
   termsUsed: { manufacturer_terms: string[]; device_terms: string[]; raw_manufacturer: string; raw_device_name: string; term_algorithm_version: string } | null,
@@ -64,8 +64,8 @@ export function buildReportHtml(
     : ''
   const recordLabel = hasFda ? 'safety record' : 'Field Safety Notice'
   const conclusion = conclusionRelevant === 0 && filterFailed.length === 0
-    ? `Based on the automated screening, no ${recordLabel}s were classified as relevant to this device profile during the search period.${hasFda ? ' FDA MAUDE adverse-event reports were retained and summarized as screening signals; they are not Field Safety Notices, confirmed hazards, or recalls.' : ''} This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.`
-    : `This review identified ${conclusionRelevant + filterFailed.length} ${recordLabel}${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} record${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan. This automated assessment should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.${failedNote}`
+    ? `Within the retrieved records, no ${recordLabel}s were classified as relevant to this device profile during the search period.${hasFda ? ' FDA MAUDE adverse-event reports were retained and summarized as screening signals; they are not Field Safety Notices, confirmed hazards, or recalls.' : ''} This report should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.`
+    : `This review identified ${conclusionRelevant + filterFailed.length} ${recordLabel}${(conclusionRelevant + filterFailed.length) !== 1 ? 's' : ''} requiring attention (${relevant.length} potentially relevant, ${uncertain.length} requiring further review${filterFailed.length > 0 ? `, ${filterFailed.length} AI filter unavailable` : ''}). ${excluded.length > 0 ? `${excluded.length} record${excluded.length !== 1 ? 's were' : ' was'} assessed as not relevant and excluded from further review. ` : ''}Appropriate follow-up actions should be taken in accordance with the applicable post-market surveillance plan. This report should be reviewed and confirmed by the Person Responsible for Regulatory Compliance (PRRC) before being included in post-market surveillance documentation.${failedNote}`
 
   const stdThead = `<thead><tr>
     <th style="width:30%;">Title</th>
@@ -134,7 +134,7 @@ export function buildReportHtml(
     ${profile.emdn_code ? `<tr><td>EMDN Code</td><td>${escHtml(profile.emdn_code)}</td></tr>` : ''}
     <tr><td>Review Period</td><td>${escHtml(run.period_from)} to ${escHtml(run.period_to)}</td></tr>
     <tr><td>Report Date</td><td>${today}</td></tr>
-    <tr><td>Document Reference</td><td>PMS-FSN-${new Date().getFullYear()}-${runId.slice(0, 8).toUpperCase()}</td></tr>
+    <tr><td>Document Reference</td><td>${escHtml(reportReference(runId, run))}</td></tr>
   </table>
 
   <h2>2. Search Methodology</h2>
@@ -145,7 +145,7 @@ export function buildReportHtml(
     <tr><td>Manufacturer Terms</td><td>${termsUsed.manufacturer_terms.map(t => `<code style="background:#dcfce7;padding:1px 5px;border-radius:3px;font-size:9pt;">${escHtml(t)}</code>`).join(' ') || '<em>none</em>'} <span style="color:#888;font-size:8.5pt;">(derived from &ldquo;${escHtml(termsUsed.raw_manufacturer)}&rdquo;)</span></td></tr>
     <tr><td>Device Terms</td><td>${termsUsed.device_terms.map(t => `<code style="background:#dcfce7;padding:1px 5px;border-radius:3px;font-size:9pt;">${escHtml(t)}</code>`).join(' ') || '<em>none</em>'} <span style="color:#888;font-size:8.5pt;">(derived from &ldquo;${escHtml(termsUsed.raw_device_name)}&rdquo;)</span></td></tr>
     <tr><td>Term Derivation</td><td>Legal suffixes, generic words, and tokens &le;4 characters removed. Algorithm v${escHtml(termsUsed.term_algorithm_version)}.</td></tr>
-    ` : `<tr><td>Search Parameters</td><td>All published FSNs within the specified period were retrieved and assessed for relevance to the device profile above.</td></tr>`}
+    ` : `<tr><td>Search Parameters</td><td>Records returned by the selected sources were assessed against the device profile. Source coverage and warnings are stated below.</td></tr>`}
     <tr><td>Assessment Criteria</td><td>Each notice was evaluated for device type, manufacturer, intended use, and applicable risk.</td></tr>
     ${extra?.aiModels && extra.aiModels.length > 0 ? `<tr><td>AI Model</td><td>${extra.aiModels.map(m => escHtml(m)).join(', ')}</td></tr>` : ''}
   </table>
@@ -153,6 +153,9 @@ export function buildReportHtml(
   <div style="border:1px solid #d97706;background:#fffbeb;padding:8px 12px;border-radius:4px;margin-top:4mm;font-size:9pt;color:#92400e;">
     <strong>&#9888; Partial Results:</strong> One or more databases returned incomplete data during this search. Results may not reflect full coverage. Manual verification of affected sources is recommended.
   </div>` : ''}
+
+  <h2>Coverage and limitations</h2>
+  ${coverageLines(run).map(line => `<p>${escHtml(line)}</p>`).join('')}
 
   <h2>3. Search Results Summary</h2>
   <div class="stats-grid">
@@ -235,10 +238,12 @@ export function buildReportHtml(
   </div>
 
   <p style="margin-top:14mm;font-size:7.5pt;color:#666;border-top:1px solid #ddd;padding-top:6px;line-height:1.5;">
-  <strong>AI Disclaimer:</strong> Relevance assessments in this report were produced by an AI language model (Anthropic Claude) and must be reviewed and approved by a qualified PRRC before inclusion in any Technical File, PMSR, or PSUR. AI outputs do not constitute a regulatory decision.
+  <strong>Assessment provenance:</strong> ${escHtml(ASSESSMENT_NOTE)}
   </p>
 
 </div>
+<h2>Assessment history</h2>
+${rows.map(row => assessmentHistoryLines(row).map(line => `<p>${escHtml(line)}</p>`).join('')).join('')}
 </body>
 </html>`
 }

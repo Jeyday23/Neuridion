@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { DownloadButton, GenerateReportButton, CancelRunButton, DeleteRunButton } from './archive-actions'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
@@ -88,10 +88,15 @@ function getDbsLabel(dbs: unknown): string {
 
 export function ArchiveTable({ runs }: { runs: RunRow[] }) {
   const [rows, setRows]                   = useState(runs)
+  const [previousRuns, setPreviousRuns]   = useState(runs)
   const [profileFilter, setProfileFilter] = useState('all')
   const [statusFilter, setStatusFilter]   = useState('all')
 
-  useEffect(() => { setRows(runs) }, [runs])
+  // Reset optimistic edits when refreshed server data arrives, before rendering.
+  if (runs !== previousRuns) {
+    setPreviousRuns(runs)
+    setRows(runs)
+  }
   const [toast, setToast]                 = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   const showToast = (message: string, type: 'success' | 'error') => {

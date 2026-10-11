@@ -1,4 +1,4 @@
-import { scraperResult, type ScrapedFsn, type ScraperResult, type ScraperParams } from './bfarm'
+import { scraperResult, type ScrapedFsn, type ScraperResult, type ScraperParams, type SourceAttachment } from './bfarm'
 import { chunkDateRange, daysBetween } from '@/lib/utils/date-chunks'
 import { sanitizeContent } from './sanitize'
 import { fetchWithRetry } from './fetch-with-retry'
@@ -83,7 +83,13 @@ async function scrapeMhraChunk(fromDate: Date, toDate: Date, signal?: AbortSigna
   }
 
   const enriched = await enrichWithDetails(listings, signal)
-  return scraperResult(enriched, warnings)
+  if (enriched.detailFailures > 0) {
+    warnings.push(
+      `MHRA: detail page fetch failed for ${enriched.detailFailures} notice(s); ` +
+      'their full text and attachments could not be verified and only listing summaries are available.',
+    )
+  }
+  return scraperResult(enriched.items, warnings)
 }
 
 export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> {
@@ -129,13 +135,20 @@ export async function scrapeMhra(params: ScraperParams): Promise<ScraperResult> 
 
 // ─── Detail enrichment ────────────────────────────────────────────────────────
 
-async function enrichWithDetails(items: ScrapedFsn[], signal?: AbortSignal): Promise<ScrapedFsn[]> {
+async function enrichWithDetails(
+  items: ScrapedFsn[],
+  signal?: AbortSignal,
+): Promise<{ items: ScrapedFsn[]; detailFailures: number }> {
   const result: ScrapedFsn[] = []
+  let detailFailures = 0
 
   for (let i = 0; i < items.length; i += DETAIL_CONCURRENCY) {
     const batch   = items.slice(i, i + DETAIL_CONCURRENCY)
     const enriched = await Promise.all(batch.map(item => enrichItem(item, signal)))
-    result.push(...enriched.flat())
+    for (const entry of enriched) {
+      if (entry.detailFailed) detailFailures++
+      result.push(...entry.items)
+    }
 
     if (result.length >= MAX_ITEMS) break
 
@@ -144,21 +157,47 @@ async function enrichWithDetails(items: ScrapedFsn[], signal?: AbortSignal): Pro
     }
   }
 
-  return result
+  return { items: result, detailFailures }
 }
 
-async function enrichItem(item: ScrapedFsn, signal?: AbortSignal): Promise<ScrapedFsn[]> {
+interface EnrichedItem {
+  items: ScrapedFsn[]
+  detailFailed: boolean
+}
+
+/**
+ * A failed detail fetch leaves only the listing summary. That observation is
+ * incomplete: it must not overwrite a stored complete record or count as an
+ * upstream change, and the run must say coverage was not fully verified.
+ */
+export function degradedListingItem(item: ScrapedFsn): EnrichedItem {
+  return { items: [{ ...item, observation_degraded: true }], detailFailed: true }
+}
+
+async function enrichItem(item: ScrapedFsn, signal?: AbortSignal): Promise<EnrichedItem> {
   const linkPath = item.source_url.replace('https://www.gov.uk', '')
-  if (!linkPath.startsWith('/')) return [item]
+  if (!linkPath.startsWith('/')) return degradedListingItem(item)
 
   try {
     const detail = await fetchJson(`${CONTENT_API_BASE}${linkPath}`, signal) as GovUkContentItem | null
-    if (!detail) return [item]
+    if (!detail) return degradedListingItem(item)
+    return { items: buildDetailItems(item, detail, linkPath), detailFailed: false }
+  } catch (err) {
+    if (signal?.aborted) throw err
+    console.error('[mhra]', `Detail fetch failed for ${linkPath}:`, err instanceof Error ? err.message : String(err))
+    return degradedListingItem(item)
+  }
+}
 
+export function buildDetailItems(item: ScrapedFsn, detail: GovUkContentItem, linkPath: string): ScrapedFsn[] {
     const body      = detail.details?.body     ?? ''
     const refNumber = detail.details?.ref_number ?? ''
     const rawIssuedDate = detail.details?.issued_date ?? ''
+    // raw_content keeps the URL list only, exactly as before, so existing
+    // content hashes stay stable. Byte-level change detection runs on the
+    // structured attachment list (lib/sources/document-monitor.ts).
     const attachmentUrls = extractGovUkAttachmentUrls(detail)
+    const attachments = extractGovUkAttachments(detail)
 
     const originalTitle = detail.title ?? item.title
     if (isMhraRoundupPage(originalTitle, linkPath, body, refNumber)) {
@@ -195,11 +234,8 @@ async function enrichItem(item: ScrapedFsn, signal?: AbortSignal): Promise<Scrap
       product_name: item.product_name ?? extractProductName(originalTitle),
       fsn_date:    issuedDate ?? item.fsn_date ?? null,
       raw_content: sanitizeContent(rawParts.join('\n\n')),
+      ...(attachments.length > 0 ? { attachments } : {}),
     }]
-  } catch (err) {
-    console.error('[mhra]', `Detail fetch failed for ${linkPath}:`, err instanceof Error ? err.message : String(err))
-    return [item]
-  }
 }
 
 export function extractManufacturerFromDetail(title: string, bodyHtml: string): string | null {
@@ -217,6 +253,47 @@ export function extractManufacturerFromDetail(title: string, bodyHtml: string): 
   }
 
   return extractManufacturer(title, '') || null
+}
+
+const ALLOWED_ATTACHMENT_HOSTS = new Set(['www.gov.uk', 'assets.publishing.service.gov.uk'])
+
+export function normalizeGovUkAttachmentUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  try {
+    const parsed = new URL(raw, 'https://www.gov.uk')
+    if (parsed.protocol !== 'https:') return null
+    if (!ALLOWED_ATTACHMENT_HOSTS.has(parsed.hostname)) return null
+    parsed.hash = ''
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Structured attachment list with the authority's own metadata. The asset URL
+ * is the fetch target; web_url is only a landing page. Ordering is stable so
+ * the attachment digest does not depend on API ordering.
+ */
+export function extractGovUkAttachments(detail: GovUkContentItem): SourceAttachment[] {
+  const byUrl = new Map<string, SourceAttachment>()
+  for (const attachment of detail.details?.attachments ?? []) {
+    const url = normalizeGovUkAttachmentUrl(attachment.url)
+    if (!url || byUrl.has(url)) continue
+    const declared = typeof attachment.file_size === 'number' && Number.isFinite(attachment.file_size)
+      ? attachment.file_size
+      : null
+    byUrl.set(url, {
+      url,
+      title: attachment.title ?? null,
+      content_type: attachment.content_type ?? null,
+      declared_size: declared,
+      upstream_id: attachment.content_id ?? attachment.id ?? null,
+      upstream_updated_at: detail.public_updated_at ?? detail.updated_at ?? null,
+      status: 'listed',
+    })
+  }
+  return [...byUrl.values()].sort((a, b) => a.url.localeCompare(b.url))
 }
 
 export function extractGovUkAttachmentUrls(detail: GovUkContentItem): string[] {
@@ -505,17 +582,24 @@ interface GovUkSearchItem {
   alert_type?:       string[]
 }
 
-interface GovUkContentItem {
+export interface GovUkContentItem {
   title?:   string
   description?: string
+  public_updated_at?: string
+  updated_at?: string
   details?: {
     body?:         string
     ref_number?:   string
     issued_date?:  string
     alert_type?:   string
     attachments?:  Array<{
-      url?:      string
-      web_url?:  string
+      url?:          string
+      web_url?:      string
+      title?:        string
+      content_type?: string
+      file_size?:    number
+      content_id?:   string
+      id?:           string
     }>
   }
 }

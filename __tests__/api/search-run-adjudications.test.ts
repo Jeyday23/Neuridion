@@ -36,6 +36,7 @@ function query(table: string) {
     is: vi.fn((column: string, value: unknown) => { filters.push([column, value]); return chain }),
     order: vi.fn(() => chain),
     limit: vi.fn(() => chain),
+    range: vi.fn(() => chain),
     insert: vi.fn((value: Record<string, unknown>) => { inserted = value; return chain }),
     maybeSingle: vi.fn(async () => ({ data: rows()[0] ?? null, error: null })),
     single: vi.fn(async () => ({ data: rows()[0] ?? null, error: null })),

@@ -2,25 +2,20 @@
 
 ## Attachment-aware hashing (MHRA)
 
-**Status:** Not started  
-**Priority:** Low  
-**Affects:** `lib/sync/canonical.ts` (`computeContentHash`), `lib/scrapers/mhra.ts`
+**Status:** Implemented in release schema 76 (`feat/mhra-document-monitoring`).
 
-### Problem
+- `lib/scrapers/mhra.ts` lists attachments with GOV.UK metadata (`content_id`, `file_size`, `content_type`, `public_updated_at`). `raw_content` is unchanged, so existing text hashes stay stable.
+- `lib/sources/document-monitor.ts` fetches every listed attachment from authority hosts only, revalidates with ETag / Last-Modified, hashes the body, and appends each new body to `source_document_versions` (append-only).
+- `lib/sync/canonical.ts` tracks `attachment_digest` separately from the text hash. A PDF replaced at the same URL changes the digest, bumps `revision_count` and bypasses the AI decision cache.
+- Degraded observations (detail page failed, one MHRA channel down) never overwrite a complete stored record and never count as a change.
+- Covered date ranges re-verify their attachments on every run, so an old notice whose PDF changes is detected without re-entering the listing window.
+- `lib/sources/input-currency.ts` compares what a run screened (`fsn_results.content_hash`, `attachment_digest`) with the current stored record and reports superseded inputs. Approved runs are never mutated.
 
-`computeContentHash` hashes only visible text fields (`title`, `manufacturer`, `fsn_date`, `raw_content`). MHRA's `enrichItem` strips HTML tags from the GOV.UK Content API body before storing it in `raw_content`, discarding attachment URLs in the process.
-
-If a regulator updates a linked PDF (e.g., revised affected lot list) without changing the visible page text, `content_changed=false` and the AI filter cache is never invalidated. The stale decision remains in effect until `force_refresh`.
-
-Swissmedic is partially covered: PDF URLs are included in `raw_content` (new attachments detected), but a PDF updated at an existing URL is still missed.
-
-### Failure mode
-
-User runs a search → records cached. Regulator updates attached PDF. User runs search again → cache serves old AI decision for MHRA records. User exports a stale report for PMS purposes.
-
-### What's needed
-
-In `lib/scrapers/mhra.ts` `enrichItem`: extract `details.attachments[].url` from the GOV.UK Content API response and append to `raw_content` so attachment URLs participate in the hash.
+Remaining limits:
+- MHRA roundup pages are split into sections; attachments of a roundup page are not attributed to sections.
+- Byte archiving to the private `regulatory-evidence` bucket is off by default (`SOURCE_DOCUMENT_ARCHIVE=true` to enable). Without it, history is sha256 + metadata, not the bytes.
+- A body that reverts to an earlier version is not appended again (unique per record, URL and sha256); the canonical digest still reflects the revert.
+- BfArM and Swissmedic attachments are not yet monitored.
 
 ---
 

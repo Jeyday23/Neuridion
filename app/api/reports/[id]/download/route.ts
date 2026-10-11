@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, getClientIp } from '@/lib/rate-limit'
-import { isReportReleaseAuthorized } from '@/lib/reports/review-gate'
-import { isRunAdjudicationComplete } from '@/lib/adjudication/readiness'
+import { isReportReleaseAuthorized, isCurrentReportArtifact } from '@/lib/reports/review-gate'
+import { isRunAdjudicationComplete, isRunReadyForReview } from '@/lib/adjudication/readiness'
 import { z } from 'zod'
 
 export async function GET(
@@ -40,7 +40,7 @@ export async function GET(
   const { data: run, error: runError } = await adminClient
     .from('search_runs')
     .select(`
-      id, user_id, review_status, reviewed_by, reviewed_at,
+      id, user_id, review_status, reviewed_by, reviewed_at, status, completed_at,
       report_html_path, report_pdf_path, report_excel_path, report_docx_path,
       period_from, period_to,
       product_profiles ( device_name )
@@ -59,7 +59,8 @@ export async function GET(
   if (adjudication.error) {
     return Response.json({ error: adjudication.error }, { status: 503 })
   }
-  if (!isReportReleaseAuthorized(run.review_status, run.reviewed_by, run.reviewed_at)
+  if (!isRunReadyForReview(run)
+    || !isReportReleaseAuthorized(run.review_status, run.reviewed_by, run.reviewed_at)
     || !adjudication.ready) {
     return Response.json(
       { error: 'This search must be reviewed and approved before downloading a report.' },
@@ -108,6 +109,10 @@ export async function GET(
     }
     storagePath = run.report_html_path
     ext = 'html'
+  }
+
+  if (!isCurrentReportArtifact(storagePath)) {
+    return Response.json({ error: 'Regenerate this report to include final human decisions and source coverage.' }, { status: 422 })
   }
 
   const { data: signed, error: signError } = await adminClient.storage

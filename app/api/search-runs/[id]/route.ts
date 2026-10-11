@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { logAuditEvent } from '@/lib/audit'
 import { rateLimit, rateLimitWithIp, getClientIp } from '@/lib/rate-limit'
 import { z } from 'zod'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
 
 export async function GET(
   _request: Request,
@@ -38,10 +39,12 @@ export async function GET(
   }
 
   // Fetch FSN results — use admin client to bypass RLS on internal pipeline tables
-  const { data: results, error: resultsError } = await db.from('fsn_results')
+  const { data: results, error: resultsError } = await fetchAllRows((from, to) => db.from('fsn_results')
     .select('id, title, manufacturer, fsn_date, source_url, source_db')
     .eq('run_id', id)
     .order('fsn_date', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to))
 
   if (resultsError) {
     console.error('[search-runs/get]', resultsError.message)
@@ -57,9 +60,13 @@ export async function GET(
     model:      string | null
   }> = {}
 
-  const { data: decisions, error: decisionsError } = await db.from('filter_decisions')
+  // Ascending order so the latest append-only decision per record wins below.
+  const { data: decisions, error: decisionsError } = await fetchAllRows((from, to) => db.from('filter_decisions')
     .select('fsn_result_id, decision, rationale, confidence, model_used')
     .eq('search_run_id', id)
+    .order('decided_at', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to))
 
   if (decisionsError) {
     console.error('[search-runs/get]', decisionsError.message)

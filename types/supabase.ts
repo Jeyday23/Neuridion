@@ -417,6 +417,10 @@ export type Database = {
       }
       fsn_canonical: {
         Row: {
+          last_observation_degraded: boolean
+          attachment_digest: string | null
+          attachments: Json | null
+          attachments_verified_at: string | null
           content_hash: string
           first_seen_at: string
           fsn_date: string | null
@@ -432,6 +436,10 @@ export type Database = {
           title: string
         }
         Insert: {
+          last_observation_degraded?: boolean
+          attachment_digest?: string | null
+          attachments?: Json | null
+          attachments_verified_at?: string | null
           content_hash: string
           first_seen_at?: string
           fsn_date?: string | null
@@ -447,6 +455,10 @@ export type Database = {
           title: string
         }
         Update: {
+          last_observation_degraded?: boolean
+          attachment_digest?: string | null
+          attachments?: Json | null
+          attachments_verified_at?: string | null
           content_hash?: string
           first_seen_at?: string
           fsn_date?: string | null
@@ -465,6 +477,8 @@ export type Database = {
       }
       fsn_results: {
         Row: {
+          attachment_digest: string | null
+          attachments: Json | null
           authority_revision_id: string | null
           canonical_id: string | null
           content_hash: string | null
@@ -482,6 +496,8 @@ export type Database = {
           title: string
         }
         Insert: {
+          attachment_digest?: string | null
+          attachments?: Json | null
           authority_revision_id?: string | null
           canonical_id?: string | null
           content_hash?: string | null
@@ -499,6 +515,8 @@ export type Database = {
           title: string
         }
         Update: {
+          attachment_digest?: string | null
+          attachments?: Json | null
           authority_revision_id?: string | null
           canonical_id?: string | null
           content_hash?: string | null
@@ -843,6 +861,30 @@ export type Database = {
           },
         ]
       }
+      run_reviewer_assignment_revocations: {
+        Row: {
+          assignment_id: string
+          id: string
+          reason: string | null
+          revoked_at: string
+          revoked_by: string
+        }
+        Insert: {
+          assignment_id: string
+          id?: string
+          reason?: string | null
+          revoked_at?: string
+          revoked_by: string
+        }
+        Update: {
+          assignment_id?: string
+          id?: string
+          reason?: string | null
+          revoked_at?: string
+          revoked_by?: string
+        }
+        Relationships: []
+      }
       run_reviewer_assignments: {
         Row: {
           assigned_at: string
@@ -983,6 +1025,8 @@ export type Database = {
       }
       search_runs: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           canary_execution_id: string | null
           completed_at: string | null
           created_at: string
@@ -1022,6 +1066,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           canary_execution_id?: string | null
           completed_at?: string | null
           created_at?: string
@@ -1061,6 +1107,8 @@ export type Database = {
           user_id: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           canary_execution_id?: string | null
           completed_at?: string | null
           created_at?: string
@@ -1115,6 +1163,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      source_document_versions: {
+        Row: {
+          byte_size: number | null
+          content_type: string | null
+          document_url: string
+          etag: string | null
+          first_retrieved_at: string
+          id: string
+          last_modified: string | null
+          previous_version_id: string | null
+          sha256: string
+          source: string
+          source_record_id: string
+          storage_path: string | null
+          upstream_metadata: Json
+        }
+        Insert: {
+          byte_size?: number | null
+          content_type?: string | null
+          document_url: string
+          etag?: string | null
+          first_retrieved_at?: string
+          id?: string
+          last_modified?: string | null
+          previous_version_id?: string | null
+          sha256: string
+          source: string
+          source_record_id: string
+          storage_path?: string | null
+          upstream_metadata?: Json
+        }
+        Update: {
+          byte_size?: number | null
+          content_type?: string | null
+          document_url?: string
+          etag?: string | null
+          first_retrieved_at?: string
+          id?: string
+          last_modified?: string | null
+          previous_version_id?: string | null
+          sha256?: string
+          source?: string
+          source_record_id?: string
+          storage_path?: string | null
+          upstream_metadata?: Json
+        }
+        Relationships: []
       }
       sync_coverage: {
         Row: {

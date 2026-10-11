@@ -14,25 +14,25 @@ describe('computeRunStatus', () => {
     expect(computeRunStatus(['MHRA: fetch failed at offset 0 — results may be incomplete.'], 150)).toBe('degraded')
   })
 
-  it('returns complete when benign warnings and items = 0', () => {
+  it('distinguishes fallback notes from unavailable source coverage', () => {
     expect(computeRunStatus(['FIRECRAWL_API_KEY not set — BfArM fallback unavailable'], 0)).toBe('complete')
     expect(computeRunStatus(['Firecrawl fallback skipped: no credits (HTTP 402)'], 0)).toBe('complete')
     expect(computeRunStatus(['Firecrawl crawl timed out after 120s'], 0)).toBe('complete')
     expect(computeRunStatus(['BfArM primary scraper threw: Error: connect ETIMEDOUT'], 0)).toBe('complete')
-    expect(computeRunStatus(['BFARM database was unavailable during this search and returned no results.'], 0)).toBe('complete')
-    expect(computeRunStatus(['FDA MAUDE database was unavailable during this search and returned no results.'], 0)).toBe('complete')
-    expect(computeRunStatus(['MHRA database was unavailable during this search and returned no results.'], 0)).toBe('complete')
-    expect(computeRunStatus(['SWISSMEDIC database was unavailable during this search and returned no results.'], 0)).toBe('complete')
-    expect(computeRunStatus(['BfArM: year 2020 is outside the 3-year archive window (2024–2026). Data for this period is unavailable via automated search.'], 0)).toBe('complete')
+    expect(computeRunStatus(['BFARM database was unavailable during this search and returned no results.'], 0)).toBe('error')
+    expect(computeRunStatus(['FDA MAUDE database was unavailable during this search and returned no results.'], 0)).toBe('error')
+    expect(computeRunStatus(['MHRA database was unavailable during this search and returned no results.'], 0)).toBe('error')
+    expect(computeRunStatus(['SWISSMEDIC database was unavailable during this search and returned no results.'], 0)).toBe('error')
+    expect(computeRunStatus(['BfArM: year 2020 is outside the 3-year archive window (2024–2026). Data for this period is unavailable via automated search.'], 0)).toBe('error')
   })
 
-  it('returns complete when multiple benign warnings and items = 0', () => {
+  it('returns error when selected sources are unavailable and items = 0', () => {
     expect(computeRunStatus([
       'FIRECRAWL_API_KEY not set — BfArM fallback unavailable',
       'BFARM database was unavailable during this search and returned no results.',
       'Firecrawl crawl timed out after 120s',
       'MHRA database was unavailable during this search and returned no results.',
-    ], 0)).toBe('complete')
+    ], 0)).toBe('error')
   })
 
   it('returns complete when fallback coverage was internally verified and warnings are provenance only', () => {

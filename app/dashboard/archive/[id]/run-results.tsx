@@ -185,14 +185,134 @@ function ResultRow({
   )
 }
 
-export function RunResults({ results, runId, runStatus, reviewStatus: initialReviewStatus, hasReport: initialHasReport, sourceBreakdown }: {
+export interface ReviewAttribution {
+  reviewedByName: string | null
+  reviewedAt: string | null
+  approvedByName: string | null
+  approvedAt: string | null
+}
+
+const NO_ATTRIBUTION: ReviewAttribution = {
+  reviewedByName: null, reviewedAt: null, approvedByName: null, approvedAt: null,
+}
+
+function fmtDateTime(iso: string | null): string | null {
+  if (!iso) return null
+  const date = new Date(iso)
+  if (!Number.isFinite(date.getTime())) return null
+  // UTC keeps server render and hydration identical and the audit time unambiguous.
+  return `${date.toLocaleString('en-GB', {
+    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC',
+  })} UTC`
+}
+
+/**
+ * The review API returns user-safe text for 403/409/422 (transition rules,
+ * readiness, concurrency, assignment scope). Show it instead of hiding why
+ * the action was refused. Other failures get a generic message.
+ */
+export async function reviewErrorMessage(res: Response): Promise<string> {
+  if (res.status === 429) return 'Too many requests. Wait a moment and try again.'
+  if (res.status === 403 || res.status === 409 || res.status === 422) {
+    const body = await res.json().catch(() => null) as { error?: unknown } | null
+    if (body && typeof body.error === 'string' && body.error.trim()) return body.error
+  }
+  return 'Failed to update review status. Please try again.'
+}
+
+function SelfApprovalDialog({
+  loading,
+  onCancel,
+  onConfirm,
+}: {
+  loading: boolean
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    // The least consequential action gets initial focus.
+    cancelRef.current?.focus()
+  }, [])
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onCancel()
+      return
+    }
+    if (event.key !== 'Tab') return
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])')
+    if (!focusable || focusable.length === 0) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
+  return (
+    <div
+      ref={dialogRef}
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="self-approval-title"
+      aria-describedby="self-approval-description"
+      onKeyDown={handleKeyDown}
+      className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm"
+    >
+      <h2 id="self-approval-title" className="font-medium text-amber-800">Approval acknowledgement</h2>
+      <p id="self-approval-description" className="mt-1 text-amber-700">
+        Approval releases this run for reporting. If you reviewed this run or recorded record-level dispositions on it, the approval is recorded as a self-approval in the audit trail. Confirm that this is permitted by your organisation&apos;s controlled procedure and that every required independent second review is complete.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <button
+          ref={cancelRef}
+          type="button"
+          onClick={onCancel}
+          className="px-3 py-1.5 border border-zinc-300 rounded-lg text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={loading}
+          className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
+        >
+          {loading ? 'Saving...' : 'Confirm Approval'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export function RunResults({
+  results,
+  runId,
+  runStatus,
+  reviewStatus: initialReviewStatus,
+  hasReport: initialHasReport,
+  sourceBreakdown,
+  viewerMode = 'owner',
+  attribution: initialAttribution = NO_ATTRIBUTION,
+}: {
   results: FsnResult[]
   runId: string
   runStatus: string
   reviewStatus: string
   hasReport: boolean
   sourceBreakdown: SourceResultBreakdown[] | null
+  viewerMode?: 'owner' | 'reviewer'
+  attribution?: ReviewAttribution
 }) {
+  const isOwner = viewerMode === 'owner'
   const router = useRouter()
   const toast = useToast()
   const [tab, setTab] = useState<Tab>('review')
@@ -201,11 +321,25 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
   const [reportGenerated, setReportGenerated] = useState(initialHasReport)
   const [generatingReport, setGeneratingReport] = useState(false)
   const reportPendingRef = useRef(false)
-  const [reviewedAt, setReviewedAt] = useState<string | null>(null)
-  const [reviewedBy, setReviewedBy] = useState<string | null>(null)
+  const [attribution, setAttribution] = useState<ReviewAttribution>(initialAttribution)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [selfApproval, setSelfApproval] = useState(false)
   const [confirmingSelfApproval, setConfirmingSelfApproval] = useState(false)
+  const approveButtonRef = useRef<HTMLButtonElement>(null)
+  const restoreApproveFocusRef = useRef(false)
+
+  useEffect(() => {
+    // Return focus to the control that opened the dialog once it closes.
+    if (!confirmingSelfApproval && restoreApproveFocusRef.current) {
+      restoreApproveFocusRef.current = false
+      approveButtonRef.current?.focus()
+    }
+  }, [confirmingSelfApproval])
+
+  function closeApprovalDialog() {
+    restoreApproveFocusRef.current = true
+    setConfirmingSelfApproval(false)
+  }
   const [adjudications, setAdjudications] = useState<AdjudicationsResponse | null>(null)
   const [loadingAdjudications, setLoadingAdjudications] = useState(true)
   const [adjudicationError, setAdjudicationError] = useState<string | null>(null)
@@ -240,6 +374,8 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
   }, [runId])
 
   useEffect(() => {
+    // Synchronize protected review state with the server on mount/run changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadAdjudications()
   }, [loadAdjudications])
 
@@ -248,7 +384,9 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
       setConfirmingSelfApproval(true)
       return
     }
-    setConfirmingSelfApproval(false)
+    // The approval dialog stays open (showing "Saving...") until the request
+    // settles, so focus can return to an enabled control afterwards.
+    if (newStatus !== 'approved') setConfirmingSelfApproval(false)
     setReviewLoading(true)
     setReviewError(null)
     try {
@@ -260,16 +398,18 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
       if (res.ok) {
         const data = await res.json()
         setReviewStatus(data.review_status)
-        setReviewedAt(data.reviewed_at)
-        setReviewedBy(data.reviewed_by ?? null)
+        setAttribution((current) => newStatus === 'approved'
+          ? { ...current, approvedByName: 'you', approvedAt: data.approved_at ?? null }
+          : { ...current, reviewedByName: 'you', reviewedAt: data.reviewed_at ?? null })
         if (data.self_approval) setSelfApproval(true)
       } else {
-        setReviewError('Failed to update review status. Please try again.')
+        setReviewError(await reviewErrorMessage(res))
       }
     } catch {
       setReviewError('Network error. Please check your connection and try again.')
     } finally {
       setReviewLoading(false)
+      if (newStatus === 'approved') setConfirmingSelfApproval(false)
     }
   }
 
@@ -413,11 +553,26 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
             {reviewStatus === 'approved' ? 'Approved' : reviewStatus === 'reviewed' ? 'Reviewed' : 'Draft'}
           </span>
           <span className="text-zinc-600 flex-1">
-            {reviewStatus === 'approved' && `Approved${reviewedAt ? ` on ${new Date(reviewedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}`}
-            {reviewStatus === 'reviewed' && `Reviewed${reviewedAt ? ` on ${new Date(reviewedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}`}
             {reviewStatus === 'draft' && 'This run has not been reviewed yet.'}
+            {reviewStatus !== 'draft' && (
+              <span className="flex flex-col gap-0.5">
+                <span>
+                  Reviewed{attribution.reviewedByName ? ` by ${attribution.reviewedByName}` : ''}
+                  {fmtDateTime(attribution.reviewedAt) ? ` on ${fmtDateTime(attribution.reviewedAt)}` : ''}
+                </span>
+                {reviewStatus === 'approved' && (
+                  <span>
+                    Approved{attribution.approvedByName ? ` by ${attribution.approvedByName}` : ''}
+                    {fmtDateTime(attribution.approvedAt) ? ` on ${fmtDateTime(attribution.approvedAt)}` : ''}
+                  </span>
+                )}
+              </span>
+            )}
           </span>
-          {reviewStatus === 'draft' && (
+          {reviewStatus === 'draft' && !isOwner && !adjudications?.permissions.can_primary_review && (
+            <span className="ml-auto text-xs text-zinc-500">A primary reviewer or the run owner marks the run as reviewed</span>
+          )}
+          {reviewStatus === 'draft' && (isOwner || adjudications?.permissions.can_primary_review) && (
             <button
               onClick={() => handleReview('reviewed')}
               disabled={reviewLoading || reviewStateUnavailable || !approvalReady}
@@ -427,8 +582,12 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
               {reviewLoading ? 'Saving...' : 'Mark as Reviewed'}
             </button>
           )}
-          {reviewStatus === 'reviewed' && !confirmingSelfApproval && (
+          {reviewStatus === 'reviewed' && !isOwner && (
+            <span className="ml-auto text-xs text-zinc-500">Awaiting approval by the run owner</span>
+          )}
+          {reviewStatus === 'reviewed' && isOwner && !confirmingSelfApproval && (
             <button
+              ref={approveButtonRef}
               onClick={() => handleReview('approved')}
               disabled={reviewLoading || reviewStateUnavailable || !approvalReady}
               aria-describedby={!approvalReady ? 'run-review-readiness' : undefined}
@@ -443,28 +602,17 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         </div>
       )}
 
-      {confirmingSelfApproval && (
-        <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm">
-          <p className="font-medium text-amber-800">Self-approval acknowledgement</p>
-          <p className="mt-1 text-amber-700">
-            You are approving a run you reviewed. Confirm that this is permitted by your organisation&apos;s controlled procedure and that every required independent second review has been completed. The self-approval will be recorded in the audit trail.
-          </p>
-          <div className="mt-3 flex gap-2">
-            <button
-              onClick={() => setConfirmingSelfApproval(false)}
-              className="px-3 py-1.5 border border-zinc-300 rounded-lg text-xs font-medium text-zinc-600 hover:bg-zinc-50"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleReview('approved')}
-              disabled={reviewLoading}
-              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50"
-            >
-              {reviewLoading ? 'Saving...' : 'Confirm Approval'}
-            </button>
-          </div>
-        </div>
+      {isOwner && confirmingSelfApproval && (
+        <SelfApprovalDialog
+          loading={reviewLoading}
+          onCancel={closeApprovalDialog}
+          onConfirm={() => {
+            // On failure focus returns to Approve and the role="alert" error is
+            // announced. On success the button is gone and the ref is null.
+            restoreApproveFocusRef.current = true
+            void handleReview('approved')
+          }}
+        />
       )}
 
       {reviewError && (
@@ -510,7 +658,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         </section>
       )}
 
-      {isReportApproved(reviewStatus) && !reportGenerated && (runStatus === 'complete' || runStatus === 'degraded') && (
+      {isOwner && isReportApproved(reviewStatus) && !reportGenerated && (runStatus === 'complete' || runStatus === 'degraded') && (
         <div className="mb-4 rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 flex items-center gap-3 text-sm">
           <span className="text-violet-700 flex-1">
             Results approved — you can now generate your compliance report.
@@ -526,7 +674,7 @@ export function RunResults({ results, runId, runStatus, reviewStatus: initialRev
         </div>
       )}
 
-      {reportGenerated && isReportApproved(reviewStatus) && (
+      {isOwner && reportGenerated && isReportApproved(reviewStatus) && (
         <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-3 text-sm">
           <span className="text-green-700 flex-1">
             Report generated. Download it from the archive.

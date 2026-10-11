@@ -66,6 +66,23 @@ jobs:
           STRIPE_SECRET_KEY: sk_test_placeholder
           ANTHROPIC_API_KEY: placeholder
 
+  migration-tests:
+    name: Database safeguards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Install isolated PostgreSQL test runtime
+        run: npm install --prefix "$RUNNER_TEMP/neuridion-sql-test" --no-save --package-lock=false @electric-sql/pglite@0.3.15
+      - name: Test release integrity and RPC permissions
+        run: |
+          export PGLITE_MODULE="$RUNNER_TEMP/neuridion-sql-test/node_modules/@electric-sql/pglite/dist/index.js"
+          node scripts/test-run-release-integrity.mjs
+          node scripts/test-server-rpc-permissions.mjs
+          node scripts/test-document-monitoring-migration.mjs
+
   audit:
     name: Security Audit
     runs-on: ubuntu-latest

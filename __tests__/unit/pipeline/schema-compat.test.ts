@@ -154,10 +154,61 @@ describe('pipeline evidence schema compatibility', () => {
     })
     expect(insertedPayloads[1][0]).toMatchObject({ decision: 'filter_failed' })
     expect(insertedPayloads[1][0]).not.toHaveProperty('decision_method')
+    expect(ctx.decisions[0]).toMatchObject({
+      decision: 'filter_failed', decision_method: 'manual_review_required', confidence: 0,
+      rationale: insertedPayloads[1][0].rationale,
+    })
+    expect(insertedPayloads[1][0].decided_at).toBe(insertedPayloads[0][0].decided_at)
     expect(ctx.warnings).toContain(ACCURACY_PROVENANCE_SCHEMA_WARNING)
     expect(ctx.timing).toMatchObject({
       exclusion_sampling_status: 'paused_missing_migration_073',
       exclusion_samples_selected: 0,
     })
   })
+  it('persists distinct chronological event times for enrichment history', async () => {
+    const insertedPayloads: Array<Array<Record<string, unknown>>> = []
+    const db = {
+      from: vi.fn(() => ({ insert: vi.fn(async (rows: Array<Record<string, unknown>>) => {
+        insertedPayloads.push(rows)
+        return { error: null }
+      }) })),
+    } as unknown as PipelineContext['db']
+    const ctx = context(db)
+    ctx.decisions = [
+      { fsn_result_id: 'result-1', decision: 'uncertain', rationale: 'Initial', confidence: 0.5, model: 'test' },
+      { fsn_result_id: 'result-1', decision: 'relevant', rationale: 'Enriched', confidence: 0.9, model: 'test' },
+    ]
+    await persistDecisionsStage(ctx)
+    const rows = insertedPayloads[0]
+    expect(rows).toHaveLength(2)
+    expect(Date.parse(rows[1].decided_at as string)).toBeGreaterThan(Date.parse(rows[0].decided_at as string))
+    expect(rows[1].rationale).toBe('Enriched')
+  })
+
+  it('blocks exclusions when evidence links and accuracy provenance are both absent', async () => {
+    const insertedPayloads: Array<Array<Record<string, unknown>>> = []
+    const db = {
+      from: vi.fn(() => ({ insert: vi.fn(async (rows: Array<Record<string, unknown>>) => {
+        insertedPayloads.push(rows)
+        if (insertedPayloads.length === 1) return {
+          error: { code: 'PGRST204', message: "Could not find the 'authority_revision_id' column" },
+        }
+        if (insertedPayloads.length === 2) return {
+          error: { code: 'PGRST204', message: "Could not find the 'decision_method' column" },
+        }
+        return { error: null }
+      }) })),
+    } as unknown as PipelineContext['db']
+    const ctx = context(db)
+    ctx.decisions = [{ fsn_result_id: 'result-1', decision: 'excluded', rationale: 'Outside window', confidence: 1, model: null }]
+    await persistDecisionsStage(ctx)
+    expect(insertedPayloads).toHaveLength(3)
+    expect(insertedPayloads[1][0]).toMatchObject({ decision_method: 'deterministic_scope' })
+    expect(insertedPayloads[2][0]).toMatchObject({ decision: 'filter_failed' })
+    expect(ctx.decisions[0].decision).toBe('filter_failed')
+    expect(ctx.timing.exclusion_sampling_status).toBe('paused_missing_migration_073')
+    expect(ctx.warnings).toContain(EVIDENCE_SCHEMA_WARNING)
+    expect(ctx.warnings).toContain(ACCURACY_PROVENANCE_SCHEMA_WARNING)
+  })
+
 })

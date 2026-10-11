@@ -1,4 +1,4 @@
-import { computeContentHash } from '@/lib/sync/canonical'
+import { attachmentsJson, computeContentHash } from '@/lib/sync/canonical'
 import type { PipelineContext } from '../types'
 import { addEvidenceSchemaWarning, isMissingEvidenceLinkColumn } from '../schema-compat'
 
@@ -23,6 +23,10 @@ export async function insertResultsStage(ctx: PipelineContext): Promise<void> {
     raw_content:  item.raw_content,
     source_db:    item.source_db,
     content_hash: computeContentHash(item),
+    // The document state this run screened. Compared at read time against
+    // fsn_canonical to flag superseded inputs without mutating the run.
+    attachments:       attachmentsJson(item.attachments),
+    attachment_digest: item.attachment_digest ?? null,
     canonical_id: ctx.canonicalIds.get(item.external_id) ?? null,
     authority_revision_id: ctx.authorityRevisionIds?.get(item.external_id) ?? null,
   }))

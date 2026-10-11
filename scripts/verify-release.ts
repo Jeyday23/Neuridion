@@ -15,6 +15,7 @@ const profileArgs = profile === 'full' ? [] : ['--profile', profile]
 
 const steps = [
   ['npm', ['run', 'verify:env', '--', '--mode', 'production', ...profileArgs]],
+  ['npm', ['run', 'verify:schema']],
   ['npm', ['run', 'verify:integrations', '--', '--mode', 'production', ...profileArgs]],
   ['npm', ['run', 'lint']],
   ['npx', ['vitest', 'run']],
