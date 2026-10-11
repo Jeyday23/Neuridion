@@ -39,10 +39,37 @@ export function publicEvent(event: AdjudicationEvent | null): PublicAdjudication
   }
 }
 
-export function latestDecisionByResult(
-  decisions: AdjudicationFilterDecision[],
-): Map<string, AdjudicationFilterDecision> {
-  const latest = new Map<string, AdjudicationFilterDecision>()
+type DecisionOrderFields = Pick<AdjudicationFilterDecision, 'id' | 'fsn_result_id' | 'decided_at'>
+type FinalEventFields = Pick<AdjudicationEvent, 'id' | 'phase' | 'supersedes_event_id' | 'created_at'>
+type SecondReviewFields = Pick<AdjudicationEvent, 'id' | 'phase' | 'review_of_event_id' | 'reviewer_id' | 'created_at'>
+type CompletionFields = Pick<AdjudicationEvent, 'disposition' | 'requires_second_review'>
+
+/** AI outcomes that always require a human disposition, even without an explicit requirement row. */
+const DERIVED_REVIEW_DECISIONS = new Set(['relevant', 'uncertain', 'filter_failed'])
+
+export function decisionRequiresReview(decision: { decision: string } | null | undefined): boolean {
+  return Boolean(decision && DERIVED_REVIEW_DECISIONS.has(decision.decision))
+}
+
+/**
+ * A required record is complete when it has a current (non-superseded) final
+ * human disposition and, if that disposition requires it, an agreeing
+ * independent second review.
+ */
+export function isRecordComplete(
+  finalEvent: CompletionFields | null,
+  secondReview: Pick<AdjudicationEvent, 'disposition'> | null,
+): boolean {
+  return Boolean(finalEvent) && (
+    !finalEvent?.requires_second_review
+    || secondReview?.disposition === finalEvent?.disposition
+  )
+}
+
+export function latestDecisionByResult<T extends DecisionOrderFields>(
+  decisions: T[],
+): Map<string, T> {
+  const latest = new Map<string, T>()
   for (const decision of decisions) {
     const current = latest.get(decision.fsn_result_id)
     if (!current || decision.decided_at > current.decided_at
@@ -53,7 +80,7 @@ export function latestDecisionByResult(
   return latest
 }
 
-export function currentFinalEvent(events: AdjudicationEvent[]): AdjudicationEvent | null {
+export function currentFinalEvent<T extends FinalEventFields>(events: T[]): T | null {
   const superseded = new Set(
     events.flatMap((event) => event.supersedes_event_id ? [event.supersedes_event_id] : []),
   )
@@ -62,10 +89,10 @@ export function currentFinalEvent(events: AdjudicationEvent[]): AdjudicationEven
     .find((event) => event.phase === 'final' && !superseded.has(event.id)) ?? null
 }
 
-export function latestSecondReview(
-  events: AdjudicationEvent[],
-  finalEvent: AdjudicationEvent | null,
-): AdjudicationEvent | null {
+export function latestSecondReview<T extends SecondReviewFields>(
+  events: T[],
+  finalEvent: Pick<AdjudicationEvent, 'id' | 'reviewer_id'> | null,
+): T | null {
   if (!finalEvent) return null
   return [...events]
     .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
@@ -125,7 +152,7 @@ export function buildAdjudicationRecords(input: {
   return input.results.map((result) => {
     const decision = decisionByResult.get(result.id)
     const explicitRequirements = input.requirements.filter((item) => item.fsn_result_id === result.id)
-    const derivedReason = decision && ['relevant', 'uncertain', 'filter_failed'].includes(decision.decision)
+    const derivedReason = decision && decisionRequiresReview(decision)
       ? `ai_${decision.decision}`
       : null
     let reasons = [...new Set([
@@ -144,10 +171,7 @@ export function buildAdjudicationRecords(input: {
     // a neutral reason until the viewer has irrevocably submitted the blind
     // provisional decision.
     if (!aiRevealed && blindRequired) reasons = ['blind_validation']
-    const complete = Boolean(finalEvent) && (
-      !finalEvent?.requires_second_review
-      || secondReview?.disposition === finalEvent?.disposition
-    )
+    const complete = isRecordComplete(finalEvent, secondReview)
 
     const { raw_content: _rawContent, ...publicResult } = result
     void _rawContent

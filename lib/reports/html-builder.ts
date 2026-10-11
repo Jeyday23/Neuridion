@@ -1,6 +1,6 @@
 import { escHtml } from '@/lib/utils/html'
 import { fmtSourceDb } from '@/lib/domain/source-labels'
-import { DECISION_LABEL, fmtDate, safeHref, coverageLines, assessmentHistoryLines, ASSESSMENT_NOTE, type ReportCoverage } from './shared'
+import { DECISION_LABEL, fmtDate, safeHref, coverageLines, assessmentHistoryLines, reportReference, ASSESSMENT_NOTE, type ReportCoverage } from './shared'
 import type { FsnReportRow } from '@/lib/domain/types'
 import { groupFdaSignals } from '@/lib/signals/fda-signal-groups'
 
@@ -134,7 +134,7 @@ export function buildReportHtml(
     ${profile.emdn_code ? `<tr><td>EMDN Code</td><td>${escHtml(profile.emdn_code)}</td></tr>` : ''}
     <tr><td>Review Period</td><td>${escHtml(run.period_from)} to ${escHtml(run.period_to)}</td></tr>
     <tr><td>Report Date</td><td>${today}</td></tr>
-    <tr><td>Document Reference</td><td>PMS-FSN-${new Date().getFullYear()}-${runId.slice(0, 8).toUpperCase()}</td></tr>
+    <tr><td>Document Reference</td><td>${escHtml(reportReference(runId, run))}</td></tr>
   </table>
 
   <h2>2. Search Methodology</h2>

@@ -8,6 +8,7 @@ import { buildExcel } from '@/lib/reports/excel-builder'
 import { buildDocx } from '@/lib/docx-report'
 import { generateReportPdf } from '@/lib/pdfshift'
 import type { AdjudicationEvent, AdjudicationFilterDecision } from '@/lib/adjudication/types'
+import { REPORT_FORMAT_VERSION, documentReference, reportRecordDigest, type ReportProvenance } from '@/lib/reports/provenance'
 
 const result = { id: 'record-1', title: 'Safety notice', manufacturer: 'Maker', fsn_date: '2026-01-02', source_url: 'https://example.test/notice', source_db: 'bfarm' }
 const decision: AdjudicationFilterDecision = {
@@ -55,9 +56,26 @@ describe('effective report decisions', () => {
 
   it('retains final disposition, AI history, failed source, and warnings in every generated format', async () => {
     const rows = buildReportRows([result], [decision], [event])
+    const provenance: ReportProvenance = {
+      format_version: REPORT_FORMAT_VERSION,
+      generated_at: '2026-10-10T12:00:00Z',
+      document_reference: documentReference('run-1abcdefgh', '2025-12-31T23:00:00Z'),
+      reviewed: { id: 'u-rev', name: 'Rita Reviewer', at: '2026-10-09T08:00:00Z' },
+      approved: { id: 'u-own', name: 'Olga Owner', at: '2026-10-09T09:00:00Z' },
+      ai_models: ['model-x'],
+      prompt_versions: ['p1'],
+      ruleset_versions: ['r1'],
+      record_digest: reportRecordDigest(rows),
+      input_currency: {
+        summary: { total: 1, current: 0, changed: 1, record_changed: 0, documents_changed: 1, unknown: 0 },
+        warnings: ['1 of 1 screened source record(s) have a newer stored version'],
+      },
+      cycle: { previous_run_id: 'prev-run', comparable: false, reasons: ['MHRA coverage was failed in this run.'], explanations: ['2 new records.'] },
+    }
     const coverage = {
       status: 'degraded', dbs_searched: ['bfarm', 'mhra'], error_message: 'MHRA retrieval unavailable',
       timing: { source_breakdown: [{ source: 'bfarm', status: 'complete' }, { source: 'mhra', status: 'failed' }] },
+      provenance,
     }
     const profile = { device_name: 'Device', manufacturer: 'Maker', device_class: null, emdn_code: null }
     const run = { period_from: '2026-01-01', period_to: '2026-01-31', ...coverage }
@@ -79,6 +97,13 @@ describe('effective report decisions', () => {
       expect(content).toContain('Run status: degraded')
       expect(content).not.toContain('400%')
       expect(content).not.toContain('All published FSNs')
+      expect(content).toContain('Rita Reviewer')
+      expect(content).toContain('Olga Owner')
+      expect(content).toContain('PMS-FSN-2025-RUN-1ABC')
+      expect(content).toContain(provenance.record_digest)
+      expect(content).toContain('newer stored version')
+      expect(content).toContain('compared with search prev-run')
+      expect(content).toContain('Report format: v3')
     }
   }, 20_000)
 })

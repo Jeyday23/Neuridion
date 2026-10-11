@@ -57,7 +57,18 @@ function mergeDuplicate(primary: ScrapedFsn, secondary: ScrapedFsn): ScrapedFsn 
       ...rawParts,
       sourceUrls.length > 1 ? `MHRA evidence sources:\n${sourceUrls.join('\n')}` : '',
     ].filter(Boolean).join('\n\n'),
+    ...mergeAttachments(primary, secondary),
+    ...(primary.observation_degraded || secondary.observation_degraded ? { observation_degraded: true } : {}),
   }
+}
+
+function mergeAttachments(primary: ScrapedFsn, secondary: ScrapedFsn): Pick<ScrapedFsn, 'attachments'> {
+  const byUrl = new Map<string, NonNullable<ScrapedFsn['attachments']>[number]>()
+  for (const attachment of [...(primary.attachments ?? []), ...(secondary.attachments ?? [])]) {
+    if (!byUrl.has(attachment.url)) byUrl.set(attachment.url, attachment)
+  }
+  if (byUrl.size === 0) return {}
+  return { attachments: [...byUrl.values()].sort((a, b) => a.url.localeCompare(b.url)) }
 }
 
 export function mergeMhraEvidence(groups: ScrapedFsn[][]): ScrapedFsn[] {
@@ -115,7 +126,13 @@ export async function scrapeMhraProduction(params: ScraperParams): Promise<Scrap
     return scraperResult([], warnings, { failed: true })
   }
 
-  const items = mergeMhraEvidence(successful.map(({ result }) => result.items))
+  const merged = mergeMhraEvidence(successful.map(({ result }) => result.items))
+  // With one channel down, each record is a partial view of what a complete
+  // run would store. Mark it so canonical storage keeps the complete version
+  // and does not register a spurious upstream change.
+  const items = successful.length === settled.length
+    ? merged
+    : merged.map(item => ({ ...item, observation_degraded: true }))
   const channelItemCounts = Object.fromEntries(
     successful.map(({ label, result }) => [label, result.items.length]),
   )

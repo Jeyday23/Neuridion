@@ -9,7 +9,7 @@ const mockUser = { id: 'aaaa-bbbb-cccc-dddd', email: 'test@example.com' }
 
 function chainable(terminal: Record<string, unknown> = {}) {
   const builder: Record<string, unknown> = {}
-  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'in', 'is', 'order', 'gte', 'lte']
+  const methods = ['from', 'select', 'insert', 'update', 'delete', 'eq', 'in', 'is', 'order', 'gte', 'lte', 'range']
   for (const m of methods) {
     builder[m] = vi.fn().mockReturnValue(builder)
   }
@@ -136,10 +136,10 @@ describe('GET /api/search-runs/[id]', () => {
 
     // We need the admin from() to return different chains for fsn_results and filter_decisions
     const fsnChain = chainable()
-    ;(fsnChain['order'] as ReturnType<typeof vi.fn>).mockResolvedValue({ data: results, error: null })
+    ;(fsnChain['range'] as ReturnType<typeof vi.fn>).mockResolvedValue({ data: results, error: null })
 
     const decisionChain = chainable()
-    ;(decisionChain['eq'] as ReturnType<typeof vi.fn>).mockResolvedValue({ data: decisions, error: null })
+    ;(decisionChain['range'] as ReturnType<typeof vi.fn>).mockResolvedValue({ data: decisions, error: null })
 
     const adminFromCallCount = 0
     mockAdminChain = chainable() // fallback

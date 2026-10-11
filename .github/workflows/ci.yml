@@ -81,6 +81,7 @@ jobs:
           export PGLITE_MODULE="$RUNNER_TEMP/neuridion-sql-test/node_modules/@electric-sql/pglite/dist/index.js"
           node scripts/test-run-release-integrity.mjs
           node scripts/test-server-rpc-permissions.mjs
+          node scripts/test-document-monitoring-migration.mjs
 
   audit:
     name: Security Audit
