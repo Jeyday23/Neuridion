@@ -85,6 +85,7 @@ jobs:
         run: |
           query=$(cat <<'SQL'
           select
+            public.neuridion_release_schema_version() >= 76 as release_schema_ready,
             to_regclass('public.source_fetches') is not null as source_fetches,
             to_regclass('public.authority_record_revisions') is not null as authority_record_revisions,
             to_regclass('public.ingestion_runs') is not null as ingestion_runs,
@@ -95,6 +96,8 @@ jobs:
             to_regclass('public.review_requirements') is not null as review_requirements,
             to_regclass('public.human_adjudication_events') is not null as human_adjudication_events,
             to_regclass('public.exclusion_review_samples') is not null as exclusion_review_samples,
+            to_regclass('public.source_document_versions') is not null as source_document_versions,
+            to_regclass('public.run_reviewer_assignment_revocations') is not null as assignment_revocations,
             to_regprocedure('public.claim_ingestion_run(uuid,text,text,date,date)') is not null as claim_ingestion_run,
             to_regprocedure('public.is_search_run_adjudication_complete(uuid)') is not null as adjudication_gate,
             exists (
@@ -158,6 +161,7 @@ jobs:
             | jq -e '
                 (if type == "array" then .[0] elif .result then .result[0] else . end) as $r
                 | ($r.source_fetches == true)
+                  and ($r.release_schema_ready == true)
                   and ($r.authority_record_revisions == true)
                   and ($r.ingestion_runs == true)
                   and ($r.shadow_comparisons == true)
@@ -167,6 +171,8 @@ jobs:
                   and ($r.review_requirements == true)
                   and ($r.human_adjudication_events == true)
                   and ($r.exclusion_review_samples == true)
+                  and ($r.source_document_versions == true)
+                  and ($r.assignment_revocations == true)
                   and ($r.claim_ingestion_run == true)
                   and ($r.adjudication_gate == true)
                   and ($r.fsn_results_revision_link == true)

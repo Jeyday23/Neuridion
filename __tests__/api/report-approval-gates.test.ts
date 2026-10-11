@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
+  legacyArtifact: false,
+  status: 'complete',
+  completedAt: '2026-10-08T10:00:00Z' as string | null,
   reviewStatus: 'reviewed' as string | null,
   reviewedBy: 'reviewer-1' as string | null,
   reviewedAt: '2026-06-22T10:00:00.000Z' as string | null,
@@ -18,8 +21,8 @@ function queryResult(table: string) {
     return {
       data: {
         run_id: '22222222-2222-4222-8222-222222222222',
-        pdf_storage_path: 'reports/report.pdf',
-        excel_storage_path: 'reports/report.xlsx',
+        pdf_storage_path: state.legacyArtifact ? 'reports/report.pdf' : 'reports/123_v3_report.pdf',
+        excel_storage_path: 'reports/123_v3_report.xlsx',
       },
       error: null,
     }
@@ -29,13 +32,15 @@ function queryResult(table: string) {
       data: {
         id: '22222222-2222-4222-8222-222222222222',
         user_id: 'user-1',
+        status: state.status,
+        completed_at: state.completedAt,
         review_status: state.reviewStatus,
         reviewed_by: state.reviewedBy,
         reviewed_at: state.reviewedAt,
-        report_pdf_path: 'reports/report.pdf',
-        report_html_path: 'reports/report.html',
-        report_excel_path: 'reports/report.xlsx',
-        report_docx_path: 'reports/report.docx',
+        report_pdf_path: state.legacyArtifact ? 'reports/report.pdf' : 'reports/123_v3_report.pdf',
+        report_html_path: 'reports/123_v3_report.html',
+        report_excel_path: 'reports/123_v3_report.xlsx',
+        report_docx_path: 'reports/123_v3_report.docx',
         period_from: '2026-01-01',
         period_to: '2026-01-31',
         product_profiles: { device_name: 'Test device' },
@@ -93,6 +98,9 @@ const RUN_ID = '22222222-2222-4222-8222-222222222222'
 
 describe('report API approval gates', () => {
   beforeEach(() => {
+    state.legacyArtifact = false
+    state.status = 'complete'
+    state.completedAt = '2026-10-08T10:00:00Z'
     state.reviewStatus = 'reviewed'
     state.reviewedBy = 'reviewer-1'
     state.reviewedAt = '2026-06-22T10:00:00.000Z'
@@ -101,6 +109,35 @@ describe('report API approval gates', () => {
     state.adjudicationError = null
     state.createAdminClient.mockReset()
     state.createAdminClient.mockImplementation(() => createDb())
+  })
+
+  it('requires old artifacts to be regenerated before issuing links', async () => {
+    state.reviewStatus = 'approved'
+    state.legacyArtifact = true
+    for (const handler of [downloadReport, getReportUrls]) {
+      const response = await handler(new Request(`https://example.test/api/reports/${RUN_ID}`), { params: Promise.resolve({ id: RUN_ID }) })
+      expect(response.status).toBe(422)
+    }
+    expect(state.createSignedUrl).not.toHaveBeenCalled()
+  })
+
+  it.each(['pending', 'running', 'error'])('blocks downloads for approved but %s runs', async (status) => {
+    state.reviewStatus = 'approved'
+    state.status = status
+    for (const handler of [downloadReport, getReportUrls]) {
+      const response = await handler(new Request(`https://example.test/api/reports/${RUN_ID}`), { params: Promise.resolve({ id: RUN_ID }) })
+      expect(response.status).toBe(422)
+    }
+    expect(state.createSignedUrl).not.toHaveBeenCalled()
+  })
+
+  it('blocks downloads when completion is not recorded', async () => {
+    state.reviewStatus = 'approved'
+    state.completedAt = null
+    for (const handler of [downloadReport, getReportUrls]) {
+      expect((await handler(new Request(`https://example.test/api/reports/${RUN_ID}`), { params: Promise.resolve({ id: RUN_ID }) })).status).toBe(422)
+    }
+    expect(state.createSignedUrl).not.toHaveBeenCalled()
   })
 
   it('blocks report generation when a run is reviewed but not approved', async () => {
@@ -155,6 +192,7 @@ describe('report API approval gates', () => {
     )
 
     expect(generation.status).toBe(422)
+    expect((await generation.json()).error).toMatch(/approved before record-level human review was required/)
     expect(download.status).toBe(422)
     expect(legacy.status).toBe(422)
     expect(state.createSignedUrl).not.toHaveBeenCalled()

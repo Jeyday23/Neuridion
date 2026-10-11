@@ -33,6 +33,37 @@ export interface ScrapedFsn {
   source_url:   string
   raw_content:  string
   source_db:    string
+  /**
+   * Documents the authority publishes with this record (for example MHRA
+   * PDF attachments). Listed by the adapter, verified by
+   * lib/sources/document-monitor.ts, which fills sha256 and status.
+   */
+  attachments?: SourceAttachment[]
+  /** sha256 over verified attachment bodies; null when not fully verified. */
+  attachment_digest?: string | null
+  /**
+   * True when the adapter could not build a complete observation (for example
+   * the detail page failed and only the listing summary is available). A
+   * degraded observation must never replace a complete stored one.
+   */
+  observation_degraded?: boolean
+}
+
+export type AttachmentStatus = 'listed' | 'retrieved' | 'not_modified' | 'failed' | 'missing' | 'too_large' | 'blocked'
+
+export interface SourceAttachment {
+  url:                  string
+  title?:               string | null
+  content_type?:        string | null
+  /** Size declared by the authority's metadata, not measured. */
+  declared_size?:       number | null
+  /** Authority-side identifier, e.g. GOV.UK attachment content_id. */
+  upstream_id?:         string | null
+  upstream_updated_at?: string | null
+  sha256?:              string | null
+  byte_size?:           number | null
+  retrieved_at?:        string | null
+  status?:              AttachmentStatus
 }
 
 export interface RawSourceArtifact {

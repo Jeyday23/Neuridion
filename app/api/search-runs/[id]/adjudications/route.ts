@@ -20,6 +20,8 @@ import type {
 } from '@/lib/adjudication/types'
 import type { FilterVerdict } from '@/lib/domain/types'
 import type { Database } from '@/types/supabase'
+import { fetchAllRows } from '@/lib/supabase/fetch-all'
+import { isActiveReviewer } from '@/lib/review/assignments'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 type AdjudicationEventRow = Database['public']['Tables']['human_adjudication_events']['Row']
@@ -63,12 +65,8 @@ async function reviewerContext(db: AdminClient, runId: string, userId: string) {
   }
   if (!run || run.is_synthetic_canary !== false) return { kind: 'not_found' as const }
 
-  const { data: assignment, error: assignmentError } = await db
-    .from('run_reviewer_assignments')
-    .select('assignment_role')
-    .eq('search_run_id', runId)
-    .eq('reviewer_id', userId)
-    .maybeSingle()
+  // Revoked assignments grant nothing. A lookup failure fails closed.
+  const { data: assignment, error: assignmentError } = await isActiveReviewer(db, runId, userId)
 
   if (assignmentError) {
     console.error('[adjudications] assignment lookup failed:', assignmentError.message)
@@ -76,7 +74,7 @@ async function reviewerContext(db: AdminClient, runId: string, userId: string) {
   }
 
   const isOwner = run.user_id === userId
-  const assignmentRole = (assignment?.assignment_role ?? null) as ReviewerAssignmentRole | null
+  const assignmentRole: ReviewerAssignmentRole | null = assignment?.assignment_role ?? null
   if (!isOwner && !assignmentRole) return { kind: 'not_found' as const }
 
   const permissions: AdjudicationPermissions = {
@@ -93,22 +91,30 @@ async function reviewerContext(db: AdminClient, runId: string, userId: string) {
 
 async function loadRunEvidence(db: AdminClient, runId: string) {
   const [resultsResponse, decisionsResponse, requirementsResponse, eventsResponse] = await Promise.all([
-    db.from('fsn_results')
+    fetchAllRows((from, to) => db.from('fsn_results')
       .select('id, title, manufacturer, fsn_date, source_url, source_db, raw_content')
       .eq('run_id', runId)
-      .order('fsn_date', { ascending: false }),
-    db.from('filter_decisions')
+      .order('fsn_date', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to)),
+    fetchAllRows((from, to) => db.from('filter_decisions')
       .select('id, fsn_result_id, decision, rationale, confidence, model_used, prompt_version, authority_revision_id, evidence_parser_version, decided_at')
       .eq('search_run_id', runId)
-      .order('decided_at', { ascending: true }),
-    db.from('review_requirements')
+      .order('decided_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)),
+    fetchAllRows((from, to) => db.from('review_requirements')
       .select('id, search_run_id, fsn_result_id, filter_decision_id, requirement_reason, blind_review_required, blind_policy_version, blind_inclusion_probability, source_reference_id, created_by, created_at')
       .eq('search_run_id', runId)
-      .order('created_at', { ascending: true }),
-    db.from('human_adjudication_events')
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)),
+    fetchAllRows((from, to) => db.from('human_adjudication_events')
       .select('*')
       .eq('search_run_id', runId)
-      .order('created_at', { ascending: true }),
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, to)),
   ])
 
   const error = resultsResponse.error

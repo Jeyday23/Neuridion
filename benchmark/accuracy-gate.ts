@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import { accuracyDatasetSchema, accuracyPolicySchema } from './accuracy-gate.schema'
 
 import type {
   AccuracyBenchmarkCase,
@@ -28,6 +29,7 @@ export function computeDatasetSha256(dataset: FrozenAccuracyDataset): string {
 }
 
 export function assertFrozenDataset(dataset: FrozenAccuracyDataset): string {
+  accuracyDatasetSchema.parse(dataset)
   if (dataset.schema_version !== 1) throw new Error(`Unsupported accuracy dataset schema: ${dataset.schema_version}`)
   if (dataset.adjudication.status !== 'prrc_adjudicated') {
     throw new Error('Accuracy release gates require a PRRC-adjudicated dataset')
@@ -45,6 +47,34 @@ export function assertFrozenDataset(dataset: FrozenAccuracyDataset): string {
     throw new Error(`Frozen accuracy dataset hash mismatch: expected ${dataset.expected_sha256}, received ${actual}`)
   }
   return actual
+}
+
+function metricBlockers(metric: RecallMetric, label: string, minimumCases: number, minimumRecall: number, minimumLowerBound: number): string[] {
+  const blockers: string[] = []
+  if (metric.relevant_total < minimumCases) blockers.push(`${label}: fewer than ${minimumCases} relevant cases`)
+  if (metric.recall === null || metric.recall < minimumRecall) blockers.push(`${label}: recall is below ${minimumRecall}`)
+  if (metric.interval_95 === null || metric.interval_95.lower < minimumLowerBound) {
+    blockers.push(`${label}: Wilson 95% recall lower bound is below ${minimumLowerBound}`)
+  }
+  return blockers
+}
+
+function coverageBlockers(cases: AccuracyBenchmarkCase[], surfaced: (item: AccuracyBenchmarkCase) => boolean, options: AccuracyGateOptions, label: string): string[] {
+  const blockers = metricBlockers(recall(cases, surfaced), `${label} overall`, options.minimum_relevant_cases,
+    label === 'deterministic prefilter' ? options.minimum_prefilter_recall : options.minimum_overall_recall,
+    options.minimum_recall_lower_bound)
+  for (const [field, required] of [
+    ['source', options.required_sources],
+    ['device_category', options.required_device_categories],
+  ] as const) {
+    // Check observed strata too: an unlisted weak category must not be hidden by its aggregate.
+    for (const stratum of new Set([...required, ...cases.map((item) => item[field])])) {
+      blockers.push(...metricBlockers(recall(cases.filter((item) => item[field] === stratum), surfaced),
+        `${label} ${field} ${stratum}`, options.minimum_relevant_cases_per_stratum,
+        options.minimum_stratum_recall, options.minimum_recall_lower_bound))
+    }
+  }
+  return blockers
 }
 
 export function wilson95(successes: number, total: number): WilsonInterval | null {
@@ -116,16 +146,13 @@ function validateProviderCoverage(dataset: FrozenAccuracyDataset): Array<{ provi
 
 export function evaluateAccuracyGate(dataset: FrozenAccuracyDataset, options: AccuracyGateOptions): AccuracyGateReport {
   const datasetSha256 = assertFrozenDataset(dataset)
-  for (const [name, value] of Object.entries({
-    minimum_overall_recall: options.minimum_overall_recall,
-    minimum_prefilter_recall: options.minimum_prefilter_recall,
-    maximum_recall_regression: options.maximum_recall_regression,
-  })) {
-    if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error(`${name} must be between 0 and 1`)
-  }
+  accuracyPolicySchema.parse(options)
+  const datasetBlockers = dataset.adjudication.reviewer_count < options.minimum_reviewer_count
+    ? [`dataset has fewer than ${options.minimum_reviewer_count} adjudicating reviewers`] : []
 
   const prefilter = recall(dataset.cases, (item) => item.deterministic_prefilter_surfaced)
-  const prefilterPassed = prefilter.recall !== null && prefilter.recall >= options.minimum_prefilter_recall
+  const prefilterBlockers = coverageBlockers(dataset.cases, (item) => item.deterministic_prefilter_surfaced, options, 'deterministic prefilter')
+  const prefilterPassed = prefilterBlockers.length === 0
   const identities = validateProviderCoverage(dataset)
 
   const providers: ProviderBenchmarkResult[] = identities.map((identity) => {
@@ -138,10 +165,8 @@ export function evaluateAccuracyGate(dataset: FrozenAccuracyDataset, options: Ac
     const meetsRegression = regression === null || regression <= options.maximum_recall_regression
     const configuredForProduction = identity.provider === options.production_provider.provider
       && identity.model === options.production_provider.model
-    const blockers: string[] = []
-    if (!meetsRecall) blockers.push(`overall recall is below ${options.minimum_overall_recall}`)
+    const blockers = [...datasetBlockers, ...coverageBlockers(dataset.cases, surfaced, options, 'provider'), ...prefilterBlockers]
     if (!meetsRegression) blockers.push(`recall regression exceeds ${options.maximum_recall_regression}`)
-    if (!prefilterPassed) blockers.push(`deterministic prefilter recall is below ${options.minimum_prefilter_recall}`)
     if (identity.mode === 'shadow') blockers.push('shadow candidates are evaluation-only')
     if (!configuredForProduction) blockers.push('provider is not the configured production candidate')
 
@@ -161,8 +186,7 @@ export function evaluateAccuracyGate(dataset: FrozenAccuracyDataset, options: Ac
 
   const productionKey = providerKey(options.production_provider.provider, options.production_provider.model)
   const production = providers.find((provider) => providerKey(provider.provider, provider.model) === productionKey)
-  const releaseBlockers: string[] = []
-  if (!prefilterPassed) releaseBlockers.push(`deterministic prefilter recall is below ${options.minimum_prefilter_recall}`)
+  const releaseBlockers: string[] = [...datasetBlockers, ...prefilterBlockers]
   if (!production) releaseBlockers.push(`production provider ${productionKey} is absent from the dataset`)
   else releaseBlockers.push(...production.blockers)
 
@@ -170,6 +194,7 @@ export function evaluateAccuracyGate(dataset: FrozenAccuracyDataset, options: Ac
     dataset_id: dataset.dataset_id,
     dataset_version: dataset.version,
     dataset_sha256: datasetSha256,
+    policy_sha256: createHash('sha256').update(canonicalize(options), 'utf8').digest('hex'),
     deterministic_prefilter: { ...prefilter, target: options.minimum_prefilter_recall, passed: prefilterPassed },
     providers,
     release_allowed: releaseBlockers.length === 0,

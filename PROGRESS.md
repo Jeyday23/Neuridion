@@ -261,7 +261,7 @@ The dashboard at http://127.0.0.1:4747 reads this file every 2 seconds.
 - [x] Tests: 185/185 passing
 
 ## Backlog (Open)
-- [ ] MHRA attachment-aware hashing (content_hash misses PDF updates)
+- [x] MHRA attachment-aware hashing: document monitor, version history, input-currency warnings (schema 76)
 - [ ] FDA MAUDE bulk-download ingestion (bypass 26k record API cap)
 - [ ] Incremental sync — scheduled background job
 - [ ] Incremental sync — CLI for manual backfill

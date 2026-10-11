@@ -4,6 +4,7 @@ import { EVIDENCE_ADAPTER_VERSIONS } from '@/lib/evidence/constants'
 import { getProductionScraper } from '@/lib/scrapers/registry'
 import { fetchBfarmRss, mergeBfarmFreshness } from '@/lib/scrapers/bfarm-rss'
 import { upsertCanonical } from '@/lib/sync/canonical'
+import { verifyDocumentsForSource } from '@/lib/sources/verify-documents'
 import { getCoveredRanges, mergeCoverage } from '@/lib/sync/coverage'
 import type { Json } from '@/types/supabase'
 import { computeFetchWindow } from './coverage'
@@ -98,6 +99,12 @@ export async function ingestSource(input: {
       throw new Error(`Source returned ${items.length} items above ingestion safety cap ${config.maxItemsPerRun}`)
     }
 
+    const documents = await verifyDocumentsForSource(input.source, items)
+    const warnings = [...result.warnings, ...documents.warnings]
+    const outcome = documents.incomplete && (result.outcome === 'complete' || result.outcome === 'empty')
+      ? 'partial'
+      : result.outcome
+
     const canonical = await upsertCanonical(items)
     const authorityIds = new Map(
       items.map((item, index) => [item.external_id, canonical[index].canonical_id]),
@@ -107,22 +114,22 @@ export async function ingestSource(input: {
       requestLocator: `scheduled://${input.source}?from=${effectiveWindow.from}&to=${effectiveWindow.to}`,
       startedAt,
       completedAt: new Date().toISOString(),
-      outcome: result.outcome,
-      warnings: result.warnings,
+      outcome,
+      warnings,
       items,
       rawArtifacts: result.rawArtifacts,
     }, authorityIds)
 
-    if (result.outcome === 'complete' || result.outcome === 'empty') {
+    if (outcome === 'complete' || outcome === 'empty') {
       await mergeCoverage(input.source, effectiveWindow)
     }
 
     const finishedAt = new Date().toISOString()
     const { error: finishError } = await db.from('ingestion_runs').update({
-      status: result.outcome,
+      status: outcome,
       observations: captured.observations,
       new_revisions: captured.revisions,
-      warnings: result.warnings as Json,
+      warnings: warnings as Json,
       finished_at: finishedAt,
       lease_expires_at: finishedAt,
     }).eq('id', input.runId).eq('status', 'running')
@@ -131,7 +138,7 @@ export async function ingestSource(input: {
     return {
       runId: input.runId,
       source: input.source,
-      outcome: result.outcome,
+      outcome,
       observations: captured.observations,
       newRevisions: captured.revisions,
       duplicate: false,

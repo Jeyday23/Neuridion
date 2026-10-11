@@ -2,6 +2,7 @@ import type { ScrapedFsn } from '@/lib/scrapers/bfarm'
 import { getProductionScraper } from '@/lib/scrapers/registry'
 import { getCoveredRanges, computeUncoveredRanges, mergeCoverage } from '@/lib/sync/coverage'
 import { upsertCanonical, getCanonicalItems } from '@/lib/sync/canonical'
+import { verifyDocumentsForSource } from '@/lib/sources/verify-documents'
 import { extractManufacturerTerms, extractDeviceTerms } from '@/lib/search/manufacturer-terms'
 import { matchesKeywordSignature, matchesKeywordTerm } from '@/lib/search/keyword-match'
 import { daysBetween } from '@/lib/utils/date-chunks'
@@ -366,6 +367,22 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
       return true
     })
 
+    // Attached documents are verified for fresh and covered records alike,
+    // so a PDF replaced at the same URL is caught even when the notice text
+    // is served from certified coverage.
+    if (deduped.length > 0) {
+      try {
+        const documents = await verifyDocumentsForSource(sourceId, deduped, { signal })
+        warnings.push(...documents.warnings)
+        if (documents.incomplete) sourceOutcomes.push('documents:partial')
+      } catch (err) {
+        if (signal?.aborted) throw err
+        console.error(`[pipeline] ${sourceId}: document verification failed:`, err instanceof Error ? err.message : String(err))
+        warnings.push(`${sourceId.toUpperCase()}: attached documents could not be verified; document change detection is incomplete.`)
+        sourceOutcomes.push('documents:partial')
+      }
+    }
+
     let canonicalPersisted = deduped.length === 0
     let evidencePersisted = !captureEvidence
     if (deduped.length > 0) {
@@ -378,6 +395,10 @@ export async function scrapeStage(ctx: PipelineContext): Promise<void> {
         canonicalPersisted = true
       } catch (err) {
         console.error(`[pipeline] ${sourceId}: canonical upsert failed:`, err instanceof Error ? err.message : String(err))
+        // Without canonical storage the run cannot detect revisions or link
+        // provenance. Results still screen, but the source is not verified.
+        warnings.push(`${sourceId.toUpperCase()}: canonical record storage failed; revision detection and coverage tracking are incomplete.`)
+        sourceOutcomes.push('canonical:partial')
       }
     }
 
